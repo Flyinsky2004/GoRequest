@@ -24,10 +24,25 @@ type recentProject struct {
 }
 
 // appConfig is the minimal local configuration, kept in the user's config
-// directory so that recent projects and a personal appearance preference never
-// land in a Git-tracked project file.
+// directory so that recent projects, the last active project, the startup
+// restore preference and a personal appearance preference never land in a
+// Git-tracked project file.
+//
+// The three older fields keep their names and meanings, so a config written by
+// a previous build still loads: unknown-to-the-old-build fields are simply
+// absent and take their defaults (see restoreLastEnabled).
 type appConfig struct {
-	Appearance     string          `json:"appearance,omitempty"`
+	Appearance string `json:"appearance,omitempty"`
+	// LastProject is the normalized root of the project that was most recently
+	// opened or activated. It is written only after a successful open or
+	// activation, so a failed open never clobbers the last good value, and it
+	// is cleared or moved when that project is closed, so a restart does not
+	// reopen a project the user explicitly returned from.
+	LastProject string `json:"lastProject,omitempty"`
+	// RestoreLast controls whether startup reopens LastProject. It is stored as
+	// a pointer so an old config without the field means "unset" (default on)
+	// while an explicit false is preserved.
+	RestoreLast    *bool           `json:"restoreLastProject,omitempty"`
 	RecentProjects []recentProject `json:"recentProjects,omitempty"`
 }
 
@@ -109,6 +124,66 @@ func (s *configStore) appearance() string { return s.cfg.Appearance }
 
 func (s *configStore) setAppearance(v string) {
 	s.cfg.Appearance = v
+	_ = s.save()
+}
+
+// lastProject returns the normalized root of the most recently opened or
+// activated project, or "" when none has been recorded.
+func (s *configStore) lastProject() string { return s.cfg.LastProject }
+
+// setLastProject records path as the last active project. It is called only on
+// a successful open or activation, so a failed open leaves the previous value
+// intact. It does not itself touch the recent list.
+func (s *configStore) setLastProject(path string) {
+	if path == "" || s.cfg.LastProject == path {
+		return
+	}
+	s.cfg.LastProject = path
+	_ = s.save()
+}
+
+// clearLastProject forgets the last active project, so the next launch shows
+// the project chooser instead of reopening it. This is what "close project /
+// return to project selection" uses.
+func (s *configStore) clearLastProject() {
+	if s.cfg.LastProject == "" {
+		return
+	}
+	s.cfg.LastProject = ""
+	_ = s.save()
+}
+
+// restoreLastEnabled reports whether startup should reopen the last project.
+// An unset preference (a new install, or an old config without the field)
+// defaults to enabled; an explicit false turns it off.
+func (s *configStore) restoreLastEnabled() bool {
+	return s.cfg.RestoreLast == nil || *s.cfg.RestoreLast
+}
+
+func (s *configStore) setRestoreLast(v bool) {
+	b := v
+	s.cfg.RestoreLast = &b
+	_ = s.save()
+}
+
+// removeRecent drops a recent project entry (used when the user closes a
+// project and it should no longer be offered as a recent, while a stale path
+// can also simply stay and be reported on next click). It keeps the list
+// capped and preserves order.
+func (s *configStore) removeRecent(path string) {
+	if path == "" {
+		return
+	}
+	kept := make([]recentProject, 0, len(s.cfg.RecentProjects))
+	for _, rp := range s.cfg.RecentProjects {
+		if rp.Path != path {
+			kept = append(kept, rp)
+		}
+	}
+	if len(kept) == len(s.cfg.RecentProjects) {
+		return
+	}
+	s.cfg.RecentProjects = kept
 	_ = s.save()
 }
 

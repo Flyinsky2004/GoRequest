@@ -6,10 +6,8 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/ui"
 
 	"gorequest/internal/desktop"
 )
@@ -18,24 +16,16 @@ func main() {
 	project := flag.String("project", "", "path to a project folder containing .gorequest/")
 	flag.Parse()
 
-	if *project == "" {
-		if _, err := os.Stat(".gorequest"); err == nil {
-			*project = "."
-		}
-	}
-
-	app := desktop.New(*project)
+	// The desktop manager owns the startup decision: an explicit -project path
+	// wins, then the recorded last project (when restore is on), otherwise the
+	// small welcome/project-chooser window. The working directory is never
+	// probed implicitly, so a .gorequest folder here cannot override the last
+	// project the user opened.
+	mgr := desktop.NewManager(*project)
 
 	mygo.App.WhenReady(func() {
-		win := mygo.NewWindow(mygo.WindowOptions{
-			Title:     "GoRequest",
-			Width:     1200,
-			Height:    820,
-			MinWidth:  820,
-			MinHeight: 560,
-			Content:   ui.View(app.View),
-		})
-		app.SetWindow(win)
+		mgr.WireApp()
+		mgr.Start()
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)

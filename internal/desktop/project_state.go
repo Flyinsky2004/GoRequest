@@ -60,6 +60,16 @@ func (ps *projectState) activeTab() *Tab {
 	return ps.tabs[ps.active]
 }
 
+// hasDirty reports whether any tab of this project has unsaved edits.
+func (ps *projectState) hasDirty() bool {
+	for _, tab := range ps.tabs {
+		if tab.Dirty {
+			return true
+		}
+	}
+	return false
+}
+
 // openSelection opens the request or document named by a sidebar selection id.
 func (ps *projectState) openSelection(sel string) error {
 	switch {
