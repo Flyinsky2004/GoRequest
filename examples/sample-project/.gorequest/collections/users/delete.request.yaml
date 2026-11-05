@@ -1,0 +1,10 @@
+schemaVersion: 1
+id: users.delete
+name: 删除用户
+protocol: http
+tags: [write, destructive]
+http:
+  method: DELETE
+  url: "{{baseUrl}}/users/5"
+auth: none
+timeout: 10s

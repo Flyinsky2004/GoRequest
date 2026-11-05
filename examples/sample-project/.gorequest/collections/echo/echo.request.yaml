@@ -1,0 +1,36 @@
+schemaVersion: 1
+id: echo.inspect
+name: 请求回显
+protocol: http
+tags: [echo]
+http:
+  method: POST
+  url: "{{baseUrl}}/echo"
+  query:
+    - name: tag
+      value: alpha
+      enabled: true
+    - name: tag
+      value: beta
+      enabled: true
+    - name: search
+      value: "go request"
+      enabled: true
+  headers:
+    - name: Content-Type
+      value: application/json
+      enabled: true
+    - name: X-Demo
+      value: sample
+      enabled: true
+  body:
+    type: json
+    value:
+      message: "你好，GoRequest"
+      nested:
+        ok: true
+        count: 3
+auth: none
+timeout: 10s
+documentation:
+  - docs/README.md

@@ -1,0 +1,20 @@
+schemaVersion: 1
+id: users.create
+name: 新建用户
+protocol: http
+tags: [write]
+http:
+  method: POST
+  url: "{{baseUrl}}/users"
+  headers:
+    - name: Content-Type
+      value: application/json
+      enabled: true
+  body:
+    type: json
+    value:
+      name: "张三"
+      email: "zhangsan@example.com"
+      role: member
+auth: none
+timeout: 10s

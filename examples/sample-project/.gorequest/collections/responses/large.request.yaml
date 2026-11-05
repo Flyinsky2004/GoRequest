@@ -1,0 +1,14 @@
+schemaVersion: 1
+id: responses.large
+name: 大响应（1 MiB）
+protocol: http
+tags: [large]
+http:
+  method: GET
+  url: "{{baseUrl}}/large"
+  query:
+    - name: size
+      value: "1048576"
+      enabled: true
+auth: none
+timeout: 30s

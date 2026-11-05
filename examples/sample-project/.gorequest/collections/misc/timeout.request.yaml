@@ -1,0 +1,14 @@
+schemaVersion: 1
+id: misc.timeout
+name: 超时演示
+protocol: http
+tags: [timing, error]
+http:
+  method: GET
+  url: "{{baseUrl}}/delay"
+  query:
+    - name: ms
+      value: "3000"
+      enabled: true
+auth: none
+timeout: 500ms

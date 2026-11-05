@@ -1,0 +1,14 @@
+schemaVersion: 1
+id: misc.delay
+name: 延迟响应
+protocol: http
+tags: [timing]
+http:
+  method: GET
+  url: "{{baseUrl}}/delay"
+  query:
+    - name: ms
+      value: "300"
+      enabled: true
+auth: none
+timeout: 2s

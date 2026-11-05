@@ -1,0 +1,10 @@
+schemaVersion: 1
+id: misc.status
+name: 错误状态
+protocol: http
+tags: [error]
+http:
+  method: GET
+  url: "{{baseUrl}}/status/404"
+auth: none
+timeout: 10s

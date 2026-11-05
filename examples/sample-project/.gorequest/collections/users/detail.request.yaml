@@ -1,0 +1,9 @@
+schemaVersion: 1
+id: users.detail
+name: 用户详情
+protocol: http
+http:
+  method: GET
+  url: "{{baseUrl}}/users/1"
+auth: none
+timeout: 10s

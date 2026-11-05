@@ -1,0 +1,17 @@
+schemaVersion: 1
+id: misc.redirect
+name: 重定向
+protocol: http
+tags: [redirect]
+http:
+  method: GET
+  url: "{{baseUrl}}/redirect"
+  query:
+    - name: to
+      value: /users
+      enabled: true
+    - name: status
+      value: "302"
+      enabled: true
+auth: none
+timeout: 10s

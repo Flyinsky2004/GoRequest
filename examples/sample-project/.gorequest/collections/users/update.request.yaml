@@ -1,0 +1,20 @@
+schemaVersion: 1
+id: users.update
+name: 更新用户
+protocol: http
+tags: [write]
+http:
+  method: PUT
+  url: "{{baseUrl}}/users/1"
+  headers:
+    - name: Content-Type
+      value: application/json
+      enabled: true
+  body:
+    type: json
+    value:
+      name: "Alice Chen"
+      email: "alice@example.com"
+      role: admin
+auth: none
+timeout: 10s

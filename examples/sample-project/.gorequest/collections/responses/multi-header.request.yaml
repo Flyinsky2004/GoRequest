@@ -1,0 +1,10 @@
+schemaVersion: 1
+id: responses.multiheader
+name: 重复响应头与 Cookie
+protocol: http
+tags: [headers]
+http:
+  method: GET
+  url: "{{baseUrl}}/response/multi"
+auth: none
+timeout: 10s

@@ -1,0 +1,16 @@
+schemaVersion: 1
+id: responses.json
+name: JSON 格式
+protocol: http
+tags: [format]
+http:
+  method: GET
+  url: "{{baseUrl}}/format/json"
+  headers:
+    - name: Accept
+      value: application/json
+      enabled: true
+auth: none
+timeout: 10s
+documentation:
+  - docs/README.md

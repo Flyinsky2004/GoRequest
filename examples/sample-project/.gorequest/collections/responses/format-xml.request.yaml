@@ -1,0 +1,14 @@
+schemaVersion: 1
+id: responses.xml
+name: XML 格式
+protocol: http
+tags: [format]
+http:
+  method: GET
+  url: "{{baseUrl}}/format/xml"
+  headers:
+    - name: Accept
+      value: application/xml
+      enabled: true
+auth: none
+timeout: 10s

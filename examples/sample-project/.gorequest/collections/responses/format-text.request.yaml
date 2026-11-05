@@ -1,0 +1,14 @@
+schemaVersion: 1
+id: responses.text
+name: 文本格式
+protocol: http
+tags: [format]
+http:
+  method: GET
+  url: "{{baseUrl}}/format/text"
+  headers:
+    - name: Accept
+      value: text/plain
+      enabled: true
+auth: none
+timeout: 10s
