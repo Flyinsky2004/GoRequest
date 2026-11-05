@@ -6,27 +6,19 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 )
 
-// workspace draws the right side: the current project/environment bar and
-// either a welcome empty state or the open tabs with their editor and response.
+// workspace draws the right side: the project/environment bar and the open tabs
+// with their editor and response. A project window always has a loaded project.
 func (a *App) workspace(c *ui.Context, t *ui.Theme) {
-	ps := a.current
+	ps := a.ps
 	ui.Column(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
 		if ps == nil {
-			a.welcome(c, t)
+			ui.Column(c).Grow(1).Center().Children(func() {
+				ui.Text(c, "No project loaded.").TextColor(t.TextMuted)
+			})
 			return
 		}
 		a.workspaceHeader(c, t, ps)
 		a.tabsAndEditor(c, t, ps)
-	})
-}
-
-func (a *App) welcome(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Grow(1).FillWidth().FillHeight().Center().Gap(10).Children(func() {
-		ui.Text(c, "Open a project").FontSize(20).Bold()
-		ui.Text(c, "Choose a folder that contains a .gorequest/ directory to start.").TextColor(t.TextMuted)
-		if ui.PrimaryButton(c, "Open Project…").Clicked() {
-			a.pickProject()
-		}
 	})
 }
 
@@ -75,6 +67,9 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 			if ui.PrimaryButton(c, "Save").Clicked() {
 				a.saveActive()
 			}
+		}
+		if ui.Button(c, "Close Project").Tooltip("Close this project window (asks to save unsaved changes)").Clicked() {
+			a.closeWindow()
 		}
 	})
 }

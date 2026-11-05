@@ -9,29 +9,56 @@ import (
 
 const appVersion = "0.1.0 (MVP)"
 
-// settingsModal shows the native settings sheet over the workspace while
-// a.showSettings is true. It only exposes configuration that actually works
-// (appearance) plus real application information, and closes back to the work
-// area without touching any open tabs or edits.
-func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
-	if !a.showSettings {
+// applyAppearance applies the stored appearance preference for the frame. When
+// the preference is System (or unset) the frame keeps the system theme.
+func applyAppearance(c *ui.Context, cfg *configStore) {
+	switch cfg.appearance() {
+	case "Light":
+		c.SetTheme(ui.LightTheme())
+	case "Dark":
+		c.SetTheme(ui.DarkTheme())
+	}
+}
+
+// renderSettings shows the native settings sheet over any window (welcome or
+// project) while *open is true. It exposes configuration that actually works —
+// appearance and the startup restore preference — plus real application info.
+func renderSettings(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setStatus func(string)) {
+	if !*open {
 		return
 	}
-	ui.Modal(c, &a.showSettings, func() {
-		a.settingsBody(c, t)
+	ui.Modal(c, open, func() {
+		settingsBody(c, t, cfg, open, setStatus)
 	})
 }
 
-func (a *App) settingsBody(c *ui.Context, t *ui.Theme) {
+func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setStatus func(string)) {
 	ui.Column(c).Gap(14).MinWidth(380).Children(func() {
 		ui.Text(c, "Settings").FontSize(18).Bold()
 
 		ui.Column(c).Gap(4).Children(func() {
 			ui.Text(c, "Appearance").FontSize(12).Bold().TextColor(t.TextMuted)
-			choice := a.appearanceLabel()
+			choice := appearanceLabel(cfg)
 			if ui.Select(c, &choice, []string{"System", "Light", "Dark"}).Width(180).Changed() {
-				a.cfg.setAppearance(choice)
-				a.status = "appearance: " + choice
+				cfg.setAppearance(choice)
+				if setStatus != nil {
+					setStatus("appearance: " + choice)
+				}
+			}
+		})
+
+		ui.Column(c).Gap(4).Children(func() {
+			ui.Text(c, "Startup").FontSize(12).Bold().TextColor(t.TextMuted)
+			restore := cfg.restoreLastEnabled()
+			if ui.Checkbox(c, &restore, "Restore last opened project on startup").Changed() {
+				cfg.setRestoreLast(restore)
+				if setStatus != nil {
+					if restore {
+						setStatus("startup: restore last project on")
+					} else {
+						setStatus("startup: always show project chooser")
+					}
+				}
 			}
 		})
 
@@ -47,8 +74,8 @@ func (a *App) settingsBody(c *ui.Context, t *ui.Theme) {
 			infoRow("Version", appVersion)
 			infoRow("Platform", runtime.GOOS+"/"+runtime.GOARCH)
 			infoRow("Go", runtime.Version())
-			infoRow("Config file", a.configLocation())
-			infoRow("Recent projects", fmt.Sprintf("%d", len(a.cfg.recent())))
+			infoRow("Config file", configLocation(cfg))
+			infoRow("Recent projects", fmt.Sprintf("%d", len(cfg.recent())))
 		})
 
 		ui.Text(c, "Secret values come from environment variables named GOREQUEST_SECRET_<NAME>; project files keep only {{secret.name}} references.").
@@ -56,15 +83,15 @@ func (a *App) settingsBody(c *ui.Context, t *ui.Theme) {
 
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 			if ui.PrimaryButton(c, "Done").Clicked() {
-				a.showSettings = false
+				*open = false
 			}
 		})
 	})
 }
 
 // appearanceLabel maps the stored preference to what the Select shows.
-func (a *App) appearanceLabel() string {
-	switch a.cfg.appearance() {
+func appearanceLabel(cfg *configStore) string {
+	switch cfg.appearance() {
 	case "Light":
 		return "Light"
 	case "Dark":
@@ -75,10 +102,10 @@ func (a *App) appearanceLabel() string {
 }
 
 // configLocation returns the config path shown in settings, or a note when the
-// platform provides no config directory.
-func (a *App) configLocation() string {
-	if a.cfg.path == "" {
+// platform provides none.
+func configLocation(cfg *configStore) string {
+	if cfg.path == "" {
 		return "in-memory (no config directory)"
 	}
-	return displayPath(a.cfg.path)
+	return displayPath(cfg.path)
 }

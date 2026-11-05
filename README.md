@@ -12,6 +12,8 @@ go build -o bin/gorequest-desktop ./cmd/gorequest-desktop
 ./bin/gorequest-desktop -project examples/sample-project
 ```
 
+**启动行为（IDE 式）**：显式 `-project` 路径优先；否则在开启“启动恢复上次项目”时直接打开最后活动的项目；没有可恢复目标或恢复失败才显示轻量的项目选择窗口（约 720×480）。每个项目在自己的工作窗口中打开（默认 1200×820），重复打开同一规范化路径会聚焦已有窗口而非新建编辑状态。
+
 ## 已确定的方向
 
 - 产品名称固定为 **GoRequest**，以 **MyGo 原生桌面应用**交付，不提供独立产品 CLI。

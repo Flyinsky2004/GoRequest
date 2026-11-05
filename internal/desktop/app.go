@@ -11,7 +11,6 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"gorequest/internal/core"
-	"gorequest/internal/platform"
 )
 
 var (
@@ -20,45 +19,54 @@ var (
 	authModes = []string{"none", "bearer", "basic"}
 )
 
-// App is the whole desktop state. Projects are kept side by side, each with its
-// own tabs and edits, so switching between them never discards work.
+// closeGuard holds the save/discard/cancel prompt shown when a project window
+// or the whole application is closing with unsaved edits.
+type closeGuard struct {
+	active bool
+	quit   bool // true when this guard is part of an application quit
+	errMsg string
+}
+
+// App is one project work window: it owns exactly one projectState (tabs,
+// unsaved edits, selection, environment) and one native window. Multiple
+// projects are separate App instances managed by Manager, so switching or
+// closing one never discards another's edits, and a background request result
+// is posted to the window that started it.
 type App struct {
-	win     *mygo.Window
-	secrets core.SecretProvider
-	cfg     *configStore
+	mgr      *Manager
+	win      window
+	ps       *projectState
+	navWidth float32
 
-	projects   []*projectState
-	current    *projectState
-	projectSel string // sidebar selection id of the recent-project list
-	navWidth   float32
-	status     string
-
+	status       string
 	showSettings bool
+	closeGuard   *closeGuard
+
+	// closed and bypassGuard keep close handling honest: closed means the
+	// window is gone (no more UI updates), bypassGuard lets the second Close
+	// after a resolved guard actually destroy the window.
+	closed      bool
+	bypassGuard bool
 }
 
-// New creates the app, optionally opening a project path immediately.
-func New(projectPath string) *App {
-	a := &App{
-		secrets:  platform.NewEnvSecrets(),
-		cfg:      newConfigStore(configFilePath()),
-		navWidth: 260,
-	}
-	if projectPath != "" {
-		_ = a.openProject(projectPath)
-	}
-	return a
+// wire connects the project window's lifecycle to the manager and the close
+// guard.
+func (a *App) wire() {
+	a.win.OnClose(func(e *mygo.CloseEvent) {
+		if a.bypassGuard || a.mgr.quitting {
+			return
+		}
+		if a.ps.hasDirty() {
+			e.PreventDefault()
+			a.openCloseGuard(false)
+		}
+	})
+	a.win.OnClosed(func() { a.mgr.onWorkspaceClosed(a) })
 }
 
-// SetWindow records the window so background requests and native dialogs can
-// post updates.
-func (a *App) SetWindow(w *mygo.Window) { a.win = w }
-
-// OpenPath loads a project, reporting failures in the status bar.
-func (a *App) OpenPath(path string) { _ = a.openProject(path) }
-
-// View builds one frame.
+// View builds one frame of the project window.
 func (a *App) View(c *ui.Context) {
-	a.applyAppearance(c)
+	applyAppearance(c, a.mgr.cfg)
 	t := c.Theme()
 	ui.Column(c).Fill().Children(func() {
 		ui.Split(c, &a.navWidth, func() { a.nav(c, t) }, func() { a.workspace(c, t) }).Grow(1).FillWidth()
@@ -70,123 +78,35 @@ func (a *App) View(c *ui.Context) {
 	})
 	a.envEditorModal(c, t)
 	a.settingsModal(c, t)
+	a.closeGuardModal(c, t)
 }
 
-// applyAppearance applies the stored appearance preference for the frame. When
-// the preference is System (or unset) the frame keeps the system theme.
-func (a *App) applyAppearance(c *ui.Context) {
-	switch a.cfg.appearance() {
-	case "Light":
-		c.SetTheme(ui.LightTheme())
-	case "Dark":
-		c.SetTheme(ui.DarkTheme())
-	}
+func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
+	renderSettings(c, t, a.mgr.cfg, &a.showSettings, func(s string) { a.status = s })
 }
 
-// openProject loads a project or, when it is already open, just switches to it.
-// A failed open leaves the current project, its edits and the recent list
-// untouched.
-func (a *App) openProject(path string) error {
-	root, err := normalizeProjectPath(path)
-	if err != nil {
-		a.status = "open failed: " + err.Error()
-		return err
-	}
-	if ps := a.findProject(root); ps != nil {
-		a.activate(ps)
-		a.status = "switched to " + ps.name()
-		return nil
-	}
-	p, err := core.OpenProject(root)
-	if err != nil {
-		a.status = "open failed: " + err.Error()
-		return err
-	}
-	ps := newProjectState(root, p)
-	a.projects = append(a.projects, ps)
-	a.activate(ps)
-	a.cfg.addRecent(root, ps.name())
-	if n := core.ErrorCount(p.Issues); n > 0 {
-		a.status = fmt.Sprintf("opened %s with %d validation error(s)", ps.name(), n)
-	} else {
-		a.status = fmt.Sprintf("opened %s (%d requests)", ps.name(), len(p.Requests))
-	}
-	return nil
-}
+// --- actions -------------------------------------------------------------
 
-func (a *App) findProject(root string) *projectState {
-	for _, ps := range a.projects {
-		if ps.root == root {
-			return ps
-		}
-	}
-	return nil
-}
+// openProjectPicker opens the native chooser from this workspace.
+func (a *App) openProjectPicker() { a.mgr.pickProject(a.win) }
 
-func (a *App) activate(ps *projectState) {
-	a.current = ps
-	a.projectSel = "project:" + ps.root
-	a.cfg.setRecentName(ps.root, ps.name())
-}
+// switchProject brings the project chooser forward so the user can change
+// projects without quitting.
+func (a *App) switchProject() { a.mgr.showWelcome("") }
 
-// chooseProject handles a click in the recent-project list. When an unloaded
-// project fails to open, the list selection returns to the current project so
-// the highlight stays truthful.
-func (a *App) chooseProject() {
-	id := a.projectSel
-	if len(id) < len("project:") || id[:len("project:")] != "project:" {
-		return
-	}
-	root := id[len("project:"):]
-	if ps := a.findProject(root); ps != nil {
-		a.activate(ps)
-		a.status = "switched to " + ps.name()
-		return
-	}
-	if err := a.openProject(root); err != nil {
-		if a.current != nil {
-			a.projectSel = "project:" + a.current.root
-		} else {
-			a.projectSel = ""
-		}
+// closeWindow closes this project window through the normal close path, so the
+// dirty guard runs first; if it is the last project the manager returns to the
+// chooser.
+func (a *App) closeWindow() {
+	if a.win != nil && !a.win.IsDestroyed() {
+		a.win.Close()
 	}
 }
 
-// pickProject opens the platform's native directory chooser on a background
-// goroutine, then loads the chosen folder. Cancelling changes nothing.
-func (a *App) pickProject() {
-	win := a.win
-	if win == nil {
-		a.status = "open failed: window not ready"
-		return
-	}
-	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Parent:      win,
-			Title:       "Open GoRequest Project",
-			ButtonLabel: "Open",
-			Message:     "Choose a folder that contains a .gorequest/ directory.",
-			Directory:   true,
-		})
-		if err != nil {
-			win.Update(func() { a.status = "open failed: " + err.Error() })
-			return
-		}
-		if len(paths) == 0 {
-			return
-		}
-		win.Update(func() { _ = a.openProject(paths[0]) })
-	}()
-}
-
-// saveActive saves the active tab of the current project, reporting conflicts
-// rather than overwriting external edits.
+// saveActive saves the active tab of this project, reporting conflicts rather
+// than overwriting external edits.
 func (a *App) saveActive() {
-	ps := a.current
-	if ps == nil {
-		return
-	}
-	tab := ps.activeTab()
+	tab := a.ps.activeTab()
 	if tab == nil {
 		return
 	}
@@ -194,7 +114,7 @@ func (a *App) saveActive() {
 	if tab.Kind == "request" {
 		rel = tab.Entry.RelPath
 	}
-	if err := ps.saveTab(tab); err != nil {
+	if err := a.ps.saveTab(tab); err != nil {
 		if core.IsConflict(err) {
 			a.status = "conflict: " + rel + " changed on disk; reopen to merge before saving"
 		} else {
@@ -205,32 +125,47 @@ func (a *App) saveActive() {
 	a.status = "saved " + rel
 }
 
-// send executes the tab's request. The goroutine captures the tab pointer (and
-// thus its owning project), so the result always lands in the project that
-// started the request even after the user switches projects.
-func (a *App) send(tab *Tab) {
-	ps := tab.Owner
-	if ps == nil {
-		a.status = "request: no project"
-		return
+// saveAllDirty saves every dirty tab of this project; the first failure stops
+// the sequence so a close cannot proceed past a failed or conflicting save.
+func (a *App) saveAllDirty() error {
+	for _, tab := range a.ps.tabs {
+		if !tab.Dirty {
+			continue
+		}
+		if err := a.ps.saveTab(tab); err != nil {
+			return fmt.Errorf("%s: %w", tab.Title, err)
+		}
 	}
+	return nil
+}
+
+func (a *App) clearDirty() {
+	for _, tab := range a.ps.tabs {
+		tab.Dirty = false
+	}
+}
+
+// send executes the tab's request on a background goroutine. The result is
+// posted through THIS window's Update, and is dropped if the window was closed
+// meanwhile, so a result can never land in another project's window.
+func (a *App) send(tab *Tab) {
+	ps := a.ps
 	req, err := requestFromTab(tab)
 	if err != nil {
 		a.status = "request: " + err.Error()
 		return
 	}
-	vars, env, err := ps.project.ResolveVars(tab.Entry, ps.currentEnv())
+	vars, _, err := ps.project.ResolveVars(tab.Entry, ps.currentEnv())
 	if err != nil {
 		a.status = err.Error()
 		return
 	}
-	_ = env // declared secrets are checked where they are actually referenced
 	auth, err := ps.project.AuthFor(req)
 	if err != nil {
 		a.status = err.Error()
 		return
 	}
-	plan, err := core.BuildPlan(req, vars, a.secrets, auth)
+	plan, err := core.BuildPlan(req, vars, a.mgr.secrets, auth)
 	if err != nil {
 		a.status = err.Error()
 		return
@@ -240,14 +175,19 @@ func (a *App) send(tab *Tab) {
 	tab.Sending = true
 	tab.RespErr = ""
 	a.status = "sending " + req.HTTP.Method + " " + req.HTTP.URL
+
 	win := a.win
 	go func() {
 		res, err := core.Execute(ctx, plan, nil)
-		if win == nil {
-			tab.Sending = false
+		// Drop the result if the owning window is gone. IsDestroyed is the
+		// race-free check; closed is only touched on the UI thread.
+		if win == nil || win.IsDestroyed() {
 			return
 		}
 		win.Update(func() {
+			if a.closed || win.IsDestroyed() {
+				return
+			}
 			tab.Sending = false
 			if err != nil {
 				tab.Resp = nil
@@ -262,5 +202,114 @@ func (a *App) send(tab *Tab) {
 	}()
 }
 
-// Status returns the current status line text.
+// cancelAllRequests cancels every in-flight request owned by this window and
+// marks its tabs idle. Called when the window is destroyed, so late results are
+// ignored and no callback touches a dead window.
+func (a *App) cancelAllRequests() {
+	for _, tab := range a.ps.tabs {
+		if tab.cancel != nil {
+			tab.cancel()
+			tab.cancel = nil
+		}
+		if tab.Sending {
+			tab.Sending = false
+		}
+	}
+}
+
+// --- close guard ---------------------------------------------------------
+
+func (a *App) openCloseGuard(quit bool) {
+	if a.closeGuard == nil {
+		a.closeGuard = &closeGuard{}
+	}
+	a.closeGuard.active = true
+	a.closeGuard.quit = quit
+	a.closeGuard.errMsg = ""
+	if a.win != nil && !a.win.IsDestroyed() {
+		a.win.Update(func() {})
+	}
+}
+
+// resolveCloseGuard runs the chosen action. Saving must fully succeed before
+// the window closes; a failure keeps the guard open with the error.
+func (a *App) resolveCloseGuard(discard bool) {
+	if a.closeGuard == nil || !a.closeGuard.active {
+		return
+	}
+	if discard {
+		a.clearDirty()
+	} else if err := a.saveAllDirty(); err != nil {
+		a.closeGuard.errMsg = err.Error()
+		return
+	}
+	quit := a.closeGuard.quit
+	a.closeGuard.active = false
+	if quit {
+		a.mgr.onQuitGuardSettled(a)
+		return
+	}
+	a.bypassGuard = true
+	// Defer the actual close to the next UI pass: this runs while building the
+	// guard modal, and destroying a window mid-frame is unsafe.
+	a.win.Update(func() { a.win.Close() })
+}
+
+func (a *App) cancelCloseGuard() {
+	if a.closeGuard == nil {
+		return
+	}
+	a.closeGuard.active = false
+	if a.closeGuard.quit {
+		a.mgr.pendingQuit = false
+	}
+}
+
+func (a *App) closeGuardModal(c *ui.Context, t *ui.Theme) {
+	if a.closeGuard == nil || !a.closeGuard.active {
+		return
+	}
+	open := true
+	ui.Modal(c, &open, func() {
+		ui.Column(c).Gap(12).MinWidth(420).Children(func() {
+			ui.Text(c, "Unsaved changes").FontSize(16).Bold()
+			ui.Text(c, "These tabs have changes that are not saved:").FontSize(12).TextColor(t.TextMuted)
+			ui.Scroll(c).MaxHeight(160).Children(func() {
+				ui.Column(c).Gap(2).Children(func() {
+					for _, tab := range a.ps.tabs {
+						if tab.Dirty {
+							ui.Text(c, "• "+tab.Title).FontSize(12).SingleLine()
+						}
+					}
+				})
+			})
+			if a.closeGuard.errMsg != "" {
+				ui.Text(c, a.closeGuard.errMsg).FontSize(12).TextColor(t.Danger)
+			}
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.cancelCloseGuard()
+					open = false
+				}
+				if ui.Button(c, "Discard").Clicked() {
+					a.resolveCloseGuard(true)
+					open = false
+				}
+				if ui.PrimaryButton(c, "Save All").Clicked() {
+					a.resolveCloseGuard(false)
+					// Keep the modal open only while a save error remains.
+					open = a.closeGuard.active
+				}
+			})
+		})
+	})
+	if !open {
+		// Modal dismissed by Escape or an outside click acts as Cancel.
+		if a.closeGuard.active {
+			a.cancelCloseGuard()
+		}
+	}
+}
+
+// Status returns the current status line text (used by tests).
 func (a *App) Status() string { return a.status }

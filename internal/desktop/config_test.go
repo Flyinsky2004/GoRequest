@@ -116,3 +116,58 @@ func TestConfigStoreAppearancePersist(t *testing.T) {
 		t.Fatalf("appearance not persisted, got %q", got)
 	}
 }
+
+// TestConfigBackwardCompatibleOldFile ensures a config written before the
+// last-project/restore fields existed still loads, with restore defaulting on.
+func TestConfigBackwardCompatibleOldFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	old := `{
+  "appearance": "Light",
+  "recentProjects": [{"path": "/proj/a", "name": "A"}]
+}`
+	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := newConfigStore(path)
+	if s.appearance() != "Light" {
+		t.Fatalf("old appearance lost: %q", s.appearance())
+	}
+	if len(s.recent()) != 1 || s.recent()[0].Path != "/proj/a" {
+		t.Fatalf("old recents lost: %+v", s.recent())
+	}
+	if s.lastProject() != "" {
+		t.Fatalf("old config should have no last project, got %q", s.lastProject())
+	}
+	if !s.restoreLastEnabled() {
+		t.Fatal("restore should default to enabled when the field is absent")
+	}
+}
+
+func TestConfigLastProjectPersistAndClear(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	s := newConfigStore(path)
+	s.setLastProject("/proj/a")
+	if got := newConfigStore(path).lastProject(); got != "/proj/a" {
+		t.Fatalf("last project not persisted: %q", got)
+	}
+	s.clearLastProject()
+	if got := newConfigStore(path).lastProject(); got != "" {
+		t.Fatalf("last project not cleared: %q", got)
+	}
+}
+
+func TestConfigRestoreTogglePersist(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	s := newConfigStore(path)
+	if !s.restoreLastEnabled() {
+		t.Fatal("default should be enabled")
+	}
+	s.setRestoreLast(false)
+	if newConfigStore(path).restoreLastEnabled() {
+		t.Fatal("disabled restore should persist")
+	}
+	s.setRestoreLast(true)
+	if !newConfigStore(path).restoreLastEnabled() {
+		t.Fatal("re-enabled restore should persist")
+	}
+}
