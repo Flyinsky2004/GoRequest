@@ -139,14 +139,15 @@ func (a *App) saveActive() {
 		rel = tab.Entry.RelPath
 	}
 	if err := a.ps.saveTab(tab); err != nil {
+		m := a.msg()
 		if core.IsConflict(err) {
-			a.status = "conflict: " + rel + " changed on disk; reopen to merge before saving"
+			a.status = translate(m.Conflict, rel)
 		} else {
-			a.status = "save: " + err.Error()
+			a.status = translate(m.SaveFailedPrefix, err.Error())
 		}
 		return
 	}
-	a.status = "saved " + rel
+	a.status = translate(a.msg().Saved, rel)
 }
 
 // saveAllDirty saves every dirty tab of this project; the first failure stops
@@ -184,7 +185,7 @@ func (a *App) send(tab *Tab) {
 	ps := a.ps
 	req, err := requestFromTab(tab)
 	if err != nil {
-		a.status = "request: " + err.Error()
+		a.status = translate(a.msg().RequestFailedPrefix, err.Error())
 		return
 	}
 	vars, _, err := ps.project.ResolveVars(tab.Entry, ps.currentEnv())
@@ -206,7 +207,7 @@ func (a *App) send(tab *Tab) {
 	tab.cancel = cancel
 	tab.Sending = true
 	tab.RespErr = ""
-	a.status = "sending " + req.HTTP.Method + " " + req.HTTP.URL
+	a.status = translate(a.msg().Sending, req.HTTP.Method, req.HTTP.URL)
 
 	win := a.win
 	go func() {
@@ -302,14 +303,15 @@ func (a *App) closeGuardModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	open := true
+	m := a.msg()
 	ui.Modal(c, &open, func() {
 		ui.Column(c).Gap(12).MinWidth(420).Children(func() {
-			ui.Text(c, "Unsaved changes").FontSize(16).Bold()
-			ui.Text(c, "These items have changes that are not saved:").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, m.GuardTitle).FontSize(16).Bold()
+			ui.Text(c, m.GuardItems).FontSize(12).TextColor(t.TextMuted)
 			ui.Scroll(c).MaxHeight(160).Children(func() {
 				ui.Column(c).Gap(2).Children(func() {
 					if e := a.ps.envUI; e != nil && e.open && e.dirty() {
-						ui.Text(c, "Environment: "+e.idText).FontSize(12).SingleLine()
+						ui.Text(c, translate(m.GuardEnvironment, e.idText)).FontSize(12).SingleLine()
 					}
 					for _, tab := range a.ps.tabs {
 						if tab.Dirty {
@@ -322,15 +324,15 @@ func (a *App) closeGuardModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, a.closeGuard.errMsg).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, m.Cancel).Clicked() {
 					a.cancelCloseGuard()
 					open = false
 				}
-				if ui.Button(c, "Discard").Clicked() {
+				if ui.Button(c, m.Discard).Clicked() {
 					a.resolveCloseGuard(true)
 					open = false
 				}
-				if ui.PrimaryButton(c, "Save All").Clicked() {
+				if ui.PrimaryButton(c, m.SaveAll).Clicked() {
 					a.resolveCloseGuard(false)
 					// Keep the modal open only while a save error remains.
 					open = a.closeGuard.active

@@ -18,10 +18,11 @@ func (a *App) projectContents(c *ui.Context, t *ui.Theme) {
 	if ps == nil {
 		return
 	}
+	m := a.msg()
 	ui.Column(c).Gap(1).FillWidth().Children(func() {
 		ui.Row(c).Padding(6, 8, 2, 8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Requests").FontSize(11).Bold().TextColor(t.TextMuted).Grow(1)
-			if ui.Button(c, "+ Folder").Tooltip("Create a new folder").Clicked() {
+			ui.Text(c, m.RequestsGroup).FontSize(11).Bold().TextColor(t.TextMuted).Grow(1)
+			if ui.Button(c, m.AddFolder).Tooltip(m.AddFolderTip).Clicked() {
 				a.openNewFolder()
 			}
 		})
@@ -33,14 +34,14 @@ func (a *App) projectContents(c *ui.Context, t *ui.Theme) {
 			a.folderNode(c, t, ps, n, 0)
 		}
 		if len(ps.project.Requests) == 0 {
-			ui.Text(c, "No requests").FontSize(12).TextColor(t.TextMuted).Padding(2, 10)
+			ui.Text(c, m.NoRequests).FontSize(12).TextColor(t.TextMuted).Padding(2, 10)
 		}
 
 		ui.Row(c).Padding(10, 8, 2, 8).Children(func() {
-			ui.Text(c, "Documents").FontSize(11).Bold().TextColor(t.TextMuted)
+			ui.Text(c, m.DocumentsGroup).FontSize(11).Bold().TextColor(t.TextMuted)
 		})
 		if len(ps.project.Docs) == 0 {
-			ui.Text(c, "No documents").FontSize(12).TextColor(t.TextMuted).Padding(2, 10)
+			ui.Text(c, m.NoDocuments).FontSize(12).TextColor(t.TextMuted).Padding(2, 10)
 		}
 		for _, d := range ps.project.Docs {
 			a.docRow(c, t, ps, d)
@@ -98,7 +99,7 @@ func (a *App) folderNode(c *ui.Context, t *ui.Theme, ps *projectState, n *core.C
 	label := arrow + " " + n.Name
 	ui.Row(c).Key("folder-node:"+n.RelPath).FillWidth().AlignItems(ui.Center).Background(bg).
 		Padding(2, float32(8+depth*14)).Children(func() {
-		b := ui.Button(c, label).FillWidth().Tooltip("Folder: " + collectionRelOf(n.RelPath))
+		b := ui.Button(c, label).FillWidth().Tooltip(translate(a.msg().FolderTip, collectionRelOf(n.RelPath)))
 		if sel {
 			b.Bold()
 		}

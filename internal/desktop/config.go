@@ -33,6 +33,10 @@ type recentProject struct {
 // absent and take their defaults (see restoreLastEnabled).
 type appConfig struct {
 	Appearance string `json:"appearance,omitempty"`
+	// Language is the interface language ("zh-CN" or "en"). An absent value (a
+	// new install or a config written by an older build) defaults to Simplified
+	// Chinese, so old configs keep loading with no migration needed.
+	Language string `json:"language,omitempty"`
 	// LastProject is the normalized root of the project that was most recently
 	// opened or activated. It is written only after a successful open or
 	// activation, so a failed open never clobbers the last good value, and it
@@ -124,6 +128,17 @@ func (s *configStore) appearance() string { return s.cfg.Appearance }
 
 func (s *configStore) setAppearance(v string) {
 	s.cfg.Appearance = v
+	_ = s.save()
+}
+
+// language returns the stored interface language, defaulting to Simplified
+// Chinese for an absent, empty or unsupported value (backward compatible with
+// configs written before language support existed).
+func (s *configStore) language() language { return parseLanguage(s.cfg.Language) }
+
+// setLanguage persists the interface language choice.
+func (s *configStore) setLanguage(l language) {
+	s.cfg.Language = string(parseLanguage(string(l)))
 	_ = s.save()
 }
 

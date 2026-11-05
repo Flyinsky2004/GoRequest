@@ -62,14 +62,19 @@ func rowsFromKV(kvs []core.KV) []*KVRow {
 }
 
 // validateRows reports the first incomplete row for inline feedback while
-// editing. A row with a value but no key is incomplete; blank rows are fine.
-func validateRows(rows []*KVRow) error {
+// editing, in English. It backs the pure conversion helpers; the view uses
+// validateRowsFor with the current language catalog.
+func validateRows(rows []*KVRow) error { return validateRowsFor(englishMessages, rows) }
+
+// validateRowsFor localizes the first incomplete-row message while editing. A
+// row with a value but no key is incomplete; blank rows are fine.
+func validateRowsFor(m *messages, rows []*KVRow) error {
 	for i, r := range rows {
 		if r == nil {
 			continue
 		}
 		if strings.TrimSpace(r.Name) == "" && strings.TrimSpace(r.Value) != "" {
-			return fmt.Errorf("row %d: value %q has no key", i+1, r.Value)
+			return fmt.Errorf(m.RowNoKey, i+1, r.Value)
 		}
 	}
 	return nil
@@ -208,11 +213,12 @@ func (t *Tab) ensureTrailingBlank(kind kvKind) {
 // checkbox, an editable Key with clickable suggestions, an editable Value, and
 // a delete button, plus an "Add row" action and inline incomplete-row feedback.
 func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
+	m := a.msg()
 	rows := tab.rows(kind)
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Width(20)
-		ui.Text(c, "Key").FontSize(12).Bold().Width(200)
-		ui.Text(c, "Value").FontSize(12).Bold().Grow(1)
+		ui.Text(c, m.Key).FontSize(12).Bold().Width(200)
+		ui.Text(c, m.Value).FontSize(12).Bold().Grow(1)
 		ui.Box(c).Width(24)
 	})
 	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
@@ -223,17 +229,18 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 		})
 	})
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		if ui.Button(c, "Add row").Clicked() {
+		if ui.Button(c, m.AddRow).Clicked() {
 			tab.addRow(kind)
 			tab.Dirty = true
 		}
-		if err := validateRows(rows); err != nil {
+		if err := validateRowsFor(m, rows); err != nil {
 			ui.Text(c, err.Error()).FontSize(12).TextColor(t.Danger)
 		}
 	})
 }
 
 func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRow) {
+	m := a.msg()
 	ui.Row(c).Key(row.ID).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
 		if ui.Checkbox(c, &row.Enabled, "").Changed() {
 			tab.Dirty = true
@@ -241,13 +248,13 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 		// Key: an editable text input with clickable suggestions. Opening or
 		// closing the suggestion popup does not change the text, so it does not
 		// mark the request dirty.
-		if ui.Autocomplete(c, &row.Name, suggestionsFor(kind)).Width(200).Placeholder("Key").Changed() {
+		if ui.Autocomplete(c, &row.Name, suggestionsFor(kind)).Width(200).Placeholder(m.Key).Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
 		}
 		// Value: free text, with media-type hints for Content-Type/Accept only.
 		vals := filterSuggestions(valueSuggestions(row.Name, kind), row.Value)
-		if ui.Autocomplete(c, &row.Value, vals).Grow(1).Placeholder("Value").Changed() {
+		if ui.Autocomplete(c, &row.Value, vals).Grow(1).Placeholder(m.Value).Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
 		}

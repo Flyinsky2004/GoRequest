@@ -34,7 +34,7 @@ func (a *App) submitNewRequest() {
 	}
 	name := strings.TrimSpace(a.newReqName)
 	if name == "" {
-		a.formErr = "Enter a request name."
+		a.formErr = a.msg().ErrEnterRequestName
 		return
 	}
 	entry, err := ps.createRequestIn(a.newReqFolder, name)
@@ -44,7 +44,7 @@ func (a *App) submitNewRequest() {
 	}
 	a.newReqOpen = false
 	a.formErr = ""
-	a.status = "created " + entry.RelPath
+	a.status = translate(a.msg().Created, entry.RelPath)
 }
 
 // openNewFolder opens the new-folder form under the selected folder (or root).
@@ -69,7 +69,7 @@ func (a *App) submitNewFolder() {
 	}
 	name := strings.TrimSpace(a.newFolderName)
 	if name == "" {
-		a.formErr = "Enter a folder name."
+		a.formErr = a.msg().ErrEnterFolderName
 		return
 	}
 	node, err := ps.createFolder(a.newFolderParent, name)
@@ -79,7 +79,7 @@ func (a *App) submitNewFolder() {
 	}
 	a.newFolderOpen = false
 	a.formErr = ""
-	a.status = "created folder " + node.RelPath
+	a.status = translate(a.msg().CreatedFolder, node.RelPath)
 }
 
 // openMove opens the move dialog for the active request tab. Its target defaults
@@ -119,22 +119,23 @@ func (a *App) newRequestModal(c *ui.Context, t *ui.Theme) {
 	if !a.newReqOpen {
 		return
 	}
+	m := a.msg()
 	ui.Modal(c, &a.newReqOpen, func() {
 		ui.Column(c).Width(360).Gap(10).Padding(16).Children(func() {
-			ui.Text(c, "New Request").Bold().FontSize(16)
-			ui.Textf(c, "Target folder: %s", folderLabel(a.newReqFolder)).FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, "Name").FontSize(12).TextColor(t.TextMuted)
-			if ui.TextInput(c, &a.newReqName).FillWidth().Placeholder("Request name").Submitted() {
+			ui.Text(c, m.NewRequestTitle).Bold().FontSize(16)
+			ui.Text(c, translate(m.TargetFolder, folderLabel(a.newReqFolder))).FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, m.NameLabel).FontSize(12).TextColor(t.TextMuted)
+			if ui.TextInput(c, &a.newReqName).FillWidth().Placeholder(m.RequestNamePlaceholder).Submitted() {
 				a.submitNewRequest()
 			}
 			if a.formErr != "" {
 				ui.Text(c, a.formErr).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, m.Cancel).Clicked() {
 					a.newReqOpen = false
 				}
-				if ui.PrimaryButton(c, "Create").Clicked() {
+				if ui.PrimaryButton(c, m.Create).Clicked() {
 					a.submitNewRequest()
 				}
 			})
@@ -146,22 +147,23 @@ func (a *App) newFolderModal(c *ui.Context, t *ui.Theme) {
 	if !a.newFolderOpen {
 		return
 	}
+	m := a.msg()
 	ui.Modal(c, &a.newFolderOpen, func() {
 		ui.Column(c).Width(360).Gap(10).Padding(16).Children(func() {
-			ui.Text(c, "New Folder").Bold().FontSize(16)
-			ui.Textf(c, "Parent folder: %s", folderLabel(a.newFolderParent)).FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, "Name").FontSize(12).TextColor(t.TextMuted)
-			if ui.TextInput(c, &a.newFolderName).FillWidth().Placeholder("Folder name").Submitted() {
+			ui.Text(c, m.NewFolderTitle).Bold().FontSize(16)
+			ui.Text(c, translate(m.ParentFolder, folderLabel(a.newFolderParent))).FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, m.NameLabel).FontSize(12).TextColor(t.TextMuted)
+			if ui.TextInput(c, &a.newFolderName).FillWidth().Placeholder(m.FolderNamePlaceholder).Submitted() {
 				a.submitNewFolder()
 			}
 			if a.formErr != "" {
 				ui.Text(c, a.formErr).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, m.Cancel).Clicked() {
 					a.newFolderOpen = false
 				}
-				if ui.PrimaryButton(c, "Create Folder").Clicked() {
+				if ui.PrimaryButton(c, m.CreateFolder).Clicked() {
 					a.submitNewFolder()
 				}
 			})
@@ -178,27 +180,28 @@ func (a *App) moveModal(c *ui.Context, t *ui.Theme) {
 		a.moveOpen = false
 		return
 	}
+	m := a.msg()
 	ui.Modal(c, &a.moveOpen, func() {
 		ui.Column(c).Width(400).Gap(10).Padding(16).Children(func() {
-			ui.Text(c, "Move Request").Bold().FontSize(16)
-			ui.Text(c, "Choose a destination folder. The request keeps its stable ID.").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, m.MoveTitle).Bold().FontSize(16)
+			ui.Text(c, m.MoveHint).FontSize(12).TextColor(t.TextMuted)
 			ui.Select(c, &a.moveTarget, folderChoices(ps.project)).FillWidth()
 			if a.moveErr != "" {
 				ui.Text(c, a.moveErr).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, m.Cancel).Clicked() {
 					a.moveOpen = false
 				}
 				if a.moveTab.Dirty {
-					if ui.PrimaryButton(c, "Save & Move").Clicked() {
+					if ui.PrimaryButton(c, m.SaveAndMove).Clicked() {
 						a.doMove(true, false)
 					}
-					if ui.Button(c, "Discard & Move").Clicked() {
+					if ui.Button(c, m.DiscardAndMove).Clicked() {
 						a.doMove(false, true)
 					}
 				} else {
-					if ui.PrimaryButton(c, "Move").Clicked() {
+					if ui.PrimaryButton(c, m.MoveAction).Clicked() {
 						a.doMove(false, false)
 					}
 				}
@@ -214,21 +217,22 @@ func (a *App) closeModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	a.closeModalOpen = true
+	msgs := a.msg()
 	m := ui.Modal(c, &a.closeModalOpen, func() {
 		ui.Column(c).Width(420).Gap(10).Padding(16).Children(func() {
-			ui.Text(c, "Unsaved Changes").Bold().FontSize(16)
-			ui.Textf(c, "%q has unsaved changes. Save before closing?", f.dirty.Title).FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, msgs.UnsavedChangesTitle).Bold().FontSize(16)
+			ui.Text(c, translate(msgs.UnsavedChangesMsg, f.dirty.Title)).FontSize(12).TextColor(t.TextMuted)
 			if f.err != "" {
 				ui.Text(c, f.err).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, msgs.Cancel).Clicked() {
 					a.cancelClose()
 				}
-				if ui.Button(c, "Discard").Clicked() {
+				if ui.Button(c, msgs.Discard).Clicked() {
 					a.resolveCloseDirty(false)
 				}
-				if ui.PrimaryButton(c, "Save & Close").Clicked() {
+				if ui.PrimaryButton(c, msgs.SaveAndClose).Clicked() {
 					a.resolveCloseDirty(true)
 				}
 			})

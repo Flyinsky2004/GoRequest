@@ -10,7 +10,9 @@ import (
 const appVersion = "0.1.0 (MVP)"
 
 // applyAppearance applies the stored appearance preference for the frame. When
-// the preference is System (or unset) the frame keeps the system theme.
+// the preference is System (or unset) the frame keeps the system theme. The
+// stored value stays a stable English token ("System"/"Light"/"Dark") so an
+// existing config keeps working; only its display label is localized.
 func applyAppearance(c *ui.Context, cfg *configStore) {
 	switch cfg.appearance() {
 	case "Light":
@@ -22,7 +24,8 @@ func applyAppearance(c *ui.Context, cfg *configStore) {
 
 // renderSettings shows the native settings sheet over any window (welcome or
 // project) while *open is true. It exposes configuration that actually works —
-// appearance and the startup restore preference — plus real application info.
+// appearance, interface language and the startup restore preference — plus real
+// application info.
 func renderSettings(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setStatus func(string)) {
 	if !*open {
 		return
@@ -33,30 +36,45 @@ func renderSettings(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, se
 }
 
 func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setStatus func(string)) {
+	m := messagesFor(cfg.language())
 	ui.Column(c).Gap(14).MinWidth(380).Children(func() {
-		ui.Text(c, "Settings").FontSize(18).Bold()
+		ui.Text(c, m.SettingsTitle).FontSize(18).Bold()
 
 		ui.Column(c).Gap(4).Children(func() {
-			ui.Text(c, "Appearance").FontSize(12).Bold().TextColor(t.TextMuted)
-			choice := appearanceLabel(cfg)
-			if ui.Select(c, &choice, []string{"System", "Light", "Dark"}).Width(180).Changed() {
-				cfg.setAppearance(choice)
+			ui.Text(c, m.AppearanceLabel).FontSize(12).Bold().TextColor(t.TextMuted)
+			choice := appearanceDisplay(m, cfg.appearance())
+			if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
+				cfg.setAppearance(appearanceCanonical(m, choice))
 				if setStatus != nil {
-					setStatus("appearance: " + choice)
+					setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
 				}
 			}
 		})
 
 		ui.Column(c).Gap(4).Children(func() {
-			ui.Text(c, "Startup").FontSize(12).Bold().TextColor(t.TextMuted)
+			ui.Text(c, m.LanguageLabel).FontSize(12).Bold().TextColor(t.TextMuted)
+			choice := languageLabel(cfg.language())
+			if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
+				cfg.setLanguage(languageFromLabel(choice))
+				if setStatus != nil {
+					// Confirm in the newly selected language so the status line
+					// matches the interface the user just switched to.
+					langMsgs := messagesFor(cfg.language())
+					setStatus(translate(langMsgs.LanguageStatus, languageLabel(cfg.language())))
+				}
+			}
+		})
+
+		ui.Column(c).Gap(4).Children(func() {
+			ui.Text(c, m.StartupLabel).FontSize(12).Bold().TextColor(t.TextMuted)
 			restore := cfg.restoreLastEnabled()
-			if ui.Checkbox(c, &restore, "Restore last opened project on startup").Changed() {
+			if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
 				cfg.setRestoreLast(restore)
 				if setStatus != nil {
 					if restore {
-						setStatus("startup: restore last project on")
+						setStatus(m.StartupOn)
 					} else {
-						setStatus("startup: always show project chooser")
+						setStatus(m.StartupOff)
 					}
 				}
 			}
@@ -71,30 +89,47 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setS
 					ui.Text(c, v).FontSize(12).SingleLine().Grow(1)
 				})
 			}
-			infoRow("Version", appVersion)
-			infoRow("Platform", runtime.GOOS+"/"+runtime.GOARCH)
-			infoRow("Go", runtime.Version())
-			infoRow("Config file", configLocation(cfg))
-			infoRow("Recent projects", fmt.Sprintf("%d", len(cfg.recent())))
+			infoRow(m.VersionLabel, appVersion)
+			infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
+			infoRow(m.GoLabel, runtime.Version())
+			infoRow(m.ConfigFileLabel, configLocation(m, cfg))
+			infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
 		})
 
-		ui.Text(c, "Secret values come from environment variables named GOREQUEST_SECRET_<NAME>; project files keep only {{secret.name}} references.").
-			FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, m.SecretNote).FontSize(12).TextColor(t.TextMuted)
 
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-			if ui.PrimaryButton(c, "Done").Clicked() {
+			if ui.PrimaryButton(c, m.Done).Clicked() {
 				*open = false
 			}
 		})
 	})
 }
 
-// appearanceLabel maps the stored preference to what the Select shows.
-func appearanceLabel(cfg *configStore) string {
-	switch cfg.appearance() {
+// appearanceChoices returns the localized appearance options in display order.
+func appearanceChoices(m *messages) []string {
+	return []string{m.AppearanceSystem, m.AppearanceLight, m.AppearanceDark}
+}
+
+// appearanceDisplay maps a stored appearance token to its localized label.
+func appearanceDisplay(m *messages, v string) string {
+	switch v {
 	case "Light":
-		return "Light"
+		return m.AppearanceLight
 	case "Dark":
+		return m.AppearanceDark
+	default:
+		return m.AppearanceSystem
+	}
+}
+
+// appearanceCanonical maps a localized appearance label back to the stable
+// stored token, so the persisted value is language-independent.
+func appearanceCanonical(m *messages, label string) string {
+	switch label {
+	case m.AppearanceLight:
+		return "Light"
+	case m.AppearanceDark:
 		return "Dark"
 	default:
 		return "System"
@@ -103,9 +138,9 @@ func appearanceLabel(cfg *configStore) string {
 
 // configLocation returns the config path shown in settings, or a note when the
 // platform provides none.
-func configLocation(cfg *configStore) string {
+func configLocation(m *messages, cfg *configStore) string {
 	if cfg.path == "" {
-		return "in-memory (no config directory)"
+		return m.InMemoryConfig
 	}
 	return displayPath(cfg.path)
 }

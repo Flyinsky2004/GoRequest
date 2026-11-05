@@ -55,6 +55,7 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 	}
 	ui.Row(c).Key("tab:"+tabIdentity(tab)).AlignItems(ui.Center).Gap(2).
 		Padding(3, 6).Radius(6).Background(bg).Children(func() {
+		m := a.msg()
 		label := tabDisplayLabel(tab)
 		b := ui.Button(c, label)
 		if active {
@@ -63,8 +64,8 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 		if b.Clicked() {
 			ps.activateTab(tab)
 		}
-		closeLabel := "Close " + tabIdentity(tab)
-		if ui.Button(c, "✕").Label(closeLabel).Tooltip("Close " + tab.Title).Clicked() {
+		closeLabel := translate(m.CloseTabTip, tabIdentity(tab))
+		if ui.Button(c, "✕").Label(closeLabel).Tooltip(translate(m.CloseTabTip, tab.Title)).Clicked() {
 			a.startClose(ps, []*Tab{tab})
 		}
 	})
@@ -78,27 +79,28 @@ func (a *App) openedMenu(c *ui.Context, t *ui.Theme, ps *projectState) {
 		return
 	}
 	labels := uniqueTabLabels(ps)
-	ui.MenuButton(c, fmt.Sprintf("Open Tabs (%d)", len(ps.tabs)), func(m *ui.Menu) {
+	msgs := a.msg()
+	ui.MenuButton(c, fmt.Sprintf(msgs.OpenTabsMenu, len(ps.tabs)), func(m *ui.Menu) {
 		for i, tab := range ps.tabs {
 			label := labels[i]
 			activeTab := ps.tabs[ps.active]
 			m.Submenu(label, func(sm *ui.Menu) {
-				if sm.Item("Switch").Checked(tab == activeTab).Chosen() {
+				if sm.Item(msgs.SwitchTab).Checked(tab == activeTab).Chosen() {
 					ps.activateTab(tab)
 				}
-				if sm.Item("Close").Chosen() {
+				if sm.Item(msgs.CloseTabMenu).Chosen() {
 					a.startClose(ps, []*Tab{tab})
 				}
 			})
 		}
 		m.Separator()
-		if m.Item("Close Current").Chosen() {
+		if m.Item(msgs.CloseCurrent).Chosen() {
 			a.closeCurrent()
 		}
-		if m.Item("Close Others").Chosen() {
+		if m.Item(msgs.CloseOthers).Chosen() {
 			a.closeOthers()
 		}
-		if m.Item("Close All").Chosen() {
+		if m.Item(msgs.CloseAll).Chosen() {
 			a.closeAll()
 		}
 	})

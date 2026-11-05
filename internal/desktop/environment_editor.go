@@ -85,19 +85,26 @@ func (e *environmentEditor) close() {
 	e.confirmDiscard = false
 }
 
-// build validates the draft and produces a core.Environment. Values are kept
-// verbatim (leading/trailing spaces, empty strings, URLs, ':', '=', templates);
-// only keys and secret names are trimmed. Duplicate variable keys and duplicate
-// secret names are errors, never silent overwrites, and a value without a key is
-// rejected.
+// build validates the draft and produces a core.Environment. It uses the English
+// catalog so pure unit tests (which call build directly) stay stable; the app
+// saves through buildWith with the current language catalog.
 func (e *environmentEditor) build(ps *projectState) (*core.Environment, error) {
+	return e.buildWith(ps, englishMessages)
+}
+
+// buildWith validates the draft and produces a core.Environment, localizing
+// validation feedback. Values are kept verbatim (leading/trailing spaces, empty
+// strings, URLs, ':', '=', templates); only keys and secret names are trimmed.
+// Duplicate variable keys and duplicate secret names are errors, never silent
+// overwrites, and a value without a key is rejected.
+func (e *environmentEditor) buildWith(ps *projectState, m *messages) (*core.Environment, error) {
 	id := strings.TrimSpace(e.idText)
 	if e.mode == "new" {
 		if err := core.ValidateEnvironmentID(id); err != nil {
 			return nil, err
 		}
 		if _, dup := ps.project.Environments[id]; dup {
-			return nil, fmt.Errorf("environment id %q already exists", id)
+			return nil, fmt.Errorf(m.ErrEnvDuplicateID, id)
 		}
 	} else {
 		id = e.envID
@@ -108,15 +115,15 @@ func (e *environmentEditor) build(ps *projectState) (*core.Environment, error) {
 		key := strings.TrimSpace(r.Key)
 		if key == "" {
 			if strings.TrimSpace(r.Value) != "" {
-				return nil, fmt.Errorf("row %d: value %q has no key", i+1, r.Value)
+				return nil, fmt.Errorf(m.ErrEnvRowNoKey, i+1, r.Value)
 			}
 			continue
 		}
 		if strings.ContainsAny(key, "{}") {
-			return nil, fmt.Errorf("row %d: invalid variable key %q (must not contain braces)", i+1, key)
+			return nil, fmt.Errorf(m.ErrEnvInvalidVarKey, i+1, key)
 		}
 		if _, dup := vars[key]; dup {
-			return nil, fmt.Errorf("duplicate variable key %q", key)
+			return nil, fmt.Errorf(m.ErrEnvDuplicateVarKey, key)
 		}
 		vars[key] = r.Value
 	}
@@ -129,10 +136,10 @@ func (e *environmentEditor) build(ps *projectState) (*core.Environment, error) {
 			continue
 		}
 		if strings.ContainsAny(n, "{}") {
-			return nil, fmt.Errorf("secret %d: invalid name %q", i+1, n)
+			return nil, fmt.Errorf(m.ErrEnvInvalidSecret, i+1, n)
 		}
 		if seen[n] {
-			return nil, fmt.Errorf("duplicate secret name %q", n)
+			return nil, fmt.Errorf(m.ErrEnvDuplicateSecret, n)
 		}
 		seen[n] = true
 		secrets = append(secrets, n)
@@ -156,19 +163,26 @@ func (ps *projectState) startNewEnvironment() {
 	ps.envUI = e
 }
 
-// startEditEnvironment begins an edit draft for the selected environment,
-// loading its actual variables (stable sort) and declared secret names.
+// startEditEnvironment begins an edit draft for the selected environment. It
+// uses the English catalog for direct unit tests; the app opens drafts through
+// startEditEnvironmentWith with the current language.
 func (ps *projectState) startEditEnvironment() error {
+	return ps.startEditEnvironmentWith(englishMessages)
+}
+
+// startEditEnvironmentWith begins an edit draft, loading the selected
+// environment's actual variables (stable sort) and declared secret names.
+func (ps *projectState) startEditEnvironmentWith(m *messages) error {
 	id := ps.currentEnv()
 	if id == "" {
-		return fmt.Errorf("select an environment to edit")
+		return fmt.Errorf("%s", m.ErrSelectEnvToEdit)
 	}
 	env := ps.project.Environments[id]
 	if env == nil {
-		return fmt.Errorf("environment %q not found", id)
+		return fmt.Errorf(m.ErrEnvNotFound, id)
 	}
 	if _, ok := ps.project.EnvEntries[id]; !ok {
-		return fmt.Errorf("environment %q has no saved file to edit", id)
+		return fmt.Errorf(m.ErrEnvNoFile, id)
 	}
 	e := &environmentEditor{mode: "edit", envID: id, idText: id, idLocked: true, open: true, visible: true}
 	for _, k := range env.SortedVariableKeys() {
@@ -188,7 +202,7 @@ func (ps *projectState) startEditEnvironment() error {
 func (a *App) openNewEnvironment() {
 	ps := a.ps
 	if ps == nil {
-		a.status = "open a project before creating an environment"
+		a.status = a.msg().ErrOpenProjectFirst
 		return
 	}
 	ps.startNewEnvironment()
@@ -199,11 +213,12 @@ func (a *App) openEditEnvironment() {
 	if ps == nil {
 		return
 	}
+	m := a.msg()
 	if !ps.canEditEnv() {
-		a.status = "select an environment to edit"
+		a.status = m.ErrSelectEnvToEdit
 		return
 	}
-	if err := ps.startEditEnvironment(); err != nil {
+	if err := ps.startEditEnvironmentWith(m); err != nil {
 		a.status = err.Error()
 	}
 }
@@ -217,7 +232,8 @@ func (a *App) saveEnvironmentDraft(ps *projectState) error {
 	if e == nil {
 		return nil
 	}
-	env, err := e.build(ps)
+	m := a.msg()
+	env, err := e.buildWith(ps, m)
 	if err != nil {
 		e.err = err.Error()
 		return err
@@ -228,14 +244,14 @@ func (a *App) saveEnvironmentDraft(ps *projectState) error {
 			return err
 		}
 		ps.envSel = env.ID // auto-select the freshly created environment
-		a.status = "created environment " + env.ID
+		a.status = translate(m.CreatedEnvironment, env.ID)
 	} else {
 		if err := ps.project.SaveEnvironment(e.envID, env); err != nil {
 			e.err = err.Error()
 			return err
 		}
 		ps.envSel = e.envID // keep the current selection
-		a.status = "saved environment " + e.envID
+		a.status = translate(m.SavedEnvironment, e.envID)
 	}
 	e.close()
 	return nil
@@ -274,56 +290,54 @@ func (a *App) envEditorModal(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *App) envEditorBody(c *ui.Context, t *ui.Theme, ps *projectState, e *environmentEditor) {
-	title := "New Environment"
+	m := a.msg()
+	title := m.NewEnvTitle
 	if e.mode == "edit" {
-		title = "Edit Environment: " + e.envID
+		title = translate(m.EditEnvTitle, e.envID)
 	}
 	ui.Column(c).Gap(12).MinWidth(480).MaxWidth(720).Children(func() {
 		ui.Text(c, title).FontSize(18).Bold()
-		ui.Text(c, "Project: "+ps.name()).FontSize(12).TextColor(t.TextMuted).SingleLine()
+		ui.Text(c, translate(m.ProjectLabel, ps.name())).FontSize(12).TextColor(t.TextMuted).SingleLine()
 
 		// Environment ID.
-		ui.Text(c, "Environment ID").FontSize(12).Bold().TextColor(t.TextMuted)
+		ui.Text(c, m.EnvIDLabel).FontSize(12).Bold().TextColor(t.TextMuted)
 		if e.idLocked {
 			ui.Text(c, e.idText).FontSize(13)
-			ui.Text(c, "The ID is the stable reference requests use; it stays fixed when editing.").
-				FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, m.EnvIDLockedHint).FontSize(11).TextColor(t.TextMuted)
 		} else {
-			ui.TextInput(c, &e.idText).Placeholder("e.g. staging").Changed()
-			ui.Text(c, "Used as the environment identifier and file name.").
-				FontSize(11).TextColor(t.TextMuted)
+			ui.TextInput(c, &e.idText).Placeholder(m.EnvIDPlaceholder).Changed()
+			ui.Text(c, m.EnvIDHint).FontSize(11).TextColor(t.TextMuted)
 		}
 
 		// Variables: a real per-row Key/Value table, not a free-form text blob.
-		ui.Text(c, "Variables").FontSize(12).Bold().TextColor(t.TextMuted)
+		ui.Text(c, m.VariablesLabel).FontSize(12).Bold().TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Key").FontSize(12).Bold().Width(200)
-			ui.Text(c, "Value").FontSize(12).Bold().Grow(1)
+			ui.Text(c, m.Key).FontSize(12).Bold().Width(200)
+			ui.Text(c, m.Value).FontSize(12).Bold().Grow(1)
 			ui.Box(c).Width(24)
 		})
 		ui.Scroll(c).MaxHeight(220).FillWidth().Children(func() {
 			ui.Column(c).Gap(4).FillWidth().Children(func() {
 				for _, row := range e.varRows {
-					e.envVarRow(c, t, ps, row)
+					e.envVarRow(c, t, ps, row, m)
 				}
 			})
 		})
-		if ui.Button(c, "Add variable").Clicked() {
+		if ui.Button(c, m.AddVariable).Clicked() {
 			e.varRows = append(e.varRows, newEnvVarRow())
 		}
 
 		ui.Box(c).Height(1).Background(t.Border)
 
 		// Secret names: declarations only, never values.
-		ui.Text(c, "Secret names").FontSize(12).Bold().TextColor(t.TextMuted)
-		ui.Text(c, "Declarations only (referenced as {{secret.name}}). Values stay in the local secret store and are never shown or saved here.").
-			FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, m.SecretNamesLabel).FontSize(12).Bold().TextColor(t.TextMuted)
+		ui.Text(c, m.SecretNamesHint).FontSize(11).TextColor(t.TextMuted)
 		ui.Column(c).Gap(4).FillWidth().Children(func() {
 			for _, row := range e.secretRows {
-				e.envSecretRow(c, t, ps, row)
+				e.envSecretRow(c, t, ps, row, m)
 			}
 		})
-		if ui.Button(c, "Add secret name").Clicked() {
+		if ui.Button(c, m.AddSecretName).Clicked() {
 			e.secretRows = append(e.secretRows, &envSecretRow{ID: nextRowID()})
 		}
 
@@ -332,36 +346,36 @@ func (a *App) envEditorBody(c *ui.Context, t *ui.Theme, ps *projectState, e *env
 		}
 
 		if e.confirmDiscard {
-			ui.Text(c, "Discard unsaved changes to this environment?").FontSize(12).TextColor(t.Danger)
+			ui.Text(c, m.DiscardEnvConfirm).FontSize(12).TextColor(t.Danger)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Keep editing").Clicked() {
+				if ui.Button(c, m.KeepEditing).Clicked() {
 					e.confirmDiscard = false
 				}
-				if ui.PrimaryButton(c, "Discard").Clicked() {
+				if ui.PrimaryButton(c, m.Discard).Clicked() {
 					e.close()
 				}
 			})
 			return
 		}
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-			if ui.Button(c, "Cancel").Clicked() {
+			if ui.Button(c, m.Cancel).Clicked() {
 				if e.dirty() {
 					e.confirmDiscard = true
 				} else {
 					e.close()
 				}
 			}
-			if ui.PrimaryButton(c, "Save").Clicked() {
+			if ui.PrimaryButton(c, m.Save).Clicked() {
 				a.saveEnvironmentDraft(ps)
 			}
 		})
 	})
 }
 
-func (e *environmentEditor) envVarRow(c *ui.Context, t *ui.Theme, ps *projectState, row *envVarRow) {
+func (e *environmentEditor) envVarRow(c *ui.Context, t *ui.Theme, ps *projectState, row *envVarRow, m *messages) {
 	ui.Row(c).Key(row.ID).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-		ui.TextInput(c, &row.Key).Width(200).Placeholder("Key").Changed()
-		ui.TextInput(c, &row.Value).Grow(1).Placeholder("Value").Changed()
+		ui.TextInput(c, &row.Key).Width(200).Placeholder(m.Key).Changed()
+		ui.TextInput(c, &row.Value).Grow(1).Placeholder(m.Value).Changed()
 		if strings.TrimSpace(row.Key) == "" && row.Value == "" {
 			ui.Box(c).Width(24)
 			return
@@ -372,9 +386,9 @@ func (e *environmentEditor) envVarRow(c *ui.Context, t *ui.Theme, ps *projectSta
 	})
 }
 
-func (e *environmentEditor) envSecretRow(c *ui.Context, t *ui.Theme, ps *projectState, row *envSecretRow) {
+func (e *environmentEditor) envSecretRow(c *ui.Context, t *ui.Theme, ps *projectState, row *envSecretRow, m *messages) {
 	ui.Row(c).Key(row.ID).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-		ui.TextInput(c, &row.Name).Grow(1).Placeholder("secret name")
+		ui.TextInput(c, &row.Name).Grow(1).Placeholder(m.SecretPlaceholder)
 		if strings.TrimSpace(row.Name) == "" {
 			ui.Box(c).Width(24)
 			return

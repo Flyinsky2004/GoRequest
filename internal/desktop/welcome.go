@@ -32,44 +32,43 @@ func (w *welcomeState) wire() {
 
 // view builds one frame of the welcome window.
 func (w *welcomeState) view(c *ui.Context) {
-	m := w.mgr
-	applyAppearance(c, m.cfg)
+	mgr := w.mgr
+	applyAppearance(c, mgr.cfg)
 	t := c.Theme()
+	m := w.msg()
 
 	ui.Column(c).Fill().Children(func() {
 		// Brand block.
 		ui.Column(c).Padding(24, 24, 14, 24).Gap(6).Children(func() {
 			ui.Text(c, "GoRequest").FontSize(24).Bold().SingleLine()
-			ui.Text(c, "Open a project to start. Each project opens in its own window.").
-				FontSize(12).TextColor(t.TextMuted).SingleLine()
+			ui.Text(c, m.WelcomeTagline).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		})
 
 		// Actions.
 		ui.Row(c).Padding(0, 24, 10, 24).Gap(10).AlignItems(ui.Center).Children(func() {
-			if ui.PrimaryButton(c, "Open Project…").Tooltip("Choose a folder containing .gorequest/").Clicked() {
-				m.pickProject(w.win)
+			if ui.PrimaryButton(c, m.OpenProject).Tooltip(m.ChooseFolderTip).Clicked() {
+				mgr.pickProject(w.win)
 			}
 			ui.Box(c).Grow(1)
-			if ui.Button(c, "Settings").Clicked() {
+			if ui.Button(c, m.Settings).Clicked() {
 				w.showSettings = true
 			}
 		})
 
 		// Recent projects, independently scrollable.
 		ui.Row(c).Padding(12, 24, 4, 24).Children(func() {
-			ui.Text(c, "Recent Projects").FontSize(11).Bold().TextColor(t.TextMuted).SingleLine()
+			ui.Text(c, m.RecentProjects).FontSize(11).Bold().TextColor(t.TextMuted).SingleLine()
 		})
 		sb := ui.Sidebar(c, &w.sel, func() {
-			projects := m.visibleRecents()
+			projects := mgr.visibleRecents()
 			if len(projects) == 0 {
-				ui.Text(c, "No projects yet. Open one to get started.").
-					FontSize(12).TextColor(t.TextMuted).Padding(2, 8)
+				ui.Text(c, m.WelcomeEmpty).FontSize(12).TextColor(t.TextMuted).Padding(2, 8)
 				return
 			}
 			for _, rp := range projects {
-				ui.SidebarItem(c, "project:"+rp.Path, nil, m.recentLabel(rp))
+				ui.SidebarItem(c, "project:"+rp.Path, nil, mgr.recentLabel(rp))
 			}
-		}).Grow(1).FillWidth().Label("Recent Projects")
+		}).Grow(1).FillWidth().Label(m.RecentProjects)
 		if sb.Changed() {
 			w.openSelected()
 		}
@@ -96,7 +95,7 @@ func (w *welcomeState) openSelected() {
 	}
 	path := strings.TrimPrefix(id, prefix)
 	if err := w.mgr.openProject(path); err != nil {
-		w.status = "open failed: " + err.Error()
+		w.status = translate(w.msg().OpenFailed, err.Error())
 		w.sel = ""
 	}
 }

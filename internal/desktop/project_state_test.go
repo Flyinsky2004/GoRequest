@@ -96,6 +96,10 @@ func newTestManagerAt(t *testing.T, cfgPath string) (*Manager, *fakeFactory) {
 		secrets:   platform.NewEnvSecrets(),
 		newWindow: ff.new,
 	}
+	// Most tests assert the English wording that predates the i18n catalog. The
+	// real product default is Simplified Chinese (see i18n tests); tests opt into
+	// English in memory so they keep testing behaviour, not translation strings.
+	m.cfg.cfg.Language = string(langEnglish)
 	return m, ff
 }
 

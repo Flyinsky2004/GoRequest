@@ -1,7 +1,6 @@
 package desktop
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -76,6 +75,14 @@ type Manager struct {
 	pendingQuit bool
 }
 
+// msg returns the catalog for the manager's current language (read per frame).
+func (m *Manager) msg() *messages {
+	if m == nil || m.cfg == nil {
+		return messagesFor(defaultLanguage())
+	}
+	return messagesFor(m.cfg.language())
+}
+
 // NewManager builds the application manager, loading the shared config once.
 // explicitProject is the -project flag value ("" when not given).
 func NewManager(explicitProject string) *Manager {
@@ -116,7 +123,7 @@ func (m *Manager) Start() {
 				// launch does not retry a known-bad path.
 				m.cfg.clearLastProject()
 			}
-			m.showWelcome("open failed: " + err.Error())
+			m.showWelcome(translate(m.msg().OpenFailed, err.Error()))
 		}
 		return
 	}
@@ -133,7 +140,7 @@ func (m *Manager) openProject(path string) error {
 	}
 	if app := m.findWorkspace(root); app != nil {
 		m.activate(app)
-		app.status = "switched to " + app.ps.name()
+		app.status = translate(m.msg().SwitchedTo, app.ps.name())
 		return nil
 	}
 	p, err := core.OpenProject(root)
@@ -161,9 +168,9 @@ func (m *Manager) openProject(path string) error {
 		m.welcome.win.Hide()
 	}
 	if n := core.ErrorCount(p.Issues); n > 0 {
-		app.status = fmt.Sprintf("opened %s with %d validation error(s)", ps.name(), n)
+		app.status = translate(m.msg().OpenedWithErrors, ps.name(), n)
 	} else {
-		app.status = fmt.Sprintf("opened %s (%d requests)", ps.name(), len(p.Requests))
+		app.status = translate(m.msg().OpenedRequests, ps.name(), len(p.Requests))
 	}
 	return nil
 }
@@ -221,20 +228,21 @@ func (m *Manager) pickProject(parent window) {
 	if nw, ok := parent.(nativeWindower); ok {
 		pw = nw.nativeWindow()
 	}
+	msg := m.msg()
 	if pw == nil {
-		m.setStatusFor(parent, "open failed: window not ready")
+		m.setStatusFor(parent, msg.WindowNotReady)
 		return
 	}
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent:      pw,
-			Title:       "Open GoRequest Project",
-			ButtonLabel: "Open",
-			Message:     "Choose a folder that contains a .gorequest/ directory.",
+			Title:       msg.OpenDialogTitle,
+			ButtonLabel: msg.Open,
+			Message:     msg.OpenDialogMessage,
 			Directory:   true,
 		})
 		if err != nil {
-			parent.Update(func() { m.setStatusFor(parent, "open failed: "+err.Error()) })
+			parent.Update(func() { m.setStatusFor(parent, translate(msg.OpenFailed, err.Error())) })
 			return
 		}
 		if len(paths) == 0 {
@@ -242,7 +250,7 @@ func (m *Manager) pickProject(parent window) {
 		}
 		parent.Update(func() {
 			if err := m.openProject(paths[0]); err != nil {
-				m.setStatusFor(parent, "open failed: "+err.Error())
+				m.setStatusFor(parent, translate(msg.OpenFailed, err.Error()))
 			}
 		})
 	}()

@@ -142,7 +142,7 @@ func (a *App) resolveCloseDirty(save bool) {
 	t := f.dirty
 	if save {
 		if err := f.project.saveTab(t); err != nil {
-			f.err = "save: " + err.Error()
+			f.err = translate(a.msg().SaveFailedPrefix, err.Error())
 			return
 		}
 	}
@@ -232,9 +232,10 @@ func (a *App) doMove(save, discard bool) {
 		a.moveOpen = false
 		return
 	}
+	m := a.msg()
 	if save {
 		if err := ps.saveTab(tab); err != nil {
-			a.moveErr = "save: " + err.Error()
+			a.moveErr = translate(m.SaveFailedPrefix, err.Error())
 			return
 		}
 	}
@@ -243,7 +244,7 @@ func (a *App) doMove(save, discard bool) {
 	}
 	folderRel := folderChoiceToRel(a.moveTarget)
 	if err := ps.moveRequest(tab, folderRel); err != nil {
-		a.moveErr = "move: " + err.Error()
+		a.moveErr = translate(m.MoveFailedPrefix, err.Error())
 		return
 	}
 	a.moveOpen = false
@@ -252,5 +253,5 @@ func (a *App) doMove(save, discard bool) {
 	if tab.Entry != nil {
 		rel = tab.Entry.RelPath
 	}
-	a.status = "moved " + rel
+	a.status = translate(m.MovedStatus, rel)
 }

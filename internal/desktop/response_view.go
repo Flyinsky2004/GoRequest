@@ -83,31 +83,32 @@ func isCanceledErr(msg string) bool { return strings.Contains(msg, "canceled") }
 // size, sending/error/canceled), a Body/Headers switch, and Pretty/Raw for the
 // body only.
 func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
+	m := a.msg()
 	ui.Column(c).Grow(1).FillHeight().Background(t.Surface).Children(func() {
 		ui.Row(c).Gap(10).Padding(6, 10).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
 			if tab.Sending {
 				ui.Spinner(c)
-				ui.Text(c, "Sending…")
+				ui.Text(c, m.SendingLabel)
 			} else if tab.RespErr != "" {
 				if isCanceledErr(tab.RespErr) {
-					ui.Text(c, "Canceled").TextColor(t.TextMuted)
+					ui.Text(c, m.CanceledLabel).TextColor(t.TextMuted)
 				} else {
-					ui.Text(c, "Error").TextColor(t.Danger)
+					ui.Text(c, m.ErrorLabel).TextColor(t.Danger)
 				}
 			} else if tab.Resp != nil {
 				ui.Textf(c, "%s %d", tab.Resp.Proto, tab.Resp.Status).Bold()
 				ui.Textf(c, "%s · %d B", tab.Resp.Duration.Round(1e6), tab.Resp.BodySize).FontSize(12).TextColor(t.TextMuted)
-				if notice := truncationNotice(tab.Resp); notice != "" {
-					ui.Text(c, notice).FontSize(12).TextColor(t.Warning)
+				if tab.Resp.Truncated {
+					ui.Text(c, m.TruncatedNotice).FontSize(12).TextColor(t.Warning)
 				}
 			} else {
-				ui.Text(c, "No response yet").TextColor(t.TextMuted)
+				ui.Text(c, m.NoResponseYet).TextColor(t.TextMuted)
 			}
 			ui.Box(c).Grow(1)
 			if tab.Resp != nil && !tab.Sending && tab.RespErr == "" {
-				ui.Segmented(c, &tab.RespSection, "Body", "Headers")
+				ui.Segmented(c, &tab.RespSection, m.BodySection, m.HeadersSection)
 				if tab.RespSection == 0 {
-					ui.Segmented(c, &tab.RespRawIdx, "Pretty", "Raw")
+					ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw)
 				}
 			}
 		})
@@ -123,7 +124,7 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		}
 		if tab.Resp == nil {
 			ui.Column(c).Grow(1).Center().Children(func() {
-				ui.Text(c, "Send a request to see its response here.").TextColor(t.TextMuted)
+				ui.Text(c, m.NoResponseHint).TextColor(t.TextMuted)
 			})
 			return
 		}
@@ -141,7 +142,7 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 func (a *App) responseBody(c *ui.Context, t *ui.Theme, tab *Tab) {
 	if responseBodyText(tab.Resp, tab.RespRawIdx == 1) == "" {
 		ui.Column(c).Grow(1).Center().Children(func() {
-			ui.Text(c, "Response body is empty.").TextColor(t.TextMuted)
+			ui.Text(c, a.msg().BodyEmpty).TextColor(t.TextMuted)
 		})
 		return
 	}
@@ -168,16 +169,17 @@ func (a *App) responseEditorFor(tab *Tab) *editor.State {
 // responseHeaders shows the response headers as a read-only Key/Value table
 // that keeps duplicates, scrolls, and allows selection/copy.
 func (a *App) responseHeaders(c *ui.Context, t *ui.Theme, res *core.ExecResult) {
+	m := a.msg()
 	rows := headerRows(res)
 	if len(rows) == 0 {
 		ui.Column(c).Grow(1).Center().Children(func() {
-			ui.Text(c, "No response headers.").TextColor(t.TextMuted)
+			ui.Text(c, m.NoResponseHeaders).TextColor(t.TextMuted)
 		})
 		return
 	}
 	ui.Row(c).Gap(12).Padding(4, 10).Children(func() {
-		ui.Text(c, "Key").FontSize(12).Bold().Width(200).TextColor(t.TextMuted)
-		ui.Text(c, "Value").FontSize(12).Bold().TextColor(t.TextMuted)
+		ui.Text(c, m.Key).FontSize(12).Bold().Width(200).TextColor(t.TextMuted)
+		ui.Text(c, m.Value).FontSize(12).Bold().TextColor(t.TextMuted)
 	})
 	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 		ui.Column(c).Gap(2).FillWidth().Children(func() {
