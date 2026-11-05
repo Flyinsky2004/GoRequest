@@ -1,0 +1,8 @@
+schemaVersion: 1
+id: example.demo-service
+name: 示例服务
+variables:
+  baseUrl: "http://127.0.0.1:4010"
+defaults:
+  timeout: 10s
+  auth: none

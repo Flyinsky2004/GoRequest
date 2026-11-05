@@ -2,7 +2,16 @@
 
 本地优先、Git 原生的 API 开发与文档管理工作台。
 
-**当前状态：设计阶段。** 本仓库保存需求与设计方案；下文中的功能、命令、数据格式和验收项均为计划，不代表已经实现。设计基线日期：2026-11-05（Asia/Singapore）。
+**当前状态：MVP 已实现（可运行）。** 本仓库同时保存需求设计与 MVP 代码。核心、独立 CLI 与 MyGo 原生 Desktop 已可构建运行；完整目标的其余部分仍为计划。设计基线日期：2026-11-05（Asia/Singapore）。已实现范围、运行方式与验证结果见 [实现状态](docs/implementation-status.md)。
+
+```bash
+# 构建、测试与运行（详见实现状态文档）
+go build ./...
+go test -race ./...
+go build -o bin/gorequest ./cmd/gorequest
+go build -o bin/gorequest-desktop ./cmd/gorequest-desktop
+./bin/gorequest-desktop -project examples/sample-project
+```
 
 ## 已确定的方向
 
@@ -19,6 +28,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [实现状态](docs/implementation-status.md) | **MVP 已实现能力、构建/运行、验证结果与未实现项** |
 | [产品需求](docs/product-requirements.md) | 定位、用户场景、基础能力、1.0+ 范围和优先级 |
 | [技术架构](docs/architecture.md) | Native UI、纯 Go Core、模块边界与执行生命周期 |
 | [存储格式](docs/storage-format.md) | 全局/项目分离、目录树、版本、请求与测试套件 YAML 示例 |

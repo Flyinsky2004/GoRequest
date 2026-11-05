@@ -1,0 +1,24 @@
+schemaVersion: 1
+id: auth.login
+name: 用户登录
+protocol: http
+tags: [auth]
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/login"
+  headers:
+    - name: Content-Type
+      value: application/json
+      enabled: true
+  body:
+    type: json
+    value:
+      username: "{{username}}"
+      password: "{{secret.loginPassword}}"
+auth: none
+timeout: 10s
+assert:
+  - type: status
+    equals: 200
+documentation:
+  - docs/README.md

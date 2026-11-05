@@ -1,0 +1,8 @@
+schemaVersion: 1
+id: dev
+variables:
+  baseUrl: "http://127.0.0.1:4010"
+  username: alice
+secrets:
+  - loginPassword
+  - apiToken

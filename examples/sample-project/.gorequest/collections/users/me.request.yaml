@@ -1,0 +1,17 @@
+schemaVersion: 1
+id: users.me
+name: 当前用户
+protocol: http
+http:
+  method: GET
+  url: "{{baseUrl}}/users/me"
+  query:
+    - name: include
+      value: settings
+      enabled: true
+auth:
+  ref: bearer
+timeout: 10s
+assert:
+  - type: status
+    equals: 200

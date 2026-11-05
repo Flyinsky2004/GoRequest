@@ -1,0 +1,13 @@
+schemaVersion: 1
+id: users.health
+name: 健康检查
+protocol: http
+tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/health"
+auth: none
+timeout: 10s
+assert:
+  - type: status
+    equals: 200
