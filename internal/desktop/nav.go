@@ -44,30 +44,9 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Padding(10, 14, 4, 14).Children(func() {
 				ui.Text(c, a.current.name()).FontSize(11).Bold().TextColor(t.TextMuted).SingleLine()
 			})
-			cs := ui.Sidebar(c, &a.current.sel, func() {
-				ui.SidebarSection(c, "Requests", nil, func() {
-					reqs := allRequests(a.current.project)
-					if len(reqs) == 0 {
-						ui.Text(c, "No requests").FontSize(12).TextColor(t.TextMuted).Padding(2, 8)
-					}
-					for _, re := range reqs {
-						ui.SidebarItem(c, "req:"+re.Request.ID, nil, re.Request.Name)
-					}
-				})
-				ui.SidebarSection(c, "Documents", nil, func() {
-					if len(a.current.project.Docs) == 0 {
-						ui.Text(c, "No documents").FontSize(12).TextColor(t.TextMuted).Padding(2, 8)
-					}
-					for _, d := range a.current.project.Docs {
-						ui.SidebarItem(c, "doc:"+d.RelPath, nil, d.Name)
-					}
-				})
-			}).Grow(1).FillWidth().Label("Project contents")
-			if cs.Changed() {
-				if err := a.current.openSelection(a.current.sel); err != nil {
-					a.status = err.Error()
-				}
-			}
+			ui.Scroll(c).Grow(1).FillWidth().Label("Project contents").Children(func() {
+				a.projectContents(c, t)
+			})
 		}
 
 		// Fixed Settings entry, separated from the scrolling lists.

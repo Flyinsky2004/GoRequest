@@ -20,8 +20,13 @@ type projectState struct {
 	tabs     []*Tab
 	active   int
 	envSel   string
-	sel      string // sidebar selection id within this project ("req:..." / "doc:...")
+	sel      string // sidebar selection id within this project ("req:..."/"doc:..."/"folder:...")
 	docSplit float32
+
+	// expanded records which folders are open in this project's request tree.
+	// It is per project (like tabs and edits), so two open project windows never
+	// share an expansion state.
+	expanded map[string]bool
 }
 
 func newProjectState(root string, p *core.Project) *projectState {
@@ -30,6 +35,7 @@ func newProjectState(root string, p *core.Project) *projectState {
 		project:  p,
 		envSel:   "(none)",
 		docSplit: 0.5,
+		expanded: map[string]bool{},
 	}
 	if len(p.EnvOrder) > 0 {
 		ps.envSel = p.EnvOrder[0]
@@ -60,9 +66,22 @@ func (ps *projectState) activeTab() *Tab {
 	return ps.tabs[ps.active]
 }
 
+// activateTab makes the given tab the active one by identity, without relying
+// on its current index.
+func (ps *projectState) activateTab(tab *Tab) {
+	if i := ps.indexOfTab(tab); i >= 0 {
+		ps.active = i
+	}
+}
+
 // openSelection opens the request or document named by a sidebar selection id.
+// A folder id only changes the selected target for new requests; folders are
+// toggled by the tree view itself.
 func (ps *projectState) openSelection(sel string) error {
 	switch {
+	case strings.HasPrefix(sel, "folder:"):
+		ps.sel = sel
+		return nil
 	case strings.HasPrefix(sel, "req:"):
 		id := strings.TrimPrefix(sel, "req:")
 		entry, ok := ps.project.Requests[id]
@@ -77,9 +96,39 @@ func (ps *projectState) openSelection(sel string) error {
 	return nil
 }
 
+// selectedFolder returns the project-relative folder path selected as the
+// target for new requests, or "" for the root.
+func (ps *projectState) selectedFolder() string {
+	if strings.HasPrefix(ps.sel, "folder:") {
+		return strings.TrimPrefix(ps.sel, "folder:")
+	}
+	return ""
+}
+
+// expandChain marks every ancestor folder of rel (and rel itself optional) as
+// expanded so a newly created/selected node is visible.
+func (ps *projectState) expandChain(rel string) {
+	if ps.expanded == nil {
+		ps.expanded = map[string]bool{}
+	}
+	cur := filepath.ToSlash(strings.TrimSpace(rel))
+	for cur != "" && cur != "." && cur != "collections" {
+		ps.expanded[cur] = true
+		parent := filepath.ToSlash(filepath.Dir(cur))
+		if parent == cur {
+			break
+		}
+		cur = parent
+	}
+}
+
 func (ps *projectState) openRequest(entry *core.RequestEntry) {
+	if entry == nil || entry.Request == nil {
+		return
+	}
 	for i, tab := range ps.tabs {
-		if tab.Kind == "request" && tab.Entry == entry {
+		if tab.Kind == "request" && tab.Entry != nil && tab.Entry.Request != nil &&
+			tab.Entry.Request.ID == entry.Request.ID {
 			ps.active = i
 			return
 		}
@@ -92,18 +141,29 @@ func (ps *projectState) openRequest(entry *core.RequestEntry) {
 		Baseline: entry.BaselineDigest,
 		RespSize: 320,
 	}
-	tab.Method = entry.Request.HTTP.Method
-	tab.URL = entry.Request.HTTP.URL
-	tab.Timeout = entry.Request.Timeout
-	tab.QueryRows = rowsFromKV(entry.Request.HTTP.Query)
-	tab.HeaderRows = rowsFromKV(entry.Request.HTTP.Headers)
-	if entry.Request.HTTP.Body != nil {
-		tab.BodyIdx = indexOf(bodyTypes, entry.Request.HTTP.Body.Type)
-		tab.BodyText = core.BodyEditText(entry.Request.HTTP.Body)
-	}
-	fillAuth(ps.project, tab, entry.Request)
+	fillTabFromRequest(tab, entry, ps.project)
 	ps.tabs = append(ps.tabs, tab)
 	ps.active = len(ps.tabs) - 1
+}
+
+// fillTabFromRequest copies a stored request into a tab's editable fields. It is
+// shared by opening a tab and by discarding edits, so both start from exactly
+// the persisted request.
+func fillTabFromRequest(tab *Tab, entry *core.RequestEntry, p *core.Project) {
+	req := entry.Request
+	tab.Title = req.Name
+	tab.Method = req.HTTP.Method
+	tab.URL = req.HTTP.URL
+	tab.Timeout = req.Timeout
+	tab.QueryRows = rowsFromKV(req.HTTP.Query)
+	tab.HeaderRows = rowsFromKV(req.HTTP.Headers)
+	tab.BodyIdx = 0
+	tab.BodyText = ""
+	if req.HTTP.Body != nil {
+		tab.BodyIdx = indexOf(bodyTypes, req.HTTP.Body.Type)
+		tab.BodyText = core.BodyEditText(req.HTTP.Body)
+	}
+	fillAuth(p, tab, req)
 }
 
 func (ps *projectState) openDoc(rel string) error {
@@ -133,14 +193,66 @@ func (ps *projectState) openDoc(rel string) error {
 	return nil
 }
 
-// newRequest creates a request in this project and opens its tab.
+// newRequest creates a request in this project and opens its tab. When a folder
+// is selected in the tree the request is created inside it; otherwise it goes
+// to the collections root.
 func (ps *projectState) newRequest() (*core.RequestEntry, error) {
-	entry, err := ps.project.NewRequest("", "New Request")
+	return ps.createRequestIn(ps.selectedFolder(), "New Request")
+}
+
+// createRequestIn creates a request in folderRel ("" for root) and opens it,
+// revealing and selecting the target folder.
+func (ps *projectState) createRequestIn(folderRel, name string) (*core.RequestEntry, error) {
+	entry, err := ps.project.NewRequest(collectionRelOf(folderRel), name)
 	if err != nil {
 		return nil, err
 	}
+	ps.expandChain(folderRel)
 	ps.openRequest(entry)
+	ps.sel = "req:" + entry.Request.ID
 	return entry, nil
+}
+
+// createFolder creates a folder under parentRel ("" for root), expands the path
+// so it is immediately visible, and selects it as the new-request target.
+func (ps *projectState) createFolder(parentRel, name string) (*core.CollectionEntry, error) {
+	node, err := ps.project.NewFolder(collectionRelOf(parentRel), name)
+	if err != nil {
+		return nil, err
+	}
+	ps.expandChain(node.RelPath)
+	if ps.expanded == nil {
+		ps.expanded = map[string]bool{}
+	}
+	ps.expanded[node.RelPath] = true
+	ps.sel = "folder:" + node.RelPath
+	return node, nil
+}
+
+// moveRequest moves the tab's request into folderRel ("" for root), keeping the
+// tab and request identity. The caller is responsible for any unsaved-content
+// decision before calling.
+func (ps *projectState) moveRequest(tab *Tab, folderRel string) error {
+	if tab == nil || tab.Kind != "request" || tab.Entry == nil {
+		return fmt.Errorf("no request tab to move")
+	}
+	if err := ps.project.MoveRequest(tab.Entry, collectionRelOf(folderRel)); err != nil {
+		return err
+	}
+	ps.expandChain(folderRel)
+	ps.sel = "req:" + tab.Entry.Request.ID
+	return nil
+}
+
+// reloadRequestTab discards a request tab's edits by re-reading the entry's
+// stored request into the tab fields, leaving it clean.
+func (ps *projectState) reloadRequestTab(tab *Tab) {
+	if tab == nil || tab.Entry == nil || tab.Entry.Request == nil {
+		return
+	}
+	fillTabFromRequest(tab, tab.Entry, ps.project)
+	tab.Dirty = false
+	tab.Baseline = tab.Entry.BaselineDigest
 }
 
 // newDoc creates a Markdown document in this project and opens its tab.
@@ -178,4 +290,17 @@ func (ps *projectState) saveTab(tab *Tab) error {
 	tab.Baseline = digest
 	tab.Dirty = false
 	return nil
+}
+
+// collectionRelOf maps a project-relative folder path ("collections/auth", or
+// "" / "collections" for the root) to a collections-relative path ("auth").
+func collectionRelOf(entryRel string) string {
+	rel := filepath.ToSlash(strings.TrimSpace(entryRel))
+	rel = strings.TrimPrefix(rel, "collections/")
+	rel = strings.TrimPrefix(rel, "collections")
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "." {
+		return ""
+	}
+	return rel
 }

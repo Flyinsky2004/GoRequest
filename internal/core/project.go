@@ -50,6 +50,16 @@ type Project struct {
 	AuthSchemes  map[string]*AuthScheme
 	Docs         []*DocEntry
 	Issues       []Issue
+
+	// loadIssues keeps the load-time findings (parse errors and the like) so
+	// that re-validating after an in-memory mutation does not accumulate
+	// duplicates of them on every rebuild.
+	loadIssues []Issue
+	// colByDir is the parsed collection.yaml of every folder, keyed by the
+	// project-relative directory (e.g. "collections/auth"). It is kept so that
+	// creating a folder or moving a request can rebuild the tree without
+	// re-reading the project.
+	colByDir map[string]*Collection
 }
 
 // LocateProjectDir finds the .gorequest directory for a user-supplied path,
@@ -111,6 +121,7 @@ func OpenProject(dir string) (*Project, error) {
 	if err := p.loadDocs(); err != nil {
 		return nil, err
 	}
+	p.loadIssues = append([]Issue(nil), p.Issues...)
 	p.Issues = ValidateProject(p)
 	return p, nil
 }
@@ -226,6 +237,7 @@ func (p *Project) loadCollectionsAndRequests() error {
 		p.Order = append(p.Order, req.ID)
 	}
 
+	p.colByDir = colByDir
 	p.Collections = buildCollectionTree(colByDir, p.Requests)
 	return nil
 }
@@ -254,48 +266,6 @@ func (p *Project) collectionVarsFor(rel string, colByDir map[string]*Collection)
 		}
 	}
 	return vars
-}
-
-func buildCollectionTree(colByDir map[string]*Collection, requests map[string]*RequestEntry) []*CollectionEntry {
-	nodes := map[string]*CollectionEntry{}
-	dirs := make([]string, 0, len(colByDir))
-	for d := range colByDir {
-		dirs = append(dirs, d)
-	}
-	sort.Strings(dirs)
-	for _, d := range dirs {
-		c := colByDir[d]
-		nodes[d] = &CollectionEntry{RelPath: d, ID: c.ID, Name: c.Name, Vars: c.Variables}
-	}
-	// Attach requests to their directory node.
-	for _, e := range requests {
-		dir := filepath.ToSlash(filepath.Dir(e.RelPath))
-		if n, ok := nodes[dir]; ok {
-			n.Requests = append(n.Requests, e)
-		}
-	}
-	// Link children to parents, fall back to a synthetic parent node if absent.
-	var roots []*CollectionEntry
-	for _, d := range dirs {
-		parent := filepath.ToSlash(filepath.Dir(d))
-		if pn, ok := nodes[parent]; ok {
-			pn.Children = append(pn.Children, nodes[d])
-			continue
-		}
-		roots = append(roots, nodes[d])
-	}
-	var sortNode func(n *CollectionEntry)
-	sortNode = func(n *CollectionEntry) {
-		sort.Slice(n.Requests, func(i, j int) bool { return n.Requests[i].Request.Name < n.Requests[j].Request.Name })
-		sort.Slice(n.Children, func(i, j int) bool { return n.Children[i].RelPath < n.Children[j].RelPath })
-		for _, c := range n.Children {
-			sortNode(c)
-		}
-	}
-	for _, r := range roots {
-		sortNode(r)
-	}
-	return roots
 }
 
 func (p *Project) loadDocs() error {
@@ -385,24 +355,26 @@ func (p *Project) SaveRequest(entry *RequestEntry, r *Request, baseline string) 
 	entry.Request = r
 	// Keep the maps current for the UI.
 	p.Requests[r.ID] = entry
-	p.Issues = ValidateProject(p)
+	p.revalidate()
 	return d, nil
 }
 
 // NewRequest creates and saves a new request in a collection directory
-// (project-relative under collections, may be empty for the root).
+// (relative to collections, may be empty for the root) and keeps the in-memory
+// collection tree, index and inherited collection variables in sync.
 func (p *Project) NewRequest(collectionRel, name string) (*RequestEntry, error) {
 	if strings.TrimSpace(name) == "" {
 		name = "New Request"
 	}
-	base := Slug(name)
-	dir := "collections"
-	if collectionRel != "" {
-		dir = filepath.ToSlash(filepath.Join("collections", collectionRel))
+	colRel, err := sanitizeCollectionRel(collectionRel)
+	if err != nil {
+		return nil, err
 	}
+	base := Slug(name)
+	dir := collectionsDirOf(colRel)
 	prefix := ""
-	if collectionRel != "" {
-		prefix = Slug(filepath.Base(collectionRel)) + "."
+	if colRel != "" {
+		prefix = Slug(filepath.Base(colRel)) + "."
 	}
 	id := prefix + base
 	for i := 2; ; i++ {
@@ -429,10 +401,15 @@ func (p *Project) NewRequest(collectionRel, name string) (*RequestEntry, error) 
 	if err := p.Store.SaveChecked(rel, data, ""); err != nil {
 		return nil, err
 	}
-	entry := &RequestEntry{Request: req, RelPath: rel, BaselineDigest: Digest(data), CollectionVars: map[string]string{}}
+	entry := &RequestEntry{
+		Request:        req,
+		RelPath:        rel,
+		BaselineDigest: Digest(data),
+		CollectionVars: p.collectionVarsFor(rel, p.colByDir),
+	}
 	p.Requests[id] = entry
 	p.Order = append(p.Order, id)
-	p.Issues = ValidateProject(p)
+	p.rebuildTree()
 	return entry, nil
 }
 

@@ -34,6 +34,29 @@ type App struct {
 	status     string
 
 	showSettings bool
+
+	// Tab close flow (Save/Discard/Cancel for dirty tabs) and the folder/request
+	// dialogs. They act on a captured project so switching projects mid-dialog
+	// cannot redirect an action to the wrong project.
+	closeFlow *closeFlow
+	// closeModalOpen backs the dirty-close Modal so Escape/outside-click is a
+	// real dismissal (treated as cancelling the remaining close queue).
+	closeModalOpen bool
+
+	newReqOpen      bool
+	newReqName      string
+	newReqFolder    string
+	newFolderOpen   bool
+	newFolderName   string
+	newFolderParent string
+	formProject     *projectState
+	formErr         string
+
+	moveOpen    bool
+	moveTab     *Tab
+	moveProject *projectState
+	moveTarget  string
+	moveErr     string
 }
 
 // New creates the app, optionally opening a project path immediately.
@@ -69,6 +92,7 @@ func (a *App) View(c *ui.Context) {
 		}
 	})
 	a.settingsModal(c, t)
+	a.formsModals(c, t)
 }
 
 // applyAppearance applies the stored appearance preference for the frame. When

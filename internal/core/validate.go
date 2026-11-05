@@ -33,7 +33,18 @@ func ErrorCount(issues []Issue) int {
 // ValidateProject gathers load-time issues and validates every request. It
 // performs no network access.
 func ValidateProject(p *Project) []Issue {
-	issues := append([]Issue(nil), p.Issues...)
+	return validateProjectFrom(p.Issues, p)
+}
+
+// revalidate recomputes issues after an in-memory mutation, starting from the
+// original load-time findings so they are never duplicated.
+func (p *Project) revalidate() {
+	p.Issues = validateProjectFrom(p.loadIssues, p)
+}
+
+// validateProjectFrom appends per-request validation of p to a copy of base.
+func validateProjectFrom(base []Issue, p *Project) []Issue {
+	issues := append([]Issue(nil), base...)
 	ids := make([]string, 0, len(p.Requests))
 	for id := range p.Requests {
 		ids = append(ids, id)
