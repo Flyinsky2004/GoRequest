@@ -21,8 +21,13 @@
 
 - MyGo **Native UI**：GPU 绘制、无 HTML/JS/WebView 主界面。
 - 打开项目、左侧请求/文档树、多标签、环境切换。
-- 请求编辑：方法选择、URL、超时、Params/Headers（逐行编辑）、Body（JSON/Text/XML）、Auth（none/bearer/basic）。
-- 发送/取消（后台 goroutine + `Window.Update`），响应区显示状态/耗时/大小、Pretty/Raw、Headers/Body（只读可选中）。
+- 请求编辑：方法选择、URL、超时、Params/Headers、Body（JSON/Text/XML）、Auth（none/bearer/basic）。
+  - Params/Headers 为结构化逐行 Key/Value 表格：Enabled 勾选、可编辑 Key、Value、删除，固定列标题、独立滚动与“Add row”。每行有稳定 UI 标识，删除中间行不串行。Key 输入框为可编辑的自动补全框（MyGo 原生 `Autocomplete`）：可按输入过滤、上下键选择、Enter 确认、Escape 关闭，且允许任意自定义输入；Headers 与 Query 使用互不混用的建议集合，Content-Type/Accept 的 Value 提供媒体类型建议（仍可自由输入）。
+  - 结构化行状态直接映射 `core.KV`：有序往返保留重复键、空 value、含 `:`/`=`/有效空格的值以及 `{{variable}}`/`{{secret.name}}`；已保存的禁用行打开后仍可见并保持禁用；纯空白行在保存/发送时被丢弃，填了 value 却漏 key 的不完整行就近提示并在保存/发送时报错。Query value 不按 `&`/`=` 切分，Header value 不按 `:` 切分。
+- 发送/取消（后台 goroutine + `Window.Update`），响应区显示状态码/协议、耗时、大小、发送中/错误/取消状态。
+  - Body / Headers 分段切换，默认 Body。Body 编辑器只显示响应正文；Pretty/Raw 仅作用于正文，Pretty 复用 `ExecResult.Pretty` 的缩进 JSON（原生编辑器启用 JSON 高亮），Raw 保留原始正文，均不拼入 HTTP 头或状态行。
+  - Headers 以只读 Key/Value 表格展示并保留重复头（不转成会丢重复的 map），可滚动、可选中复制；Authorization/Set-Cookie 等敏感头保持脱敏（`***`），切换视图不泄露。
+  - 空正文、非 JSON、非法 JSON（回退原文）、请求错误/取消、32 MB 截断均有合理表现；截断提示在正文之外展示，不写入 JSON 正文。正文/头编辑器缓存按响应版本与 Pretty/Raw 状态失效，切换不出现旧内容、不每帧重建或重复解析。
 - Markdown 编辑/原生预览/分栏，文档保存。
 - 保存请求与文档带冲突检测；脏标记。
 
@@ -57,6 +62,7 @@ go run ./examples/demo-server -addr 127.0.0.1:4010
 - `go vet ./...`：无报告。
 - `go test -race ./...`：全部通过（core 覆盖率约 56%）。
 - 原生 UI 技术验证：最小 MyGo Native UI 程序与完整桌面程序均可构建并创建窗口（运行至超时仍存活），确认无 WebView 主界面路线可行。
+- 请求表单 / 响应展示改造：新增 `internal/desktop/request_form.go`、`response_view.go` 及逻辑测试（`request_form_test.go`、`response_view_test.go`）。覆盖：响应正文不混入响应头元数据、Pretty/Raw 正文分离、重复头保留与 Authorization/Set-Cookie 脱敏、空/非 JSON/非法 JSON 回退、截断提示在正文之外；表单与 `core.KV` 的有序往返（重复键/空 value/含 `:`/`=`/空格/`{{var}}`/`{{secret.x}}`）、禁用行保留、空白行丢弃、漏 Key 报错、建议集合分离与筛选、删除中间行标识稳定。`go build ./...`、`go vet ./...`、`go test -race ./...` 均通过。
 - `examples/demo-server` 可作为本地服务供桌面手动联调；core 的 HTTP 行为已由 `httptest` 覆盖。
 
 ## 4. 尚未实现（保持设计计划，未宣称完成）

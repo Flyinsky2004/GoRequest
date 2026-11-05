@@ -30,20 +30,20 @@ type Tab struct {
 	Title string
 
 	// request editing state
-	Entry       *core.RequestEntry
-	Method      string
-	URL         string
-	QueryText   string
-	HeadersText string
-	BodyIdx     int
-	BodyText    string
-	AuthMode    string
-	AuthIdx     int
-	AuthToken   string
-	AuthUser    string
-	AuthPass    string
-	Timeout     string
-	Section     int // 0 params, 1 headers, 2 body, 3 auth
+	Entry      *core.RequestEntry
+	Method     string
+	URL        string
+	QueryRows  []*KVRow
+	HeaderRows []*KVRow
+	BodyIdx    int
+	BodyText   string
+	AuthMode   string
+	AuthIdx    int
+	AuthToken  string
+	AuthUser   string
+	AuthPass   string
+	Timeout    string
+	Section    int // 0 params, 1 headers, 2 body, 3 auth
 
 	// doc editing state
 	DocRel    string
@@ -56,7 +56,8 @@ type Tab struct {
 	// response
 	Resp         *core.ExecResult
 	RespErr      string
-	RespRawIdx   int
+	RespRawIdx   int // 0 Pretty, 1 Raw; only affects the body
+	RespSection  int // 0 Body, 1 Headers
 	RespSize     float32
 	Sending      bool
 	cancel       context.CancelFunc
@@ -239,8 +240,8 @@ func (a *App) openRequest(entry *core.RequestEntry) {
 	tab.Method = entry.Request.HTTP.Method
 	tab.URL = entry.Request.HTTP.URL
 	tab.Timeout = entry.Request.Timeout
-	tab.QueryText = renderKV(entry.Request.HTTP.Query, "=")
-	tab.HeadersText = renderKV(entry.Request.HTTP.Headers, ": ")
+	tab.QueryRows = rowsFromKV(entry.Request.HTTP.Query)
+	tab.HeaderRows = rowsFromKV(entry.Request.HTTP.Headers)
 	if entry.Request.HTTP.Body != nil {
 		tab.BodyIdx = indexOf(bodyTypes, entry.Request.HTTP.Body.Type)
 		tab.BodyText = core.BodyEditText(entry.Request.HTTP.Body)
@@ -332,9 +333,9 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
 				switch tab.Section {
 				case 0:
-					a.kvEditor(c, t, "Query — one name=value per line", &tab.QueryText, tab)
+					a.kvForm(c, t, tab, kvQuery)
 				case 1:
-					a.kvEditor(c, t, "Headers — one Name: Value per line", &tab.HeadersText, tab)
+					a.kvForm(c, t, tab, kvHeader)
 				case 2:
 					a.bodyEditor(c, t, tab)
 				case 3:
@@ -345,13 +346,6 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			a.responseView(c, t, tab)
 		}).Grow(1).FillWidth()
 	})
-}
-
-func (a *App) kvEditor(c *ui.Context, t *ui.Theme, label string, value *string, tab *Tab) {
-	ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
-	if ui.TextArea(c, value).Grow(1).FillWidth().Changed() {
-		tab.Dirty = true
-	}
 }
 
 func (a *App) bodyEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
@@ -392,74 +386,6 @@ func (a *App) authEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 	default:
 		ui.Text(c, "No auth.").TextColor(t.TextMuted)
 	}
-}
-
-func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
-	ui.Column(c).Grow(1).FillHeight().Background(t.Surface).Children(func() {
-		ui.Row(c).Gap(10).Padding(6, 10).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
-			if tab.Sending {
-				ui.Spinner(c)
-				ui.Text(c, "Sending…")
-			} else if tab.RespErr != "" {
-				ui.Text(c, "Error").TextColor(t.Danger)
-			} else if tab.Resp != nil {
-				ui.Textf(c, "%s %d", tab.Resp.Proto, tab.Resp.Status).Bold()
-				ui.Textf(c, "%s · %d B", tab.Resp.Duration.Round(1e6), tab.Resp.BodySize).FontSize(12).TextColor(t.TextMuted)
-			} else {
-				ui.Text(c, "No response yet").TextColor(t.TextMuted)
-			}
-			ui.Box(c).Grow(1)
-			ui.Segmented(c, &tab.RespRawIdx, "Pretty", "Raw")
-		})
-		if tab.Sending {
-			ui.Box(c).Fill()
-			return
-		}
-		if tab.RespErr != "" {
-			ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-				ui.Text(c, tab.RespErr).TextColor(t.Danger)
-			})
-			return
-		}
-		if tab.Resp == nil {
-			ui.Box(c).Fill()
-			return
-		}
-		if tab.respEditor == nil || tab.respBuiltVer != tab.respVersion || tab.respBuiltIdx != tab.RespRawIdx {
-			tab.respEditor = &editor.State{
-				Buffer:   editor.NewBuffer(a.responseText(tab)),
-				ReadOnly: true,
-			}
-			tab.respBuiltVer = tab.respVersion
-			tab.respBuiltIdx = tab.RespRawIdx
-		}
-		editor.View(c, tab.respEditor).Grow(1).FillWidth()
-	})
-}
-
-func (a *App) responseText(tab *Tab) string {
-	res := tab.Resp
-	if res == nil {
-		return ""
-	}
-	var b strings.Builder
-	for _, h := range res.Headers {
-		if strings.EqualFold(h[0], "Authorization") || strings.EqualFold(h[0], "Set-Cookie") {
-			b.WriteString(h[0] + ": ***\n")
-			continue
-		}
-		b.WriteString(h[0] + ": " + h[1] + "\n")
-	}
-	b.WriteString("\n")
-	body := string(res.Body)
-	if tab.RespRawIdx == 0 && res.Pretty != "" {
-		body = res.Pretty
-	}
-	if res.Truncated {
-		body += "\n\n[truncated at 32 MB]"
-	}
-	b.WriteString(body)
-	return b.String()
 }
 
 func (a *App) docView(c *ui.Context, t *ui.Theme, tab *Tab) {
@@ -612,11 +538,19 @@ func (a *App) requestFromTab(tab *Tab) (*core.Request, error) {
 		return nil, fmt.Errorf("no request")
 	}
 	base := *tab.Entry.Request
+	query, err := kvFromRows(tab.QueryRows)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	headers, err := kvFromRows(tab.HeaderRows)
+	if err != nil {
+		return nil, fmt.Errorf("headers: %w", err)
+	}
 	httpDef := &core.HTTPDef{
 		Method:  tab.Method,
 		URL:     tab.URL,
-		Query:   parseKV(tab.QueryText, "="),
-		Headers: parseKV(tab.HeadersText, ":"),
+		Query:   query,
+		Headers: headers,
 	}
 	if strings.TrimSpace(tab.BodyText) != "" {
 		body, err := core.ParseBodyText(bodyTypes[tab.BodyIdx], tab.BodyText)
@@ -672,35 +606,6 @@ func flattenRequests(cols []*core.CollectionEntry) []*core.RequestEntry {
 	}
 	for _, n := range cols {
 		walk(n)
-	}
-	return out
-}
-
-func renderKV(kvs []core.KV, sep string) string {
-	var b strings.Builder
-	for _, kv := range kvs {
-		if !kv.IsEnabled() {
-			continue
-		}
-		b.WriteString(kv.Name + sep + kv.Value + "\n")
-	}
-	return b.String()
-}
-
-func parseKV(text, sep string) []core.KV {
-	var out []core.KV
-	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		name, value, _ := strings.Cut(line, sep)
-		name = strings.TrimSpace(name)
-		value = strings.TrimSpace(value)
-		if name == "" {
-			continue
-		}
-		out = append(out, core.KV{Name: name, Value: value, Enabled: core.BoolPtr(true)})
 	}
 	return out
 }
