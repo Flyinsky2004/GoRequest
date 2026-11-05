@@ -22,7 +22,7 @@
 | 固定名称、Go + MyGo Native UI、纯 Go Core、产品定位 | [产品需求](product-requirements.md)、[架构](architecture.md)、ADR-001 至 003 |
 | 全局/项目分离、Git-native、独立文本与示例 | [存储格式](storage-format.md)、ADR-004/005 |
 | HTTP、环境、响应、Markdown、Git、导入导出 | [基础规格](specs/core-workspace-http.md) |
-| 集合测试、数据驱动、CLI/CI、断言、报告 | [自动化规格](specs/testing-cli-ci.md) |
+| 集合测试、数据驱动、断言、报告、桌面自动化 | [桌面测试自动化规格](specs/desktop-test-automation.md) |
 | OpenAPI、OAuth2、OIDC、TLS/mTLS | [规范与鉴权](specs/openapi-auth.md) |
 | GraphQL、WebSocket、gRPC 四模式 | [多协议规格](specs/protocols.md) |
 | Mock、网络耗时与分位数 | [Mock 与性能](specs/mock-performance.md) |
@@ -52,6 +52,6 @@
 
 ## 4. 本地保存边界
 
-目标目录：`~/Documents/Coding/GoLang/GoRequest`。写入前目录已存在，只有 `LICENSE` 和 `.git/`；Git 工作区无未提交改动。此次只新增根 README 和设计 Markdown，不覆盖/删除已有文件，不改 LICENSE，不创建活动业务项目、密钥、历史、报告或实现代码，不安装依赖，不运行未来 CLI，不提交或推送 Git。
+目标目录：`~/Documents/Coding/GoLang/GoRequest`。写入前目录已存在，只有 `LICENSE` 和 `.git/`；Git 工作区无未提交改动。此次只新增根 README 和设计 Markdown，不覆盖/删除已有文件，不改 LICENSE，不创建活动业务项目、密钥、历史、报告或实现代码，不安装依赖，不运行未来工具，不提交或推送 Git。
 
-根 README 是入口；目录中的 YAML/JSON/命令/CI 代码块均为未来格式示例。完整字段 Schema、软件实现、构建和功能验收仍为后续工作。
+根 README 是入口；目录中的 YAML/JSON 代码块均为未来格式示例。完整字段 Schema、软件实现、构建和功能验收仍为后续工作。

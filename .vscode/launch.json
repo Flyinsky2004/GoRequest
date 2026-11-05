@@ -1,67 +1,9 @@
 {
-  // VS Code debug configurations for GoRequest (uses the Go extension + Delve).
-  // Pick a configuration in the Run and Debug view. ${workspaceFolder} is the repo root.
+  // VS Code debug configurations for GoRequest Desktop (Go extension + Delve).
+  // GoRequest ships a single native desktop app (MyGo Native UI); there is no
+  // standalone product CLI.
   "version": "0.2.0",
   "configurations": [
-    {
-      "name": "CLI: version",
-      "type": "go",
-      "request": "launch",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/gorequest",
-      "args": ["version"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "CLI: validate sample project",
-      "type": "go",
-      "request": "launch",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/gorequest",
-      "args": ["validate", "--project", "examples/sample-project", "--verbose"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "CLI: run users.health",
-      "type": "go",
-      "request": "launch",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/gorequest",
-      "args": ["run", "--project", "examples/sample-project", "--request", "users.health", "--env", "dev"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "CLI: run auth.login (needs secret)",
-      "type": "go",
-      "request": "launch",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/gorequest",
-      "args": [
-        "run",
-        "--project", "examples/sample-project",
-        "--request", "auth.login",
-        "--env", "dev",
-        "--secret", "loginPassword=env:GOREQUEST_SECRET_LOGINPASSWORD",
-        "--json"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": { "GOREQUEST_SECRET_LOGINPASSWORD": "pass123" },
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "CLI: run users.me (needs secret)",
-      "type": "go",
-      "request": "launch",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd/gorequest",
-      "args": ["run", "--project", "examples/sample-project", "--request", "users.me", "--env", "dev"],
-      "cwd": "${workspaceFolder}",
-      "env": { "GOREQUEST_SECRET_APITOKEN": "demo-token" },
-      "console": "integratedTerminal"
-    },
     {
       "name": "Desktop: open sample project",
       "type": "go",
@@ -69,6 +11,16 @@
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/gorequest-desktop",
       "args": ["-project", "examples/sample-project"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Desktop: open current folder",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/gorequest-desktop",
+      "args": [],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"
     },
@@ -94,8 +46,8 @@
   ],
   "compounds": [
     {
-      "name": "Demo server + CLI run users.health",
-      "configurations": ["Demo server (:4010)", "CLI: run users.health"],
+      "name": "Demo server + Desktop",
+      "configurations": ["Demo server (:4010)", "Desktop: open sample project"],
       "stopAll": true
     }
   ]

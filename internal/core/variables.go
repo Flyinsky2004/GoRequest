@@ -13,8 +13,8 @@ type SecretProvider interface {
 	Get(name string) (string, bool)
 }
 
-// MapSecrets is an in-memory SecretProvider, handy for tests and explicit CLI
-// bindings.
+// MapSecrets is an in-memory SecretProvider, handy for tests and explicit
+// secret bindings.
 type MapSecrets map[string]string
 
 // Get returns the named secret if present.

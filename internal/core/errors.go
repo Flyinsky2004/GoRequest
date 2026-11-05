@@ -6,8 +6,7 @@ import (
 )
 
 // ConfigError reports a problem in project definition, parameters, missing
-// resources or unsupported formats, discovered before a request is sent. The
-// CLI maps it to exit code 2.
+// resources or unsupported formats, discovered before a request is sent.
 type ConfigError struct{ Err error }
 
 func (e *ConfigError) Error() string { return e.Err.Error() }
@@ -24,7 +23,7 @@ func IsConfig(err error) bool {
 }
 
 // RunError reports a failure while performing a request: network, TLS,
-// connection or protocol failure. The CLI maps it to exit code 1.
+// connection or protocol failure.
 type RunError struct{ Err error }
 
 func (e *RunError) Error() string { return e.Err.Error() }

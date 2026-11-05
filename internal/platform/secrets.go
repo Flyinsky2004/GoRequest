@@ -10,7 +10,7 @@ import (
 // EnvSecrets resolves secrets from environment variables named
 // GOREQUEST_SECRET_<NAME>, where NAME is upper-cased with non-alphanumeric
 // characters turned into underscores. This keeps secret values out of project
-// files and works headless for CI. It is a minimal backend; an OS keychain
+// files and works without a GUI. It is a minimal backend; an OS keychain
 // adapter is future work (see docs/decisions.md Q-03).
 type EnvSecrets struct {
 	Prefix string

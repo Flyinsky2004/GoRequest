@@ -26,7 +26,7 @@ Subscription 优先采用名为 **`graphql-transport-ws`** 的 WebSocket 子协�
 
 认证初始化负载同样带敏感标记，不能原样记入报告。GUI 可让用户显式重连；自动化不静默重连，不把断流包装成订阅成功。SSE、旧版订阅协议和增量传输属于后续兼容评估。
 
-验收：关闭网络仍能用本地 SDL 编辑并校验；对本地服务完成带 Variables 的 Query/Mutation、多 Operation 选择、部分错误展示及订阅；CLI 在限定时间内收到预期事件后完成，取消可终止连接。
+验收：关闭网络仍能用本地 SDL 编辑并校验；对本地服务完成带 Variables 的 Query/Mutation、多 Operation 选择、部分错误展示及订阅；桌面内测试在限定时间内收到预期事件后完成，取消可终止连接。
 
 ## 3. WebSocket
 
@@ -48,7 +48,7 @@ Subscription 优先采用名为 **`graphql-transport-ws`** 的 WebSocket 子协�
 
 `await` 明确从哪个接收游标开始、超时后如何处理，以及不匹配消息是保留还是跳过；不能无意消费其他步骤等待的消息。多等待者匹配规则需要协议脚本评审。自动化默认无重连；手工调试的自动重连需显式开启、有次数上限并在时间线上显示间断。
 
-验收：Text/Binary、Ping/Pong、服务端主动关闭、错误握手、异常断流和超时均有真实结果；同一脚本 Desktop 与 CLI 判定一致，取消后服务端观察到连接终止。
+验收：Text/Binary、Ping/Pong、服务端主动关闭、错误握手、异常断流和超时均有真实结果；同一脚本在桌面内判定一致，取消后服务端观察到连接终止。
 
 ## 4. 原生 gRPC
 
@@ -77,4 +77,4 @@ gRPC 四种调用模式必须全部覆盖，不能把只支持 Unary 宣称为�
 
 初期只覆盖原生 gRPC；gRPC-Web 是独立接入方式，后续按需求评估，不因为桌面产品已有 UI 而默认支持它。
 
-验收：对有 Reflection 和仅本地 Proto 的测试服务分别发现方法；完成四模式调用、Metadata/Trailer/Status 检查、证书失败、deadline exceeded、流中错误、half-close 与取消。CLI 无桌面依赖，并输出与 Desktop 同样的协议结果和断言判定。
+验收：对有 Reflection 和仅本地 Proto 的测试服务分别发现方法；完成四模式调用、Metadata/Trailer/Status 检查、证书失败、deadline exceeded、流中错误、half-close 与取消。桌面内输出协议结果与断言判定，与其它协议保持一致。

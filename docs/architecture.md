@@ -7,16 +7,15 @@
 ```mermaid
 flowchart TD
     Desktop[Desktop / MyGo Native UI] --> Core[纯 Go / GoRequest Core]
-    CLI[独立 gorequest CLI / CI] --> Core
     Core --> Files[项目文本文件 / .gorequest]
     Core --> Protocols[HTTP / GraphQL / WebSocket / gRPC]
     Core --> Ports[凭据 / 本地状态 / 文件 / 时钟接口]
     Ports --> OS[操作系统适配器]
 ```
 
-图表源码即为设计资料；不表示 GoRequest 已具备 Mermaid 渲染。依赖方向由外向内：Core 不得导入 MyGo、桌面窗口、原生 UI、浏览器 IPC 或 GUI 事件类型。CLI 构建不能引入 GUI 启动或桌面服务依赖。
+图表源码即为设计资料；不表示 GoRequest 已具备 Mermaid 渲染。依赖方向由外向内：Core 不得导入 MyGo、桌面窗口、原生 UI、浏览器 IPC 或 GUI 事件类型。GoRequest 只有桌面一个前端，不提供独立产品 CLI。
 
-Core 为纯 Go 业务与执行层，系统凭据、文件监视、浏览器启动等通过小接口注入。协议适配器也使用 Go；Desktop 可使用 MyGo 的系统集成能力，但不得迫使 CLI 依赖它。
+Core 为纯 Go 业务与执行层，系统凭据、文件监视、浏览器启动等通过小接口注入。协议适配器也使用 Go；Desktop 可使用 MyGo 的系统集成能力，但 Core 本身不得依赖它。
 
 MyGo 官方区分 Native UI 与网页窗口；本项目仅选择 Native UI 作为主界面，不能因框架也支持网页窗口而改变路线。[MyGo Native UI 官方说明](https://mygo.egoist.dev/docs/ui)
 
@@ -53,7 +52,7 @@ MyGo 官方区分 Native UI 与网页窗口；本项目仅选择 Native UI 作�
 6. 执行断言、提取、依赖步骤和统计，区分配置错误、请求失败与内部故障。
 7. 先脱敏再输出事件、历史、UI、日志及报告；关闭连接和临时 Mock。
 
-Desktop 与 CLI 调用同一个入口（概念形状为 `Run(context, plan, eventSink)`），UI 不直接执行网络请求。界面中未保存的请求可以通过内存快照发送，但需标识；与 CLI 比较时必须使用相同已保存快照及 Core 版本。
+桌面视图通过同一个 Core 入口调用执行（概念形状为 `Run(context, plan, eventSink)`），UI 不直接执行网络请求。界面中未保存的请求可以通过内存快照发送，但需标识；当比较“已保存快照”与“内存编辑”时，必须使用相同的已保存快照及 Core 版本。
 
 ## 4. 执行与并发约束
 
@@ -73,15 +72,14 @@ Desktop 与 CLI 调用同一个入口（概念形状为 `Run(context, plan, even
 ## 6. 平台与工程组织草案
 
 ```text
-cmd/gorequest/          # 独立 CLI
-cmd/gorequest-desktop/  # MyGo Native UI 入口
+cmd/gorequest-desktop/  # MyGo Native UI 入口（唯一产品入口）
 internal/core/         # 模型、变量、执行、测试、文档等共享能力
 internal/protocol/     # 各协议适配器
 internal/platform/     # 凭据、目录、文件监视、系统集成适配
 internal/desktop/      # 视图与交互状态
 ```
 
-以上仅为未来源代码目录建议，本次不创建这些目录或 `go.mod`。CLI 需要在没有显示服务器、系统钥匙串会话和桌面运行时的环境工作；凭据由 CI 注入。Desktop 平台目标为 macOS、Windows、Linux，具体最低系统版本、CPU/GPU 与打包依赖通过原生 UI 验证后确定。
+Desktop 平台目标为 macOS、Windows、Linux，具体最低系统版本、CPU/GPU 与打包依赖通过原生 UI 验证后确定。Core 不依赖桌面运行时，便于单元测试与后续复用，但不作为独立命令行产品发布。
 
 ## 7. 实现前的技术验证
 

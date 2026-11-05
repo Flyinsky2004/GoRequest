@@ -4,7 +4,7 @@
 
 ## 1. 产品定位与目标
 
-GoRequest 面向个人开发者和通过 Git 协作的研发团队，将 API 定义、请求调试、文档、测试和交付放在同一个本地项目中。Desktop 使用 Go + MyGo Native UI；无图形环境的 CI 使用独立 CLI；二者共享纯 Go Core。
+GoRequest 面向个人开发者和通过 Git 协作的研发团队，将 API 定义、请求调试、文档、测试和交付放在同一个本地项目中。产品以 Go + MyGo Native UI 的**桌面应用**交付，并复用不依赖 GUI 的纯 Go Core；不提供独立产品 CLI。
 
 产品应当同时满足：不开应用也能读改项目文件；不登录账号也能编辑、调试本地服务和管理文档；没有 Git 也能工作；使用 Git 时能审阅真实语义差异。项目可以独立存在，也可以放进已有业务代码仓库。
 
@@ -15,7 +15,7 @@ GoRequest 面向个人开发者和通过 Git 协作的研发团队，将 API 定
 | 临时调试 | 在全局工作区新建请求，配置参数并查看响应，再选择是否保存进项目 |
 | 团队 API 项目 | 打开业务仓库中的 `.gorequest/`，共同维护请求、Schema、文档与测试 |
 | 登录与业务回归 | 登录提取 Token，查询用户、更新资料、校验结果，运行状态不污染共享文件 |
-| CI 门禁 | 在无桌面 Linux Runner 中校验、执行测试、输出 JUnit 与明确退出码 |
+| 桌面批量回归 | 在桌面内批量运行集合/套件，检查断言、提取与报告 |
 | 多协议调试 | 用同一环境和鉴权管理 HTTP、GraphQL、WebSocket、gRPC |
 | 后端未就绪 | 从接口示例/Schema 启动本地 Mock，供前端或测试使用 |
 | 交付接口 | 输出 OpenAPI、可离线阅读的文档和不包含密钥的调用代码 |
@@ -43,13 +43,13 @@ GoRequest 面向个人开发者和通过 Git 协作的研发团队，将 API 定
 | 编号 | 能力 | 优先级 | 必须覆盖的范围 |
 | --- | --- | --- | --- |
 | ADV-01 | 集合测试与自动化 | P0 | Collection Runner、跨集合 Suite、依赖、CSV/JSON 数据驱动、断言、提取、重试、报告 |
-| ADV-02 | 独立 CLI 与 CI | P0 | run/validate/openapi/mock/generate/doctor/version、无交互、JSON/JUnit、取消与退出码 |
+| ADV-02 | 桌面测试自动化与报告 | P0 | 桌面内集合 Runner、跨集合 Suite、依赖、数据驱动、断言、提取、重试、JSON/JUnit 报告 |
 | ADV-03 | OpenAPI | P0 | 3.1.x/3.2.x YAML/JSON 导入导出、引用与结构校验、响应 Schema、差异与兼容性报告 |
 | ADV-04 | OAuth2/OIDC | P0 | Code + PKCE、Client Credentials、Device、刷新、Discovery、ID Token 校验 |
 | ADV-05 | GraphQL | P1 | Query、Mutation、Subscription、SDL/Introspection、变量、操作选择、错误与自动化 |
 | ADV-06 | WebSocket | P1 | 会话调试、Text/JSON/Binary、Ping/Pong、关闭、消息脚本与重放 |
 | ADV-07 | gRPC | P1 | Unary、Server/Client/Bidirectional Streaming、Reflection/Proto、Metadata/Deadline/TLS |
-| ADV-08 | Mock Server | P1 | 确定性匹配、响应场景、模板、延迟、CLI、套件生命周期 |
+| ADV-08 | Mock Server | P1 | 确定性匹配、响应场景、模板、延迟、套件生命周期 |
 | ADV-09 | 网络性能分析 | P1 | HTTP 阶段、重定向/复用/代理、多次采样、P50/P90/P95/P99、报告 |
 | ADV-10 | Mermaid 与文档增强 | P1 | 离线图表、接口引用、参数表/响应示例、链接检测、文档导出 |
 | ADV-11 | 代码生成 | P2 | cURL、Go、Python、JS/TS Snippet；规范驱动 SDK、模板版本及重复生成 |
@@ -66,4 +66,4 @@ GoRequest 面向个人开发者和通过 Git 协作的研发团队，将 API 定
 
 ## 6. 完成的判断方式
 
-用同一个示例业务项目覆盖定义、文档、调试、测试、Mock、CLI/CI、规范与代码导出，而非仅检查界面按钮。每项能力必须有成功、失败、取消、离线或协议边界的可复现验收证据。具体门槛见[验收标准](acceptance.md)和[路线图](roadmap.md)。
+用同一个示例业务项目覆盖定义、文档、调试、测试、Mock、规范与代码导出，而非仅检查界面按钮。每项能力必须有成功、失败、取消、离线或协议边界的可复现验收证据。具体门槛见[验收标准](acceptance.md)和[路线图](roadmap.md)。

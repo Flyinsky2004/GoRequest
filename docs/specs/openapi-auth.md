@@ -36,7 +36,7 @@ HTTP API 可导出；GraphQL 保留 SDL、gRPC 保留 Proto、普通 WebSocket �
 
 ## 4. 鉴权对象与基本规则
 
-鉴权为独立可复用对象，支持项目 → 文件夹 → 请求继承与显式清除。可复用非敏感配置保存项目，密钥、令牌、客户端私钥和刷新状态保存本机/CI。认证请求、Token 响应、错误和日志采用同样脱敏规则。
+鉴权为独立可复用对象，支持项目 → 文件夹 → 请求继承与显式清除。可复用非敏感配置保存项目，密钥、令牌、客户端私钥和刷新状态保存本机受保护存储。认证请求、Token 响应、错误和日志采用同样脱敏规则。
 
 | 方式 | 必须覆盖的行为 |
 | --- | --- |
@@ -56,7 +56,7 @@ Desktop 采用系统浏览器完成 Code + PKCE，不使用内嵌 WebView 收集
 
 Token 缓存按本地项目、issuer、client、scope、身份等隔离；刷新并发合并，避免多个请求同时消耗轮换 Refresh Token。只有服务端签发了刷新令牌才尝试刷新；不假定 Client Credentials 一定返回 Refresh Token。主动撤销时区分删除本地值与服务端撤销是否成功。
 
-CI 只允许 Client Credentials 或受保护 Secret 注入，缺认证时报配置错误；交互式 CLI 可选择 Device Flow，非交互不得轮询等待用户。Device 按规范处理频率与到期。[RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html)
+非交互式自动化只允许 Client Credentials 或受保护 Secret 注入，缺认证时报配置错误；交互式桌面可选择 Device Flow，非交互不得轮询等待用户。Device 按规范处理频率与到期。[RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html)
 
 Implicit 与 Resource Owner Password Credentials 不列为实现承诺或默认兼容选项；遗留需求如提出需独立评审，不能改变安全基线。生产主机/权限与危险操作策略在 Token Endpoint、Discovery 和业务请求上都有明确边界。
 
@@ -70,6 +70,6 @@ TLS 默认验证证书与主机名，自定义 CA 与 mTLS 通过本机映射或
 
 - 包含路径参数、JSON Body、多状态响应、Schema、安全方案和关联说明的 HTTP 项目分别导出有效 3.1/3.2 YAML/JSON；关键语义往返一致，降级损失可见。
 - 错误字段类型返回实例路径；断网仍能校验已在本地的规范和引用；缺远程依赖时明确失败。
-- 本地测试授权服务验证 PKCE 成功、错误 state、取消、过期、轮换和并发刷新；无交互 CI 使用 Client Credentials 完成套件。
+- 本地测试授权服务验证 PKCE 成功、错误 state、取消、过期、轮换和并发刷新；非交互自动化使用 Client Credentials 完成套件。
 - Device 授权处理 pending/slow_down/denied/expired；OIDC 伪造签名、错误 issuer/audience/nonce 被拒绝。
 - 任何日志、报告、Git 可提交文件与生成代码都找不到注入的 Token、密码或私钥。
