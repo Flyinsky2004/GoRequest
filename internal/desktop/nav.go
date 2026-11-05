@@ -25,31 +25,9 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
 		})
 		ui.Box(c).Height(1).Background(t.Border)
 
-		// Current project contents in their own scroll area.
-		cs := ui.Sidebar(c, &ps.sel, func() {
-			ui.SidebarSection(c, "Requests", nil, func() {
-				reqs := allRequests(ps.project)
-				if len(reqs) == 0 {
-					ui.Text(c, "No requests").FontSize(12).TextColor(t.TextMuted).Padding(2, 8)
-				}
-				for _, re := range reqs {
-					ui.SidebarItem(c, "req:"+re.Request.ID, nil, re.Request.Name)
-				}
-			})
-			ui.SidebarSection(c, "Documents", nil, func() {
-				if len(ps.project.Docs) == 0 {
-					ui.Text(c, "No documents").FontSize(12).TextColor(t.TextMuted).Padding(2, 8)
-				}
-				for _, d := range ps.project.Docs {
-					ui.SidebarItem(c, "doc:"+d.RelPath, nil, d.Name)
-				}
-			})
-		}).Grow(1).FillWidth().Label("Project contents")
-		if cs.Changed() {
-			if err := ps.openSelection(ps.sel); err != nil {
-				a.status = err.Error()
-			}
-		}
+		ui.Scroll(c).Grow(1).FillWidth().Label("Project contents").Children(func() {
+			a.projectContents(c, t)
+		})
 
 		// Fixed Settings entry.
 		ui.Box(c).Height(1).Background(t.Border)

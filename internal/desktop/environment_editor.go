@@ -186,7 +186,7 @@ func (ps *projectState) startEditEnvironment() error {
 // --- app actions ---------------------------------------------------------
 
 func (a *App) openNewEnvironment() {
-	ps := a.current
+	ps := a.ps
 	if ps == nil {
 		a.status = "open a project before creating an environment"
 		return
@@ -195,7 +195,7 @@ func (a *App) openNewEnvironment() {
 }
 
 func (a *App) openEditEnvironment() {
-	ps := a.current
+	ps := a.ps
 	if ps == nil {
 		return
 	}
@@ -212,32 +212,33 @@ func (a *App) openEditEnvironment() {
 // the project's in-memory environments and the dropdown. The selected
 // environment is preserved on edit and set to the new one on create. Failures
 // keep the panel open with the input and error intact.
-func (a *App) saveEnvironmentDraft(ps *projectState) {
+func (a *App) saveEnvironmentDraft(ps *projectState) error {
 	e := ps.envUI
 	if e == nil {
-		return
+		return nil
 	}
 	env, err := e.build(ps)
 	if err != nil {
 		e.err = err.Error()
-		return
+		return err
 	}
 	if e.mode == "new" {
 		if _, err := ps.project.NewEnvironment(env); err != nil {
 			e.err = err.Error()
-			return
+			return err
 		}
 		ps.envSel = env.ID // auto-select the freshly created environment
 		a.status = "created environment " + env.ID
 	} else {
 		if err := ps.project.SaveEnvironment(e.envID, env); err != nil {
 			e.err = err.Error()
-			return
+			return err
 		}
 		ps.envSel = e.envID // keep the current selection
 		a.status = "saved environment " + e.envID
 	}
 	e.close()
+	return nil
 }
 
 // --- view ----------------------------------------------------------------
@@ -246,7 +247,7 @@ func (a *App) saveEnvironmentDraft(ps *projectState) {
 // project, if one is open. Because the draft lives on the projectState, it only
 // shows for the project that opened it and can never be saved into another.
 func (a *App) envEditorModal(c *ui.Context, t *ui.Theme) {
-	ps := a.current
+	ps := a.ps
 	if ps == nil || ps.envUI == nil {
 		return
 	}

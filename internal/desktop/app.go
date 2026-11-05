@@ -47,6 +47,29 @@ type App struct {
 	// after a resolved guard actually destroy the window.
 	closed      bool
 	bypassGuard bool
+
+	// Tab close flow (Save/Discard/Cancel for dirty tabs) and the folder/request
+	// dialogs. They act on a captured project so switching projects mid-dialog
+	// cannot redirect an action to the wrong project.
+	closeFlow *closeFlow
+	// closeModalOpen backs the dirty-close Modal so Escape/outside-click is a
+	// real dismissal (treated as cancelling the remaining close queue).
+	closeModalOpen bool
+
+	newReqOpen      bool
+	newReqName      string
+	newReqFolder    string
+	newFolderOpen   bool
+	newFolderName   string
+	newFolderParent string
+	formProject     *projectState
+	formErr         string
+
+	moveOpen    bool
+	moveTab     *Tab
+	moveProject *projectState
+	moveTarget  string
+	moveErr     string
 }
 
 // wire connects the project window's lifecycle to the manager and the close
@@ -79,6 +102,7 @@ func (a *App) View(c *ui.Context) {
 	a.envEditorModal(c, t)
 	a.settingsModal(c, t)
 	a.closeGuardModal(c, t)
+	a.formsModals(c, t)
 }
 
 func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
@@ -128,6 +152,11 @@ func (a *App) saveActive() {
 // saveAllDirty saves every dirty tab of this project; the first failure stops
 // the sequence so a close cannot proceed past a failed or conflicting save.
 func (a *App) saveAllDirty() error {
+	if e := a.ps.envUI; e != nil && e.open && e.dirty() {
+		if err := a.saveEnvironmentDraft(a.ps); err != nil {
+			return fmt.Errorf("environment: %w", err)
+		}
+	}
 	for _, tab := range a.ps.tabs {
 		if !tab.Dirty {
 			continue
@@ -140,6 +169,9 @@ func (a *App) saveAllDirty() error {
 }
 
 func (a *App) clearDirty() {
+	if a.ps.envUI != nil {
+		a.ps.envUI.close()
+	}
 	for _, tab := range a.ps.tabs {
 		tab.Dirty = false
 	}
@@ -185,7 +217,7 @@ func (a *App) send(tab *Tab) {
 			return
 		}
 		win.Update(func() {
-			if a.closed || win.IsDestroyed() {
+			if a.closed || win.IsDestroyed() || ps.indexOfTab(tab) < 0 {
 				return
 			}
 			tab.Sending = false
@@ -273,9 +305,12 @@ func (a *App) closeGuardModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &open, func() {
 		ui.Column(c).Gap(12).MinWidth(420).Children(func() {
 			ui.Text(c, "Unsaved changes").FontSize(16).Bold()
-			ui.Text(c, "These tabs have changes that are not saved:").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, "These items have changes that are not saved:").FontSize(12).TextColor(t.TextMuted)
 			ui.Scroll(c).MaxHeight(160).Children(func() {
 				ui.Column(c).Gap(2).Children(func() {
+					if e := a.ps.envUI; e != nil && e.open && e.dirty() {
+						ui.Text(c, "Environment: "+e.idText).FontSize(12).SingleLine()
+					}
 					for _, tab := range a.ps.tabs {
 						if tab.Dirty {
 							ui.Text(c, "• "+tab.Title).FontSize(12).SingleLine()

@@ -50,10 +50,11 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 			ui.Text(c, "Select an environment to edit").FontSize(11).TextColor(t.TextMuted)
 		}
 		if ui.Button(c, "New Request").Clicked() {
-			if e, err := ps.newRequest(); err != nil {
-				a.status = "new request: " + err.Error()
-			} else {
-				a.status = "created " + e.RelPath
+			a.openNewRequest()
+		}
+		if tab := ps.activeTab(); tab != nil && tab.Kind == "request" {
+			if ui.Button(c, "Move…").Tooltip("Move this request to a folder").Clicked() {
+				a.openMove(tab)
 			}
 		}
 		if ui.Button(c, "New Doc").Clicked() {
@@ -87,16 +88,12 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 	if ps.active < 0 {
 		ps.active = 0
 	}
-	titles := make([]string, len(ps.tabs))
-	for i, tab := range ps.tabs {
-		titles[i] = tab.Title
-		if tab.Dirty {
-			titles[i] += " •"
-		}
-	}
 	ui.Column(c).Grow(1).FillHeight().Children(func() {
-		ui.Tabs(c, &ps.active, titles...)
-		tab := ps.tabs[ps.active]
+		a.tabBar(c, t, ps)
+		tab := ps.activeTab()
+		if tab == nil {
+			return // The final tab may have been closed by the tab bar this frame.
+		}
 		if tab.Kind == "request" {
 			a.requestView(c, t, tab)
 		} else {

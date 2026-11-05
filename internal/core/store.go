@@ -39,18 +39,31 @@ func (s *Store) resolve(rel string) (string, error) {
 		return "", fmt.Errorf("path escapes project: %q", rel)
 	}
 	abs := filepath.Join(s.Root, clean)
-	// Confirm the parent directory, after resolving symlinks, stays inside Root.
-	parent := filepath.Dir(abs)
-	resolvedParent, err := filepath.EvalSymlinks(parent)
+	// Confirm the deepest existing ancestor of the target, after resolving
+	// symlinks, stays inside Root. New leaf files/directories (whose parent may
+	// not exist yet) are checked through their nearest existing ancestor, so a
+	// legitimate create never looks like an escape while a real symlink escape
+	// is still rejected.
+	existing := abs
+	for {
+		if _, err := os.Lstat(existing); err == nil {
+			break
+		}
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			break
+		}
+		existing = parent
+	}
+	resolvedExisting, err := filepath.EvalSymlinks(existing)
 	if err != nil {
-		// Parent may not exist yet; validate against Root's resolved path.
-		resolvedParent = parent
+		resolvedExisting = existing
 	}
 	resolvedRoot, err := filepath.EvalSymlinks(s.Root)
 	if err != nil {
 		resolvedRoot = s.Root
 	}
-	if resolvedParent != resolvedRoot && !strings.HasPrefix(resolvedParent, resolvedRoot+string(filepath.Separator)) {
+	if resolvedExisting != resolvedRoot && !strings.HasPrefix(resolvedExisting, resolvedRoot+string(filepath.Separator)) {
 		return "", fmt.Errorf("path escapes project via symlink: %q", rel)
 	}
 	return abs, nil

@@ -23,11 +23,12 @@ func writeProjectWithoutEnvs(t *testing.T, name string) string {
 }
 
 func TestEnvEditorNewAvailableButEditDisabledWithoutEnvironments(t *testing.T) {
-	a := newTestApp(t)
-	if err := a.openProject(writeProjectWithoutEnvs(t, "NoEnv")); err != nil {
+	m, _ := newTestManager(t)
+	if err := m.openProject(writeProjectWithoutEnvs(t, "NoEnv")); err != nil {
 		t.Fatal(err)
 	}
-	ps := a.current
+	a := m.workspaces[0]
+	ps := a.ps
 	if ps.envSel != "(none)" || ps.canEditEnv() {
 		t.Fatalf("project without envs should start at (none), not editable: %q %v", ps.envSel, ps.canEditEnv())
 	}
@@ -55,12 +56,13 @@ func TestEnvEditorNewAvailableButEditDisabledWithoutEnvironments(t *testing.T) {
 }
 
 func TestEnvEditorEditLoadsAndSavesPreservingSelection(t *testing.T) {
-	a := newTestApp(t)
+	m, _ := newTestManager(t)
 	dir := writeProject(t, "EditEnv")
-	if err := a.openProject(dir); err != nil {
+	if err := m.openProject(dir); err != nil {
 		t.Fatal(err)
 	}
-	ps := a.current
+	a := m.workspaces[0]
+	ps := a.ps
 	ps.envSel = "dev"
 
 	if err := ps.startEditEnvironment(); err != nil {
@@ -104,11 +106,12 @@ func TestEnvEditorEditLoadsAndSavesPreservingSelection(t *testing.T) {
 }
 
 func TestEnvEditorCreateAutoSelectsAndKeepsDirtyTabs(t *testing.T) {
-	a := newTestApp(t)
-	if err := a.openProject(writeProject(t, "CreateEnv")); err != nil {
+	m, _ := newTestManager(t)
+	if err := m.openProject(writeProject(t, "CreateEnv")); err != nil {
 		t.Fatal(err)
 	}
-	ps := a.current
+	a := m.workspaces[0]
+	ps := a.ps
 	entry, err := ps.newRequest()
 	if err != nil {
 		t.Fatal(err)
@@ -147,11 +150,12 @@ func TestEnvEditorCreateAutoSelectsAndKeepsDirtyTabs(t *testing.T) {
 }
 
 func TestEnvEditorValidationKeepsInputAndPanel(t *testing.T) {
-	a := newTestApp(t)
-	if err := a.openProject(writeProject(t, "Validate")); err != nil {
+	m, _ := newTestManager(t)
+	if err := m.openProject(writeProject(t, "Validate")); err != nil {
 		t.Fatal(err)
 	}
-	ps := a.current
+	a := m.workspaces[0]
+	ps := a.ps
 
 	// Duplicate id.
 	a.openNewEnvironment()
@@ -193,12 +197,13 @@ func TestEnvEditorValidationKeepsInputAndPanel(t *testing.T) {
 }
 
 func TestEnvEditorCancelAndDiscardDoNotWrite(t *testing.T) {
-	a := newTestApp(t)
+	m, _ := newTestManager(t)
 	dir := writeProject(t, "Cancel")
-	if err := a.openProject(dir); err != nil {
+	if err := m.openProject(dir); err != nil {
 		t.Fatal(err)
 	}
-	ps := a.current
+	a := m.workspaces[0]
+	ps := a.ps
 	before := len(ps.project.Environments)
 
 	tt := ui.NewTester(a.View, 1200, 820)
@@ -230,29 +235,31 @@ func TestEnvEditorCancelAndDiscardDoNotWrite(t *testing.T) {
 }
 
 func TestEnvEditorProjectIsolation(t *testing.T) {
-	a := newTestApp(t)
+	m, _ := newTestManager(t)
 	dirA := writeProject(t, "Alpha")
 	dirB := writeProject(t, "Beta")
-	if err := a.openProject(dirA); err != nil {
+	if err := m.openProject(dirA); err != nil {
 		t.Fatal(err)
 	}
-	psA := a.current
+	a := m.workspaces[0]
+	psA := a.ps
 	a.openNewEnvironment()
 	psA.envUI.idText = "alpha-only"
 	psA.envUI.varRows = []*envVarRow{{ID: nextRowID(), Key: "k", Value: "v"}}
 
 	// Switching to another project must not show A's draft or touch B.
-	if err := a.openProject(dirB); err != nil {
+	if err := m.openProject(dirB); err != nil {
 		t.Fatal(err)
 	}
-	psB := a.current
+	b := m.workspaces[1]
+	psB := b.ps
 	if psB == psA {
 		t.Fatal("switch should change current project")
 	}
 	if psB.envUI != nil {
 		t.Fatal("B must not inherit A's environment draft")
 	}
-	tt := ui.NewTester(a.View, 1200, 820)
+	tt := ui.NewTester(b.View, 1200, 820)
 	tt.Frame()
 	if tt.HasText("New Environment") {
 		t.Fatal("A's environment draft must not render for B")
@@ -271,20 +278,21 @@ func TestEnvEditorProjectIsolation(t *testing.T) {
 	}
 
 	// Returning to A reactivates A's state.
-	if err := a.openProject(dirA); err != nil {
+	if err := m.openProject(dirA); err != nil {
 		t.Fatal(err)
 	}
-	if a.current != psA {
+	if m.findWorkspace(psA.root) != a {
 		t.Fatal("reopening A should reactivate its state")
 	}
 }
 
 func TestEnvEditorBuildPreservesValuesAndSecrets(t *testing.T) {
-	a := newTestApp(t)
-	if err := a.openProject(writeProject(t, "Build")); err != nil {
+	m, _ := newTestManager(t)
+	if err := m.openProject(writeProject(t, "Build")); err != nil {
 		t.Fatal(err)
 	}
-	ps := a.current
+	a := m.workspaces[0]
+	ps := a.ps
 	e := &environmentEditor{
 		mode:   "new",
 		idText: "exact",
@@ -313,10 +321,11 @@ func TestEnvEditorBuildPreservesValuesAndSecrets(t *testing.T) {
 }
 
 func TestEnvEditorViewSmoke(t *testing.T) {
-	a := newTestApp(t)
-	if err := a.openProject(writeProject(t, "Smoke")); err != nil {
+	m, _ := newTestManager(t)
+	if err := m.openProject(writeProject(t, "Smoke")); err != nil {
 		t.Fatal(err)
 	}
+	a := m.workspaces[0]
 	a.openNewEnvironment()
 	tt := ui.NewTester(a.View, 1200, 820)
 	tt.Frame()
