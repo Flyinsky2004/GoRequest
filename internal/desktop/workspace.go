@@ -1,8 +1,6 @@
 package desktop
 
 import (
-	"strings"
-
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/markdown"
@@ -127,9 +125,9 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
 				switch tab.Section {
 				case 0:
-					a.kvEditor(c, t, "Query — one name=value per line", &tab.QueryText, tab)
+					a.kvForm(c, t, tab, kvQuery)
 				case 1:
-					a.kvEditor(c, t, "Headers — one Name: Value per line", &tab.HeadersText, tab)
+					a.kvForm(c, t, tab, kvHeader)
 				case 2:
 					a.bodyEditor(c, t, tab)
 				case 3:
@@ -140,13 +138,6 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			a.responseView(c, t, tab)
 		}).Grow(1).FillWidth()
 	})
-}
-
-func (a *App) kvEditor(c *ui.Context, t *ui.Theme, label string, value *string, tab *Tab) {
-	ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
-	if ui.TextArea(c, value).Grow(1).FillWidth().Changed() {
-		tab.Dirty = true
-	}
 }
 
 func (a *App) bodyEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
@@ -187,74 +178,6 @@ func (a *App) authEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 	default:
 		ui.Text(c, "No auth.").TextColor(t.TextMuted)
 	}
-}
-
-func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
-	ui.Column(c).Grow(1).FillHeight().Background(t.Surface).Children(func() {
-		ui.Row(c).Gap(10).Padding(6, 10).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
-			if tab.Sending {
-				ui.Spinner(c)
-				ui.Text(c, "Sending…")
-			} else if tab.RespErr != "" {
-				ui.Text(c, "Error").TextColor(t.Danger)
-			} else if tab.Resp != nil {
-				ui.Textf(c, "%s %d", tab.Resp.Proto, tab.Resp.Status).Bold()
-				ui.Textf(c, "%s · %d B", tab.Resp.Duration.Round(1e6), tab.Resp.BodySize).FontSize(12).TextColor(t.TextMuted)
-			} else {
-				ui.Text(c, "No response yet").TextColor(t.TextMuted)
-			}
-			ui.Box(c).Grow(1)
-			ui.Segmented(c, &tab.RespRawIdx, "Pretty", "Raw")
-		})
-		if tab.Sending {
-			ui.Box(c).Fill()
-			return
-		}
-		if tab.RespErr != "" {
-			ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-				ui.Text(c, tab.RespErr).TextColor(t.Danger)
-			})
-			return
-		}
-		if tab.Resp == nil {
-			ui.Box(c).Fill()
-			return
-		}
-		if tab.respEditor == nil || tab.respBuiltVer != tab.respVersion || tab.respBuiltIdx != tab.RespRawIdx {
-			tab.respEditor = &editor.State{
-				Buffer:   editor.NewBuffer(a.responseText(tab)),
-				ReadOnly: true,
-			}
-			tab.respBuiltVer = tab.respVersion
-			tab.respBuiltIdx = tab.RespRawIdx
-		}
-		editor.View(c, tab.respEditor).Grow(1).FillWidth()
-	})
-}
-
-func (a *App) responseText(tab *Tab) string {
-	res := tab.Resp
-	if res == nil {
-		return ""
-	}
-	var b strings.Builder
-	for _, h := range res.Headers {
-		if strings.EqualFold(h[0], "Authorization") || strings.EqualFold(h[0], "Set-Cookie") {
-			b.WriteString(h[0] + ": ***\n")
-			continue
-		}
-		b.WriteString(h[0] + ": " + h[1] + "\n")
-	}
-	b.WriteString("\n")
-	body := string(res.Body)
-	if tab.RespRawIdx == 0 && res.Pretty != "" {
-		body = res.Pretty
-	}
-	if res.Truncated {
-		body += "\n\n[truncated at 32 MB]"
-	}
-	b.WriteString(body)
-	return b.String()
 }
 
 func (a *App) docView(c *ui.Context, t *ui.Theme, tab *Tab) {

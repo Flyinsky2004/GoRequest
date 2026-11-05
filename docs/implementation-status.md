@@ -27,8 +27,13 @@
 - 原生设置面板（`ui.Modal`）：外观（跟随系统/浅色/深色，真实生效并持久化）与应用信息（版本、平台、Go 版本、配置文件位置、最近项目数）。设置往返不清空编辑。
 - 最近项目列表与外观偏好保存在用户配置目录的 `GoRequest/config.json`，不写入受 Git 跟踪的项目文件；配置缺失、损坏或不可用时不崩溃，退化为内存列表。
 - 右侧工作区顶部只保留当前项目/环境与工作区操作（环境切换、新请求、新文档、保存），下方仍是请求/文档标签页、编辑区和响应区；无项目时显示简洁欢迎空态与打开项目引导。
-- 请求编辑：方法选择、URL、超时、Params/Headers（逐行编辑）、Body（JSON/Text/XML）、Auth（none/bearer/basic）。
-- 发送/取消（后台 goroutine + `Window.Update`），响应区显示状态/耗时/大小、Pretty/Raw、Headers/Body（只读可选中）。执行回调始终更新发起请求的项目的标签，切换项目后不会串到其他项目。
+- 请求编辑：方法选择、URL、超时、Params/Headers、Body（JSON/Text/XML）、Auth（none/bearer/basic）。
+  - Params/Headers 为结构化逐行 Key/Value 表格：Enabled 勾选、可编辑 Key、Value、删除，固定列标题、独立滚动与“Add row”。每行有稳定 UI 标识，删除中间行不串行。Key 输入框为可编辑的自动补全框（MyGo 原生 `Autocomplete`）：可按输入过滤、上下键选择、Enter 确认、Escape 关闭，且允许任意自定义输入；Headers 与 Query 使用互不混用的建议集合，Content-Type/Accept 的 Value 提供媒体类型建议（仍可自由输入）。
+  - 结构化行状态直接映射 `core.KV`：有序往返保留重复键、空 value、含 `:`/`=`/有效空格的值以及 `{{variable}}`/`{{secret.name}}`；已保存的禁用行打开后仍可见并保持禁用；纯空白行在保存/发送时被丢弃，填了 value 却漏 key 的不完整行就近提示并在保存/发送时报错。Query value 不按 `&`/`=` 切分，Header value 不按 `:` 切分。
+- 发送/取消（后台 goroutine + `Window.Update`），响应区显示状态码/协议、耗时、大小、发送中/错误/取消状态。执行回调始终更新发起请求的项目的标签，切换项目后不会串到其他项目。
+  - Body / Headers 分段切换，默认 Body。Body 编辑器只显示响应正文；Pretty/Raw 仅作用于正文，Pretty 复用 `ExecResult.Pretty` 的缩进 JSON（原生编辑器启用 JSON 高亮），Raw 保留原始正文，均不拼入 HTTP 头或状态行。
+  - Headers 以只读 Key/Value 表格展示并保留重复头（不转成会丢重复的 map），可滚动、可选中复制；Authorization/Set-Cookie 等敏感头保持脱敏（`***`），切换视图不泄露。
+  - 空正文、非 JSON、非法 JSON（回退原文）、请求错误/取消、32 MB 截断均有合理表现；截断提示在正文之外展示，不写入 JSON 正文。正文/头编辑器缓存按响应版本与 Pretty/Raw 状态失效，切换不出现旧内容、不每帧重建或重复解析。
 - Markdown 编辑/原生预览/分栏，文档保存。
 - 保存请求与文档带冲突检测；脏标记。
 
@@ -63,7 +68,9 @@ go run ./examples/demo-server -addr 127.0.0.1:4010
 - `go vet ./...`：无报告。
 - `go test -race ./...`：全部通过（core 覆盖率约 56%）。新增 `internal/desktop` 测试覆盖：配置持久化与损坏容错、最近项目去重与上限、路径规范化、打开失败不污染状态、重复打开去重、项目切换保留标签/未保存编辑/环境选择、无效路径点击回退选中、跨重启恢复列表；并用 MyGo `ui.NewTester` 无窗口跑真实视图，验证空态、打开项目、设置面板开关与窄窗口（760×560）布局不崩溃。
 - 原生 UI 技术验证：完整桌面程序构建后启动，窗口创建并持续运行（本轮由外部终止），确认窗口与事件循环正常、无 WebView 主界面路线可行。真实窗口中的点击交互（打开两个项目、切换、设置往返等）未做人工操作验证，相应逻辑改由上面的无窗口测试覆盖。
+- 请求表单 / 响应展示改造：新增 `internal/desktop/request_form.go`、`response_view.go` 及逻辑测试（`request_form_test.go`、`response_view_test.go`）。覆盖：响应正文不混入响应头元数据、Pretty/Raw 正文分离、重复头保留与 Authorization/Set-Cookie 脱敏、空/非 JSON/非法 JSON 回退、截断提示在正文之外；表单与 `core.KV` 的有序往返（重复键/空 value/含 `:`/`=`/空格/`{{var}}`/`{{secret.x}}`）、禁用行保留、空白行丢弃、漏 Key 报错、建议集合分离与筛选、删除中间行标识稳定。`go build ./...`、`go vet ./...`、`go test -race ./...` 均通过。
 - `examples/demo-server` 可作为本地服务供桌面手动联调；core 的 HTTP 行为已由 `httptest` 覆盖。
+- 两项界面改造合并后，新增无窗口工作区集成测试，覆盖结构化表单与独立响应视图同时显示、切换项目保留编辑和响应标签、保存后重新打开请求保留重复键与禁用行，以及窄窗口渲染。合并结果通过构建、竞态测试和静态检查；未新增真实窗口人工交互验收。
 
 ## 4. 尚未实现（保持设计计划，未宣称完成）
 

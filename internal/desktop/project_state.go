@@ -95,8 +95,8 @@ func (ps *projectState) openRequest(entry *core.RequestEntry) {
 	tab.Method = entry.Request.HTTP.Method
 	tab.URL = entry.Request.HTTP.URL
 	tab.Timeout = entry.Request.Timeout
-	tab.QueryText = renderKV(entry.Request.HTTP.Query, "=")
-	tab.HeadersText = renderKV(entry.Request.HTTP.Headers, ": ")
+	tab.QueryRows = rowsFromKV(entry.Request.HTTP.Query)
+	tab.HeaderRows = rowsFromKV(entry.Request.HTTP.Headers)
 	if entry.Request.HTTP.Body != nil {
 		tab.BodyIdx = indexOf(bodyTypes, entry.Request.HTTP.Body.Type)
 		tab.BodyText = core.BodyEditText(entry.Request.HTTP.Body)

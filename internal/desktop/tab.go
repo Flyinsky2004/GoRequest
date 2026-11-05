@@ -21,20 +21,20 @@ type Tab struct {
 	Owner *projectState
 
 	// request editing state
-	Entry       *core.RequestEntry
-	Method      string
-	URL         string
-	QueryText   string
-	HeadersText string
-	BodyIdx     int
-	BodyText    string
-	AuthMode    string
-	AuthIdx     int
-	AuthToken   string
-	AuthUser    string
-	AuthPass    string
-	Timeout     string
-	Section     int // 0 params, 1 headers, 2 body, 3 auth
+	Entry      *core.RequestEntry
+	Method     string
+	URL        string
+	QueryRows  []*KVRow
+	HeaderRows []*KVRow
+	BodyIdx    int
+	BodyText   string
+	AuthMode   string
+	AuthIdx    int
+	AuthToken  string
+	AuthUser   string
+	AuthPass   string
+	Timeout    string
+	Section    int // 0 params, 1 headers, 2 body, 3 auth
 
 	// doc editing state
 	DocRel    string
@@ -48,6 +48,7 @@ type Tab struct {
 	Resp         *core.ExecResult
 	RespErr      string
 	RespRawIdx   int
+	RespSection  int
 	RespSize     float32
 	Sending      bool
 	cancel       context.CancelFunc
@@ -63,11 +64,19 @@ func requestFromTab(tab *Tab) (*core.Request, error) {
 		return nil, fmt.Errorf("no request")
 	}
 	base := *tab.Entry.Request
+	query, err := kvFromRows(tab.QueryRows)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	headers, err := kvFromRows(tab.HeaderRows)
+	if err != nil {
+		return nil, fmt.Errorf("headers: %w", err)
+	}
 	httpDef := &core.HTTPDef{
 		Method:  tab.Method,
 		URL:     tab.URL,
-		Query:   parseKV(tab.QueryText, "="),
-		Headers: parseKV(tab.HeadersText, ":"),
+		Query:   query,
+		Headers: headers,
 	}
 	if strings.TrimSpace(tab.BodyText) != "" {
 		body, err := core.ParseBodyText(bodyTypes[tab.BodyIdx], tab.BodyText)
@@ -126,35 +135,6 @@ func allRequests(p *core.Project) []*core.RequestEntry {
 		}
 		return out[i].Request.Name < out[j].Request.Name
 	})
-	return out
-}
-
-func renderKV(kvs []core.KV, sep string) string {
-	var b strings.Builder
-	for _, kv := range kvs {
-		if !kv.IsEnabled() {
-			continue
-		}
-		b.WriteString(kv.Name + sep + kv.Value + "\n")
-	}
-	return b.String()
-}
-
-func parseKV(text, sep string) []core.KV {
-	var out []core.KV
-	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		name, value, _ := strings.Cut(line, sep)
-		name = strings.TrimSpace(name)
-		value = strings.TrimSpace(value)
-		if name == "" {
-			continue
-		}
-		out = append(out, core.KV{Name: name, Value: value, Enabled: core.BoolPtr(true)})
-	}
 	return out
 }
 
