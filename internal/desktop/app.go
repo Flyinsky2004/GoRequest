@@ -68,6 +68,7 @@ func (a *App) View(c *ui.Context) {
 			})
 		}
 	})
+	a.envEditorModal(c, t)
 	a.settingsModal(c, t)
 }
 

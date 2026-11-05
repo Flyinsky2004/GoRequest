@@ -42,6 +42,21 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 		if ui.Select(c, &ps.envSel, opts).Width(150).Changed() {
 			a.status = "environment: " + ps.envSel
 		}
+		if ui.Button(c, "New Env").Tooltip("Create a new environment").Clicked() {
+			a.openNewEnvironment()
+		}
+		edit := ui.Button(c, "Edit Env")
+		if ps.canEditEnv() {
+			edit = edit.Tooltip("Edit the selected environment")
+		} else {
+			edit = edit.Disabled(true).Tooltip("Select an environment to edit")
+		}
+		if edit.Clicked() {
+			a.openEditEnvironment()
+		}
+		if !ps.canEditEnv() {
+			ui.Text(c, "Select an environment to edit").FontSize(11).TextColor(t.TextMuted)
+		}
 		if ui.Button(c, "New Request").Clicked() {
 			if e, err := ps.newRequest(); err != nil {
 				a.status = "new request: " + err.Error()

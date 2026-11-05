@@ -27,6 +27,7 @@
 - 原生设置面板（`ui.Modal`）：外观（跟随系统/浅色/深色，真实生效并持久化）与应用信息（版本、平台、Go 版本、配置文件位置、最近项目数）。设置往返不清空编辑。
 - 最近项目列表与外观偏好保存在用户配置目录的 `GoRequest/config.json`，不写入受 Git 跟踪的项目文件；配置缺失、损坏或不可用时不崩溃，退化为内存列表。
 - 右侧工作区顶部只保留当前项目/环境与工作区操作（环境切换、新请求、新文档、保存），下方仍是请求/文档标签页、编辑区和响应区；无项目时显示简洁欢迎空态与打开项目引导。
+- 环境管理：工作区顶栏 Env 选择旁提供“New Env”“Edit Env”两个可发现入口。新建/编辑使用 MyGo `ui.Modal` 原生面板：环境 ID（新建可输入，编辑只读）、逐行 Key/Value 变量表格（增删行；重复 Key、填了 value 未填 Key 报错；纯空白行忽略；value 原样保留空串、内部/有效空格、URL、`:`、`=`、`{{variable}}`、`{{secret.name}}`）、独立的密钥名称声明列表（仅声明名称，不读取/回填/打印真实密钥值）。选择 `(none)` 时编辑禁用并提示原因，新建始终可用；没有环境的项目可从零创建。保存经 Core `NewEnvironment`/`SaveEnvironment` 复用 `SaveChecked`（新建要求目标文件不存在、编辑按读取基线做冲突检测），成功后即时更新该项目的 `Environments`/`EnvOrder` 与下拉（新建自动选中、编辑保留当前选择），不重新 `openProject`，不丢失标签、脏编辑、响应或表单草稿，也不修改其他项目；取消不写盘，脏草稿关闭需确认放弃，保存失败保留输入与错误。每个已加载环境记录真实相对路径与基线摘要，支持 `.yml` 及文件名≠环境 id，路径穿越/符号链接逃逸由 Store 拒绝。
 - 请求编辑：方法选择、URL、超时、Params/Headers、Body（JSON/Text/XML）、Auth（none/bearer/basic）。
   - Params/Headers 为结构化逐行 Key/Value 表格：Enabled 勾选、可编辑 Key、Value、删除，固定列标题、独立滚动与“Add row”。每行有稳定 UI 标识，删除中间行不串行。Key 输入框为可编辑的自动补全框（MyGo 原生 `Autocomplete`）：可按输入过滤、上下键选择、Enter 确认、Escape 关闭，且允许任意自定义输入；Headers 与 Query 使用互不混用的建议集合，Content-Type/Accept 的 Value 提供媒体类型建议（仍可自由输入）。
   - 结构化行状态直接映射 `core.KV`：有序往返保留重复键、空 value、含 `:`/`=`/有效空格的值以及 `{{variable}}`/`{{secret.name}}`；已保存的禁用行打开后仍可见并保持禁用；纯空白行在保存/发送时被丢弃，填了 value 却漏 key 的不完整行就近提示并在保存/发送时报错。Query value 不按 `&`/`=` 切分，Header value 不按 `:` 切分。
@@ -71,6 +72,7 @@ go run ./examples/demo-server -addr 127.0.0.1:4010
 - 请求表单 / 响应展示改造：新增 `internal/desktop/request_form.go`、`response_view.go` 及逻辑测试（`request_form_test.go`、`response_view_test.go`）。覆盖：响应正文不混入响应头元数据、Pretty/Raw 正文分离、重复头保留与 Authorization/Set-Cookie 脱敏、空/非 JSON/非法 JSON 回退、截断提示在正文之外；表单与 `core.KV` 的有序往返（重复键/空 value/含 `:`/`=`/空格/`{{var}}`/`{{secret.x}}`）、禁用行保留、空白行丢弃、漏 Key 报错、建议集合分离与筛选、删除中间行标识稳定。`go build ./...`、`go vet ./...`、`go test -race ./...` 均通过。
 - `examples/demo-server` 可作为本地服务供桌面手动联调；core 的 HTTP 行为已由 `httptest` 覆盖。
 - 两项界面改造合并后，新增无窗口工作区集成测试，覆盖结构化表单与独立响应视图同时显示、切换项目保留编辑和响应标签、保存后重新打开请求保留重复键与禁用行，以及窄窗口渲染。合并结果通过构建、竞态测试和静态检查；未新增真实窗口人工交互验收。
+- 环境管理（新建/编辑当前环境）：新增 `internal/core/environment.go`、`internal/core/environment_test.go`、`internal/desktop/environment_editor.go`、`internal/desktop/environment_editor_test.go`。Core 用真实临时文件覆盖：新建与编辑往返、空值及模板保留、重复 ID 与目标文件已存在拒绝（不覆盖）、真实 `.yml` 路径且文件名≠id、连续保存、外部修改/删除冲突、非法 ID 与非法变量 Key、失败不污染内存，以及 `ResolveVars`/`BuildPlan` 在保存后使用新环境值。Desktop 用 `ui.NewTester` 与状态测试覆盖：无环境时新建可用而 `(none)` 不可编辑、编辑载入实际变量与密钥声明、保存刷新与自动选择、校验失败保留输入、取消/放弃不写盘、项目隔离、既有脏请求标签不丢失。`go build ./...`、`go vet ./...`、`go test -race ./...` 均通过。**限制**：真实窗口中的鼠标交互（新建、编辑、取消、切换后发送）未做人工操作验证（本环境无法人工点击），相应逻辑由上述无窗口测试覆盖，不虚报为人工验收通过。
 
 ## 4. 尚未实现（保持设计计划，未宣称完成）
 

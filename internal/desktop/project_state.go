@@ -22,6 +22,11 @@ type projectState struct {
 	envSel   string
 	sel      string // sidebar selection id within this project ("req:..." / "doc:...")
 	docSplit float32
+
+	// envUI is the in-progress environment create/edit draft for this project.
+	// Keeping it per project means switching projects cannot apply one project's
+	// draft to another.
+	envUI *environmentEditor
 }
 
 func newProjectState(root string, p *core.Project) *projectState {

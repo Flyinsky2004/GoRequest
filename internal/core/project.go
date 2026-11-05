@@ -46,6 +46,7 @@ type Project struct {
 	Order        []string
 	Collections  []*CollectionEntry
 	Environments map[string]*Environment
+	EnvEntries   map[string]*EnvironmentEntry // id -> file path and baseline digest
 	EnvOrder     []string
 	AuthSchemes  map[string]*AuthScheme
 	Docs         []*DocEntry
@@ -96,6 +97,7 @@ func OpenProject(dir string) (*Project, error) {
 		Store:        store,
 		Requests:     map[string]*RequestEntry{},
 		Environments: map[string]*Environment{},
+		EnvEntries:   map[string]*EnvironmentEntry{},
 		AuthSchemes:  map[string]*AuthScheme{},
 	}
 
@@ -149,7 +151,7 @@ func (p *Project) loadEnvironments() error {
 		return fmt.Errorf("listing environments: %w", err)
 	}
 	for _, rel := range files {
-		data, _, err := p.Store.Read(rel)
+		data, digest, err := p.Store.Read(rel)
 		if err != nil {
 			return fmt.Errorf("reading %s: %w", rel, err)
 		}
@@ -165,7 +167,9 @@ func (p *Project) loadEnvironments() error {
 			p.Issues = append(p.Issues, Issue{Level: "error", Code: "env-dup", Path: rel, Message: "duplicate environment id " + e.ID})
 			continue
 		}
-		p.Environments[e.ID] = &e
+		env := e
+		p.Environments[e.ID] = &env
+		p.EnvEntries[e.ID] = &EnvironmentEntry{Environment: &env, RelPath: rel, BaselineDigest: digest}
 		p.EnvOrder = append(p.EnvOrder, e.ID)
 	}
 	sort.Strings(p.EnvOrder)
