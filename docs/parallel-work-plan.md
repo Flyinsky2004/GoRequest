@@ -2,7 +2,7 @@
 
 核对日期：2026-11-06。代码参考：`a339a80`；核对包含当时工作区可见的未提交改动，但它们不属于该提交，后续派工必须重新确定共同基线。
 
-用途：后续开多个 Claude Code（CC）时按任务 ID 分配独立 worktree；完成并集成验证后再打勾。初次建立时仅完成分析与规划；2026-11-06 已按用户要求创建两个 agy worktree；后台启动均因命令授权失败退出，用户要求后续改用 Herdr，领取记录见第 6 节。
+用途：后续开多个 Claude Code（CC）时按任务 ID 分配独立 worktree；完成并集成验证后再打勾。初次建立时仅完成分析与规划；2026-11-06 已创建两个 agy worktree，现已通过新版 Herdr app 交互启动，均等待首次目录信任确认，领取记录见第 6 节。
 
 ## 1. 比较口径
 
@@ -115,7 +115,7 @@
 可把交付记录写 docs/task-results/<ID>.md；不要自行勾总账本或改公共实现状态。
 ```
 
-2026-11-06 已创建两个 agy worktree；直接后台启动尝试均因非交互命令授权失败退出，当前无运行中的 agy。用户要求改用 Herdr；当前调用环境未设置 `HERDR_ENV=1`，按 Herdr 技能要求未从外部控制会话，等待在 Herdr 托管窗格中继续。其他 worktree 仍是建议；预计依赖库/协议兼容性不视为已经验证。
+2026-11-06 已按用户指定的 `~/.config/herdr-app/AGENTS.md`，通过新版 `herdr-app do tab.new` 启动两个交互 agy（accept-edits，默认 agent/model），均在首次目录信任确认处 blocked；确认前尚未开始功能实现。新版 `herdr-app`/`hc` 与旧版 `herdr` CLI 不同，不套用旧版的 HERDR_ENV 前提。其他 worktree 仍是建议；预计依赖库/协议兼容性不视为已经验证。
 
 ## 6. 领取、交付与打勾规则
 
@@ -123,11 +123,11 @@
 
 | 任务 | 负责人 | 实际 worktree / 分支 | 状态 | 功能提交 / 集成提交 | 验证证据 / 限制 |
 | --- | --- | --- | --- | --- | --- |
-| B01 | agy-B01 | `../GoRequest-B01` / `agy/B01-file-sync` | 待 Herdr 启动 | 无 / 未集成 | 基线 `be92379`；失败启动 PID `23229`（已退出）；优先文件刷新/冲突模型，公共壳层交接线 patch |
-| B05 | agy-B05 | `../GoRequest-B05` / `agy/B05-identity` | 待 Herdr 启动 | 无 / 未集成 | 基线 `be92379`；失败启动 PID `23230`（已退出）；优先 ref/继承/API Key 保真，公共壳层交接线 patch |
+| B01 | agy-B01 | `../GoRequest-B01` / `agy/B01-file-sync` | Herdr 已启动，等待目录信任 | 无 / 未集成 | 基线 `be92379`；Herdr 终端 `t1j`，标签 `B01 文件保护 · agy`；优先文件刷新/冲突模型，公共壳层交接线 patch |
+| B05 | agy-B05 | `../GoRequest-B05` / `agy/B05-identity` | Herdr 已启动，等待目录信任 | 无 / 未集成 | 基线 `be92379`；Herdr 终端 `t1k`，标签 `B05 鉴权凭据 · agy`；优先 ref/继承/API Key 保真，公共壳层交接线 patch |
 | 其余未勾选任务 | 未分配 | 尚未创建 | 未分配 | 无 | 等后续派工逐项登记 |
 
-本轮启动记录：`/private/tmp/gorequest-agy-20261106/sessions.json`；每项同目录有 `<ID>.prompt.txt`、`<ID>.retry.log`、`<ID>.retry.output.json`。这些是本机临时运行资料，不提交 Git，后续可能清理；长期交付证据由各 agent 写入各自分支 `docs/task-results/<ID>.md`。首次 auto 启动因账号不支持及后台命令无法交互授权而退出；accept-edits + 会话命令 allow 规则重试同样被拒绝，均已退出，未产出功能改动。不修改用户全局设置。用户随后要求改用 Herdr，当前环境缺少 `HERDR_ENV=1`，尚未执行 Herdr 控制。PID 仅表示历史启动进程，后续查询应结合进程、日志和分支提交确认状态。启动前确认另有 `ui-stage3` worktree，两个 agy 均被要求不触碰它或 main；主目录的示例环境和 `.claude/` 保持原状。
+本轮启动记录：`/private/tmp/gorequest-agy-20261106/sessions.json`；每项同目录有 `<ID>.prompt.txt`、`<ID>.retry.log`、`<ID>.retry.output.json`。这些是本机临时运行资料，不提交 Git，后续可能清理；长期交付证据由各 agent 写入各自分支 `docs/task-results/<ID>.md`。首次 auto 启动因账号不支持及后台命令无法交互授权而退出；accept-edits + 会话命令 allow 规则重试同样被拒绝，均已退出，未产出功能改动。不修改用户全局设置。随后按用户指定的新版说明，用 Herdr app 在 GoRequest space 新建 B01/B05 两个标签页并交互启动 agy。当前分别为 `t1j`、`t1k`，状态 blocked，屏幕为 “Do you trust the contents of this project?”；依 hc 手册要求等待用户确认，不代答权限对话框。最新启动句柄另记本机 `herdr-sessions.json`。PID 仅表示历史启动进程，后续查询应结合进程、日志和分支提交确认状态。启动前确认另有 `ui-stage3` worktree，两个 agy 均被要求不触碰它或 main；主目录的示例环境和 `.claude/` 保持原状。
 
 仅在以下条件全部满足后，由集成人将对应 `[ ]` 改为 `[x]`：功能提交已进入共同集成分支；该卡验收满足；必要测试通过；实现状态文档同步；记录提交和证据。只有引擎或只有 UI 的部分完成，应另记子项完成，不能勾整卡。
 
