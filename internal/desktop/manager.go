@@ -61,6 +61,7 @@ func planStartup(explicit string, cfg *configStore) startPlan {
 type Manager struct {
 	cfg       *configStore
 	secrets   core.SecretProvider
+	history   *historyStore
 	newWindow windowFactory
 	explicit  string // -project flag value, "" when none
 
@@ -89,6 +90,7 @@ func NewManager(explicitProject string) *Manager {
 	return &Manager{
 		cfg:       newConfigStore(configFilePath()),
 		secrets:   platform.NewEnvSecrets(),
+		history:   newHistoryStore(),
 		newWindow: newRealWindow,
 		explicit:  explicitProject,
 	}
@@ -148,6 +150,8 @@ func (m *Manager) openProject(path string) error {
 		return err
 	}
 	ps := newProjectState(root, p)
+	// Restore the last used build/response split (§7).
+	ps.buildPct = m.cfg.buildPct()
 	winW, winH := m.cfg.windowSize()
 	app := &App{mgr: m, ps: ps, navWidth: m.cfg.navWidth()}
 	app.win = m.newWindow(windowSpec{

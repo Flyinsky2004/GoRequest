@@ -54,6 +54,10 @@ type appConfig struct {
 	WindowWidth  int     `json:"windowWidth,omitempty"`
 	WindowHeight int     `json:"windowHeight,omitempty"`
 	NavWidth     float32 `json:"navWidth,omitempty"`
+	// BuildPct is the build/response split percentage last used by the user
+	// (§7). A value outside 20–86 means "no recorded preference", so the
+	// default 64 applies.
+	BuildPct float32 `json:"buildPct,omitempty"`
 }
 
 // configStore reads and writes appConfig atomically. A store with an empty path
@@ -163,6 +167,25 @@ func (s *configStore) setWindowSize(w, h int) {
 		return
 	}
 	s.cfg.WindowWidth, s.cfg.WindowHeight = w, h
+	_ = s.save()
+}
+
+// buildPct returns the recorded build/response split percentage, or the 64
+// default when no valid preference has been saved (§7).
+func (s *configStore) buildPct() float32 {
+	if s.cfg.BuildPct < 20 || s.cfg.BuildPct > 86 {
+		return 64
+	}
+	return s.cfg.BuildPct
+}
+
+// setBuildPct remembers a split percentage. Values outside the usable range
+// are ignored, so a transient bad layout never poisons the saved preference.
+func (s *configStore) setBuildPct(v float32) {
+	if v < 20 || v > 86 || s.cfg.BuildPct == v {
+		return
+	}
+	s.cfg.BuildPct = v
 	_ = s.save()
 }
 

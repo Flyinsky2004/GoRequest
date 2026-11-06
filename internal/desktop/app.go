@@ -49,9 +49,24 @@ type App struct {
 	// sendGuard holds a pending "send with undefined variables?" confirmation.
 	sendGuard *sendGuard
 
+	// undo is the pending reversible action (§8).
+	undo *undoEntry
+	// sidebarHidden folds the whole rail (§9 ⌘\).
+	sidebarHidden bool
+
+	// History view (§3): whether the sidebar shows history, the loaded records
+	// for the current project, and the clear-confirmation state.
+	historyView      bool
+	historyRecords   []historyRecord
+	historyKey       string
+	historyClearOpen bool
+
 	// filterQuery is the live text of the sidebar filter box. It is view state
 	// of this window, independent of any project's stored data.
 	filterQuery string
+	// filterFocus asks the next frame to focus the sidebar filter (§9 ⌘F when
+	// no response is in view).
+	filterFocus bool
 
 	// closed and bypassGuard keep close handling honest: closed means the
 	// window is gone (no more UI updates), bypassGuard lets the second Close
@@ -115,24 +130,44 @@ func (a *App) saveGeometry() {
 func (a *App) View(c *ui.Context) {
 	applyAppearance(c, a.mgr.cfg)
 	t := c.Theme()
+	a.registerShortcuts(c)
 	// The rail keeps its workspace range (220–380 DIPs) even while dragged.
 	if a.navWidth < 220 {
 		a.navWidth = 220
 	} else if a.navWidth > 380 {
 		a.navWidth = 380
 	}
+	// §9: ⌘F searches the response when one is shown, else focuses the sidebar
+	// filter. (The response editor's own ⌘F covers the focused-editor case.)
+	c.OnShortcut(ui.Cmd, ui.KeyF, func() {
+		if ps := a.ps; ps != nil {
+			if tab := ps.activeTab(); tab != nil && tab.Kind == "request" &&
+				tab.Resp != nil && tab.RespSection == 0 {
+				tab.respFindOpen = true
+				tab.respFindFocus = true
+				return
+			}
+		}
+		a.filterFocus = true
+	})
 	ui.Column(c).Fill().Children(func() {
-		ui.Split(c, &a.navWidth, func() { a.nav(c, t) }, func() { a.workspace(c, t) }).Grow(1).FillWidth()
+		if a.sidebarHidden {
+			a.workspace(c, t)
+		} else {
+			ui.Split(c, &a.navWidth, func() { a.nav(c, t) }, func() { a.workspace(c, t) }).Grow(1).FillWidth()
+		}
 		if a.status != "" {
 			ui.Row(c).Padding(5, 12).Clip().BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
 				ui.Text(c, a.status).FontSize(12).TextColor(t.TextMuted).SingleLine()
 			})
 		}
 	})
+	a.expireUndo()
 	a.envEditorModal(c, t)
 	a.settingsModal(c, t)
 	a.closeGuardModal(c, t)
 	a.sendGuardModal(c, t)
+	a.historyClearModal(c, t)
 	a.formsModals(c, t)
 }
 
@@ -261,6 +296,7 @@ func (a *App) send(tab *Tab) {
 				tab.RespErr = ""
 				tab.respVersion++
 				tab.respEditor = nil
+				a.recordHistory(tab, plan.URL, res)
 			}
 			// Put the caret back in the URL so the user can tweak and resend.
 			tab.focusURL = true

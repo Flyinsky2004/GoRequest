@@ -158,7 +158,22 @@ type messages struct {
 	CancelRequest  string
 	AddRow         string
 	RowNoKey       string // %d, %q
+	DragTip        string
+	Rename         string
+	OpenRow        string
+	NewRequestHere string
+	Duplicate      string
+	MoveTo         string
+	Delete         string
+	Undo           string
+	UndoDone       string
+	DeletedToast   string // %s
+	Description    string
+	AddParamHint   string
+	QuickOpen      string
+	ToggleSidebar  string
 	VarLabel       string
+	AutoHeaderTip  string
 	UndefinedVars  string // %d
 	SendGuardTitle string
 	SendGuardHint  string // %s
@@ -179,6 +194,13 @@ type messages struct {
 	ErrorLabel        string
 	NoResponseYet     string
 	NoResponseHint    string
+	SendShortcutHint  string
+	CopyResponse      string
+	SaveResponse      string
+	FindPlaceholder   string
+	FindCount         string // %d, %d
+	FindNone          string
+	SavedResponse     string // %s
 	BodySection       string
 	HeadersSection    string
 	Pretty            string
@@ -253,17 +275,23 @@ type messages struct {
 	CloseTabTip  string // %s
 
 	// Left tree.
-	RequestsGroup     string
-	AddFolder         string
-	AddFolderTip      string
-	AddDocTip         string
-	NewFolder         string
-	NoRequests        string
-	DocumentsGroup    string
-	NoDocuments       string
-	FolderTip         string // %s
-	FilterPlaceholder string
-	NoMatch           string
+	RequestsGroup       string
+	AddFolder           string
+	AddFolderTip        string
+	AddDocTip           string
+	NewFolder           string
+	NoRequests          string
+	DocumentsGroup      string
+	NoDocuments         string
+	FolderTip           string // %s
+	FilterPlaceholder   string
+	NoMatch             string
+	HistoryLabel        string
+	HistoryEmpty        string
+	ClearHistory        string
+	ConfirmClearHistory string
+	Today               string
+	Yesterday           string
 
 	// Settings sheet.
 	SettingsTitle       string
@@ -372,7 +400,22 @@ var messagesZh = messages{
 	CancelRequest:  "取消",
 	AddRow:         "添加行",
 	RowNoKey:       "第 %d 行：值 %q 没有键",
+	DragTip:        "拖拽排序（默认表格视图）",
+	Rename:         "重命名",
+	OpenRow:        "打开",
+	NewRequestHere: "在此新建请求",
+	Duplicate:      "复制请求",
+	MoveTo:         "移动到…",
+	Delete:         "删除",
+	Undo:           "撤销",
+	UndoDone:       "已撤销",
+	DeletedToast:   "已删除 %s（⌘Z 撤销）",
+	Description:    "描述",
+	AddParamHint:   "添加参数…",
+	QuickOpen:      "快速打开",
+	ToggleSidebar:  "显示/隐藏侧栏",
 	VarLabel:       "变量",
+	AutoHeaderTip:  "由请求内容自动生成",
 	UndefinedVars:  "%d 个变量未定义",
 	SendGuardTitle: "存在未定义变量",
 	SendGuardHint:  "以下变量在当前环境未定义：%s。发送前请定义，或仍然发送。",
@@ -391,6 +434,13 @@ var messagesZh = messages{
 	ErrorLabel:        "错误",
 	NoResponseYet:     "尚无响应",
 	NoResponseHint:    "发送请求以在此查看响应。",
+	SendShortcutHint:  "⌘↩ 发送 · ⌘L 聚焦地址栏",
+	CopyResponse:      "复制响应",
+	SaveResponse:      "保存响应到文件",
+	FindPlaceholder:   "查找响应…",
+	FindCount:         "%d / %d",
+	FindNone:          "无匹配",
+	SavedResponse:     "已保存响应：%s",
 	BodySection:       "正文",
 	HeadersSection:    "头部",
 	Pretty:            "美化",
@@ -460,17 +510,23 @@ var messagesZh = messages{
 	CloseAll:     "关闭全部",
 	CloseTabTip:  "关闭 %s",
 
-	RequestsGroup:     "请求",
-	AddFolder:         "+ 文件夹",
-	AddFolderTip:      "创建新文件夹",
-	AddDocTip:         "新建文档",
-	NewFolder:         "新建文件夹",
-	NoRequests:        "无请求",
-	DocumentsGroup:    "文档",
-	NoDocuments:       "无文档",
-	FolderTip:         "文件夹：%s",
-	FilterPlaceholder: "过滤请求…",
-	NoMatch:           "没有匹配的请求",
+	RequestsGroup:       "请求",
+	AddFolder:           "+ 文件夹",
+	AddFolderTip:        "创建新文件夹",
+	AddDocTip:           "新建文档",
+	NewFolder:           "新建文件夹",
+	NoRequests:          "无请求",
+	DocumentsGroup:      "文档",
+	NoDocuments:         "无文档",
+	FolderTip:           "文件夹：%s",
+	FilterPlaceholder:   "过滤请求…",
+	NoMatch:             "没有匹配的请求",
+	HistoryLabel:        "历史",
+	HistoryEmpty:        "暂无历史；发送请求后会记录在这里",
+	ClearHistory:        "清空历史",
+	ConfirmClearHistory: "确认清空本项目的全部请求历史？此操作不可恢复。",
+	Today:               "今天",
+	Yesterday:           "昨天",
 
 	SettingsTitle:       "设置",
 	AppearanceLabel:     "外观",
@@ -577,7 +633,22 @@ var messagesEn = messages{
 	CancelRequest:  "Cancel",
 	AddRow:         "Add row",
 	RowNoKey:       "row %d: value %q has no key",
+	DragTip:        "Drag to reorder (table view)",
+	Rename:         "Rename",
+	OpenRow:        "Open",
+	NewRequestHere: "New Request Here",
+	Duplicate:      "Duplicate Request",
+	MoveTo:         "Move To…",
+	Delete:         "Delete",
+	Undo:           "Undo",
+	UndoDone:       "Undone",
+	DeletedToast:   "Deleted %s (⌘Z to undo)",
+	Description:    "Description",
+	AddParamHint:   "Add parameter…",
+	QuickOpen:      "Quick Open",
+	ToggleSidebar:  "Toggle Sidebar",
 	VarLabel:       "Vars",
+	AutoHeaderTip:  "Generated automatically from the request",
 	UndefinedVars:  "%d undefined variable(s)",
 	SendGuardTitle: "Undefined variables",
 	SendGuardHint:  "These variables are undefined in the current environment: %s. Define them, or send anyway.",
@@ -596,6 +667,13 @@ var messagesEn = messages{
 	ErrorLabel:        "Error",
 	NoResponseYet:     "No response yet",
 	NoResponseHint:    "Send a request to see its response here.",
+	SendShortcutHint:  "⌘↩ send · ⌘L focus address",
+	CopyResponse:      "Copy response",
+	SaveResponse:      "Save Response to File",
+	FindPlaceholder:   "Find in response…",
+	FindCount:         "%d / %d",
+	FindNone:          "No matches",
+	SavedResponse:     "Saved response: %s",
 	BodySection:       "Body",
 	HeadersSection:    "Headers",
 	Pretty:            "Pretty",
@@ -665,17 +743,23 @@ var messagesEn = messages{
 	CloseAll:     "Close All",
 	CloseTabTip:  "Close %s",
 
-	RequestsGroup:     "Requests",
-	AddFolder:         "+ Folder",
-	AddFolderTip:      "Create a new folder",
-	AddDocTip:         "New Doc",
-	NewFolder:         "New Folder",
-	NoRequests:        "No requests",
-	DocumentsGroup:    "Documents",
-	NoDocuments:       "No documents",
-	FolderTip:         "Folder: %s",
-	FilterPlaceholder: "Filter requests…",
-	NoMatch:           "No matching requests",
+	RequestsGroup:       "Requests",
+	AddFolder:           "+ Folder",
+	AddFolderTip:        "Create a new folder",
+	AddDocTip:           "New Doc",
+	NewFolder:           "New Folder",
+	NoRequests:          "No requests",
+	DocumentsGroup:      "Documents",
+	NoDocuments:         "No documents",
+	FolderTip:           "Folder: %s",
+	FilterPlaceholder:   "Filter requests…",
+	NoMatch:             "No matching requests",
+	HistoryLabel:        "History",
+	HistoryEmpty:        "No history yet — sends will be recorded here",
+	ClearHistory:        "Clear History",
+	ConfirmClearHistory: "Clear all request history for this project? This cannot be undone.",
+	Today:               "Today",
+	Yesterday:           "Yesterday",
 
 	SettingsTitle:       "Settings",
 	AppearanceLabel:     "Appearance",

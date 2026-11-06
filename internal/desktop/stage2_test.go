@@ -1,7 +1,9 @@
 package desktop
 
 import (
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -83,5 +85,150 @@ func TestKVTextRoundTrip(t *testing.T) {
 
 	if _, err := textToRows("no-separator-here", kvQuery); err == nil {
 		t.Fatal("a line without a separator must be an error")
+	}
+}
+
+func TestResponseEmptyStateSingleMessage(t *testing.T) {
+	a, ps := openTestProject(t, "Empty")
+	tab := openRequestTabs(t, ps, "Alpha")[0]
+	tab.Resp = nil
+	tt := ui.NewTester(a.View, 1100, 820)
+	tt.Frame()
+	if !tt.HasText("Send a request to see its response here") {
+		t.Fatalf("empty state missing; texts=%v", tt.Texts())
+	}
+	if tt.HasText("No response yet") {
+		t.Fatalf("duplicate 'No response yet' should be gone; texts=%v", tt.Texts())
+	}
+}
+
+func TestAutoHeadersShown(t *testing.T) {
+	a, ps := openTestProject(t, "AutoHdr")
+	tab := openRequestTabs(t, ps, "Alpha")[0]
+	tab.URL = "https://api.example.com/users"
+	tab.Section = 2 // Headers
+	tab.BodyText = "hello"
+	tt := ui.NewTester(a.View, 1100, 820)
+	tt.Frame()
+	for _, want := range []string{"Host", "Accept-Encoding", "Content-Length"} {
+		if !tt.HasText(want) {
+			t.Fatalf("auto header %q missing; texts=%v", want, tt.Texts())
+		}
+	}
+}
+
+func TestHistoryStore(t *testing.T) {
+	s := &historyStore{dir: t.TempDir()}
+	key := "proj-abc"
+	if err := s.append(key, historyRecord{Ts: time.Now().Add(-time.Hour), Method: "GET", URL: "a", Status: 200}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.append(key, historyRecord{Ts: time.Now(), Method: "POST", URL: "b", Status: 201}); err != nil {
+		t.Fatal(err)
+	}
+	recs := s.load(key)
+	if len(recs) != 2 || recs[0].URL != "b" {
+		t.Fatalf("load order wrong: %+v", recs)
+	}
+	s.remove(key, recs[0].Ts)
+	if recs = s.load(key); len(recs) != 1 || recs[0].URL != "a" {
+		t.Fatalf("remove wrong: %+v", recs)
+	}
+	if err := s.clear(key); err != nil {
+		t.Fatal(err)
+	}
+	if recs = s.load(key); len(recs) != 0 {
+		t.Fatalf("clear failed: %+v", recs)
+	}
+}
+
+func TestRestoreHistory(t *testing.T) {
+	a, ps := openTestProject(t, "Hist")
+	e, err := ps.project.NewRequest("", "Alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps.openRequest(e)
+	tab := ps.activeTab()
+	a.historyView = true
+	a.restoreHistory(historyRecord{Method: "POST", URL: "http://x/y", RequestID: e.Request.ID})
+	if tab.URL != "http://x/y" || tab.Method != "POST" || !tab.Dirty {
+		t.Fatalf("restore did not fill tab: url=%q method=%q dirty=%v", tab.URL, tab.Method, tab.Dirty)
+	}
+	if a.historyView {
+		t.Fatal("restoring should switch back to the request view")
+	}
+}
+
+func TestKVRowsReorder(t *testing.T) {
+	tab := &Tab{QueryRows: []*KVRow{
+		{ID: "a", Name: "a", Enabled: true},
+		{ID: "b", Name: "b", Enabled: true},
+		newBlankRow(),
+	}}
+	// moveBy: swap b up with a.
+	tab.moveBy(kvQuery, "b", -1)
+	if tab.QueryRows[0].Name != "b" || tab.QueryRows[1].Name != "a" {
+		t.Fatalf("moveBy wrong: %s,%s", tab.QueryRows[0].Name, tab.QueryRows[1].Name)
+	}
+	// moveBy onto the trailing blank is refused.
+	tab.moveBy(kvQuery, "a", 0)
+	if len(tab.QueryRows) != 3 || tab.QueryRows[2].isBlank() == false {
+		t.Fatal("ghost row must stay last")
+	}
+	// moveRowTo: move a to b's slot.
+	tab.moveRowTo(kvQuery, "a", "b")
+	if tab.QueryRows[0].Name != "a" || tab.QueryRows[1].Name != "b" {
+		t.Fatalf("moveRowTo wrong: %s,%s", tab.QueryRows[0].Name, tab.QueryRows[1].Name)
+	}
+}
+
+func TestBuildPctPersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	s := newConfigStore(path)
+	if got := s.buildPct(); got != 64 {
+		t.Fatalf("default buildPct = %v, want 64", got)
+	}
+	s.setBuildPct(70)
+	if got := s.buildPct(); got != 70 {
+		t.Fatalf("buildPct = %v, want 70", got)
+	}
+	// Out-of-range values are ignored.
+	s.setBuildPct(5)
+	if got := s.buildPct(); got != 70 {
+		t.Fatalf("invalid buildPct changed the value: %v", got)
+	}
+	// A reopened store reads it back.
+	if got := newConfigStore(path).buildPct(); got != 70 {
+		t.Fatalf("persisted buildPct = %v, want 70", got)
+	}
+}
+
+func TestResponseFindBarOpens(t *testing.T) {
+	a, ps := openTestProject(t, "Find")
+	tab := openRequestTabs(t, ps, "Alpha")[0]
+	tab.Resp = &core.ExecResult{Status: 200, Body: []byte(`{"needle":1}`), Pretty: `{"needle":1}`, BodySize: 13}
+	tt := ui.NewTester(a.View, 1100, 820)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Frame()
+	if !tab.respFindOpen {
+		t.Fatal("⌘F should open the response find bar")
+	}
+	// Typing a query shows the hit count and prev/next controls.
+	tab.respFindQuery = "needle"
+	tab.respFindJump = true
+	tt.Frame()
+	if !tt.HasText("1 / 1") {
+		t.Fatalf("find count missing; texts=%v", tt.Texts())
+	}
+	if !tt.HasText("↑") || !tt.HasText("↓") {
+		t.Fatalf("find bar prev/next buttons missing; texts=%v", tt.Texts())
+	}
+	// Escape closes it.
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if tab.respFindOpen {
+		t.Fatal("Escape should close the find bar")
 	}
 }

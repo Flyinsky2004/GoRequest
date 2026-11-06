@@ -1,8 +1,11 @@
 package desktop
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
@@ -102,6 +105,13 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				if tab.RespSection == 0 {
 					ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw)
 				}
+				if b := uikit.IconButton(c, p, uikit.IconCopy, m.CopyResponse); b.Clicked() {
+					c.WriteClipboard(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
+					a.status = m.Copied
+				}
+				if b := uikit.IconButton(c, p, uikit.IconFile, m.SaveResponse); b.Clicked() {
+					a.saveResponse(tab)
+				}
 			}
 		})
 
@@ -126,8 +136,11 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			return
 		}
 		if tab.Resp == nil {
-			ui.Column(c).Grow(1).Center().Children(func() {
-				ui.Text(c, m.NoResponseHint).TextColor(p.Muted)
+			// One empty state only (§7/D9): icon + one line + shortcut hint.
+			ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
+				ui.Icon(c, uikit.IconSend).FontSize(28).TextColor(p.Faint)
+				ui.Text(c, m.NoResponseHint).FontSize(13).TextColor(p.Muted)
+				ui.Text(c, m.SendShortcutHint).FontSize(12).TextColor(p.Faint)
 			})
 			return
 		}
@@ -135,8 +148,142 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			a.responseHeaders(c, t, tab.Resp, p)
 			return
 		}
+		a.responseFindBar(c, t, tab)
 		a.responseBodyArea(c, t, tab, m, p)
 	})
+}
+
+// responseFindBar is the small in-panel find strip (§7): a query field, match
+// count, and previous/next buttons. It drives the read-only response editor's
+// native find instead of opening a system dialog.
+// findMatches returns the start offsets of query in text, case-insensitively.
+// It is capped so a pathological query cannot stall a frame.
+func findMatches(text, query string) []int {
+	if query == "" {
+		return nil
+	}
+	lower, q := strings.ToLower(text), strings.ToLower(query)
+	var out []int
+	for i := 0; len(out) < 10000; {
+		j := strings.Index(lower[i:], q)
+		if j < 0 {
+			break
+		}
+		at := i + j
+		out = append(out, at)
+		i = at + len(q)
+	}
+	return out
+}
+
+// lineOf returns the 0-based line number containing offset in text.
+func lineOf(text string, offset int) int {
+	if offset < 0 {
+		return 0
+	}
+	if offset > len(text) {
+		offset = len(text)
+	}
+	return strings.Count(text[:offset], "\n")
+}
+
+// responseFindBar is the small in-panel find strip (§7): a query field, match
+// count, and previous/next buttons. It selects the match in the read-only
+// response editor, never opening a system dialog or the editor's own bar.
+func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
+	if !tab.respFindOpen {
+		return
+	}
+	m := a.msg()
+	p := uikit.PaletteFor(t)
+	st := a.responseEditorFor(t, tab)
+	body := responseBodyText(tab.Resp, tab.RespRawIdx == 1)
+	ui.Row(c).Gap(6).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+		ui.Icon(c, uikit.IconSearch).FontSize(13).TextColor(p.Muted)
+		in := ui.TextInput(c, &tab.respFindQuery).Width(220).Placeholder(m.FindPlaceholder)
+		if tab.respFindFocus {
+			in.Focus()
+			tab.respFindFocus = false
+		}
+		in.OnShortcut(0, ui.KeyEscape, func() { tab.respFindOpen = false })
+		if in.Changed() {
+			tab.respFindIdx = 0
+			tab.respFindJump = true
+		}
+		matches := findMatches(body, tab.respFindQuery)
+		ui.Box(c).Grow(1)
+		if len(matches) > 0 {
+			if ui.Button(c, "↑").Clicked() {
+				tab.respFindIdx--
+				tab.respFindJump = true
+			}
+			if ui.Button(c, "↓").Clicked() {
+				tab.respFindIdx++
+				tab.respFindJump = true
+			}
+			// Clamp after the buttons so a click never indexes out of range.
+			if tab.respFindIdx >= len(matches) {
+				tab.respFindIdx = 0
+			}
+			if tab.respFindIdx < 0 {
+				tab.respFindIdx = len(matches) - 1
+			}
+			ui.Textf(c, m.FindCount, tab.respFindIdx+1, len(matches)).FontSize(11).
+				FontFeatures("tnum").TextColor(p.Faint)
+		} else {
+			tab.respFindIdx = 0
+			if tab.respFindQuery != "" {
+				ui.Text(c, m.FindNone).FontSize(11).TextColor(p.Faint)
+			}
+		}
+		if b := uikit.IconButton(c, p, uikit.IconClose, m.Cancel); b.Clicked() {
+			tab.respFindOpen = false
+		}
+		// Jump only when the query or the chosen match changed, so the user's
+		// own selection in the body is left alone on later frames.
+		if tab.respFindJump && len(matches) > 0 {
+			start := matches[tab.respFindIdx]
+			st.Select(start, start+len(tab.respFindQuery))
+			st.ScrollTo(lineOf(body, start))
+			tab.respFindJump = false
+		}
+	})
+}
+
+// saveResponse writes the response body to a user-chosen local file. The native
+// save dialog runs off the UI thread; the result is posted back through the
+// owning window's Update, so no UI state is touched from a goroutine.
+func (a *App) saveResponse(tab *Tab) {
+	if tab == nil || tab.Resp == nil {
+		return
+	}
+	body := []byte(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
+	m := a.msg()
+	win := a.win
+	var parent *mygo.Window
+	if nw, ok := win.(nativeWindower); ok {
+		parent = nw.nativeWindow()
+	}
+	go func() {
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Parent:      parent,
+			Title:       m.SaveResponse,
+			DefaultPath: "response.txt",
+			ButtonLabel: m.Save,
+		})
+		if err != nil || path == "" {
+			return
+		}
+		if err := os.WriteFile(path, body, 0o644); err != nil {
+			if win != nil && !win.IsDestroyed() {
+				win.Update(func() { a.status = fmt.Sprintf("%s: %v", m.SaveResponse, err) })
+			}
+			return
+		}
+		if win != nil && !win.IsDestroyed() {
+			win.Update(func() { a.status = translate(m.SavedResponse, path) })
+		}
+	}()
 }
 
 // responseStatus draws the status line's left part.
@@ -163,7 +310,8 @@ func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palet
 			ui.Text(c, m.TruncatedNotice).FontSize(12).TextColor(uikit.MethodColor("POST", p))
 		}
 	default:
-		ui.Text(c, m.NoResponseYet).FontSize(12).TextColor(p.Muted)
+		// No response yet: the single centered empty state below carries the
+		// message, so the status line stays blank here (§7/D9).
 	}
 }
 

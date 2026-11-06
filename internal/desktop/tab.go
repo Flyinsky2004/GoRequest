@@ -56,6 +56,9 @@ type Tab struct {
 	// shared
 	Dirty    bool
 	Baseline string
+	// renaming/renameText drive in-place tab renaming (§4).
+	renaming   bool
+	renameText string
 	// focusURL asks the next frame to focus the URL input (after a send, so the
 	// user can tweak and resend without hunting for the field).
 	focusURL bool
@@ -75,6 +78,14 @@ type Tab struct {
 	// respBuiltDegraded records whether the cached response editor was built in
 	// the large-response plain-text mode, so a size change rebuilds it.
 	respBuiltDegraded bool
+
+	// Response find (§7): the small in-panel find bar. respFindQuery drives the
+	// editor's native find, and respFindOpen toggles the bar via ⌘F.
+	respFindOpen  bool
+	respFindQuery string
+	respFindFocus bool
+	respFindIdx   int
+	respFindJump  bool
 }
 
 // requestFromTab builds a core.Request from the tab's edited fields.

@@ -25,14 +25,34 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
 	rail.Children(func() {
 		a.navHeader(c, p)
 		ui.Box(c).Height(1).Background(p.Hairline)
-		a.filterBox(c, p, m)
 
-		ui.Box(c).Grow(1).FillWidth().Children(func() {
-			ui.Scroll(c).Grow(1).FillWidth().Label(m.ProjectContents).TrackScroll(&a.navScroll).Children(func() {
-				a.projectContents(c, t)
-			})
-			uikit.ScrollEdges(c, p, &a.navScroll)
+		// Requests / History switch (§3): a small segmented view toggle.
+		ui.Column(c).Padding(6, 10, 6, 10).Children(func() {
+			idx := 0
+			if a.historyView {
+				idx = 1
+			}
+			seg, changed := uikit.SimpleSegmented(c, p, &idx, []string{m.RequestsGroup, m.HistoryLabel})
+			seg.FillWidth()
+			if changed {
+				a.historyView = idx == 1
+				if a.historyView {
+					a.reloadHistory()
+				}
+			}
 		})
+
+		if a.historyView {
+			a.historyPanel(c, t)
+		} else {
+			a.filterBox(c, p, m)
+			ui.Box(c).Grow(1).FillWidth().Children(func() {
+				ui.Scroll(c).Grow(1).FillWidth().Label(m.ProjectContents).TrackScroll(&a.navScroll).Children(func() {
+					a.projectContents(c, t)
+				})
+				uikit.ScrollEdges(c, p, &a.navScroll)
+			})
+		}
 
 		// Fixed Settings entry.
 		ui.Box(c).Height(1).Background(p.Hairline)
@@ -71,6 +91,10 @@ func (a *App) filterBox(c *ui.Context, p uikit.Palette, m *messages) {
 		r.Children(func() {
 			ui.Icon(c, uikit.IconSearch).FontSize(14).TextColor(p.Muted)
 			in := ui.TextInput(c, &a.filterQuery).Grow(1).Placeholder(m.FilterPlaceholder)
+			if a.filterFocus {
+				in.Focus()
+				a.filterFocus = false
+			}
 			in.OnShortcut(0, ui.KeyEscape, func() { a.filterQuery = "" })
 			if a.filtering() {
 				ui.Text(c, strconv.Itoa(a.matchCount())).FontSize(11).TextColor(p.Faint).SingleLine()
