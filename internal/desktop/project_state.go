@@ -37,6 +37,11 @@ type projectState struct {
 	// collapsed records which sidebar sections ("requests"/"docs") are folded,
 	// per project so a fold never leaks between windows.
 	collapsed map[string]bool
+
+	// renaming is the tree row being renamed in place (§3), and renameText
+	// its draft name.
+	renaming   string
+	renameText string
 }
 
 func newProjectState(root string, p *core.Project) *projectState {

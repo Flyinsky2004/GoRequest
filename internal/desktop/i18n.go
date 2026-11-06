@@ -159,6 +159,19 @@ type messages struct {
 	AddRow         string
 	RowNoKey       string // %d, %q
 	DragTip        string
+	Rename         string
+	OpenRow        string
+	NewRequestHere string
+	Duplicate      string
+	MoveTo         string
+	Delete         string
+	Undo           string
+	UndoDone       string
+	DeletedToast   string // %s
+	Description    string
+	AddParamHint   string
+	QuickOpen      string
+	ToggleSidebar  string
 	VarLabel       string
 	AutoHeaderTip  string
 	UndefinedVars  string // %d
@@ -388,6 +401,19 @@ var messagesZh = messages{
 	AddRow:         "添加行",
 	RowNoKey:       "第 %d 行：值 %q 没有键",
 	DragTip:        "拖拽排序（默认表格视图）",
+	Rename:         "重命名",
+	OpenRow:        "打开",
+	NewRequestHere: "在此新建请求",
+	Duplicate:      "复制请求",
+	MoveTo:         "移动到…",
+	Delete:         "删除",
+	Undo:           "撤销",
+	UndoDone:       "已撤销",
+	DeletedToast:   "已删除 %s（⌘Z 撤销）",
+	Description:    "描述",
+	AddParamHint:   "添加参数…",
+	QuickOpen:      "快速打开",
+	ToggleSidebar:  "显示/隐藏侧栏",
 	VarLabel:       "变量",
 	AutoHeaderTip:  "由请求内容自动生成",
 	UndefinedVars:  "%d 个变量未定义",
@@ -608,6 +634,19 @@ var messagesEn = messages{
 	AddRow:         "Add row",
 	RowNoKey:       "row %d: value %q has no key",
 	DragTip:        "Drag to reorder (table view)",
+	Rename:         "Rename",
+	OpenRow:        "Open",
+	NewRequestHere: "New Request Here",
+	Duplicate:      "Duplicate Request",
+	MoveTo:         "Move To…",
+	Delete:         "Delete",
+	Undo:           "Undo",
+	UndoDone:       "Undone",
+	DeletedToast:   "Deleted %s (⌘Z to undo)",
+	Description:    "Description",
+	AddParamHint:   "Add parameter…",
+	QuickOpen:      "Quick Open",
+	ToggleSidebar:  "Toggle Sidebar",
 	VarLabel:       "Vars",
 	AutoHeaderTip:  "Generated automatically from the request",
 	UndefinedVars:  "%d undefined variable(s)",

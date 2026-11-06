@@ -49,6 +49,11 @@ type App struct {
 	// sendGuard holds a pending "send with undefined variables?" confirmation.
 	sendGuard *sendGuard
 
+	// undo is the pending reversible action (§8).
+	undo *undoEntry
+	// sidebarHidden folds the whole rail (§9 ⌘\).
+	sidebarHidden bool
+
 	// History view (§3): whether the sidebar shows history, the loaded records
 	// for the current project, and the clear-confirmation state.
 	historyView      bool
@@ -125,6 +130,7 @@ func (a *App) saveGeometry() {
 func (a *App) View(c *ui.Context) {
 	applyAppearance(c, a.mgr.cfg)
 	t := c.Theme()
+	a.registerShortcuts(c)
 	// The rail keeps its workspace range (220–380 DIPs) even while dragged.
 	if a.navWidth < 220 {
 		a.navWidth = 220
@@ -145,13 +151,18 @@ func (a *App) View(c *ui.Context) {
 		a.filterFocus = true
 	})
 	ui.Column(c).Fill().Children(func() {
-		ui.Split(c, &a.navWidth, func() { a.nav(c, t) }, func() { a.workspace(c, t) }).Grow(1).FillWidth()
+		if a.sidebarHidden {
+			a.workspace(c, t)
+		} else {
+			ui.Split(c, &a.navWidth, func() { a.nav(c, t) }, func() { a.workspace(c, t) }).Grow(1).FillWidth()
+		}
 		if a.status != "" {
 			ui.Row(c).Padding(5, 12).Clip().BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
 				ui.Text(c, a.status).FontSize(12).TextColor(t.TextMuted).SingleLine()
 			})
 		}
 	})
+	a.expireUndo()
 	a.envEditorModal(c, t)
 	a.settingsModal(c, t)
 	a.closeGuardModal(c, t)

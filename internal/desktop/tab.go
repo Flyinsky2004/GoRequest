@@ -56,6 +56,9 @@ type Tab struct {
 	// shared
 	Dirty    bool
 	Baseline string
+	// renaming/renameText drive in-place tab renaming (§4).
+	renaming   bool
+	renameText string
 	// focusURL asks the next frame to focus the URL input (after a send, so the
 	// user can tweak and resend without hunting for the field).
 	focusURL bool
