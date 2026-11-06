@@ -1,0 +1,123 @@
+# B05-UI integration patch (apply from the integrator branch)
+#
+# This patch touches public wiring files owned by the integrator. The feature
+# modules, tests and docs are already committed on cc/B05-identity-ui. It is
+# not a replacement for reviewing exact line numbers after parallel merges.
+#
+# Wiring summary:
+#  1. desktop/app.go: render identity dialogs from App.View; run
+#     prepareConfirmedSend() before building a plan; attach the exact-scope
+#     one-shot confirm gate after network options are built.
+#  2. desktop/workspace.go: add four Identity Management project-menu entries.
+#  3. desktop/tree_actions.go: add a per-folder "Folder auth" context menu.
+#  4. core/plan.go: consume PlanConfirmGate(plan) for Hop 0 ONLY and
+#     re-evaluate each redirect hop with Confirmed=false. No public
+#     ExecuteOptions field is needed: the gate is attached to the exact Plan
+#     through core.SetPlanConfirmGate.
+#
+# Do NOT set tabNetStateFor(tab).policyConfirmed = true anywhere: that broad
+# flag would let a redirect reuse a confirmation. core.Execute consumes the
+# gate once, for the initial target only.
+#
+# go.mod / go.sum: unchanged. No public core model/storage-format changes.
+# When no gate is attached, existing transport behavior is unchanged.
+#
+--- a/internal/desktop/app.go	2026-11-06 22:12:18
++++ b/internal/desktop/app.go	2026-11-06 22:39:38
+@@ -200,6 +200,7 @@
+ 	a.transferModal(c, t)
+ 	a.b03CustomMethodModal(c, t)
+ 	a.InteropModals(c, t)
++	a.IdentityManagementModals(c, t)
+ 	if a.git != nil {
+ 		a.git.modals(c, t)
+ 	}
+@@ -276,6 +277,11 @@
+ 		return
+ 	}
+ 	ctx, cancel := context.WithCancel(context.Background())
++	confirmed := a.prepareConfirmedSend(tab)
++	if confirmed == nil && identityMgmtFor(ps).policy != nil {
++		cancel()
++		return
++	}
+ 	req, plan, red, err := a.buildTrackedTabPlan(ctx, tab)
+ 	if err != nil {
+ 		cancel()
+@@ -283,6 +289,7 @@
+ 		return
+ 	}
+ 	a.attachNetworkToPlan(tab, req, plan, red)
++	a.attachConfirmedNetworkOptions(tab, plan, confirmed)
+ 
+ 	tab.cancel = cancel
+ 	tab.Sending = true
+--- a/internal/desktop/workspace.go	2026-11-06 22:12:18
++++ b/internal/desktop/workspace.go	2026-11-06 22:40:06
+@@ -81,6 +81,8 @@
+ 		a.openMove(tab)
+ 	}
+ 	a.BuildInteropProjectMenuItems(c, mm)
++	mm.Separator()
++	a.BuildIdentityManagementMenuItems(mm, tab)
+ 	mm.Separator()
+ 	if mm.Item(m.CopyProjectPath).Chosen() {
+ 		if c != nil {
+--- a/internal/desktop/tree_actions.go	2026-11-06 22:12:18
++++ b/internal/desktop/tree_actions.go	2026-11-06 22:40:11
+@@ -320,6 +320,7 @@
+ 	if mm.Item(m.Rename).Shortcut(0, ui.KeyF2).Chosen() {
+ 		a.beginRename(sel)
+ 	}
++	a.BuildIdentityFolderMenuItem(mm, n.RelPath)
+ 	self := collectionRelOf(n.RelPath)
+ 	mm.Submenu(m.MoveTo, func(sm *ui.Menu) {
+ 		if sm.Item(folderLabel("")).Chosen() {
+diff --git a/internal/core/plan.go b/internal/core/plan.go
+index 6576f9f..e6e7abd 100644
+--- a/internal/core/plan.go
++++ b/internal/core/plan.go
+@@ -188,6 +188,13 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
+ 	currentHeaders := MergeHeadersWithCookies(plan.Headers, u, opts.CookieJar, opts.DisableCookies)
+ 	policy := opts.EffectiveTargetPolicy()
+ 
++	// A one-shot gate can authorize the initial hop only. It never changes the
++	// decision for redirect hops below.
++	hop0Confirmed := opts.Confirmed
++	if gate := PlanConfirmGate(plan); gate != nil && gate.AuthorizeInitialHop(method, u.String()) {
++		hop0Confirmed = true
++	}
++
+ 	// Evaluate Hop 0 against target policy when configured.
+ 	if opts.HasTargetPolicy {
+ 		hasCreds := hasRequestCredentials(currentHeaders, u.String(), opts.AuthScheme, opts.CookieJar, opts.DisableCookies)
+@@ -197,12 +204,12 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
+ 			EnvID:          opts.EnvID,
+ 			HasCredentials: hasCreds,
+ 			Interactive:    opts.Interactive,
+-			Confirmed:      opts.Confirmed,
++			Confirmed:      hop0Confirmed,
+ 		})
+ 		if err != nil {
+ 			return nil, redactErr(err)
+ 		}
+-		if dec != nil && dec.Outcome == DecisionConfirmRequired && !opts.Confirmed {
++		if dec != nil && dec.Outcome == DecisionConfirmRequired && !hop0Confirmed {
+ 			return nil, redactErr(configErrorf("target policy requires confirmation: %s", strings.Join(dec.Reasons, "; ")))
+ 		}
+ 	}
+@@ -343,12 +350,12 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
+ 			activeLogicalHeaders,
+ 			opts.AuthScheme,
+ 			opts.Interactive,
+-			opts.Confirmed,
++			false, // redirect hops never inherit the initial one-shot confirmation
+ 		)
+ 		if err != nil {
+ 			return err
+ 		}
+-		if dec != nil && dec.Outcome == DecisionConfirmRequired && !opts.Confirmed {
++		if dec != nil && dec.Outcome == DecisionConfirmRequired {
+ 			return configErrorf("redirect target %q requires confirmation: %s", nextURL, strings.Join(dec.Reasons, "; "))
+ 		}
+ 
