@@ -179,6 +179,7 @@ type messages struct {
 	TruncatedNotice   string
 	Retry             string
 	LargeResponseNote string
+	Copied            string
 
 	// Environment editor.
 	NewEnvTitle           string
@@ -377,6 +378,7 @@ var messagesZh = messages{
 	TruncatedNotice:   "[已在 32 MB 处截断]",
 	Retry:             "重试",
 	LargeResponseNote: "响应较大，已降级为纯文本显示。",
+	Copied:            "已复制",
 
 	NewEnvTitle:           "新建环境",
 	EditEnvTitle:          "编辑环境：%s",
@@ -568,6 +570,7 @@ var messagesEn = messages{
 	TruncatedNotice:   "[truncated at 32 MB]",
 	Retry:             "Retry",
 	LargeResponseNote: "Large response shown as plain text.",
+	Copied:            "Copied",
 
 	NewEnvTitle:           "New Environment",
 	EditEnvTitle:          "Edit Environment: %s",

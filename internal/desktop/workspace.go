@@ -171,6 +171,10 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 			if ui.TextInput(c, &tab.URL).Grow(1).Font("monospace").Changed() {
 				tab.Dirty = true
 			}
+			if b := uikit.IconButton(c, p, uikit.IconCopy, "Copy URL"); b.Clicked() {
+				c.WriteClipboard(tab.URL)
+				a.status = m.Copied
+			}
 		})
 		if tab.Sending {
 			if _, clicked := uikit.SendButton(c, p, true, m.CancelRequest); clicked {
