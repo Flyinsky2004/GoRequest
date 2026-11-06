@@ -293,6 +293,45 @@ type messages struct {
 	Today               string
 	Yesterday           string
 
+	// History filters, preview and diagnostics (§3).
+	HistoryThisProject       string
+	HistoryAllProjects       string
+	HistoryFilterPlaceholder string
+	HistoryTimeAll           string
+	HistoryTimeToday         string
+	HistoryTimeWeek          string
+	HistoryTimeMonth         string
+	HistoryResultAll         string
+	HistoryResultSuccess     string
+	HistoryResultClient      string
+	HistoryResultServer      string
+	HistoryResultNetwork     string
+	HistoryResultCanceled    string
+	HistoryNoMatch           string
+	HistoryPrivacyNote       string
+	HistoryDetailTitle       string
+	HistoryDetailSummary     string
+	HistoryDetailResult      string
+	HistoryDetailRequest     string
+	HistoryDetailResponse    string
+	HistoryDetailOpen        string
+	HistoryDetailDelete      string
+	HistoryRedactedNote      string
+	HistoryRequestGone       string
+	HistoryBodyOmitted       string // %s
+	HistoryOmitPolicy        string
+	HistoryOmitLarge         string
+	HistoryOmitBinary        string
+	HistoryOmitTruncated     string
+	HistorySnapshotTrimmed   string
+	HistoryDiagCorrupt       string // %d
+	HistoryDiagRead          string // %s
+	HistoryWriteFailed       string // %s
+	HistoryReadFailed        string // %s
+	HistoryOutcomeError      string
+	HistoryOutcomeCanceled   string
+	HistoryOutcomeTimeout    string
+
 	// Settings sheet.
 	SettingsTitle       string
 	AppearanceLabel     string
@@ -309,6 +348,17 @@ type messages struct {
 	RecentProjectsLabel string
 	SecretNote          string
 	InMemoryConfig      string
+
+	// History settings.
+	HistorySettingsLabel    string
+	HistorySaveSnapshots    string
+	HistorySaveBodies       string
+	HistoryRetentionLabel   string
+	HistoryRetention30      string
+	HistoryRetention90      string
+	HistoryRetention365     string
+	HistoryRetentionForever string
+	HistorySettingsNote     string
 
 	// Native dialog titles/messages.
 	OpenDialogTitle   string
@@ -528,6 +578,44 @@ var messagesZh = messages{
 	Today:               "今天",
 	Yesterday:           "昨天",
 
+	HistoryThisProject:       "本项目",
+	HistoryAllProjects:       "全部项目",
+	HistoryFilterPlaceholder: "筛选接口 / URL",
+	HistoryTimeAll:           "全部时间",
+	HistoryTimeToday:         "今天",
+	HistoryTimeWeek:          "最近 7 天",
+	HistoryTimeMonth:         "最近 30 天",
+	HistoryResultAll:         "全部结果",
+	HistoryResultSuccess:     "成功",
+	HistoryResultClient:      "客户端错误",
+	HistoryResultServer:      "服务端错误",
+	HistoryResultNetwork:     "网络/配置错误",
+	HistoryResultCanceled:    "已取消",
+	HistoryNoMatch:           "没有符合筛选条件的历史",
+	HistoryPrivacyNote:       "历史只保存在本机；默认仅保存脱敏元数据，正文需在设置中显式开启。",
+	HistoryDetailTitle:       "历史详情",
+	HistoryDetailSummary:     "概要",
+	HistoryDetailResult:      "结果",
+	HistoryDetailRequest:     "请求快照",
+	HistoryDetailResponse:    "响应快照",
+	HistoryDetailOpen:        "打开请求",
+	HistoryDetailDelete:      "删除此记录",
+	HistoryRedactedNote:      "已脱敏；恢复时将使用脱敏后的 URL。",
+	HistoryRequestGone:       "请求已不存在，无法打开",
+	HistoryBodyOmitted:       "正文未保存：%s",
+	HistoryOmitPolicy:        "默认策略",
+	HistoryOmitLarge:         "超过大小上限",
+	HistoryOmitBinary:        "非文本内容",
+	HistoryOmitTruncated:     "响应已被截断",
+	HistorySnapshotTrimmed:   "快照超出单条记录上限，仅保留元数据",
+	HistoryDiagCorrupt:       "%d 行历史记录已损坏并被跳过",
+	HistoryDiagRead:          "读取历史失败：%s",
+	HistoryWriteFailed:       "无法写入历史：%s",
+	HistoryReadFailed:        "无法读取历史：%s",
+	HistoryOutcomeError:      "错误",
+	HistoryOutcomeCanceled:   "已取消",
+	HistoryOutcomeTimeout:    "超时",
+
 	SettingsTitle:       "设置",
 	AppearanceLabel:     "外观",
 	AppearanceSystem:    "跟随系统",
@@ -543,6 +631,16 @@ var messagesZh = messages{
 	RecentProjectsLabel: "最近项目",
 	SecretNote:          "密钥值来自名为 GOREQUEST_SECRET_<NAME> 的环境变量；项目文件只保留 {{secret.name}} 引用。",
 	InMemoryConfig:      "内存中（无配置目录）",
+
+	HistorySettingsLabel:    "本地历史",
+	HistorySaveSnapshots:    "保存脱敏的请求/响应快照",
+	HistorySaveBodies:       "快照包含正文（已脱敏、有大小上限）",
+	HistoryRetentionLabel:   "保留期限",
+	HistoryRetention30:      "30 天",
+	HistoryRetention90:      "90 天",
+	HistoryRetention365:     "365 天",
+	HistoryRetentionForever: "不按期限删除",
+	HistorySettingsNote:     "历史保存在本机配置目录，不进入项目或 Git；数量与总字节上限始终生效。",
 
 	OpenDialogTitle:   "打开 GoRequest 项目",
 	OpenDialogMessage: "选择包含 .gorequest/ 目录的文件夹。",
@@ -761,6 +859,44 @@ var messagesEn = messages{
 	Today:               "Today",
 	Yesterday:           "Yesterday",
 
+	HistoryThisProject:       "This project",
+	HistoryAllProjects:       "All projects",
+	HistoryFilterPlaceholder: "Filter by request or URL",
+	HistoryTimeAll:           "All time",
+	HistoryTimeToday:         "Today",
+	HistoryTimeWeek:          "Last 7 days",
+	HistoryTimeMonth:         "Last 30 days",
+	HistoryResultAll:         "All results",
+	HistoryResultSuccess:     "Success",
+	HistoryResultClient:      "Client error",
+	HistoryResultServer:      "Server error",
+	HistoryResultNetwork:     "Network/config error",
+	HistoryResultCanceled:    "Canceled",
+	HistoryNoMatch:           "No history matches these filters",
+	HistoryPrivacyNote:       "History stays on this device. Only redacted metadata is saved by default; bodies require an explicit opt-in.",
+	HistoryDetailTitle:       "History Detail",
+	HistoryDetailSummary:     "Summary",
+	HistoryDetailResult:      "Result",
+	HistoryDetailRequest:     "Request snapshot",
+	HistoryDetailResponse:    "Response snapshot",
+	HistoryDetailOpen:        "Open request",
+	HistoryDetailDelete:      "Delete this record",
+	HistoryRedactedNote:      "Redacted. Opening the request uses the redacted URL.",
+	HistoryRequestGone:       "The request no longer exists, so it cannot be opened",
+	HistoryBodyOmitted:       "Body not stored: %s",
+	HistoryOmitPolicy:        "default policy",
+	HistoryOmitLarge:         "over the size limit",
+	HistoryOmitBinary:        "non-text content",
+	HistoryOmitTruncated:     "the response was truncated",
+	HistorySnapshotTrimmed:   "The snapshot exceeded the per-record limit, so only metadata was kept",
+	HistoryDiagCorrupt:       "%d history line(s) were corrupt and skipped",
+	HistoryDiagRead:          "Could not read history: %s",
+	HistoryWriteFailed:       "Could not write history: %s",
+	HistoryReadFailed:        "Could not read history: %s",
+	HistoryOutcomeError:      "Error",
+	HistoryOutcomeCanceled:   "Canceled",
+	HistoryOutcomeTimeout:    "Timed out",
+
 	SettingsTitle:       "Settings",
 	AppearanceLabel:     "Appearance",
 	AppearanceSystem:    "System",
@@ -776,6 +912,16 @@ var messagesEn = messages{
 	RecentProjectsLabel: "Recent projects",
 	SecretNote:          "Secret values come from environment variables named GOREQUEST_SECRET_<NAME>; project files keep only {{secret.name}} references.",
 	InMemoryConfig:      "in-memory (no config directory)",
+
+	HistorySettingsLabel:    "Local history",
+	HistorySaveSnapshots:    "Save redacted request/response snapshots",
+	HistorySaveBodies:       "Include bodies in snapshots (redacted, size-limited)",
+	HistoryRetentionLabel:   "Keep history",
+	HistoryRetention30:      "30 days",
+	HistoryRetention90:      "90 days",
+	HistoryRetention365:     "365 days",
+	HistoryRetentionForever: "Until the record/byte limit removes it",
+	HistorySettingsNote:     "History is stored in the local config directory, never in the project or Git. Record and byte caps always apply.",
 
 	OpenDialogTitle:   "Open GoRequest Project",
 	OpenDialogMessage: "Choose a folder that contains a .gorequest/ directory.",

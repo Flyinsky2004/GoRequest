@@ -60,6 +60,9 @@ type App struct {
 	historyRecords   []historyRecord
 	historyKey       string
 	historyClearOpen bool
+	// historyUI holds this window's filters, diagnostics and snapshot preview.
+	// It is one owned field so no package-level map carries window state.
+	historyUI historyUIState
 
 	// filterQuery is the live text of the sidebar filter box. It is view state
 	// of this window, independent of any project's stored data.
@@ -168,6 +171,7 @@ func (a *App) View(c *ui.Context) {
 	a.closeGuardModal(c, t)
 	a.sendGuardModal(c, t)
 	a.historyClearModal(c, t)
+	a.historyDetailModal(c, t)
 	a.formsModals(c, t)
 	a.b03CustomMethodModal(c, t)
 }
@@ -271,12 +275,13 @@ func (a *App) send(tab *Tab) {
 			if err != nil {
 				tab.Resp = nil
 				tab.RespErr = red.RedactError(err).Error()
+				a.recordHistoryFailure(tab, plan, red, err, ctx.Err())
 			} else {
 				tab.Resp = res
 				tab.RespErr = ""
 				tab.respVersion++
 				tab.respEditor = nil
-				a.recordHistory(tab, red.SanitizePlan(plan).URL, res)
+				a.recordHistory(tab, plan, red, res)
 			}
 			// Put the caret back in the URL so the user can tweak and resend.
 			tab.focusURL = true

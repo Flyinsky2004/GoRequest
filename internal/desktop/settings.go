@@ -52,58 +52,89 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setS
 	ui.Column(c).Gap(10).MinWidth(520).Children(func() {
 		ui.Text(c, m.SettingsTitle).FontSize(17).FontWeight(700).TextColor(p.Text)
 
-		settingsGroup(c, p, m.AppearanceLabel, func() {
-			choice := appearanceDisplay(m, cfg.appearance())
-			if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
-				cfg.setAppearance(appearanceCanonical(m, choice))
-				if setStatus != nil {
-					setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
-				}
-			}
-		})
-
-		settingsGroup(c, p, m.LanguageLabel, func() {
-			choice := languageLabel(cfg.language())
-			if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
-				cfg.setLanguage(languageFromLabel(choice))
-				if setStatus != nil {
-					langMsgs := messagesFor(cfg.language())
-					setStatus(translate(langMsgs.LanguageStatus, languageLabel(cfg.language())))
-				}
-			}
-		})
-
-		settingsGroup(c, p, m.StartupLabel, func() {
-			restore := cfg.restoreLastEnabled()
-			if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
-				cfg.setRestoreLast(restore)
-				if setStatus != nil {
-					if restore {
-						setStatus(m.StartupOn)
-					} else {
-						setStatus(m.StartupOff)
+		ui.Scroll(c).MaxHeight(300).FillWidth().Children(func() {
+			ui.Column(c).Gap(10).FillWidth().Children(func() {
+				settingsGroup(c, p, m.AppearanceLabel, func() {
+					choice := appearanceDisplay(m, cfg.appearance())
+					if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
+						cfg.setAppearance(appearanceCanonical(m, choice))
+						if setStatus != nil {
+							setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
+						}
 					}
-				}
-			}
-		})
+				})
 
-		ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
-			ui.Column(c).Gap(2).Children(func() {
-				infoRow := func(k, v string) {
-					ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, k).Width(120).FontSize(12).TextColor(p.Muted).SingleLine()
-						ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
+				settingsGroup(c, p, m.LanguageLabel, func() {
+					choice := languageLabel(cfg.language())
+					if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
+						cfg.setLanguage(languageFromLabel(choice))
+						if setStatus != nil {
+							langMsgs := messagesFor(cfg.language())
+							setStatus(translate(langMsgs.LanguageStatus, languageLabel(cfg.language())))
+						}
+					}
+				})
+
+				settingsGroup(c, p, m.StartupLabel, func() {
+					restore := cfg.restoreLastEnabled()
+					if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
+						cfg.setRestoreLast(restore)
+						if setStatus != nil {
+							if restore {
+								setStatus(m.StartupOn)
+							} else {
+								setStatus(m.StartupOff)
+							}
+						}
+					}
+				})
+
+				settingsGroup(c, p, m.HistorySettingsLabel, func() {
+					ui.Column(c).Gap(8).Children(func() {
+						snap := cfg.historySaveSnapshots()
+						if ui.Checkbox(c, &snap, m.HistorySaveSnapshots).Changed() {
+							cfg.setHistorySaveSnapshots(snap)
+							if !snap {
+								// Bodies cannot be captured when snapshots are off.
+								cfg.setHistorySaveBodies(false)
+							}
+						}
+						bodies := cfg.historySaveBodies()
+						cb := ui.Checkbox(c, &bodies, m.HistorySaveBodies).Disabled(!snap)
+						if snap && cb.Changed() {
+							cfg.setHistorySaveBodies(bodies)
+						}
+						ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, m.HistoryRetentionLabel).Grow(1).FontSize(12).TextColor(p.Muted).SingleLine()
+							choices := historyRetentionChoices(m)
+							choice := historyRetentionLabel(m, cfg.historyRetentionDays())
+							if ui.Select(c, &choice, choices).Width(190).Changed() {
+								cfg.setHistoryRetentionDays(historyRetentionValue(choices, choice))
+							}
+						})
+						ui.Text(c, m.HistorySettingsNote).FontSize(11).TextColor(p.Faint)
 					})
-				}
-				infoRow(m.VersionLabel, appVersion)
-				infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
-				infoRow(m.GoLabel, runtime.Version())
-				infoRow(m.ConfigFileLabel, configLocation(m, cfg))
-				infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
+				})
+
+				ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
+					ui.Column(c).Gap(2).Children(func() {
+						infoRow := func(k, v string) {
+							ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+								ui.Text(c, k).Width(120).FontSize(12).TextColor(p.Muted).SingleLine()
+								ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
+							})
+						}
+						infoRow(m.VersionLabel, appVersion)
+						infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
+						infoRow(m.GoLabel, runtime.Version())
+						infoRow(m.ConfigFileLabel, configLocation(m, cfg))
+						infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
+					})
+				})
+
+				ui.Text(c, m.SecretNote).FontSize(12).TextColor(p.Muted)
 			})
 		})
-
-		ui.Text(c, m.SecretNote).FontSize(12).TextColor(p.Muted)
 
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 			if ui.PrimaryButton(c, m.Done).Clicked() {
@@ -160,4 +191,34 @@ func configLocation(m *messages, cfg *configStore) string {
 		return m.InMemoryConfig
 	}
 	return displayPath(cfg.path)
+}
+
+// historyRetentionChoices returns the localized retention options in display
+// order; historyRetentionValues is the parallel canonical value list.
+func historyRetentionChoices(m *messages) []string {
+	return []string{m.HistoryRetention30, m.HistoryRetention90, m.HistoryRetention365, m.HistoryRetentionForever}
+}
+
+func historyRetentionValues() []int { return []int{30, 90, 365, -1} }
+
+// historyRetentionLabel maps the stored days value to its localized label,
+// falling back to the 90-day label for an unknown value.
+func historyRetentionLabel(m *messages, days int) string {
+	for i, v := range historyRetentionValues() {
+		if v == days {
+			return historyRetentionChoices(m)[i]
+		}
+	}
+	return m.HistoryRetention90
+}
+
+// historyRetentionValue maps a chosen label back to its canonical days value.
+func historyRetentionValue(choices []string, choice string) int {
+	values := historyRetentionValues()
+	for i, label := range choices {
+		if label == choice {
+			return values[i]
+		}
+	}
+	return 90
 }
