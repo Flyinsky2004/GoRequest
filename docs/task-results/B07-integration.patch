@@ -1,0 +1,80 @@
+diff --git a/internal/desktop/app.go b/internal/desktop/app.go
+index 741d811..2a3d835 100644
+--- a/internal/desktop/app.go
++++ b/internal/desktop/app.go
+@@ -68,6 +68,13 @@ type App struct {
+ 	// no response is in view).
+ 	filterFocus bool
+ 
++	// git is the per-window Git panel controller (B07). It is created lazily
++	// the first time the Git rail is shown and canceled when this window closes.
++	// Its panel state belongs to this window only.
++	git *gitController
++	// gitView selects the Git rail view next to Requests and History.
++	gitView bool
++
+ 	// closed and bypassGuard keep close handling honest: closed means the
+ 	// window is gone (no more UI updates), bypassGuard lets the second Close
+ 	// after a resolved guard actually destroy the window.
+@@ -170,6 +177,9 @@ func (a *App) View(c *ui.Context) {
+ 	a.historyClearModal(c, t)
+ 	a.formsModals(c, t)
+ 	a.b03CustomMethodModal(c, t)
++	if a.git != nil {
++		a.git.modals(c, t)
++	}
+ }
+ 
+ func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
+diff --git a/internal/desktop/manager.go b/internal/desktop/manager.go
+index 7d61f38..e977043 100644
+--- a/internal/desktop/manager.go
++++ b/internal/desktop/manager.go
+@@ -299,6 +299,7 @@ func (m *Manager) onWorkspaceClosed(app *App) {
+ 	app.closed = true
+ 	app.cancelAllRequests()
+ 	app.StopFileSync()
++	app.git.close()
+ 	customMethodMu.Lock()
+ 	delete(customMethodStates, app)
+ 	customMethodMu.Unlock()
+diff --git a/internal/desktop/nav.go b/internal/desktop/nav.go
+index 45f9f77..dc15f49 100644
+--- a/internal/desktop/nav.go
++++ b/internal/desktop/nav.go
+@@ -26,23 +26,32 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
+ 		a.navHeader(c, p)
+ 		ui.Box(c).Height(1).Background(p.Hairline)
+ 
+-		// Requests / History switch (§3): a small segmented view toggle.
++		// Requests / History / Git switch (§3): a small segmented view toggle.
+ 		ui.Column(c).Padding(6, 10, 6, 10).Children(func() {
+ 			idx := 0
+ 			if a.historyView {
+ 				idx = 1
+ 			}
+-			seg, changed := uikit.SimpleSegmented(c, p, &idx, []string{m.RequestsGroup, m.HistoryLabel})
++			if a.gitView {
++				idx = 2
++			}
++			seg, changed := uikit.SimpleSegmented(c, p, &idx, []string{m.RequestsGroup, m.HistoryLabel, a.gitMsg().NavLabel})
+ 			seg.FillWidth()
+ 			if changed {
+ 				a.historyView = idx == 1
++				a.gitView = idx == 2
+ 				if a.historyView {
+ 					a.reloadHistory()
+ 				}
+ 			}
+ 		})
+ 
+-		if a.historyView {
++		if a.gitView {
++			if a.git == nil {
++				a.git = newGitController(a)
++			}
++			a.git.panel(c, t)
++		} else if a.historyView {
+ 			a.historyPanel(c, t)
+ 		} else {
+ 			a.filterBox(c, p, m)
