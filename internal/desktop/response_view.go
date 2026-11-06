@@ -75,6 +75,46 @@ func responseBodyText(res *core.ExecResult, raw bool) string {
 	return string(res.Body)
 }
 
+// responseBytesForSave returns the exact byte slice to write when saving a
+// response to disk. Binary responses and Raw mode always preserve the exact
+// raw bytes (res.Body) without UTF-8 conversion or formatting.
+func responseBytesForSave(res *core.ExecResult, raw bool) []byte {
+	if res == nil {
+		return nil
+	}
+	if res.IsBinary || raw || res.Pretty == "" {
+		return res.Body
+	}
+	return []byte(res.Pretty)
+}
+
+// defaultSaveFilename returns the suggested filename for saving a response.
+func defaultSaveFilename(res *core.ExecResult) string {
+	if res != nil && strings.TrimSpace(res.SuggestedFilename) != "" {
+		return strings.TrimSpace(res.SuggestedFilename)
+	}
+	if res != nil && res.IsBinary {
+		return "response.bin"
+	}
+	if responseBodyIsJSON(res) {
+		return "response.json"
+	}
+	return "response.txt"
+}
+
+// saveResponseToPath writes a response payload to destPath, preserving raw
+// binary bytes when res.IsBinary or raw is true.
+func saveResponseToPath(res *core.ExecResult, raw bool, destPath string) error {
+	if res == nil {
+		return fmt.Errorf("no response to save")
+	}
+	if strings.TrimSpace(destPath) == "" {
+		return fmt.Errorf("destination path is empty")
+	}
+	data := responseBytesForSave(res, raw)
+	return os.WriteFile(destPath, data, 0o644)
+}
+
 // truncationNotice returns the out-of-band truncation message, empty when the
 // response was not truncated. It is shown beside the status, never inside the
 // body editor.
@@ -85,25 +125,83 @@ func truncationNotice(res *core.ExecResult) string {
 	return ""
 }
 
+// transferSizeSummary returns a human-readable comparison of wire transfer
+// bytes vs decompressed body bytes when the response was compressed or when
+// transfer size differs from body size.
+func transferSizeSummary(res *core.ExecResult, nm *networkMessages) string {
+	if res == nil || nm == nil {
+		return ""
+	}
+	if res.TransferSize <= 0 {
+		return ""
+	}
+	if !res.Decompressed && res.TransferSize == res.BodySize && res.ContentEncoding == "" {
+		return ""
+	}
+	enc := res.ContentEncoding
+	if enc == "" {
+		enc = "identity"
+	}
+	return fmt.Sprintf(nm.TransferVsBodyFmt,
+		formatByteSize(res.TransferSize),
+		formatByteSize(res.BodySize),
+		enc,
+	)
+}
+
 // isCanceledErr reports whether a request error was a user cancellation.
 func isCanceledErr(msg string) bool { return strings.Contains(msg, "canceled") }
 
 // responseView draws the response panel: a status line (status-code capsule,
-// protocol, duration and size as rolling tabular figures), a Body/Headers switch
-// with Pretty/Raw for the body, a send progress line and skeleton while a
-// request is in flight, an inline error with a Retry pill, and the body as a
-// read-only code view.
+// protocol, duration and size as rolling tabular figures, plus wire vs
+// decompressed size and redirect/TLS badges), a Body/Headers/Cookies/Network
+// switch with Pretty/Raw/Tree for the body, quick access to the project's
+// isolated Cookie Jar and Network/TLS settings, a send progress line and
+// skeleton while a request is in flight, an inline error with a Retry pill, and
+// the body as a read-only code view, interactive JSON tree, or binary inspector.
 func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	m := a.msg()
+	nm := a.networkMsg()
 	p := uikit.PaletteFor(t)
+	ps := a.ps
+	if tab != nil && tab.Owner != nil {
+		ps = tab.Owner
+	}
+	jar := a.cookieJarFor(ps)
+
 	ui.Column(c).Grow(1).FillHeight().Background(p.BG).Children(func() {
-		ui.Row(c).Gap(10).Padding(6, 10).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(p.Hairline).Children(func() {
+		ui.Row(c).Gap(8).Padding(6, 10).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(p.Hairline).Children(func() {
 			a.responseStatus(c, tab, m, p)
 			ui.Box(c).Grow(1)
+
+			// Project-isolated Cookie Jar & Network/TLS Settings buttons are
+			// always reachable from the request workspace toolbar.
+			if ui.Button(c, fmt.Sprintf(nm.CookieJarBtnFmt, jar.Count())).Clicked() {
+				a.openCookieJarModal(ps)
+			}
+			if ui.Button(c, nm.NetworkBtn).Clicked() {
+				a.openNetworkSettingsModal(ps)
+			}
+
 			if tab.Resp != nil && !tab.Sending && tab.RespErr == "" {
-				ui.Segmented(c, &tab.RespSection, m.BodySection, m.HeadersSection)
+				ui.Segmented(c, &tab.RespSection, m.BodySection, m.HeadersSection, nm.CookiesSection, nm.NetworkSection)
 				if tab.RespSection == 0 {
-					ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw)
+					if !tab.Resp.IsBinary {
+						if responseBodyIsJSON(tab.Resp) && tab.Resp.BodySize <= largeResponseThreshold {
+							ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
+						} else {
+							if tab.RespRawIdx > 1 {
+								tab.RespRawIdx = 0
+							}
+							ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw)
+						}
+						if b := uikit.IconButton(c, p, uikit.IconSearch, m.FindPlaceholder); b.Clicked() {
+							tab.respFindOpen = !tab.respFindOpen
+							if tab.respFindOpen {
+								tab.respFindFocus = true
+							}
+						}
+					}
 				}
 				if b := uikit.IconButton(c, p, uikit.IconCopy, m.CopyResponse); b.Clicked() {
 					c.WriteClipboard(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
@@ -128,11 +226,15 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 					uikit.SkeletonLines(c, p, 12)
 				})
 			}
+			a.cookieJarModal(c, t, tab)
+			a.networkSettingsModal(c, t, tab)
 			return
 		}
 
 		if tab.RespErr != "" {
 			a.responseError(c, t, tab, m, p)
+			a.cookieJarModal(c, t, tab)
+			a.networkSettingsModal(c, t, tab)
 			return
 		}
 		if tab.Resp == nil {
@@ -142,38 +244,56 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				ui.Text(c, m.NoResponseHint).FontSize(13).TextColor(p.Muted)
 				ui.Text(c, m.SendShortcutHint).FontSize(12).TextColor(p.Faint)
 			})
+			a.cookieJarModal(c, t, tab)
+			a.networkSettingsModal(c, t, tab)
 			return
 		}
-		if tab.RespSection == 1 {
+		switch tab.RespSection {
+		case 1:
 			a.responseHeaders(c, t, tab.Resp, p)
-			return
+		case 2:
+			a.responseCookiesView(c, t, tab, p)
+		case 3:
+			a.responseNetworkView(c, t, tab.Resp, p)
+		default:
+			a.responseFindBar(c, t, tab)
+			a.responseBodyArea(c, t, tab, m, p)
 		}
-		a.responseFindBar(c, t, tab)
-		a.responseBodyArea(c, t, tab, m, p)
+		a.cookieJarModal(c, t, tab)
+		a.networkSettingsModal(c, t, tab)
 	})
 }
 
-// responseFindBar is the small in-panel find strip (§7): a query field, match
-// count, and previous/next buttons. It drives the read-only response editor's
-// native find instead of opening a system dialog.
 // findMatches returns the start offsets of query in text, case-insensitively.
 // It is capped so a pathological query cannot stall a frame.
 func findMatches(text, query string) []int {
+	out, _ := findMatchesBounded(text, query, core.MaxResponseSearchMatches)
+	return out
+}
+
+// findMatchesBounded returns up to maxMatches start offsets of query in text
+// (case-insensitively) and reports whether additional matches were capped.
+func findMatchesBounded(text, query string, maxMatches int) (out []int, capped bool) {
 	if query == "" {
-		return nil
+		return nil, false
+	}
+	if maxMatches <= 0 {
+		maxMatches = core.MaxResponseSearchMatches
 	}
 	lower, q := strings.ToLower(text), strings.ToLower(query)
-	var out []int
-	for i := 0; len(out) < 10000; {
+	for i := 0; i <= len(lower)-len(q); {
 		j := strings.Index(lower[i:], q)
 		if j < 0 {
 			break
+		}
+		if len(out) >= maxMatches {
+			return out, true
 		}
 		at := i + j
 		out = append(out, at)
 		i = at + len(q)
 	}
-	return out
+	return out, false
 }
 
 // lineOf returns the 0-based line number containing offset in text.
@@ -189,15 +309,27 @@ func lineOf(text string, offset int) int {
 
 // responseFindBar is the small in-panel find strip (§7): a query field, match
 // count, and previous/next buttons. It selects the match in the read-only
-// response editor, never opening a system dialog or the editor's own bar.
+// response editor (or filters the JSON tree when Tree mode is active), never
+// opening a system dialog or the editor's own bar.
 func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
 	if !tab.respFindOpen {
 		return
 	}
 	m := a.msg()
+	nm := a.networkMsg()
 	p := uikit.PaletteFor(t)
-	st := a.responseEditorFor(t, tab)
-	body := responseBodyText(tab.Resp, tab.RespRawIdx == 1)
+
+	inTreeMode := tab.Resp != nil && !tab.Resp.IsBinary &&
+		tab.RespRawIdx == 2 && responseBodyIsJSON(tab.Resp) &&
+		tab.Resp.BodySize <= largeResponseThreshold
+
+	var st *editor.State
+	var body string
+	if !inTreeMode {
+		st = a.responseEditorFor(t, tab)
+		body = responseBodyText(tab.Resp, tab.RespRawIdx == 1)
+	}
+
 	ui.Row(c).Gap(6).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
 		ui.Icon(c, uikit.IconSearch).FontSize(13).TextColor(p.Muted)
 		in := ui.TextInput(c, &tab.respFindQuery).Width(220).Placeholder(m.FindPlaceholder)
@@ -210,9 +342,20 @@ func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
 			tab.respFindIdx = 0
 			tab.respFindJump = true
 		}
-		matches := findMatches(body, tab.respFindQuery)
+
+		var matchCount int
+		var matches []int
+		var capped bool
+		if inTreeMode {
+			ts := a.ensureJSONTreeFor(tab)
+			_, matchCount, capped = core.FlattenJSONTree(ts.jsonTreeRoot, ts.collapsedPaths, tab.respFindQuery, core.MaxResponseSearchMatches)
+		} else {
+			matches, capped = findMatchesBounded(body, tab.respFindQuery, core.MaxResponseSearchMatches)
+			matchCount = len(matches)
+		}
+
 		ui.Box(c).Grow(1)
-		if len(matches) > 0 {
+		if matchCount > 0 {
 			if ui.Button(c, "↑").Clicked() {
 				tab.respFindIdx--
 				tab.respFindJump = true
@@ -222,14 +365,18 @@ func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
 				tab.respFindJump = true
 			}
 			// Clamp after the buttons so a click never indexes out of range.
-			if tab.respFindIdx >= len(matches) {
+			if tab.respFindIdx >= matchCount {
 				tab.respFindIdx = 0
 			}
 			if tab.respFindIdx < 0 {
-				tab.respFindIdx = len(matches) - 1
+				tab.respFindIdx = matchCount - 1
 			}
-			ui.Textf(c, m.FindCount, tab.respFindIdx+1, len(matches)).FontSize(11).
+			ui.Textf(c, m.FindCount, tab.respFindIdx+1, matchCount).FontSize(11).
 				FontFeatures("tnum").TextColor(p.Faint)
+			if capped {
+				ui.Text(c, fmt.Sprintf(nm.SearchCappedNote, core.MaxResponseSearchMatches)).
+					FontSize(11).TextColor(p.Muted)
+			}
 		} else {
 			tab.respFindIdx = 0
 			if tab.respFindQuery != "" {
@@ -241,10 +388,12 @@ func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
 		}
 		// Jump only when the query or the chosen match changed, so the user's
 		// own selection in the body is left alone on later frames.
-		if tab.respFindJump && len(matches) > 0 {
+		if !inTreeMode && tab.respFindJump && len(matches) > 0 && st != nil {
 			start := matches[tab.respFindIdx]
 			st.Select(start, start+len(tab.respFindQuery))
 			st.ScrollTo(lineOf(body, start))
+			tab.respFindJump = false
+		} else if inTreeMode && tab.respFindJump {
 			tab.respFindJump = false
 		}
 	})
@@ -253,11 +402,14 @@ func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
 // saveResponse writes the response body to a user-chosen local file. The native
 // save dialog runs off the UI thread; the result is posted back through the
 // owning window's Update, so no UI state is touched from a goroutine.
+// Binary responses and Raw mode always write exact raw bytes without corruption.
 func (a *App) saveResponse(tab *Tab) {
 	if tab == nil || tab.Resp == nil {
 		return
 	}
-	body := []byte(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
+	res := tab.Resp
+	raw := tab.RespRawIdx == 1 || res.IsBinary
+	defaultFile := defaultSaveFilename(res)
 	m := a.msg()
 	win := a.win
 	var parent *mygo.Window
@@ -268,13 +420,13 @@ func (a *App) saveResponse(tab *Tab) {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
 			Parent:      parent,
 			Title:       m.SaveResponse,
-			DefaultPath: "response.txt",
+			DefaultPath: defaultFile,
 			ButtonLabel: m.Save,
 		})
 		if err != nil || path == "" {
 			return
 		}
-		if err := os.WriteFile(path, body, 0o644); err != nil {
+		if err := saveResponseToPath(res, raw, path); err != nil {
 			if win != nil && !win.IsDestroyed() {
 				win.Update(func() { a.status = fmt.Sprintf("%s: %v", m.SaveResponse, err) })
 			}
@@ -288,6 +440,7 @@ func (a *App) saveResponse(tab *Tab) {
 
 // responseStatus draws the status line's left part.
 func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palette) {
+	nm := a.networkMsg()
 	switch {
 	case tab.Sending:
 		ui.Text(c, m.SendingLabel).FontSize(12).TextColor(p.Muted)
@@ -306,6 +459,17 @@ func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palet
 		sizeB := host.AnimateTo("resp-size", float32(tab.Resp.BodySize), uikit.SpringNumber)
 		ui.Textf(c, "%.1f ms · %d B", durMs, int64(sizeB)).
 			FontSize(12).FontFeatures("tnum").TextColor(p.Muted)
+		if summary := transferSizeSummary(tab.Resp, nm); summary != "" {
+			ui.Text(c, summary).FontSize(11).FontFeatures("tnum").TextColor(p.Muted)
+		}
+		if len(tab.Resp.Redirects) > 0 {
+			ui.Text(c, fmt.Sprintf(nm.RedirectsBadgeFmt, len(tab.Resp.Redirects))).
+				FontSize(11).FontFeatures("tnum").TextColor(p.Accent)
+		}
+		if tab.Resp.Trace != nil && tab.Resp.Trace.TLSInsecureSkipVerify {
+			ui.Text(c, nm.TLSInsecureBadge).
+				FontSize(11).FontWeight(600).TextColor(uikit.MethodColor("DELETE", p))
+		}
 		if tab.Resp.Truncated {
 			ui.Text(c, m.TruncatedNotice).FontSize(12).TextColor(uikit.MethodColor("POST", p))
 		}
@@ -315,7 +479,7 @@ func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palet
 	}
 }
 
-// responseError shows a centered error with an accent Retry pi ll, never a
+// responseError shows a centered error with an accent Retry pill, never a
 // dialog and never a red-tinted panel.
 func (a *App) responseError(c *ui.Context, t *ui.Theme, tab *Tab, m *messages, p uikit.Palette) {
 	ui.Column(c).Grow(1).FillWidth().Center().Gap(12).Children(func() {
@@ -326,9 +490,14 @@ func (a *App) responseError(c *ui.Context, t *ui.Theme, tab *Tab, m *messages, p
 	})
 }
 
-// responseBodyArea draws the body: an empty hint, a large-response plain-text
-// fallback with a note, else the read-only code view.
+// responseBodyArea draws the body: binary payload inspector for binary
+// responses, interactive JSON tree when Tree mode is selected, a large-response
+// plain-text fallback with a note, or the read-only code view.
 func (a *App) responseBodyArea(c *ui.Context, t *ui.Theme, tab *Tab, m *messages, p uikit.Palette) {
+	if tab.Resp != nil && tab.Resp.IsBinary {
+		a.responseBinaryView(c, t, tab, p)
+		return
+	}
 	if responseBodyText(tab.Resp, tab.RespRawIdx == 1) == "" {
 		ui.Column(c).Grow(1).Center().Children(func() {
 			ui.Text(c, m.BodyEmpty).TextColor(p.Muted)
@@ -339,8 +508,175 @@ func (a *App) responseBodyArea(c *ui.Context, t *ui.Theme, tab *Tab, m *messages
 		ui.Row(c).Padding(4, 10).Children(func() {
 			ui.Text(c, m.LargeResponseNote).FontSize(11).TextColor(p.Muted)
 		})
+	} else if tab.Resp != nil && tab.RespRawIdx == 2 && responseBodyIsJSON(tab.Resp) {
+		a.responseJSONTreeView(c, t, tab, p)
+		return
 	}
 	editor.View(c, a.responseEditorFor(t, tab)).Grow(1).FillWidth()
+}
+
+// responseBinaryView renders the safe Binary Payload Inspector with MIME type,
+// raw byte length, SHA-256 digest, bounded hex+ASCII preview, and raw binary
+// file download trigger.
+func (a *App) responseBinaryView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit.Palette) {
+	nm := a.networkMsg()
+	res := tab.Resp
+	if res == nil {
+		return
+	}
+	shaHex, hexDump := core.FormatBinaryPreview(res.Body, 512)
+	mimeLabel := res.ContentType
+	if mimeLabel == "" {
+		mimeLabel = "application/octet-stream"
+	}
+
+	ui.Column(c).Grow(1).FillWidth().Padding(10, 12).Gap(8).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
+			ui.Text(c, nm.BinaryPayloadTitle).FontSize(13).FontWeight(600).TextColor(p.Text)
+			ui.Box(c).Grow(1)
+			if ui.PrimaryButton(c, nm.SaveBinaryBtn).Clicked() {
+				a.saveResponse(tab)
+			}
+		})
+		ui.Text(c, fmt.Sprintf(nm.BinaryInfoFmt, mimeLabel, res.BodySize, shaHex)).
+			FontSize(11).Font("monospace").FontFeatures("tnum").Selectable().TextColor(p.Muted)
+		if hexDump != "" {
+			ui.Text(c, nm.BinaryPreviewLabel).FontSize(11).TextColor(p.Muted)
+			ui.Scroll(c).Grow(1).FillWidth().BorderWidth(1).BorderColor(p.Hairline).Radius(6).Padding(6, 8).Children(func() {
+				ui.Text(c, hexDump).FontSize(11).Font("monospace").Selectable().TextColor(p.Text)
+			})
+		}
+	})
+}
+
+func (a *App) ensureJSONTreeFor(tab *Tab) *tabNetworkState {
+	ts := tabNetStateFor(tab)
+	if tab == nil || tab.Resp == nil {
+		return ts
+	}
+	if ts.builtRespVer == tab.respVersion && (ts.jsonTreeRoot != nil || ts.jsonTreeErr != "") {
+		return ts
+	}
+	root, trunc, err := core.ParseJSONTree(tab.Resp.Body, core.MaxJSONTreeNodes)
+	ts.builtRespVer = tab.respVersion
+	ts.jsonTreeRoot = root
+	ts.jsonTreeTrunc = trunc
+	if err != nil {
+		ts.jsonTreeErr = err.Error()
+	} else {
+		ts.jsonTreeErr = ""
+	}
+	ts.collapsedPaths = make(map[string]bool)
+	return ts
+}
+
+// responseJSONTreeView renders the interactive collapsible JSON Tree with
+// JSONPath inspection, Expand/Collapse All, search match auto-expansion, and
+// Copy Path / Copy Value actions.
+func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit.Palette) {
+	nm := a.networkMsg()
+	m := a.msg()
+	ts := a.ensureJSONTreeFor(tab)
+	if ts.jsonTreeRoot == nil {
+		editor.View(c, a.responseEditorFor(t, tab)).Grow(1).FillWidth()
+		return
+	}
+
+	rows, _, _ := core.FlattenJSONTree(ts.jsonTreeRoot, ts.collapsedPaths, tab.respFindQuery, core.MaxResponseSearchMatches)
+
+	ui.Column(c).Grow(1).FillWidth().Children(func() {
+		ui.Row(c).Gap(8).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+			if ui.Button(c, nm.ExpandAllBtn).Clicked() {
+				clear(ts.collapsedPaths)
+			}
+			if ui.Button(c, nm.CollapseAllBtn).Clicked() {
+				collapseAllContainers(ts.jsonTreeRoot, ts.collapsedPaths)
+			}
+			if ts.jsonTreeTrunc {
+				ui.Text(c, fmt.Sprintf(nm.TreeTruncatedNote, core.MaxJSONTreeNodes)).
+					FontSize(11).TextColor(uikit.MethodColor("POST", p))
+			}
+		})
+
+		ui.Scroll(c).Grow(1).FillWidth().Padding(4, 10).Children(func() {
+			ui.Column(c).Gap(2).FillWidth().Children(func() {
+				for i, row := range rows {
+					row := row
+					n := row.Node
+					indent := float32(n.Depth * 16)
+					isCurrentMatch := row.Matched && row.MatchIndex == tab.respFindIdx
+
+					r := ui.Row(c).Key(i).Gap(6).Padding(2, 4).AlignItems(ui.Center).FillWidth().Radius(4)
+					if isCurrentMatch {
+						r = r.Background(p.Hover)
+					}
+					r.Children(func() {
+						if indent > 0 {
+							ui.Box(c).Width(indent).Height(1)
+						}
+						if n.IsContainer() {
+							glyph := "▾"
+							if !row.Expanded {
+								glyph = "▸"
+							}
+							if ui.Button(c, glyph).Clicked() {
+								ts.collapsedPaths[n.Path] = row.Expanded
+							}
+						} else {
+							ui.Box(c).Width(22).Height(1)
+						}
+
+						if n.Key != "" {
+							ui.Text(c, n.Key+":").FontSize(12).Font("monospace").FontWeight(600).SingleLine().Selectable().TextColor(p.Text)
+						}
+						valColor := jsonKindColor(n.Kind, p)
+						if row.Matched {
+							valColor = p.Accent
+						}
+						ui.Text(c, n.Value).FontSize(12).Font("monospace").SingleLine().Selectable().TextColor(valColor)
+						ui.Text(c, n.Path).FontSize(10).Font("monospace").SingleLine().TextColor(p.Faint)
+						ui.Box(c).Grow(1)
+
+						if ui.Button(c, nm.CopyJSONPathBtn).Clicked() {
+							c.WriteClipboard(n.Path)
+							a.status = m.Copied
+						}
+						if ui.Button(c, nm.CopyValueBtn).Clicked() {
+							c.WriteClipboard(n.RawValue)
+							a.status = m.Copied
+						}
+					})
+				}
+			})
+		})
+	})
+}
+
+func collapseAllContainers(n *core.JSONTreeNode, collapsed map[string]bool) {
+	if n == nil {
+		return
+	}
+	for _, c := range n.Children {
+		if c.IsContainer() {
+			collapsed[c.Path] = true
+			collapseAllContainers(c, collapsed)
+		}
+	}
+}
+
+func jsonKindColor(kind core.JSONNodeKind, p uikit.Palette) ui.Color {
+	switch kind {
+	case core.JSONNodeString:
+		return uikit.MethodColor("GET", p)
+	case core.JSONNodeNumber:
+		return uikit.MethodColor("POST", p)
+	case core.JSONNodeBool:
+		return uikit.MethodColor("PUT", p)
+	case core.JSONNodeNull:
+		return p.Muted
+	default:
+		return p.Text
+	}
 }
 
 func (a *App) responseEditorFor(t *ui.Theme, tab *Tab) *editor.State {
