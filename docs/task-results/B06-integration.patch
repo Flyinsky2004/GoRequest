@@ -119,10 +119,10 @@ index 7fa426b..022c0b9 100644
  func (s *configStore) navWidth() float32 {
  	if s.cfg.NavWidth < 220 || s.cfg.NavWidth > 380 {
 diff --git a/internal/desktop/i18n.go b/internal/desktop/i18n.go
-index 4ba8496..759d503 100644
+index 4ba8496..78d4005 100644
 --- a/internal/desktop/i18n.go
 +++ b/internal/desktop/i18n.go
-@@ -293,6 +293,45 @@ type messages struct {
+@@ -293,6 +293,46 @@ type messages struct {
  	Today               string
  	Yesterday           string
  
@@ -151,6 +151,7 @@ index 4ba8496..759d503 100644
 +	HistoryDetailDelete      string
 +	HistoryRedactedNote      string
 +	HistoryRequestGone       string
++	HistoryProjectNotOpen    string
 +	HistoryBodyOmitted       string // %s
 +	HistoryOmitPolicy        string
 +	HistoryOmitLarge         string
@@ -168,7 +169,7 @@ index 4ba8496..759d503 100644
  	// Settings sheet.
  	SettingsTitle       string
  	AppearanceLabel     string
-@@ -310,6 +349,17 @@ type messages struct {
+@@ -310,6 +350,17 @@ type messages struct {
  	SecretNote          string
  	InMemoryConfig      string
  
@@ -186,7 +187,7 @@ index 4ba8496..759d503 100644
  	// Native dialog titles/messages.
  	OpenDialogTitle   string
  	OpenDialogMessage string
-@@ -528,6 +578,44 @@ var messagesZh = messages{
+@@ -528,6 +579,45 @@ var messagesZh = messages{
  	Today:               "今天",
  	Yesterday:           "昨天",
  
@@ -214,6 +215,7 @@ index 4ba8496..759d503 100644
 +	HistoryDetailDelete:      "删除此记录",
 +	HistoryRedactedNote:      "已脱敏；恢复时将使用脱敏后的 URL。",
 +	HistoryRequestGone:       "请求已不存在，无法打开",
++	HistoryProjectNotOpen:    "该项目未打开，请先打开项目再恢复此请求",
 +	HistoryBodyOmitted:       "正文未保存：%s",
 +	HistoryOmitPolicy:        "默认策略",
 +	HistoryOmitLarge:         "超过大小上限",
@@ -231,7 +233,7 @@ index 4ba8496..759d503 100644
  	SettingsTitle:       "设置",
  	AppearanceLabel:     "外观",
  	AppearanceSystem:    "跟随系统",
-@@ -544,6 +632,16 @@ var messagesZh = messages{
+@@ -544,6 +634,16 @@ var messagesZh = messages{
  	SecretNote:          "密钥值来自名为 GOREQUEST_SECRET_<NAME> 的环境变量；项目文件只保留 {{secret.name}} 引用。",
  	InMemoryConfig:      "内存中（无配置目录）",
  
@@ -248,7 +250,7 @@ index 4ba8496..759d503 100644
  	OpenDialogTitle:   "打开 GoRequest 项目",
  	OpenDialogMessage: "选择包含 .gorequest/ 目录的文件夹。",
  }
-@@ -761,6 +859,44 @@ var messagesEn = messages{
+@@ -761,6 +861,45 @@ var messagesEn = messages{
  	Today:               "Today",
  	Yesterday:           "Yesterday",
  
@@ -276,6 +278,7 @@ index 4ba8496..759d503 100644
 +	HistoryDetailDelete:      "Delete this record",
 +	HistoryRedactedNote:      "Redacted. Opening the request uses the redacted URL.",
 +	HistoryRequestGone:       "The request no longer exists, so it cannot be opened",
++	HistoryProjectNotOpen:    "Open that project first to reopen this request from history",
 +	HistoryBodyOmitted:       "Body not stored: %s",
 +	HistoryOmitPolicy:        "default policy",
 +	HistoryOmitLarge:         "over the size limit",
@@ -293,7 +296,7 @@ index 4ba8496..759d503 100644
  	SettingsTitle:       "Settings",
  	AppearanceLabel:     "Appearance",
  	AppearanceSystem:    "System",
-@@ -777,6 +913,16 @@ var messagesEn = messages{
+@@ -777,6 +916,16 @@ var messagesEn = messages{
  	SecretNote:          "Secret values come from environment variables named GOREQUEST_SECRET_<NAME>; project files keep only {{secret.name}} references.",
  	InMemoryConfig:      "in-memory (no config directory)",
  
