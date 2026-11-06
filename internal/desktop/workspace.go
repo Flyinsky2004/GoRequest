@@ -28,6 +28,7 @@ func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 		}
 		a.workspaceHeader(c, t, ps)
 		a.tabsAndEditor(c, t, ps)
+		a.fileSyncModal(c, t, ps)
 	})
 }
 
@@ -178,6 +179,7 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 		if tab == nil {
 			return // The final tab may have been closed by the tab bar this frame.
 		}
+		a.fileSyncTabBanner(c, t, ps, tab)
 		if tab.Kind == "request" {
 			a.requestView(c, t, tab)
 		} else {
@@ -196,7 +198,7 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			a.trySend(tb)
 		}
 	})
-	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.saveActive() })
+	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.saveActiveSynced() })
 	ui.Column(c).Grow(1).FillHeight().Padding(12, 16).Gap(10).Children(func() {
 		a.urlGroup(c, t, tab)
 
@@ -315,7 +317,7 @@ func (a *App) saveControl(c *ui.Context, p uikit.Palette, tab *Tab) {
 		btn = btn.TextColor(p.Accent)
 	}
 	if btn.Clicked() {
-		a.saveActive()
+		a.saveActiveSynced()
 	}
 }
 

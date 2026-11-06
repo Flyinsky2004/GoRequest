@@ -255,7 +255,39 @@ func (p *Project) NewSyncEngine(opts SyncOptions) (*SyncEngine, error) {
 	for rel, rec := range snap.Files {
 		eng.rememberBaseline(rel, rec.Digest, rec.Bytes)
 	}
+	// If OpenProject skipped valid entities that use top-level extensions: (before
+	// core/model.go carries Extensions directly), reconcile snap into p in memory
+	// without touching disk.
+	if snapshotRecoversUnloadedEntities(p, snap) {
+		eng.applySnapshotToProject(snap, nil, nil, nil)
+	}
 	return eng, nil
+}
+
+func snapshotRecoversUnloadedEntities(p *Project, snap *DiskSnapshot) bool {
+	if p == nil || snap == nil {
+		return false
+	}
+	for _, rec := range snap.Files {
+		if rec == nil || rec.ParseErr != "" || rec.HasGitConflict {
+			continue
+		}
+		switch rec.Kind {
+		case EntityRequest:
+			if rec.EntityID != "" && p.Requests[rec.EntityID] == nil {
+				return true
+			}
+		case EntityEnvironment:
+			if rec.EntityID != "" && p.Environments[rec.EntityID] == nil {
+				return true
+			}
+		case EntityAuth:
+			if rec.EntityID != "" && p.AuthSchemes[rec.EntityID] == nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (e *SyncEngine) rememberBaseline(rel, digest string, data []byte) {
