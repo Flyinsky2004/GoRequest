@@ -328,11 +328,39 @@ func (a *App) activeEnvOf(tab *Tab) string {
 	return ""
 }
 
-func (a *App) secretsProvider() core.SecretProvider {
-	if a != nil && a.mgr != nil {
-		return a.mgr.secrets
+type projectSecretSources struct{ primary, fallback core.SecretProvider }
+
+func (s projectSecretSources) Get(name string) (string, bool) {
+	if s.primary != nil {
+		if v, ok := s.primary.Get(name); ok {
+			return v, true
+		}
 	}
-	return nil
+	if s.fallback != nil {
+		return s.fallback.Get(name)
+	}
+	return "", false
+}
+func (s projectSecretSources) InspectSecret(name string) core.SecretStatus {
+	if s.primary != nil {
+		if _, ok := s.primary.Get(name); ok {
+			return core.InspectSecretFrom(s.primary, name)
+		}
+	}
+	return core.InspectSecretFrom(s.fallback, name)
+}
+func (a *App) secretsProvider() core.SecretProvider {
+	if a == nil {
+		return nil
+	}
+	var primary, fallback core.SecretProvider
+	if a.mgr != nil {
+		primary = a.mgr.secrets
+	}
+	if a.ps != nil {
+		fallback = a.ps.secrets
+	}
+	return projectSecretSources{primary: primary, fallback: fallback}
 }
 
 // renderAuthEditor renders the request Auth tab, supporting inherit (across

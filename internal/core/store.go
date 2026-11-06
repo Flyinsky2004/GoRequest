@@ -145,15 +145,11 @@ func (s *Store) ResolvePath(rel string) (string, error) {
 
 // Read returns the bytes of rel and their digest.
 func (s *Store) Read(rel string) ([]byte, string, error) {
-	abs, err := s.resolve(rel)
-	if err != nil {
-		return nil, "", err
+	limit := s.EffectiveLimits().MaxYAMLBytes
+	if strings.HasSuffix(strings.ToLower(rel), ".md") {
+		limit = s.EffectiveLimits().MaxDocBytes
 	}
-	b, err := os.ReadFile(abs)
-	if err != nil {
-		return nil, "", err
-	}
-	return b, Digest(b), nil
+	return s.ReadBounded(rel, limit)
 }
 
 // ReadBounded reads rel while enforcing maxBytes (or DefaultMaxYAMLBytes when

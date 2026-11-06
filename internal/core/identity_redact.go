@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -382,6 +383,11 @@ func (t *trackingSecrets) InspectSecret(name string) SecretStatus {
 // and custom API Key slots into the returned *Redactor. Any error produced
 // during resolution is scrubbed via redactor.RedactError before returning.
 func BuildTrackedPlan(req *Request, vars map[string]string, secrets SecretProvider, authScheme *AuthScheme, opts *ResolveOptions) (*Plan, *Redactor, error) {
+	return BuildTrackedPlanWithOptions(context.Background(), req, vars, secrets, authScheme, opts, PlanOptions{})
+}
+
+// BuildTrackedPlanWithOptions combines sensitive-value tracking with bounded file/body encoding.
+func BuildTrackedPlanWithOptions(ctx context.Context, req *Request, vars map[string]string, secrets SecretProvider, authScheme *AuthScheme, opts *ResolveOptions, bodyOpts PlanOptions) (*Plan, *Redactor, error) {
 	red := NewRedactor()
 	if req == nil || req.HTTP == nil {
 		return nil, red, configErrorf("request has no http definition")
@@ -417,7 +423,7 @@ func BuildTrackedPlan(req *Request, vars map[string]string, secrets SecretProvid
 	if method == "" {
 		method = http.MethodGet
 	}
-	if strings.ContainsAny(method, " \t\r\n") {
+	if err := ValidateHTTPMethod(method); err != nil {
 		return nil, red, red.RedactError(configErrorf("invalid HTTP method %q", req.HTTP.Method))
 	}
 
@@ -479,49 +485,12 @@ func BuildTrackedPlan(req *Request, vars map[string]string, secrets SecretProvid
 		return nil, red, red.RedactError(err)
 	}
 
-	var bodyBytes []byte
-	hasBody := false
-	if req.HTTP.Body != nil {
-		bt := strings.ToLower(strings.TrimSpace(req.HTTP.Body.Type))
-		if req.HTTP.Body.File != "" {
-			return nil, red, configErrorf("body.file is not supported yet")
-		}
-		switch bt {
-		case "json":
-			if req.HTTP.Body.Value == nil {
-				return nil, red, configErrorf("json body has no value")
-			}
-			v, err := renderNode(req.HTTP.Body.Value, r)
-			if err != nil {
-				return nil, red, red.RedactError(err)
-			}
-			b, err := json.Marshal(v)
-			if err != nil {
-				return nil, red, red.RedactError(configErrorf("cannot encode json body: %v", err))
-			}
-			bodyBytes = b
-			hasBody = true
-			headers = ensureContentType(headers, "application/json")
-		case "text", "xml":
-			if req.HTTP.Body.Value == nil {
-				return nil, red, configErrorf("%s body has no value", bt)
-			}
-			text, err := r.Resolve(req.HTTP.Body.Value.Value)
-			if err != nil {
-				return nil, red, red.RedactError(err)
-			}
-			bodyBytes = []byte(text)
-			hasBody = true
-			ct := "text/plain; charset=utf-8"
-			if bt == "xml" {
-				ct = "application/xml"
-			}
-			headers = ensureContentType(headers, ct)
-		case "":
-			return nil, red, configErrorf("body has no type")
-		default:
-			return nil, red, red.RedactError(configErrorf("unsupported body type %q (MVP supports json, text, xml)", req.HTTP.Body.Type))
-		}
+	encoded, err := BuildBody(ctx, req.HTTP.Body, r, bodyOpts)
+	if err != nil {
+		return nil, red, red.RedactError(err)
+	}
+	if encoded.HasBody && encoded.ContentType != "" {
+		headers = applyBodyContentType(headers, encoded.ContentType, encoded.ForceContentType)
 	}
 
 	timeout := DefaultTimeout
@@ -540,9 +509,9 @@ func BuildTrackedPlan(req *Request, vars map[string]string, secrets SecretProvid
 		URL:     rawURL,
 		Headers: headers,
 		Query:   query,
-		Body:    bodyBytes,
+		Body:    encoded.Bytes,
 		Timeout: timeout,
-		HasBody: hasBody,
+		HasBody: encoded.HasBody,
 	}, red, nil
 }
 

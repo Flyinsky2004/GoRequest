@@ -14,6 +14,7 @@ import (
 // Keeping this schema in identity_auth.go avoids directly modifying model.go
 // before integration while still enforcing strict YAML field validation.
 type CollectionIdentity struct {
+	Extensions    map[string]any    `yaml:"extensions,omitempty"`
 	SchemaVersion int               `yaml:"schemaVersion"`
 	ID            string            `yaml:"id"`
 	Name          string            `yaml:"name"`
@@ -195,6 +196,8 @@ func (p *Project) LoadFolderIdentities() ([]Issue, error) {
 			ID:            ci.ID,
 			Name:          ci.Name,
 			Variables:     ci.Variables,
+			Auth:          CloneAuthRef(ci.Auth),
+			Extensions:    ci.Extensions,
 		}
 		if ci.Auth != nil && ci.Auth.Mode != "" && ci.Auth.Mode != "inherit" {
 			newByDir[dir] = CloneAuthRef(ci.Auth)
@@ -222,7 +225,6 @@ func (p *Project) LoadFolderIdentities() ([]Issue, error) {
 		entry.CollectionVars = p.collectionVarsFor(entry.RelPath, p.colByDir)
 	}
 	p.rebuildTree()
-	p.Issues = append(p.Issues, p.ValidateIdentity()...)
 	return p.Issues, nil
 }
 
@@ -317,6 +319,8 @@ func (p *Project) SaveFolderAuth(folderRel string, auth *AuthRef, baseline strin
 		ID:            ci.ID,
 		Name:          ci.Name,
 		Variables:     ci.Variables,
+		Auth:          CloneAuthRef(ci.Auth),
+		Extensions:    ci.Extensions,
 	}
 
 	st := folderStateFor(p, true)
@@ -330,7 +334,6 @@ func (p *Project) SaveFolderAuth(folderRel string, auth *AuthRef, baseline strin
 	folderAuthMu.Unlock()
 
 	p.rebuildTree()
-	p.Issues = append(p.Issues, p.ValidateIdentity()...)
 	return digest, nil
 }
 

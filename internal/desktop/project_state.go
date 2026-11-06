@@ -17,6 +17,7 @@ import (
 type projectState struct {
 	root     string // normalized project root (the folder containing .gorequest/)
 	project  *core.Project
+	secrets  core.SecretProvider
 	tabs     []*Tab
 	active   int
 	envSel   string
@@ -190,6 +191,7 @@ func fillTabFromRequest(tab *Tab, entry *core.RequestEntry, p *core.Project) {
 		tab.BodyIdx = indexOf(bodyTypes, req.HTTP.Body.Type)
 		tab.BodyText = core.BodyEditText(req.HTTP.Body)
 	}
+	tab.resetBodyState()
 	fillAuth(p, tab, req)
 }
 
@@ -302,7 +304,7 @@ func (ps *projectState) saveTab(tab *Tab) error {
 		if err != nil {
 			return err
 		}
-		if _, err := ps.project.SaveRequest(tab.Entry, req, tab.Baseline); err != nil {
+		if _, err := ps.project.SaveRequestPreserving(tab.Entry, req, tab.Baseline); err != nil {
 			return err
 		}
 		tab.Baseline = tab.Entry.BaselineDigest
@@ -315,6 +317,7 @@ func (ps *projectState) saveTab(tab *Tab) error {
 		return err
 	}
 	tab.Baseline = digest
+	tab.DocEditor.Buffer.MarkSaved()
 	tab.Dirty = false
 	return nil
 }

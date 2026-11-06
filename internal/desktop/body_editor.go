@@ -85,7 +85,7 @@ func (a *App) mgrSecrets() core.SecretProvider {
 	if a == nil || a.mgr == nil {
 		return nil
 	}
-	return a.mgr.secrets
+	return a.secretsProvider()
 }
 
 func (a *App) resolveTabVars(tab *Tab) map[string]string {
@@ -96,7 +96,7 @@ func (a *App) resolveTabVars(tab *Tab) map[string]string {
 	if ps == nil || ps.project == nil {
 		return map[string]string{}
 	}
-	vars, _, err := ps.project.ResolveVars(tab.Entry, ps.currentEnv())
+	vars, _, err := ps.project.ResolveVarsWith(tab.Entry, ps.currentEnv(), nil)
 	if err != nil || vars == nil {
 		return map[string]string{}
 	}

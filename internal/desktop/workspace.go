@@ -257,7 +257,7 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 			grp := ui.Row(c).Grow(1).Height(40).Radius(10).BorderWidth(1).BorderColor(p.Hairline).
 				Background(p.BG).AlignItems(ui.Center).Clip()
 			grp.Children(func() {
-				a.methodPicker(c, p, tab)
+				a.b03MethodPicker(c, p, tab)
 				ui.Box(c).Width(1).Height(22).Background(p.Hairline)
 				inp := ui.TextInput(c, &tab.URL).Grow(1).Font("monospace")
 				inp.OnShortcut(0, ui.KeyEnter, func() { a.trySend(tab) })
@@ -287,7 +287,7 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 				a.trySend(tab)
 			}
 		})
-		a.urlVarLine(c, t, tab)
+		a.b03URLPreview(c, t, tab)
 	})
 }
 

@@ -124,7 +124,11 @@ func OpenProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	p.loadIssues = append([]Issue(nil), p.Issues...)
-	p.Issues = ValidateProject(p)
+	if _, err := p.LoadFolderIdentities(); err != nil {
+		return nil, err
+	}
+	p.loadIssues = append(p.loadIssues, p.AuditProjectStrict(YAMLLimits{})...)
+	p.Issues = validateProjectFrom(p.loadIssues, p)
 	return p, nil
 }
 

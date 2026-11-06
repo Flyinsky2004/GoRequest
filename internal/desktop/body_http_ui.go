@@ -168,30 +168,9 @@ func (a *App) b03URLPreview(c *ui.Context, t *ui.Theme, tab *Tab) {
 	}
 
 	p := uikit.PaletteFor(t)
-	m := a.msg()
 	bm := a.bodyMsg()
-	danger := uikit.MethodColor("DELETE", p)
 
-	if len(prev.Variables) > 0 {
-		spans := []ui.Span{{Text: m.VarLabel + "  ", Size: 11, Weight: 600, Color: p.Muted}}
-		for _, it := range prev.Variables {
-			switch it.Status {
-			case core.VarStatusDefined:
-				spans = append(spans, ui.Span{Text: it.Name + " = " + it.Display + "   ", Size: 11, Color: p.Muted})
-			case core.VarStatusSecretBound:
-				spans = append(spans, ui.Span{Text: "{{" + it.Name + "}} = (secret)   ", Size: 11, Color: p.Muted})
-			default:
-				spans = append(spans, ui.Span{
-					Text:       "{{" + it.Name + "}} ?   ",
-					Size:       11,
-					Color:      danger,
-					Background: danger.Alpha(0.12),
-					Radius:     3,
-				})
-			}
-		}
-		ui.RichText(c, spans...).FillWidth()
-	}
+	a.urlVarLine(c, t, tab)
 
 	if prev.ResolvedURL != "" && (len(prev.Variables) > 0 || prev.EncodedQuery != "") {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).FillWidth().Children(func() {
@@ -227,13 +206,18 @@ func (a *App) renderQueryURLPreview(c *ui.Context, t *ui.Theme, tab *Tab) {
 // the project's confined .gorequest/ file opener and device-local file bindings
 // while enforcing pre-network attachment checks and upload size limits.
 func (a *App) buildTabPlan(ctx context.Context, tab *Tab) (*core.Request, *core.Plan, error) {
+	req, plan, _, err := a.buildTrackedTabPlan(ctx, tab)
+	return req, plan, err
+}
+
+func (a *App) buildTrackedTabPlan(ctx context.Context, tab *Tab) (*core.Request, *core.Plan, *core.Redactor, error) {
 	ps := a.ps
 	if tab != nil && tab.Owner != nil {
 		ps = tab.Owner
 	}
 	req, err := requestFromTab(tab)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, core.NewRedactor(), err
 	}
 	var (
 		vars        map[string]string
@@ -241,23 +225,27 @@ func (a *App) buildTabPlan(ctx context.Context, tab *Tab) (*core.Request, *core.
 		projectRoot string
 	)
 	if ps != nil && ps.project != nil {
-		vars, _, err = ps.project.ResolveVars(tab.Entry, ps.currentEnv())
+		vars, _, err = ps.project.ResolveVarsWith(tab.Entry, ps.currentEnv(), nil)
 		if err != nil {
-			return req, nil, err
+			return req, nil, core.NewRedactor(), err
 		}
-		auth, err = ps.project.AuthFor(req)
+		eff, authErr := ps.project.ResolveEffectiveAuth(tab.Entry, req)
+		err = authErr
+		if eff != nil {
+			auth = eff.Scheme
+		}
 		if err != nil {
-			return req, nil, err
+			return req, nil, core.NewRedactor(), err
 		}
 		projectRoot = ps.project.Dir
 	}
-	plan, err := core.BuildPlanWithOptions(ctx, req, vars, a.mgrSecrets(), auth, core.PlanOptions{
+	plan, red, err := core.BuildTrackedPlanWithOptions(ctx, req, vars, a.mgrSecrets(), auth, nil, core.PlanOptions{
 		ProjectRoot:    projectRoot,
 		LocalFiles:     a.localFilesFor(ps),
 		MaxUploadBytes: core.DefaultMaxUploadBytes,
 	})
 	if err != nil {
-		return req, nil, err
+		return req, nil, red, err
 	}
-	return req, plan, nil
+	return req, plan, red, nil
 }

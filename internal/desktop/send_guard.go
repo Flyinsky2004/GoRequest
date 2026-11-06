@@ -22,7 +22,7 @@ func (a *App) undefinedFor(tab *Tab) []string {
 	if tab == nil || tab.Entry == nil || tab.Entry.Request == nil {
 		return nil
 	}
-	vars, _, err := a.ps.project.ResolveVars(tab.Entry, a.ps.currentEnv())
+	vars, _, err := a.ps.project.ResolveVarsWith(tab.Entry, a.ps.currentEnv(), nil)
 	if err != nil || vars == nil {
 		vars = map[string]string{}
 	}
@@ -35,10 +35,11 @@ func (a *App) undefinedFor(tab *Tab) []string {
 		parts = append(parts, r.Name, r.Value)
 	}
 	parts = append(parts, tab.BodyText)
+	parts = append(parts, tab.authTemplateStrings(a.ps.project)...)
 	seen := map[string]bool{}
 	var out []string
 	for _, s := range parts {
-		for _, name := range core.UndefinedTemplates(s, vars, a.mgr.secrets) {
+		for _, name := range core.UndefinedTemplates(s, vars, a.secretsProvider()) {
 			if !seen[name] {
 				seen[name] = true
 				out = append(out, name)
@@ -52,6 +53,9 @@ func (a *App) undefinedFor(tab *Tab) []string {
 // a confirmation instead of silently shipping literal {{...}} (§5, D7).
 func (a *App) trySend(tab *Tab) {
 	if tab == nil {
+		return
+	}
+	if err := a.CanSendTab(tab); err != nil {
 		return
 	}
 	if undef := a.undefinedFor(tab); len(undef) > 0 {

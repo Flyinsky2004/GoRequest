@@ -143,7 +143,7 @@ func (a *App) resolveCloseDirty(save bool) {
 	}
 	t := f.dirty
 	if save {
-		if err := f.project.saveTab(t); err != nil {
+		if err := a.saveTabSynced(t); err != nil {
 			f.err = translate(a.msg().SaveFailedPrefix, err.Error())
 			return
 		}
@@ -298,7 +298,7 @@ func (a *App) doMove(save, discard bool) {
 	}
 	m := a.msg()
 	if save {
-		if err := ps.saveTab(tab); err != nil {
+		if err := a.saveTabSynced(tab); err != nil {
 			a.moveErr = translate(m.SaveFailedPrefix, err.Error())
 			return
 		}

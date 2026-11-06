@@ -34,6 +34,8 @@ type environmentEditor struct {
 	visible bool // bound to ui.Modal; the framework sets it false on dismiss
 	mode    string
 
+	baseline string // digest captured when the draft opened; never advanced by file refresh
+	relPath  string
 	envID    string // identity of the environment being edited ("" for new)
 	idText   string
 	idLocked bool
@@ -184,7 +186,8 @@ func (ps *projectState) startEditEnvironmentWith(m *messages) error {
 	if _, ok := ps.project.EnvEntries[id]; !ok {
 		return fmt.Errorf(m.ErrEnvNoFile, id)
 	}
-	e := &environmentEditor{mode: "edit", envID: id, idText: id, idLocked: true, open: true, visible: true}
+	e := &environmentEditor{mode: "edit", envID: id, idText: id, idLocked: true, open: true, visible: true,
+		baseline: ps.project.EnvEntries[id].BaselineDigest, relPath: ps.project.EnvEntries[id].RelPath}
 	for _, k := range env.SortedVariableKeys() {
 		e.varRows = append(e.varRows, &envVarRow{ID: nextRowID(), Key: k, Value: env.Variables[k]})
 	}
@@ -246,7 +249,17 @@ func (a *App) saveEnvironmentDraft(ps *projectState) error {
 		ps.envSel = env.ID // auto-select the freshly created environment
 		a.status = translate(m.CreatedEnvironment, env.ID)
 	} else {
-		if err := ps.project.SaveEnvironment(e.envID, env); err != nil {
+		current := ps.project.EnvEntries[e.envID]
+		if current == nil || current.RelPath != e.relPath || current.BaselineDigest != e.baseline {
+			disk := ""
+			if current != nil {
+				disk = current.BaselineDigest
+			}
+			err := &core.ConflictError{Path: e.relPath, Baseline: e.baseline, Disk: disk}
+			e.err = err.Error()
+			return err
+		}
+		if err := ps.project.SaveEnvironmentPreserving(e.envID, env); err != nil {
 			e.err = err.Error()
 			return err
 		}

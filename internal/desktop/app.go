@@ -169,6 +169,7 @@ func (a *App) View(c *ui.Context) {
 	a.sendGuardModal(c, t)
 	a.historyClearModal(c, t)
 	a.formsModals(c, t)
+	a.b03CustomMethodModal(c, t)
 }
 
 func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
@@ -196,24 +197,7 @@ func (a *App) closeWindow() {
 // saveActive saves the active tab of this project, reporting conflicts rather
 // than overwriting external edits.
 func (a *App) saveActive() {
-	tab := a.ps.activeTab()
-	if tab == nil {
-		return
-	}
-	rel := tab.DocRel
-	if tab.Kind == "request" {
-		rel = tab.Entry.RelPath
-	}
-	if err := a.ps.saveTab(tab); err != nil {
-		m := a.msg()
-		if core.IsConflict(err) {
-			a.status = translate(m.Conflict, rel)
-		} else {
-			a.status = translate(m.SaveFailedPrefix, err.Error())
-		}
-		return
-	}
-	a.status = translate(a.msg().Saved, rel)
+	a.saveActiveSynced()
 }
 
 // saveAllDirty saves every dirty tab of this project; the first failure stops
@@ -228,7 +212,7 @@ func (a *App) saveAllDirty() error {
 		if !tab.Dirty {
 			continue
 		}
-		if err := a.ps.saveTab(tab); err != nil {
+		if err := a.saveTabSynced(tab); err != nil {
 			return fmt.Errorf("%s: %w", tab.Title, err)
 		}
 	}
@@ -249,31 +233,27 @@ func (a *App) clearDirty() {
 // meanwhile, so a result can never land in another project's window.
 func (a *App) send(tab *Tab) {
 	ps := a.ps
-	req, err := requestFromTab(tab)
-	if err != nil {
-		a.status = translate(a.msg().RequestFailedPrefix, err.Error())
+	if tab == nil || tab.Sending {
 		return
 	}
-	vars, _, err := ps.project.ResolveVars(tab.Entry, ps.currentEnv())
-	if err != nil {
-		a.status = err.Error()
-		return
+	if tab.Owner != nil {
+		ps = tab.Owner
 	}
-	auth, err := ps.project.AuthFor(req)
-	if err != nil {
-		a.status = err.Error()
-		return
-	}
-	plan, err := core.BuildPlan(req, vars, a.mgr.secrets, auth)
-	if err != nil {
-		a.status = err.Error()
+	if err := a.CanSendTab(tab); err != nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	req, plan, red, err := a.buildTrackedTabPlan(ctx, tab)
+	if err != nil {
+		cancel()
+		a.status = translate(a.msg().RequestFailedPrefix, red.RedactError(err).Error())
+		return
+	}
+
 	tab.cancel = cancel
 	tab.Sending = true
 	tab.RespErr = ""
-	a.status = translate(a.msg().Sending, req.HTTP.Method, req.HTTP.URL)
+	a.status = translate(a.msg().Sending, req.HTTP.Method, red.SanitizePlan(plan).URL)
 
 	win := a.win
 	go func() {
@@ -290,13 +270,13 @@ func (a *App) send(tab *Tab) {
 			tab.Sending = false
 			if err != nil {
 				tab.Resp = nil
-				tab.RespErr = err.Error()
+				tab.RespErr = red.RedactError(err).Error()
 			} else {
 				tab.Resp = res
 				tab.RespErr = ""
 				tab.respVersion++
 				tab.respEditor = nil
-				a.recordHistory(tab, plan.URL, res)
+				a.recordHistory(tab, red.SanitizePlan(plan).URL, res)
 			}
 			// Put the caret back in the URL so the user can tweak and resend.
 			tab.focusURL = true

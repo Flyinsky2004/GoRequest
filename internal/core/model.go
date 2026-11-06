@@ -140,15 +140,16 @@ func (a AuthRef) MarshalYAML() (any, error) {
 // values (tokens, passwords) should use {{secret.name}} references so the value
 // itself never lands in the file.
 type AuthScheme struct {
-	SchemaVersion int    `yaml:"schemaVersion"`
-	ID            string `yaml:"id"`
-	Type          string `yaml:"type"` // bearer | basic | apikey
-	Token         string `yaml:"token,omitempty"`
-	Username      string `yaml:"username,omitempty"`
-	Password      string `yaml:"password,omitempty"`
-	Name          string `yaml:"name,omitempty"`  // api key name
-	In            string `yaml:"in,omitempty"`    // header | query | cookie
-	Value         string `yaml:"value,omitempty"` // api key value template
+	SchemaVersion int            `yaml:"schemaVersion"`
+	ID            string         `yaml:"id"`
+	Type          string         `yaml:"type"` // bearer | basic | apikey
+	Token         string         `yaml:"token,omitempty"`
+	Username      string         `yaml:"username,omitempty"`
+	Password      string         `yaml:"password,omitempty"`
+	Name          string         `yaml:"name,omitempty"`  // api key name
+	In            string         `yaml:"in,omitempty"`    // header | query | cookie
+	Value         string         `yaml:"value,omitempty"` // api key value template
+	Extensions    map[string]any `yaml:"extensions,omitempty"`
 }
 
 // Request is one request stored as its own YAML file.
@@ -164,6 +165,7 @@ type Request struct {
 	Timeout       string            `yaml:"timeout,omitempty"`
 	Assert        []yaml.Node       `yaml:"assert,omitempty"`
 	Documentation []string          `yaml:"documentation,omitempty"`
+	Extensions    map[string]any    `yaml:"extensions,omitempty"`
 }
 
 // ProjectFile is .gorequest/project.yaml.
@@ -173,6 +175,7 @@ type ProjectFile struct {
 	Name          string            `yaml:"name"`
 	Variables     map[string]string `yaml:"variables,omitempty"`
 	Defaults      *Defaults         `yaml:"defaults,omitempty"`
+	Extensions    map[string]any    `yaml:"extensions,omitempty"`
 }
 
 // Defaults are project-wide request defaults.
@@ -188,6 +191,7 @@ type Environment struct {
 	ID            string            `yaml:"id"`
 	Variables     map[string]string `yaml:"variables,omitempty"`
 	Secrets       []string          `yaml:"secrets,omitempty"`
+	Extensions    map[string]any    `yaml:"extensions,omitempty"`
 }
 
 // Collection is an optional collection.yaml marking a folder and carrying
@@ -197,12 +201,25 @@ type Collection struct {
 	ID            string            `yaml:"id"`
 	Name          string            `yaml:"name"`
 	Variables     map[string]string `yaml:"variables,omitempty"`
+	Extensions    map[string]any    `yaml:"extensions,omitempty"`
+	Auth          *AuthRef          `yaml:"auth,omitempty"`
 }
 
 // decodeStrict decodes exactly one YAML document into out with unknown-field
 // rejection and duplicate-key rejection (provided by yaml.v3). A second
 // document is an error.
 func decodeStrict(data []byte, out any) error {
+	tree, err := ParseStrictYAMLTree(data, YAMLLimits{})
+	if err != nil {
+		return err
+	}
+	switch out.(type) {
+	case *Request, *Collection, *CollectionIdentity:
+		if err := auditRequestAST(tree.Content[0]); err != nil {
+			return err
+		}
+	}
+
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(out); err != nil {

@@ -54,6 +54,7 @@ func validateProjectFrom(base []Issue, p *Project) []Issue {
 		e := p.Requests[id]
 		issues = append(issues, validateRequest(e.Request, e.RelPath, p)...)
 	}
+	issues = append(issues, p.ValidateIdentity()...)
 	return issues
 }
 
@@ -78,8 +79,10 @@ func validateRequest(r *Request, path string, p *Project) []Issue {
 		add("http-missing", "request has no http block")
 		return issues
 	}
-	if strings.ContainsAny(r.HTTP.Method, " \t\r\n") {
-		add("method", fmt.Sprintf("invalid method %q", r.HTTP.Method))
+	if strings.TrimSpace(r.HTTP.Method) != "" {
+		if err := ValidateHTTPMethod(r.HTTP.Method); err != nil {
+			add("method", err.Error())
+		}
 	}
 	if strings.TrimSpace(r.HTTP.URL) == "" {
 		add("url", "request url is empty")
@@ -90,17 +93,11 @@ func validateRequest(r *Request, path string, p *Project) []Issue {
 		}
 	}
 	if r.HTTP.Body != nil {
-		switch strings.ToLower(strings.TrimSpace(r.HTTP.Body.Type)) {
-		case "json", "text", "xml":
-		case "":
-			add("body-type", "body has no type")
-		default:
-			add("body-type", fmt.Sprintf("unsupported body type %q (MVP supports json, text, xml)", r.HTTP.Body.Type))
-		}
-		if r.HTTP.Body.File != "" {
-			add("body-file", "body.file is not supported yet")
+		if err := ValidateBody(r.HTTP.Body); err != nil {
+			add("body", err.Error())
 		}
 	}
+
 	if r.Timeout != "" {
 		if d, err := time.ParseDuration(r.Timeout); err != nil {
 			add("timeout", fmt.Sprintf("invalid timeout %q: %v", r.Timeout, err))

@@ -1433,6 +1433,19 @@ func (e *SyncEngine) applySnapshotToProject(
 		colByDir[filepath.ToSlash(filepath.Dir(rel))] = &cCopy
 	}
 	p.colByDir = colByDir
+	identity := folderStateFor(p, true)
+	folderAuthMu.Lock()
+	identity.byDir = map[string]*AuthRef{}
+	identity.baselines = map[string]string{}
+	for dir, col := range colByDir {
+		if col.Auth != nil {
+			identity.byDir[dir] = CloneAuthRef(col.Auth)
+		}
+		if rec := snap.Files[dir+"/collection.yaml"]; rec != nil {
+			identity.baselines[dir+"/collection.yaml"] = rec.Digest
+		}
+	}
+	folderAuthMu.Unlock()
 
 	// 5. Requests: mutate existing *RequestEntry pointers in place so open clean
 	// tabs keep a valid Entry pointer! For dirty conflicted requests:

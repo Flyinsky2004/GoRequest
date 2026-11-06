@@ -131,7 +131,8 @@ func (a *App) StartFileSync(opts ...core.WatchOptions) error {
 	ctrl.stopWatcher()
 	w, err := core.StartWatcher(context.Background(), ps.project.Store, wopts, func() {
 		if win == nil || win.IsDestroyed() {
-			ctrl.stopWatcher()
+			// Lifecycle cleanup closes the watcher on the UI thread. Closing it
+			// from its own notification goroutine would wait for itself.
 			return
 		}
 		win.Update(func() {
@@ -385,45 +386,12 @@ func baselineBytesForTab(ps *projectState, ctrl *fileSyncController, tab *Tab) [
 	return nil
 }
 
-// requestForSaveFromTab builds a *core.Request from tab while preserving
-// omitted/referenced auth when the user has not edited auth fields, avoiding
-// spurious YAML diffs on unrelated edits without altering tab.go's auth model.
-func requestForSaveFromTab(ps *projectState, tab *Tab) (*core.Request, error) {
-	req, err := requestFromTab(tab)
-	if err != nil {
-		return nil, err
-	}
-	if ps != nil && ps.project != nil && tab.Entry != nil && tab.Entry.Request != nil {
-		orig := tab.Entry.Request
-		switch {
-		case orig.Auth == nil && tab.AuthMode == "none" && !projectHasInheritedAuth(ps.project):
-			req.Auth = nil
-		case orig.Auth != nil && orig.Auth.Mode == "ref" && authTabMatchesOriginal(ps.project, tab, orig):
-			cp := *orig.Auth
-			req.Auth = &cp
-		}
-	}
-	return req, nil
+// requestForSaveFromTab uses the shared Body/Auth editors, preserving their
+// explicit inheritance, references and unsaved edits.
+func requestForSaveFromTab(_ *projectState, tab *Tab) (*core.Request, error) {
+	return requestFromTab(tab)
 }
 
-func projectHasInheritedAuth(p *core.Project) bool {
-	return p != nil && p.File != nil && p.File.Defaults != nil && strings.TrimSpace(p.File.Defaults.Auth) != ""
-}
-
-func authTabMatchesOriginal(p *core.Project, tab *Tab, orig *core.Request) bool {
-	var probe Tab
-	fillAuth(p, &probe, orig)
-	return tab.AuthMode == probe.AuthMode &&
-		tab.AuthToken == probe.AuthToken &&
-		tab.AuthUser == probe.AuthUser &&
-		tab.AuthPass == probe.AuthPass
-}
-
-// editedBytesForTab serializes the user's current unsaved tab state against its
-// baseline so comments, key order, and extensions stay intact. If a request tab
-// is mid-edit with invalid JSON or an incomplete KV row during a background
-// watcher scan, a best-effort serialization still captures all typed input so
-// no edits are ever lost.
 func editedBytesForTab(ps *projectState, ctrl *fileSyncController, tab *Tab) ([]byte, error) {
 	if tab == nil {
 		return nil, fmt.Errorf("nil tab")
@@ -477,12 +445,10 @@ func bestEffortRequestFromTab(tab *Tab) *core.Request {
 	}
 	base.HTTP = httpDef
 	base.Timeout = strings.TrimSpace(tab.Timeout)
-	switch tab.AuthMode {
-	case "bearer":
-		base.Auth = &core.AuthRef{Mode: "inline", Inline: &core.AuthScheme{SchemaVersion: 1, Type: "bearer", Token: tab.AuthToken}}
-	case "basic":
-		base.Auth = &core.AuthRef{Mode: "inline", Inline: &core.AuthScheme{SchemaVersion: 1, Type: "basic", Username: tab.AuthUser, Password: tab.AuthPass}}
+	if auth, err := authRefFromTab(tab); err == nil {
+		base.Auth = auth
 	}
+
 	return &base
 }
 
@@ -736,6 +702,7 @@ func (a *App) saveTabSynced(tab *Tab) error {
 		return serr
 	}
 	tab.Baseline = newDigest
+	tab.DocEditor.Buffer.MarkSaved()
 	tab.Dirty = false
 	ctrl.recordLocalSave(tab.DocRel, content)
 	return nil

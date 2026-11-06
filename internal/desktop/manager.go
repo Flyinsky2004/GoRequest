@@ -59,11 +59,12 @@ func planStartup(explicit string, cfg *configStore) startPlan {
 // state. Background results and dialogs are routed back through the specific
 // window that owns them, never through a single global "last window".
 type Manager struct {
-	cfg       *configStore
-	secrets   core.SecretProvider
-	history   *historyStore
-	newWindow windowFactory
-	explicit  string // -project flag value, "" when none
+	watchFiles bool
+	cfg        *configStore
+	secrets    core.SecretProvider
+	history    *historyStore
+	newWindow  windowFactory
+	explicit   string // -project flag value, "" when none
 
 	workspaces []*App
 	welcome    *welcomeState
@@ -88,11 +89,12 @@ func (m *Manager) msg() *messages {
 // explicitProject is the -project flag value ("" when not given).
 func NewManager(explicitProject string) *Manager {
 	return &Manager{
-		cfg:       newConfigStore(configFilePath()),
-		secrets:   platform.NewEnvSecrets(),
-		history:   newHistoryStore(),
-		newWindow: newRealWindow,
-		explicit:  explicitProject,
+		cfg:        newConfigStore(configFilePath()),
+		watchFiles: true,
+		secrets:    platform.NewEnvSecrets(),
+		history:    newHistoryStore(),
+		newWindow:  newRealWindow,
+		explicit:   explicitProject,
 	}
 }
 
@@ -150,6 +152,10 @@ func (m *Manager) openProject(path string) error {
 		return err
 	}
 	ps := newProjectState(root, p)
+	ps.secrets, err = platform.NewProjectSecrets(nil, p.File.ID, root, nil)
+	if err != nil {
+		return err
+	}
 	// Restore the last used build/response split (§7).
 	ps.buildPct = m.cfg.buildPct()
 	winW, winH := m.cfg.windowSize()
@@ -164,6 +170,10 @@ func (m *Manager) openProject(path string) error {
 		View:      app.View,
 	})
 	app.wire()
+	var syncErr error
+	if m.watchFiles {
+		syncErr = app.StartFileSync()
+	}
 	m.workspaces = append(m.workspaces, app)
 
 	m.cfg.addRecent(root, ps.name())
@@ -177,6 +187,9 @@ func (m *Manager) openProject(path string) error {
 		app.status = translate(m.msg().OpenedWithErrors, ps.name(), n)
 	} else {
 		app.status = translate(m.msg().OpenedRequests, ps.name(), len(p.Requests))
+	}
+	if syncErr != nil {
+		app.status += " · " + syncErr.Error()
 	}
 	return nil
 }
@@ -285,6 +298,10 @@ func (m *Manager) setStatusFor(w window, s string) {
 func (m *Manager) onWorkspaceClosed(app *App) {
 	app.closed = true
 	app.cancelAllRequests()
+	app.StopFileSync()
+	customMethodMu.Lock()
+	delete(customMethodStates, app)
+	customMethodMu.Unlock()
 
 	kept := make([]*App, 0, len(m.workspaces))
 	for _, w := range m.workspaces {

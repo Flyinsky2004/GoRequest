@@ -151,7 +151,7 @@ func (a *App) varChipsFor(tab *Tab) []varChip {
 	vars := map[string]string{}
 	var env *core.Environment
 	if a.ps != nil && a.ps.project != nil {
-		merged, e, err := a.ps.project.ResolveVars(tab.Entry, a.ps.currentEnv())
+		merged, e, err := a.ps.project.ResolveVarsWith(tab.Entry, a.ps.currentEnv(), nil)
 		if err == nil {
 			env = e
 			if merged != nil {
@@ -165,9 +165,7 @@ func (a *App) varChipsFor(tab *Tab) []varChip {
 		chip := varChip{Name: name}
 		if rest, ok := strings.CutPrefix(name, "secret."); ok {
 			chip.Secret = true
-			if a.mgr != nil && a.mgr.secrets != nil {
-				_, chip.Defined = a.mgr.secrets.Get(rest)
-			}
+			_, chip.Defined = a.secretsProvider().Get(rest)
 			if chip.Defined {
 				chip.Value = "(secret)"
 				chip.Source = varSource{kind: varSourceSecret}
