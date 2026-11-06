@@ -338,3 +338,11 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 | ASK01 | ⑤密钥设计讨论（不写码） | 主目录只读（无分支） | `t2z` | 只读 `platform/secrets.go`、`core/variables.go/auth.go`、相关 docs；只讨论不改文件 |
 
 约束与验证：各卡只在本 worktree 工作、不操作 main/他人 worktree、不 merge/cherry-pick/push、不 reset/clean、不启子 agent、不动示例环境与 `__debug_bin*`；公共壳层（`i18n.go/app.go/project_state.go/manager.go/nav.go/workspace.go/tab.go/config.go/go.mod/go.sum`）只交最小接线 patch 由集成人合入。各卡须 `go build ./...`、`go vet ./...`、`go test -race ./...` 并加回归用例，交付写 `docs/task-results/<ID>.md`，不自行勾总账本。本机提示词与句柄存 `/private/tmp/gorequest-fix-20261107/`（`*.prompt.txt`、`sessions.json`），不入 Git。当前仅领取/启动，不代表修复完成；集成验收后另行打勾。ASK01 为与用户直接对话的设计讨论，不产出代码。
+
+### 15.1 交付、集成与清理（2026-11-07）
+
+- **代码交付**：5 个 CC 各自在 worktree 内完成并本地 commit（`be58543` FIX01、`42fc504` FIX02、`82e1e46` FIX03、`22b0520` FIX04、`1bf14c6` FIX05），worktree 交付时均干净；均未触碰公共源码（`app.go/project_state.go/i18n.go/manager.go/nav.go/workspace.go/tab.go/config.go/go.mod/go.sum` 全未改），FIX05 仅改自己的 `settings.go`+新 `settings_i18n.go` 并连带调整几个既有测试。无跨卡文件冲突。
+- **集成**：独立 worktree `../GoRequest-integration` / 分支 `integrate/fix-batch`，从 `c11d02d` 起逐个 `--no-ff` 合并 5 分支（`4933658`/`5987700`/`02aed9a`/`c253380`/`97697f4`），零冲突。门禁 `go build ./...`、`go vet ./...`、`go test -race ./...`（core 7s、desktop 82s 等，全包通过，日志 `/private/tmp/gorequest-fix-20261107/race.log`）。主目录 `git merge --ff-only integrate/fix-batch` 把 main 从 `c11d02d` 快进到 **`97697f4`**。
+- **ASK01**：讨论会话越界补写了 `docs/decisions.md`(ADR-010) 与 `docs/storage-format.md` 的 Secret 实现现状说明；已核对引用的 `platform/keychain*.go`、`platform/secrets.go`、`GOREQUEST_SECRET_`、`SecretProvider` 均真实存在后，作为文档提交 `92d9968` 纳入 main（仅文档，不改代码语义）。
+- **清理**：5 个功能分支已入 main，删除其 worktree 与分支；集成分支/worktree 亦删除；关闭 5 个代码 agent 标签（`t2t/t2v/t2w/t2x/t2y`）；ASK01（`t2z`）与用户终端 `t1h`、集成 CC `t2r`、`t2s` 不动。
+- **如实保留的限制**：均为无窗口自动化 + `-race` 通过；FIX01 三版本模态键鼠、FIX02 拖拽/右键移动即时刷新、FIX03 标点色观感、FIX04 折叠按钮尺寸、FIX05 左右栏布局与暗色/窄窗口，均**未做真实窗口人工/三平台验收**，不据此宣称人工通过。FIX01 另提一处**可选**记账接线（非必需）。
