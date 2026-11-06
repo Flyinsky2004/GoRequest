@@ -44,6 +44,15 @@
 
 状态：已确定（2026-11-05，用户决策）。取消 GoRequest 的独立命令行产品：不再提供 `cmd/gorequest`、命令解析、退出码契约、安装/调用示例与分发配置。桌面应用是唯一产品入口；纯 Go Core 保留并由桌面复用。仓库自身的 `go build/test/vet` CI 保留为工程质量门禁，但不代表产品可在无桌面 CI 中运行用户项目。此决策取代 ADR-003 中原“独立 CLI 共享 Core”的 CLI 部分，以及路线图 1.0-A 的 CLI/CI 交付项。
 
+### ADR-010：Secret 外部化与系统凭据后端
+
+状态：已确定（2026-11-07 按代码事实同步）。凭据值不进入项目文件：项目与环境只保存 secret 名称清单（`secrets:`）与 `{{secret.<name>}}` 引用，实际值从本机凭据后端或显式绑定取得。
+
+- 解析边界为 `SecretProvider` 接口；`{{secret.*}}` 是保留命名空间，不回退到同名普通变量，缺失或后端不可用即报错。secret 值与敏感运行值在预览、导出、错误信息中脱敏。
+- 桌面按 `Override(内存) → Keychain → Env` 分层解析；环境变量后端约定为 `GOREQUEST_SECRET_<NAME>`（大写、非字母数字转下划线），用于无 GUI/CI 场景。
+- 系统凭据采用 MyGo Secrets 适配（macOS Keychain / Windows Credential Manager / Linux Secret Service），项目隔离键为 `<projectSlug>:sha256(规范化项目根)[:16]`；后端缺失、锁定或不支持时零明文文件回退，并报不可用状态。
+- 实现证据：`internal/platform/secrets.go`、`internal/platform/keychain.go`、`internal/platform/keychain_management.go`；`internal/core/variables.go`、`internal/core/auth.go`、`internal/core/identity_redact.go`；`internal/desktop/manager.go`、`internal/desktop/identity_management.go`。此前 Q-03 的待决策项由本 ADR 收敛。
+
 ## 2. 已整理但尚未冻结的草案
 
 | 草案 | 当前建议 | 冻结前需要的证据 |
@@ -62,7 +71,7 @@
 | --- | --- | --- | --- |
 | Q-01 | MyGo 依赖版本、最低 OS/架构/GPU、打包签名与可访问性覆盖 | 三平台原生原型验证；依赖和许可证审查 | MVP 前 |
 | Q-02 | YAML 库、注释/字段顺序保真、格式公开 Schema 的组织 | 重复键拒绝、未知字段、不重排、中文/大文件、迁移试验 | MVP/Beta |
-| Q-03 | 系统凭据后端；是否使用 MyGo Secrets 的 Desktop 适配 | macOS/Windows/Linux 桌面均不依赖明文文件；无明文降级 | Beta |
+| Q-03 | ~~系统凭据后端；是否使用 MyGo Secrets 的 Desktop 适配~~ **已确定，见 ADR-010** | 已满足：三平台走系统凭据、零明文降级；跨平台实际权限行为仍需验证 | 已完成（待跨平台验证） |
 | Q-04 | 全局目录精确布局、历史数据库、保留期限与本地加密策略 | 跨平台目录/权限/备份/清除验证，与项目完全隔离 | Beta |
 | Q-05 | Git 调用系统 CLI 还是 Go 库；hook 行为与凭据集成 | 只读/提交/Pull 冲突、未知仓库 hook、不强制破坏性操作 | Beta |
 | Q-06 | 变量显式类型绑定、动态变量语法、文件夹/集合的元信息字段 | 全量格式样例与统一解析契约；不能靠个人设置改变项目语义 | 1.0-A 前 |
