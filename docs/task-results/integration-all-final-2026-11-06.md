@@ -63,9 +63,10 @@
 - 未做真实窗口/macOS 顶部拖动、系统钥匙串/浏览器真实 OAuth 流程、原生文件保存对话框、Windows/Linux 三平台实机及高 DPI/输入法人工验收；相应逻辑仅由无窗口 `ui.NewTester` 与 `httptest` 覆盖，不勾为人工通过。
 - 真实远程 Git 凭据、跨进程多实例本地历史写入协调、字节级原始排版全实体保真等仍按既有账本 §5 保持未完成。
 
-## 7. 交付动作
+## 7. 交付动作与结果
 
-- 仅提交本次集成相关文件（接线、跨卡修复、回归测试、账本/状态/最终报告）；不含用户环境 yaml、调试二进制、临时日志或账号资料。集成分支提交：`integrate(all): finish public wiring and cross-card fixes for all 11 deliveries`（25 files / +806/-141；最终哈希为主目录 ff-only 快进后的 main 提交）。
-- 确认 main 未被他人推进后，从主目录执行 `git merge --ff-only integrate/all-agent-deliveries`，保留主目录原有 dirty。若 main 被推进则合理串行集成并重新验证，不 reset/stash。
-- 按交接表精确关闭 11 个旧交付 agent tab（不关 `t1h`、不停 Herdr app/core、不关本会话），确认 clean 且分支为 main 祖先后用不带 force 的 `git worktree remove` / `git branch -d` 删除对应 worktree/分支；集成 worktree 干净且并入 main 后从主目录删除其 worktree/分支。
-- 不 push。最终 main 提交哈希、已删/保留清单在最终回复与账本中报告。
+- 仅提交本次集成相关文件（接线、跨卡修复、回归测试、账本/状态/最终报告）；不含用户环境 yaml、调试二进制、临时日志或账号资料。集成分支提交 `integrate(all): finish public wiring and cross-card fixes for all 11 deliveries`（25 files / +806/-141）。
+- main 未被他人推进，从主目录执行 `git merge --ff-only integrate/all-agent-deliveries` 成功，main 从 `4142dbc` 快进到 **`ac06595`**（最终集成提交，130 files / +34328/-378 相对旧 main，含全部 11 条交付）。主目录原有 dirty 完整保留。
+- 精确关闭的 11 个旧交付 agent tab（`herdr-app do tab.close` + 精确 ID + `confirmed:true`，全部 `ok:true`）：A01 `tb59577f82fc32054b9d9677311ae36551`、A03 `tbbb55861f81df7a2a65b5e2a8e5def7e1`、B05-UI `tb11670d51e26cfd5f1cfafb9c5216524a`、A04 `tbc76e46e2e7d11f3263f31cbed76c8740`、R01 `tb6d1cc7d68c50c8739f0dae7822ed351f`、UI01 `tba6311f6a4d13cd3f47a95ffa88c8c735`、UI02 `tb2c214198624c5d1df0da742ffccb4a55`、UI03 `tbbce012658901615a4b9862379369656e`、UI04 `tba929cef77386f4d297c9924ca7c343d0`、UI05 `tbd59bfd0d42cbcc1f985205eb42d96e25`、UI06 `tbb334d79b5e3069136d41f33a19aeb9a1`。未关闭 `t1h`、未停止 Herdr app/core、未关闭本会话 `t2r`。
+- 删除的 11 个旧分支/worktree（逐个复核 CLEAN 且为 main 祖先，均使用不带 force 的 `git worktree remove` / `git branch -d`）：`cc/A01-runner-core`、`agy/A03-openapi-schema`、`agy/A04-oauth-oidc`、`cc/B05-identity-ui`、`cc/R01-core-parser`、`codex/UI01-tabs`、`codex/UI02-cursors`、`codex/UI03-response-toolbar`、`codex/UI04-window-drag`、`codex/UI05-brand-position`、`codex/UI06-markdown-preview`（对应 `../GoRequest-A01` 等 11 个目录）。集成 worktree `../GoRequest-integration` 干净且分支已是 main 祖先，随后从主目录删除其 worktree 与 `integrate/all-agent-deliveries` 分支。
+- 最终状态：`git worktree list` 仅主目录、`git branch` 仅 `main`；`hc ls` 仅 `t1h`（用户）与 `t2r`（本集成 CC，保留供查看交付）。主目录 dirty：`M examples/sample-project/.gorequest/environments/dev.yaml`、`?? examples/demo-server/__debug_bin3694048428` 均保留。不 push、不改共享 git config、不 reset/clean。
