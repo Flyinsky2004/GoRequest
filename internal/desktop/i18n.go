@@ -137,19 +137,26 @@ type messages struct {
 	CloseProjectTip    string
 
 	// Request editor.
-	ParamsTab     string
-	HeadersTab    string
-	BodyTab       string
-	AuthTab       string
-	BodyType      string
-	TokenHint     string
-	Username      string
-	Password      string
-	NoAuth        string
-	Send          string
-	CancelRequest string
-	AddRow        string
-	RowNoKey      string // %d, %q
+	ParamsTab      string
+	HeadersTab     string
+	BodyTab        string
+	AuthTab        string
+	ScriptsTab     string
+	TestsTab       string
+	BuildSettings  string
+	NoScriptsHint  string
+	NoTestsHint    string
+	NoSettingsHint string
+	BodyType       string
+	TimeoutLabel   string
+	TokenHint      string
+	Username       string
+	Password       string
+	NoAuth         string
+	Send           string
+	CancelRequest  string
+	AddRow         string
+	RowNoKey       string // %d, %q
 
 	// Document editor.
 	SplitView   string
@@ -328,19 +335,26 @@ var messagesZh = messages{
 	CloseProject:       "关闭项目",
 	CloseProjectTip:    "关闭此项目窗口（会提示保存未保存的更改）",
 
-	ParamsTab:     "参数",
-	HeadersTab:    "头部",
-	BodyTab:       "正文",
-	AuthTab:       "鉴权",
-	BodyType:      "正文类型",
-	TokenHint:     "令牌（使用 {{secret.name}} 将值保留在文件之外）",
-	Username:      "用户名",
-	Password:      "密码",
-	NoAuth:        "无鉴权。",
-	Send:          "发送",
-	CancelRequest: "取消",
-	AddRow:        "添加行",
-	RowNoKey:      "第 %d 行：值 %q 没有键",
+	ParamsTab:      "参数",
+	HeadersTab:     "头部",
+	BodyTab:        "正文",
+	AuthTab:        "鉴权",
+	ScriptsTab:     "脚本",
+	TestsTab:       "测试",
+	BuildSettings:  "设置",
+	NoScriptsHint:  "暂无脚本。",
+	NoTestsHint:    "暂无测试。",
+	NoSettingsHint: "当前没有可配置项。",
+	BodyType:       "正文类型",
+	TimeoutLabel:   "超时",
+	TokenHint:      "令牌（使用 {{secret.name}} 将值保留在文件之外）",
+	Username:       "用户名",
+	Password:       "密码",
+	NoAuth:         "无鉴权。",
+	Send:           "发送",
+	CancelRequest:  "取消",
+	AddRow:         "添加行",
+	RowNoKey:       "第 %d 行：值 %q 没有键",
 
 	SplitView:   "分栏",
 	EditView:    "编辑",
@@ -510,19 +524,26 @@ var messagesEn = messages{
 	CloseProject:       "Close Project",
 	CloseProjectTip:    "Close this project window (asks to save unsaved changes)",
 
-	ParamsTab:     "Params",
-	HeadersTab:    "Headers",
-	BodyTab:       "Body",
-	AuthTab:       "Auth",
-	BodyType:      "Body type",
-	TokenHint:     "Token (use {{secret.name}} to keep the value out of the file)",
-	Username:      "Username",
-	Password:      "Password",
-	NoAuth:        "No auth.",
-	Send:          "Send",
-	CancelRequest: "Cancel",
-	AddRow:        "Add row",
-	RowNoKey:      "row %d: value %q has no key",
+	ParamsTab:      "Params",
+	HeadersTab:     "Headers",
+	BodyTab:        "Body",
+	AuthTab:        "Auth",
+	ScriptsTab:     "Scripts",
+	TestsTab:       "Tests",
+	BuildSettings:  "Settings",
+	NoScriptsHint:  "No scripts.",
+	NoTestsHint:    "No tests.",
+	NoSettingsHint: "Nothing to configure here.",
+	BodyType:       "Body type",
+	TimeoutLabel:   "Timeout",
+	TokenHint:      "Token (use {{secret.name}} to keep the value out of the file)",
+	Username:       "Username",
+	Password:       "Password",
+	NoAuth:         "No auth.",
+	Send:           "Send",
+	CancelRequest:  "Cancel",
+	AddRow:         "Add row",
+	RowNoKey:       "row %d: value %q has no key",
 
 	SplitView:   "Split",
 	EditView:    "Edit",

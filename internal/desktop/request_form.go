@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"gorequest/internal/core"
+	"gorequest/internal/desktop/uikit"
 )
 
 // kvKind selects which suggestion set a key/value form uses, so query keys and
@@ -214,52 +215,58 @@ func (t *Tab) ensureTrailingBlank(kind kvKind) {
 // a delete button, plus an "Add row" action and inline incomplete-row feedback.
 func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 	m := a.msg()
+	p := uikit.PaletteFor(t)
 	rows := tab.rows(kind)
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Box(c).Width(20)
-		ui.Text(c, m.Key).FontSize(12).Bold().Width(200)
-		ui.Text(c, m.Value).FontSize(12).Bold().Grow(1)
-		ui.Box(c).Width(24)
+
+	// Column headers.
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 8).Children(func() {
+		ui.Box(c).Width(28)
+		ui.Text(c, m.Key).FontSize(12).FontWeight(600).TextColor(p.Muted).Width(200)
+		ui.Text(c, m.Value).FontSize(12).FontWeight(600).TextColor(p.Muted).Grow(1)
+		ui.Box(c).Width(28)
 	})
-	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-		ui.Column(c).Gap(4).FillWidth().Children(func() {
-			for _, row := range rows {
-				a.kvRow(c, t, tab, kind, row)
-			}
+
+	// The table: rounded, hairline-edged, scrolling, with a hover-washed row per
+	// entry and a trailing ghost row to type into.
+	ui.Box(c).Grow(1).FillWidth().Radius(10).BorderWidth(1).BorderColor(p.Hairline).Clip().Children(func() {
+		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+			ui.Column(c).FillWidth().Children(func() {
+				for _, row := range rows {
+					a.kvRow(c, t, tab, kind, row)
+				}
+			})
 		})
 	})
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		if ui.Button(c, m.AddRow).Clicked() {
-			tab.addRow(kind)
-			tab.Dirty = true
-		}
-		if err := validateRowsFor(m, rows); err != nil {
-			ui.Text(c, err.Error()).FontSize(12).TextColor(t.Danger)
-		}
-	})
+
+	if err := validateRowsFor(m, rows); err != nil {
+		ui.Text(c, err.Error()).FontSize(12).TextColor(uikit.MethodColor("DELETE", p)).Padding(2, 8)
+	}
 }
 
 func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRow) {
 	m := a.msg()
-	ui.Row(c).Key(row.ID).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+	p := uikit.PaletteFor(t)
+	r := ui.Row(c).Key(row.ID).Height(36).Gap(8).AlignItems(ui.Center).FillWidth().Padding(0, 8)
+	if r.Hovered() {
+		r.Background(p.Hover)
+	}
+	r.Children(func() {
 		if ui.Checkbox(c, &row.Enabled, "").Changed() {
 			tab.Dirty = true
 		}
-		// Key: an editable text input with clickable suggestions. Opening or
-		// closing the suggestion popup does not change the text, so it does not
-		// mark the request dirty.
+		// Key: editable autocomplete; opening the suggestions does not change the
+		// key, so it does not mark the request dirty.
 		if ui.Autocomplete(c, &row.Name, suggestionsFor(kind)).Width(200).Placeholder(m.Key).Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
 		}
-		// Value: free text, with media-type hints for Content-Type/Accept only.
 		vals := filterSuggestions(valueSuggestions(row.Name, kind), row.Value)
 		if ui.Autocomplete(c, &row.Value, vals).Grow(1).Placeholder(m.Value).Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
 		}
 		if row.isBlank() {
-			ui.Box(c).Width(24)
+			ui.Box(c).Width(28)
 		} else if ui.Button(c, "✕").Clicked() {
 			tab.removeRow(kind, row.ID)
 			tab.ensureTrailingBlank(kind)

@@ -1,6 +1,8 @@
 package desktop
 
 import (
+	"strconv"
+
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/markdown"
@@ -111,42 +113,39 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 
 func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	m := a.msg()
-	ui.Column(c).Grow(1).FillHeight().Padding(10, 12).Gap(8).Children(func() {
-		// Method + URL + send.
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			if ui.Select(c, &tab.Method, methods).Changed() {
-				tab.Dirty = true
-			}
-			if ui.TextInput(c, &tab.URL).Grow(1).Changed() {
-				tab.Dirty = true
-			}
-			if ui.TextInput(c, &tab.Timeout).Width(70).Changed() {
-				tab.Dirty = true
-			}
-			if tab.Sending {
-				if ui.Button(c, m.CancelRequest).Clicked() {
-					if tab.cancel != nil {
-						tab.cancel()
-					}
-				}
-			} else if ui.PrimaryButton(c, m.Send).Clicked() {
-				a.send(tab)
-			}
-		})
-		// Section tabs.
-		ui.Segmented(c, &tab.Section, m.ParamsTab, m.HeadersTab, m.BodyTab, m.AuthTab)
-		// Editor above, response below.
+	p := uikit.PaletteFor(t)
+	ui.Column(c).Grow(1).FillHeight().Padding(12, 16).Gap(10).Children(func() {
+		a.urlGroup(c, t, tab)
+
+		// Build underline tabs (§3): Params / Auth / Headers / Body / Scripts /
+		// Tests / Settings, with counts on Params and Headers.
+		labels := []string{m.ParamsTab, m.AuthTab, m.HeadersTab, m.BodyTab, m.ScriptsTab, m.TestsTab, m.BuildSettings}
+		badges := make([]string, len(labels))
+		if n := kvCount(tab.QueryRows); n > 0 {
+			badges[0] = badgeCount(n)
+		}
+		if n := kvCount(tab.HeaderRows); n > 0 {
+			badges[2] = badgeCount(n)
+		}
+		uikit.UnderlineTabs(c, p, &tab.Section, labels, badges)
+
 		ui.SplitVertical(c, &tab.RespSize, func() {
 			ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
 				switch tab.Section {
 				case 0:
 					a.kvForm(c, t, tab, kvQuery)
 				case 1:
-					a.kvForm(c, t, tab, kvHeader)
-				case 2:
-					a.bodyEditor(c, t, tab)
-				case 3:
 					a.authEditor(c, t, tab)
+				case 2:
+					a.kvForm(c, t, tab, kvHeader)
+				case 3:
+					a.bodyEditor(c, t, tab)
+				case 4:
+					a.emptyTabHint(c, p, m.NoScriptsHint)
+				case 5:
+					a.emptyTabHint(c, p, m.NoTestsHint)
+				case 6:
+					a.buildSettings(c, t, tab, m)
 				}
 			})
 		}, func() {
@@ -155,16 +154,97 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	})
 }
 
-func (a *App) bodyEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
+// urlGroup is the joined request line (§3): a method selector (108 wide) and a
+// monospace URL input in one rounded group, with the Send button (104×40) as a
+// separate accent control 8 DIPs to its right.
+func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
+	m := a.msg()
+	p := uikit.PaletteFor(t)
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, a.msg().BodyType).FontSize(12).TextColor(t.TextMuted)
-		if ui.Segmented(c, &tab.BodyIdx, bodyTypes...).Changed() {
+		grp := ui.Row(c).Grow(1).Height(40).Radius(10).BorderWidth(1).BorderColor(p.Hairline).
+			Background(p.BG).AlignItems(ui.Center).Clip()
+		grp.Children(func() {
+			if ui.Select(c, &tab.Method, methods).Width(108).Changed() {
+				tab.Dirty = true
+			}
+			ui.Box(c).Width(1).Height(22).Background(p.Hairline)
+			if ui.TextInput(c, &tab.URL).Grow(1).Font("monospace").Changed() {
+				tab.Dirty = true
+			}
+		})
+		if tab.Sending {
+			if ui.Button(c, m.CancelRequest).Width(104).Height(40).Radius(10).Clicked() {
+				if tab.cancel != nil {
+					tab.cancel()
+				}
+			}
+		} else if ui.PrimaryButton(c, m.Send).Width(104).Height(40).Radius(10).Clicked() {
+			a.send(tab)
+		}
+	})
+}
+
+// emptyTabHint shows a centered faint line for a build tab with no content yet.
+func (a *App) emptyTabHint(c *ui.Context, p uikit.Palette, msg string) {
+	ui.Column(c).Grow(1).FillWidth().Center().Children(func() {
+		ui.Text(c, msg).FontSize(13).TextColor(p.Muted)
+	})
+}
+
+// buildSettings holds per-request build options (currently the timeout).
+func (a *App) buildSettings(c *ui.Context, t *ui.Theme, tab *Tab, m *messages) {
+	p := uikit.PaletteFor(t)
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, m.TimeoutLabel).FontSize(12).TextColor(p.Muted)
+		if ui.TextInput(c, &tab.Timeout).Width(120).Placeholder("10s").Changed() {
 			tab.Dirty = true
 		}
 	})
-	if ui.TextArea(c, &tab.BodyText).Grow(1).FillWidth().Changed() {
+}
+
+// kvCount counts the meaningful (non-blank) rows of a KV table for the tab
+// badges.
+func kvCount(rows []*KVRow) int {
+	n := 0
+	for _, r := range rows {
+		if r != nil && !r.isBlank() {
+			n++
+		}
+	}
+	return n
+}
+
+// badgeCount renders a tab's count badge like "(3)".
+func badgeCount(n int) string { return "(" + strconv.Itoa(n) + ")" }
+
+func (a *App) bodyEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
+	m := a.msg()
+	p := uikit.PaletteFor(t)
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, m.BodyType).FontSize(12).TextColor(p.Muted)
+		if ui.Segmented(c, &tab.BodyIdx, bodyTypes...).Changed() {
+			tab.Dirty = true
+			tab.bodyEditor = nil // rebuild with the new language
+		}
+	})
+	// A codeView editor with §1.3 syntax colors, rebuilt when the body type
+	// changes; edits write back to the tab's BodyText.
+	if tab.bodyEditor == nil || tab.bodyBuiltIdx != tab.BodyIdx {
+		st := &editor.State{Buffer: editor.NewBuffer(tab.BodyText), Theme: uikit.EditorTheme(t)}
+		switch bodyTypes[tab.BodyIdx] {
+		case "json":
+			st.Buffer.SetLanguage(editor.LanguageNamed("json"))
+		case "xml":
+			st.Buffer.SetLanguage(editor.LanguageNamed("xml"))
+		}
+		tab.bodyEditor = st
+		tab.bodyBuiltIdx = tab.BodyIdx
+	}
+	if s := tab.bodyEditor.Buffer.String(); s != tab.BodyText {
+		tab.BodyText = s
 		tab.Dirty = true
 	}
+	editor.View(c, tab.bodyEditor).Grow(1).FillWidth()
 }
 
 func (a *App) authEditor(c *ui.Context, t *ui.Theme, tab *Tab) {

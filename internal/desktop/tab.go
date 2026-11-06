@@ -40,6 +40,10 @@ type Tab struct {
 	DocRel    string
 	DocEditor *editor.State
 
+	// body codeView editor (built lazily; rebuilt when the body type changes)
+	bodyEditor   *editor.State
+	bodyBuiltIdx int
+
 	// shared
 	Dirty    bool
 	Baseline string
