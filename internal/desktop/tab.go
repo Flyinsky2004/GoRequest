@@ -26,27 +26,28 @@ type Tab struct {
 	URL        string
 	QueryRows  []*KVRow
 	HeaderRows []*KVRow
-	// KV batch-edit state (key:value text mode) per section.
-	queryText  bool
-	queryRaw   string
-	headerText bool
-	headerRaw  string
-	kvErr      string
+	// KV batch-edit state (key:value text mode & raw query mode) per section.
+	queryText       bool
+	queryRawEncoded bool
+	queryRaw        string
+	headerText      bool
+	headerRaw       string
+	kvErr           string
 	// kvFocusID/kvFocusVal ask the next frame to focus a KV cell (Enter flow).
-	kvFocusID  string
-	kvFocusVal bool
-	BodyIdx    int
-	BodyText   string
+	kvFocusID    string
+	kvFocusVal   bool
+	BodyIdx      int
+	BodyText     string
 	AuthMode     string
 	AuthIdx      int
 	AuthRefID    string
 	AuthToken    string
 	AuthUser     string
 	AuthPass     string
-	AuthKeyName   string
-	AuthKeyIn     string
-	AuthKeyInIdx  int
-	AuthKeyValue  string
+	AuthKeyName  string
+	AuthKeyIn    string
+	AuthKeyInIdx int
+	AuthKeyValue string
 	// authInlineVer/authInlineID/authKeyInOmitted/authPassthrough preserve exact
 	// round-trip semantics when non-auth fields (such as URL) are edited.
 	authInlineVer    int
@@ -55,16 +56,17 @@ type Tab struct {
 	authPassthrough  *core.AuthRef
 	authDiagKey      string
 	authDiagItems    []authDiagItem
-	Timeout    string
-	Section    int // 0 params, 1 headers, 2 body, 3 auth
+	Timeout          string
+	Section          int // 0 params, 1 headers, 2 body, 3 auth
 
 	// doc editing state
 	DocRel    string
 	DocEditor *editor.State
 
-	// body codeView editor (built lazily; rebuilt when the body type changes)
+	// body codeView editor and rich B03 body state (built lazily per request)
 	bodyEditor   *editor.State
 	bodyBuiltIdx int
+	bodyState    *tabBodyState
 
 	// shared
 	Dirty    bool
@@ -121,13 +123,11 @@ func requestFromTab(tab *Tab) (*core.Request, error) {
 		Query:   query,
 		Headers: headers,
 	}
-	if strings.TrimSpace(tab.BodyText) != "" {
-		body, err := core.ParseBodyText(bodyTypes[tab.BodyIdx], tab.BodyText)
-		if err != nil {
-			return nil, err
-		}
-		httpDef.Body = body
+	body, err := bodyFromTab(tab)
+	if err != nil {
+		return nil, err
 	}
+	httpDef.Body = body
 	base.HTTP = httpDef
 	base.Timeout = strings.TrimSpace(tab.Timeout)
 	authRef, err := authRefFromTab(tab)

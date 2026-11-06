@@ -363,33 +363,7 @@ func kvCount(rows []*KVRow) int {
 func badgeCount(n int) string { return "(" + strconv.Itoa(n) + ")" }
 
 func (a *App) bodyEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
-	m := a.msg()
-	p := uikit.PaletteFor(t)
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, m.BodyType).FontSize(12).TextColor(p.Muted)
-		if ui.Segmented(c, &tab.BodyIdx, bodyTypes...).Changed() {
-			tab.Dirty = true
-			tab.bodyEditor = nil // rebuild with the new language
-		}
-	})
-	// A codeView editor with §1.3 syntax colors, rebuilt when the body type
-	// changes; edits write back to the tab's BodyText.
-	if tab.bodyEditor == nil || tab.bodyBuiltIdx != tab.BodyIdx {
-		st := &editor.State{Buffer: editor.NewBuffer(tab.BodyText), Theme: uikit.EditorTheme(t)}
-		switch bodyTypes[tab.BodyIdx] {
-		case "json":
-			st.Buffer.SetLanguage(editor.LanguageNamed("json"))
-		case "xml":
-			st.Buffer.SetLanguage(editor.LanguageNamed("xml"))
-		}
-		tab.bodyEditor = st
-		tab.bodyBuiltIdx = tab.BodyIdx
-	}
-	if s := tab.bodyEditor.Buffer.String(); s != tab.BodyText {
-		tab.BodyText = s
-		tab.Dirty = true
-	}
-	editor.View(c, tab.bodyEditor).Grow(1).FillWidth()
+	a.renderBodyEditor(c, t, tab)
 }
 
 func (a *App) authEditor(c *ui.Context, t *ui.Theme, tab *Tab) {

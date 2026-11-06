@@ -154,45 +154,14 @@ func BuildPlan(req *Request, vars map[string]string, secrets SecretProvider, aut
 	var bodyBytes []byte
 	hasBody := false
 	if req.HTTP.Body != nil {
-		bt := strings.ToLower(strings.TrimSpace(req.HTTP.Body.Type))
-		if req.HTTP.Body.File != "" {
-			return nil, configErrorf("body.file is not supported yet")
+		encBody, err := BuildBody(context.Background(), req.HTTP.Body, r, PlanOptions{})
+		if err != nil {
+			return nil, err
 		}
-		switch bt {
-		case "json":
-			if req.HTTP.Body.Value == nil {
-				return nil, configErrorf("json body has no value")
-			}
-			v, err := renderNode(req.HTTP.Body.Value, r)
-			if err != nil {
-				return nil, err
-			}
-			b, err := json.Marshal(v)
-			if err != nil {
-				return nil, configErrorf("cannot encode json body: %v", err)
-			}
-			bodyBytes = b
-			hasBody = true
-			headers = ensureContentType(headers, "application/json")
-		case "text", "xml":
-			if req.HTTP.Body.Value == nil {
-				return nil, configErrorf("%s body has no value", bt)
-			}
-			text, err := r.Resolve(req.HTTP.Body.Value.Value)
-			if err != nil {
-				return nil, err
-			}
-			bodyBytes = []byte(text)
-			hasBody = true
-			ct := "text/plain; charset=utf-8"
-			if bt == "xml" {
-				ct = "application/xml"
-			}
-			headers = ensureContentType(headers, ct)
-		case "":
-			return nil, configErrorf("body has no type")
-		default:
-			return nil, configErrorf("unsupported body type %q (MVP supports json, text, xml)", req.HTTP.Body.Type)
+		bodyBytes = encBody.Bytes
+		hasBody = encBody.HasBody
+		if encBody.HasBody && encBody.ContentType != "" {
+			headers = applyBodyContentType(headers, encBody.ContentType, encBody.ForceContentType)
 		}
 	}
 
