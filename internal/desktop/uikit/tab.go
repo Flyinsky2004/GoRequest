@@ -36,7 +36,7 @@ func TabItem(c *ui.Context, p Palette, key any, s TabSpec, closeLabel string) (u
 	}
 
 	outer := ui.Row(c).Key(key).Height(40).Radius(8).Padding(0, 6).Gap(4).
-		AlignItems(ui.Center).Background(bg).MaxWidth(190).Clip()
+		AlignItems(ui.Center).Background(bg).MaxWidth(180).Clip()
 
 	var clicked, closeClicked bool
 	outer.Children(func() {
