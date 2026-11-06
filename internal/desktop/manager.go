@@ -148,11 +148,12 @@ func (m *Manager) openProject(path string) error {
 		return err
 	}
 	ps := newProjectState(root, p)
-	app := &App{mgr: m, ps: ps, navWidth: 260}
+	winW, winH := m.cfg.windowSize()
+	app := &App{mgr: m, ps: ps, navWidth: m.cfg.navWidth()}
 	app.win = m.newWindow(windowSpec{
 		Title:     "GoRequest — " + ps.name(),
-		Width:     1320,
-		Height:    860,
+		Width:     winW,
+		Height:    winH,
 		MinWidth:  1024,
 		MinHeight: 640,
 		Chrome:    true,

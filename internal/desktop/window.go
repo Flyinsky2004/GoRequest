@@ -69,6 +69,11 @@ func (r *realWindow) IsDestroyed() bool                        { return r.w.IsDe
 func (r *realWindow) IsVisible() bool                          { return r.w.IsVisible() }
 func (r *realWindow) nativeWindow() *mygo.Window               { return r.w }
 
+// Size and OnResize let the app persist the window's geometry. They are not on
+// the window interface so fake windows in tests need not implement them.
+func (r *realWindow) Size() (int, int)          { return r.w.Size() }
+func (r *realWindow) OnResize(fn func()) func() { return r.w.OnResize(fn) }
+
 // newRealWindow builds a real MyGo native UI window from a spec.
 func newRealWindow(s windowSpec) window {
 	opts := mygo.WindowOptions{

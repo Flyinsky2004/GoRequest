@@ -35,8 +35,11 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
 		})
 		ui.Box(c).Height(1).Background(p.Hairline)
 
-		ui.Scroll(c).Grow(1).FillWidth().Label(m.ProjectContents).Children(func() {
-			a.projectContents(c, t)
+		ui.Box(c).Grow(1).FillWidth().Children(func() {
+			ui.Scroll(c).Grow(1).FillWidth().Label(m.ProjectContents).TrackScroll(&a.navScroll).Children(func() {
+				a.projectContents(c, t)
+			})
+			uikit.ScrollEdges(c, p, &a.navScroll)
 		})
 
 		// Fixed Settings entry.

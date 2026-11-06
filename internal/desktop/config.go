@@ -48,6 +48,12 @@ type appConfig struct {
 	// while an explicit false is preserved.
 	RestoreLast    *bool           `json:"restoreLastProject,omitempty"`
 	RecentProjects []recentProject `json:"recentProjects,omitempty"`
+
+	// Window geometry and the sidebar width last used, restored per launch so the
+	// workbench reopens where the user left it. Zero means "use the default".
+	WindowWidth  int     `json:"windowWidth,omitempty"`
+	WindowHeight int     `json:"windowHeight,omitempty"`
+	NavWidth     float32 `json:"navWidth,omitempty"`
 }
 
 // configStore reads and writes appConfig atomically. A store with an empty path
@@ -139,6 +145,40 @@ func (s *configStore) language() language { return parseLanguage(s.cfg.Language)
 // setLanguage persists the interface language choice.
 func (s *configStore) setLanguage(l language) {
 	s.cfg.Language = string(parseLanguage(string(l)))
+	_ = s.save()
+}
+
+// windowSize returns the last saved project-window size, or the defaults
+// (1320×860) when none has been recorded.
+func (s *configStore) windowSize() (int, int) {
+	w, h := s.cfg.WindowWidth, s.cfg.WindowHeight
+	if w <= 0 || h <= 0 {
+		return 1320, 860
+	}
+	return w, h
+}
+
+func (s *configStore) setWindowSize(w, h int) {
+	if w <= 0 || h <= 0 || (s.cfg.WindowWidth == w && s.cfg.WindowHeight == h) {
+		return
+	}
+	s.cfg.WindowWidth, s.cfg.WindowHeight = w, h
+	_ = s.save()
+}
+
+// navWidth returns the last saved sidebar width, or the 260 default.
+func (s *configStore) navWidth() float32 {
+	if s.cfg.NavWidth < 220 || s.cfg.NavWidth > 380 {
+		return 260
+	}
+	return s.cfg.NavWidth
+}
+
+func (s *configStore) setNavWidth(v float32) {
+	if v < 220 || v > 380 || s.cfg.NavWidth == v {
+		return
+	}
+	s.cfg.NavWidth = v
 	_ = s.save()
 }
 

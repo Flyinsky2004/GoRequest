@@ -38,6 +38,10 @@ type App struct {
 	ps       *projectState
 	navWidth float32
 
+	// navScroll keeps the sidebar tree's scroll position so the hard scroll edge
+	// can show while content is scrolled under the rail header.
+	navScroll ui.ScrollState
+
 	status       string
 	showSettings bool
 	closeGuard   *closeGuard
@@ -76,6 +80,7 @@ type App struct {
 // guard.
 func (a *App) wire() {
 	a.win.OnClose(func(e *mygo.CloseEvent) {
+		a.saveGeometry()
 		if a.bypassGuard || a.mgr.quitting {
 			return
 		}
@@ -85,6 +90,18 @@ func (a *App) wire() {
 		}
 	})
 	a.win.OnClosed(func() { a.mgr.onWorkspaceClosed(a) })
+}
+
+// saveGeometry remembers the window size and sidebar width so the workbench
+// reopens where the user left it. Fake windows in tests do not expose a size, so
+// only the real window's geometry is saved there.
+func (a *App) saveGeometry() {
+	if sz, ok := a.win.(interface{ Size() (int, int) }); ok {
+		if w, h := sz.Size(); w > 0 && h > 0 {
+			a.mgr.cfg.setWindowSize(w, h)
+		}
+	}
+	a.mgr.cfg.setNavWidth(a.navWidth)
 }
 
 // View builds one frame of the project window.
