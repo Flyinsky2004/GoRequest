@@ -13,7 +13,12 @@ import (
 
 // requestAuthModes lists the request-level auth modes editable in the Auth tab.
 // Keeping technical tokens untranslated follows internal/desktop/i18n.go rules.
-var requestAuthModes = []string{"inherit", "none", "ref", "bearer", "basic", "apikey"}
+// oauth2/oidc are first-class inline modes (A04): renderAuthEditor shows the
+// OAuth panel, ensureInlineOAuthScheme creates the inline scheme,
+// authRefFromTab saves it with the request, and buildTrackedTabPlan injects the
+// token at send time. Previously these modes were only reachable through a
+// pre-existing ref/inline request file.
+var requestAuthModes = []string{"inherit", "none", "ref", "bearer", "basic", "apikey", "oauth2", "oidc"}
 
 type authDiagItem struct {
 	text string
@@ -294,6 +299,8 @@ func summarizeAuthScheme(s *core.AuthScheme) string {
 	case "apikey":
 		loc := core.NormalizeAPIKeyLocation(s.In)
 		return fmt.Sprintf("apikey (%s: %s = %s)", loc, strings.TrimSpace(s.Name), safeValuePreview(s.Value))
+	case "oauth2", "oidc":
+		return typ + " (token stored in system credential store)"
 	default:
 		return typ
 	}
@@ -382,7 +389,7 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, m.AuthTab).FontSize(12).TextColor(t.TextMuted)
-		if ui.Select(c, &tab.AuthMode, modes).Changed() {
+		if uikit.ActionCursor(ui.Select(c, &tab.AuthMode, modes)).Changed() {
 			tab.AuthIdx = indexOf(requestAuthModes, tab.AuthMode)
 			tab.authPassthrough = nil
 			tab.authKeyInOmitted = false
@@ -414,14 +421,14 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 				tab.Dirty = true
 			}
 			if len(schemeIDs) > 0 {
-				ui.MenuButton(c, im.ChooseScheme, func(mm *ui.Menu) {
+				uikit.ActionCursor(ui.MenuButton(c, im.ChooseScheme, func(mm *ui.Menu) {
 					for _, id := range schemeIDs {
 						if mm.Item(id).Checked(strings.TrimSpace(tab.AuthRefID) == id).Chosen() {
 							tab.AuthRefID = id
 							tab.Dirty = true
 						}
 					}
-				})
+				}))
 			}
 		})
 		refID := strings.TrimSpace(tab.AuthRefID)
@@ -456,7 +463,7 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 		tab.AuthKeyInIdx = indexOf(core.APIKeyLocations, core.NormalizeAPIKeyLocation(tab.AuthKeyIn))
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, im.APIKeyLocation).FontSize(12).TextColor(t.TextMuted)
-			if ui.Segmented(c, &tab.AuthKeyInIdx, core.APIKeyLocations...).Changed() {
+			if uikit.NativeSegmented(c, &tab.AuthKeyInIdx, core.APIKeyLocations...).Changed() {
 				tab.AuthKeyIn = core.APIKeyLocations[tab.AuthKeyInIdx]
 				tab.authKeyInOmitted = false
 				tab.Dirty = true
@@ -475,6 +482,16 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 		ui.Text(c, translate(im.PreservedAuthHint, tab.AuthMode)).FontSize(12).TextColor(t.TextMuted)
 	}
 
+	if m := strings.ToLower(strings.TrimSpace(tab.AuthMode)); m == "oauth2" || m == "oidc" {
+		// Inline oauth2/oidc mode: this request owns the scheme, so edits are
+		// saved with the request (authPassthrough -> request YAML).
+		a.renderOAuthEditor(c, t, tab)
+	} else if sch, _ := a.resolveActiveOAuthScheme(nil, tab); sch != nil {
+		// ref/inherit resolving to an oauth2/oidc scheme (A04): the scheme lives
+		// in a shared project file / parent folder. Show it read-only so we never
+		// imply an in-memory edit was saved. See renderOAuthEditorMode.
+		a.renderOAuthEditorMode(c, t, tab, true)
+	}
 	a.renderAuthDiagnostics(c, t, pal, im, proj, tab)
 }
 

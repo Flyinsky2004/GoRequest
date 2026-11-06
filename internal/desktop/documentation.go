@@ -278,28 +278,28 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 
 func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, st *docViewState, dm *docMessages, m *messages) {
 	ui.Row(c).Gap(8).Padding(8, 12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-		ui.Segmented(c, &tab.Section, m.SplitView, m.EditView, m.PreviewView)
-		if ui.Button(c, dm.Outline).Clicked() {
+		uikit.NativeSegmented(c, &tab.Section, m.SplitView, m.EditView, m.PreviewView)
+		if uikit.ActionCursor(ui.Button(c, dm.Outline)).Clicked() {
 			st.outlineOpen = !st.outlineOpen
 		}
-		if ui.Button(c, dm.Search).Clicked() {
+		if uikit.ActionCursor(ui.Button(c, dm.Search)).Clicked() {
 			st.searchOpen = !st.searchOpen
 		}
 		problems := dm.Problems
 		if n := len(st.diagnostics); n > 0 {
 			problems = fmt.Sprintf("%s (%d)", dm.Problems, n)
 		}
-		if ui.Button(c, problems).Clicked() {
+		if uikit.ActionCursor(ui.Button(c, problems)).Clicked() {
 			st.problemsOpen = !st.problemsOpen
 			st.diagnostics = tab.Owner.project.DiagnoseDoc(tab.DocRel, tab.DocEditor.Buffer.String())
 		}
 		ui.Box(c).Grow(1)
 		if tab.Dirty {
-			if ui.PrimaryButton(c, m.SaveDoc).Clicked() {
+			if uikit.ActionCursor(ui.PrimaryButton(c, m.SaveDoc)).Clicked() {
 				a.saveActive()
 			}
 		}
-		ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) { a.docInsertMenu(mm, tab, dm) })
+		uikit.ActionCursor(ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) { a.docInsertMenu(mm, tab, dm) }))
 	})
 }
 
@@ -367,7 +367,7 @@ func (a *App) docOutline(c *ui.Context, p uikit.Palette, tab *Tab, st *docViewSt
 						TextColor(color).SingleLine()
 				})
 				row.Label(fmt.Sprintf(dm.HeadingLabel, h.Level, h.Text))
-				if row.Clicked() {
+				if uikit.ActionCursor(row).Clicked() {
 					a.docGoToHeading(tab, st, h)
 				}
 			}
@@ -391,9 +391,9 @@ func (a *App) docSearchBar(c *ui.Context, p uikit.Palette, tab *Tab, st *docView
 			return true
 		})
 		ui.Box(c).Width(190).Children(func() {
-			ui.Segmented(c, &st.searchScope, dm.ThisDoc, dm.AllDocs)
+			uikit.NativeSegmented(c, &st.searchScope, dm.ThisDoc, dm.AllDocs)
 		})
-		if ui.Button(c, dm.SearchAction).Clicked() {
+		if uikit.ActionCursor(ui.Button(c, dm.SearchAction)).Clicked() {
 			run()
 		}
 	})
@@ -444,7 +444,7 @@ func (a *App) docSearchResults(c *ui.Context, p uikit.Palette, root ui.Element, 
 						ui.Text(c, label).FontSize(12).TextColor(p.Text).SingleLine()
 					})
 					row.Label(label)
-					if row.Clicked() {
+					if uikit.ActionCursor(row).Clicked() {
 						a.openDocSearchMatch(root, tab, match)
 					}
 				}
@@ -477,7 +477,7 @@ func (a *App) docProblems(c *ui.Context, p uikit.Palette, tab *Tab, st *docViewS
 					ui.Text(c, label).FontSize(12).TextColor(severityColor(d.Severity, p)).SingleLine()
 				})
 				row.Label(label)
-				if row.Clicked() {
+				if uikit.ActionCursor(row).Clicked() {
 					a.docGoToLine(tab, st, d.Line, d.Column)
 				}
 			}

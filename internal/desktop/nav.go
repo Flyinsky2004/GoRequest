@@ -66,7 +66,7 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
 		// Fixed Settings entry.
 		ui.Box(c).Height(1).Background(p.Hairline)
 		ui.Column(c).Padding(8, 10).Children(func() {
-			b := ui.Button(c, "").FillWidth().Tooltip(m.OpenSettingsTip)
+			b := uikit.ActionCursor(ui.Button(c, "")).FillWidth().Tooltip(m.OpenSettingsTip)
 			b.Children(func() {
 				ui.Icon(c, iconSettings).FontSize(15).TextColor(p.Muted)
 				ui.Text(c, m.Settings).SingleLine().Grow(1)
@@ -93,6 +93,7 @@ func (a *App) navHeader(c *ui.Context, p uikit.Palette) {
 	}
 	ui.Column(c).Padding(top, right, bottom, left).Gap(1).Height(height).Justify(ui.Center).Children(func() {
 		ui.Text(c, "GoRequest").Bold().FontSize(17).TextColor(p.Text).SingleLine()
+		windowDragBrand(c, left)
 	})
 }
 

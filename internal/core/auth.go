@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+func init() {
+	authSchemeGetOAuthHook = func(s *AuthScheme) *OAuthConfig { return s.OAuth }
+	authSchemeSetOAuthHook = func(s *AuthScheme, cfg *OAuthConfig) { s.OAuth = cfg }
+}
+
 // APIKeyLocations lists the valid transport positions for API Key auth.
 var APIKeyLocations = []string{"header", "query", "cookie"}
 
@@ -36,6 +41,7 @@ func CloneAuthScheme(s *AuthScheme) *AuthScheme {
 		return nil
 	}
 	cp := *s
+	cp.OAuth = s.OAuth.Clone()
 	return &cp
 }
 
@@ -58,6 +64,9 @@ func applyAuth(scheme *AuthScheme, r *Resolver, headers *[][2]string, query *[][
 	}
 	switch strings.ToLower(strings.TrimSpace(scheme.Type)) {
 	case "", "none":
+		return nil
+	case "oauth2", "oidc":
+		// Runtime token is injected by OAuthService.ApplyOAuthToPlan (A04).
 		return nil
 	case "bearer":
 		tok, err := r.Resolve(scheme.Token)
@@ -151,6 +160,13 @@ func validateAuthScheme(s *AuthScheme) error {
 	case "", "none", "bearer":
 		return nil
 	case "basic":
+		return nil
+	case "oauth2", "oidc":
+		for _, is := range ValidateOAuthScheme("auth", s) {
+			if is.Level == "error" {
+				return fmt.Errorf("%s", is.Message)
+			}
+		}
 		return nil
 	case "apikey":
 		if strings.TrimSpace(s.Name) == "" {

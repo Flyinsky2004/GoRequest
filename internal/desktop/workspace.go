@@ -36,11 +36,12 @@ func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
-	ui.Row(c).Padding(8, 12).Gap(6).AlignItems(ui.Center).Height(46).
+	left, right := windowDragInsets(c, a.sidebarHidden)
+	ui.Row(c).Padding(8, right, 8, left).Gap(6).AlignItems(ui.Center).Height(46).
 		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
 		// Left: project name + switch dropdown.
-		ui.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) })
-		ui.Box(c).Grow(1)
+		uikit.ActionCursor(ui.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) }))
+		windowDragSpacer(c, 8)
 		// Environment area: a fixed single-line label (never wraps) + selector.
 		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(p.Muted).SingleLine().Width(32)
 		a.envMenu(c, ps)
@@ -49,7 +50,7 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 		}
 		// Far right: the New Request pill and the "+" new menu. Saving lives
 		// in the request's own header (§8), not here.
-		pill := ui.ButtonBase(c).Height(36).Radius(999).Padding(0, 18).Gap(6).AlignItems(ui.Center).Background(p.Hover)
+		pill := uikit.ActionCursor(ui.ButtonBase(c)).Height(36).Radius(999).Padding(0, 18).Gap(6).AlignItems(ui.Center).Background(p.Hover)
 		pill.Children(func() {
 			ui.Icon(c, uikit.IconPlus).FontSize(14).TextColor(p.Text)
 			ui.Text(c, m.NewRequest).FontSize(14).FontWeight(600).TextColor(p.Text).SingleLine()
@@ -58,7 +59,7 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 		if pill.Clicked() {
 			a.openNewRequest()
 		}
-		ui.MenuButton(c, "+", func(mm *ui.Menu) { a.buildNewMenu(mm, ps) })
+		uikit.ActionCursor(ui.MenuButton(c, "+", func(mm *ui.Menu) { a.buildNewMenu(mm, ps) }))
 	})
 }
 
@@ -81,6 +82,9 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
 		a.openMove(tab)
 	}
 	a.BuildInteropProjectMenuItems(c, mm)
+	a.BuildOpenAPIProjectMenuItems(c, mm)
+	mm.Separator()
+	a.BuildIdentityManagementMenuItems(mm, tab)
 	mm.Separator()
 	if mm.Item(m.CopyProjectPath).Chosen() {
 		if c != nil {
@@ -124,7 +128,7 @@ func (a *App) envMenu(c *ui.Context, ps *projectState) {
 	if label == "" {
 		label = "(none)"
 	}
-	ui.MenuButton(c, label, func(mm *ui.Menu) {
+	uikit.ActionCursor(ui.MenuButton(c, label, func(mm *ui.Menu) {
 		m := a.msg()
 		if ps.currentEnv() != "" {
 			if env := ps.project.Environments[ps.currentEnv()]; env != nil {
@@ -155,7 +159,7 @@ func (a *App) envMenu(c *ui.Context, ps *projectState) {
 		if mm.Item(m.NewEnv).Chosen() {
 			a.openNewEnvironment()
 		}
-	})
+	}))
 }
 
 func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
@@ -305,7 +309,7 @@ func (a *App) methodPicker(c *ui.Context, p uikit.Palette, tab *Tab) {
 			TextColor(uikit.MethodColor(tab.Method, p)).SingleLine()
 		ui.Icon(c, uikit.IconChevron).FontSize(11).TextColor(p.Muted)
 	})
-	row.PopoverMenuButton(func(mm *ui.Menu) {
+	uikit.ActionCursor(row).PopoverMenuButton(func(mm *ui.Menu) {
 		for _, meth := range methods {
 			if mm.Item(meth).Checked(meth == tab.Method).Chosen() {
 				tab.Method = meth
@@ -322,7 +326,7 @@ func (a *App) saveControl(c *ui.Context, p uikit.Palette, tab *Tab) {
 		return
 	}
 	m := a.msg()
-	btn := ui.Button(c, m.Save).Label(m.Save + " ⌘S").Tooltip(m.Save + " ⌘S")
+	btn := uikit.ActionCursor(ui.Button(c, m.Save)).Label(m.Save + " ⌘S").Tooltip(m.Save + " ⌘S")
 	if tab.Dirty {
 		btn = btn.TextColor(p.Accent)
 	}

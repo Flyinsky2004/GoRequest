@@ -320,6 +320,7 @@ func (a *App) folderMenu(mm *ui.Menu, n *core.CollectionEntry, sel string) {
 	if mm.Item(m.Rename).Shortcut(0, ui.KeyF2).Chosen() {
 		a.beginRename(sel)
 	}
+	a.BuildIdentityFolderMenuItem(mm, n.RelPath)
 	self := collectionRelOf(n.RelPath)
 	mm.Submenu(m.MoveTo, func(sm *ui.Menu) {
 		if sm.Item(folderLabel("")).Chosen() {

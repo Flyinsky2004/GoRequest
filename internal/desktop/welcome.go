@@ -54,7 +54,7 @@ func (w *welcomeState) view(c *ui.Context) {
 
 	ui.Column(c).Fill().Children(func() {
 		// Brand block.
-		ui.Column(c).Padding(24, 24, 10, 24).Gap(6).Children(func() {
+		windowDragRegion(c).Padding(24, 24, 10, 24).Gap(6).Children(func() {
 			ui.Text(c, "GoRequest").FontSize(24).Bold().SingleLine()
 			ui.Text(c, m.WelcomeTagline).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		})

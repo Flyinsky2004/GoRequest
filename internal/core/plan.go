@@ -188,6 +188,13 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
 	currentHeaders := MergeHeadersWithCookies(plan.Headers, u, opts.CookieJar, opts.DisableCookies)
 	policy := opts.EffectiveTargetPolicy()
 
+	// A one-shot gate can authorize the initial hop only. It never changes the
+	// decision for redirect hops below.
+	hop0Confirmed := opts.Confirmed
+	if gate := PlanConfirmGate(plan); gate != nil && gate.AuthorizeInitialHop(method, u.String()) {
+		hop0Confirmed = true
+	}
+
 	// Evaluate Hop 0 against target policy when configured.
 	if opts.HasTargetPolicy {
 		hasCreds := hasRequestCredentials(currentHeaders, u.String(), opts.AuthScheme, opts.CookieJar, opts.DisableCookies)
@@ -197,12 +204,12 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
 			EnvID:          opts.EnvID,
 			HasCredentials: hasCreds,
 			Interactive:    opts.Interactive,
-			Confirmed:      opts.Confirmed,
+			Confirmed:      hop0Confirmed,
 		})
 		if err != nil {
 			return nil, redactErr(err)
 		}
-		if dec != nil && dec.Outcome == DecisionConfirmRequired && !opts.Confirmed {
+		if dec != nil && dec.Outcome == DecisionConfirmRequired && !hop0Confirmed {
 			return nil, redactErr(configErrorf("target policy requires confirmation: %s", strings.Join(dec.Reasons, "; ")))
 		}
 	}
@@ -343,12 +350,12 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
 			activeLogicalHeaders,
 			opts.AuthScheme,
 			opts.Interactive,
-			opts.Confirmed,
+			false, // redirect hops never inherit the initial one-shot confirmation
 		)
 		if err != nil {
 			return err
 		}
-		if dec != nil && dec.Outcome == DecisionConfirmRequired && !opts.Confirmed {
+		if dec != nil && dec.Outcome == DecisionConfirmRequired {
 			return configErrorf("redirect target %q requires confirmation: %s", nextURL, strings.Join(dec.Reasons, "; "))
 		}
 

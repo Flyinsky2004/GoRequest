@@ -11,6 +11,16 @@ import (
 	"gorequest/internal/desktop/uikit"
 )
 
+// schemeReadOnlyNotice explains why an unsupported scheme type is shown
+// read-only. Kept out of the translated message table so the completeness test
+// does not require a new field in every language.
+func schemeReadOnlyNotice(lang string) string {
+	if lang == "en" {
+		return "This scheme type has fields the scheme editor cannot change. It is shown read-only so saving cannot drop its OAuth configuration. Edit the scheme file directly."
+	}
+	return "该方案类型包含方案编辑器不能修改的字段，此处只读显示，避免保存时丢失 OAuth 配置。请直接编辑方案文件。"
+}
+
 // IdentityManagementView renders the normal project window plus this card's
 // identity dialogs. Headless tests can drive it without modifying the public
 // App.View wiring (which the integrator owns).
@@ -178,37 +188,49 @@ func (a *App) renderSchemeSection(c *ui.Context, t *ui.Theme, ps *projectState, 
 		ui.Text(c, m.SchemeIDHint).FontSize(11).TextColor(p.Muted)
 
 		ui.Text(c, m.SchemeType).FontSize(12).FontWeight(600).TextColor(p.Muted)
-		types := []string{"bearer", "basic", "apikey"}
-		if ui.Select(c, &st.draft.Type, types).Changed() {
-			if st.draft.Type == "apikey" && strings.TrimSpace(st.draft.In) == "" {
-				st.draft.In = "header"
+		if st.draft.Unsupported {
+			// oauth2/oidc (and unknown future types) carry fields this editor
+			// cannot represent. Never let the type Select coerce them into
+			// bearer: show the real type read-only and hide the save action.
+			ui.Text(c, st.draft.Type).FontSize(13).TextColor(t.Danger)
+			ui.Text(c, schemeReadOnlyNotice(a.identityLangCode())).FontSize(11).TextColor(p.Muted)
+		} else {
+			types := []string{"bearer", "basic", "apikey"}
+			if ui.Select(c, &st.draft.Type, types).Changed() {
+				if st.draft.Type == "apikey" && strings.TrimSpace(st.draft.In) == "" {
+					st.draft.In = "header"
+				}
 			}
 		}
-		switch st.draft.Type {
-		case "basic":
-			ui.Text(c, m.SchemeUsername).FontSize(12).TextColor(p.Muted)
-			ui.TextInput(c, &st.draft.Username).Grow(1)
-			ui.Text(c, m.SchemePassword).FontSize(12).TextColor(p.Muted)
-			ui.TextInput(c, &st.draft.Password).Grow(1).Placeholder("{{secret.password}}")
-		case "apikey":
-			ui.Text(c, m.SchemeKeyLocation).FontSize(12).TextColor(p.Muted)
-			ui.Select(c, &st.draft.In, core.APIKeyLocations)
-			ui.Text(c, m.SchemeKeyName).FontSize(12).TextColor(p.Muted)
-			ui.TextInput(c, &st.draft.Name).Grow(1).Placeholder("X-API-Key")
-			ui.Text(c, m.SchemeKeyValue).FontSize(12).TextColor(p.Muted)
-			ui.TextInput(c, &st.draft.Value).Grow(1).Placeholder("{{secret.apiKey}}")
-		default:
-			ui.Text(c, m.SchemeToken).FontSize(12).TextColor(p.Muted)
-			ui.TextInput(c, &st.draft.Token).Grow(1).Placeholder("{{secret.token}}")
+		if !st.draft.Unsupported {
+			switch st.draft.Type {
+			case "basic":
+				ui.Text(c, m.SchemeUsername).FontSize(12).TextColor(p.Muted)
+				ui.TextInput(c, &st.draft.Username).Grow(1)
+				ui.Text(c, m.SchemePassword).FontSize(12).TextColor(p.Muted)
+				ui.TextInput(c, &st.draft.Password).Grow(1).Placeholder("{{secret.password}}")
+			case "apikey":
+				ui.Text(c, m.SchemeKeyLocation).FontSize(12).TextColor(p.Muted)
+				ui.Select(c, &st.draft.In, core.APIKeyLocations)
+				ui.Text(c, m.SchemeKeyName).FontSize(12).TextColor(p.Muted)
+				ui.TextInput(c, &st.draft.Name).Grow(1).Placeholder("X-API-Key")
+				ui.Text(c, m.SchemeKeyValue).FontSize(12).TextColor(p.Muted)
+				ui.TextInput(c, &st.draft.Value).Grow(1).Placeholder("{{secret.apiKey}}")
+			default:
+				ui.Text(c, m.SchemeToken).FontSize(12).TextColor(p.Muted)
+				ui.TextInput(c, &st.draft.Token).Grow(1).Placeholder("{{secret.token}}")
+			}
 		}
 
 		ui.Row(c).Gap(8).Children(func() {
-			label := m.SchemeSave
-			if st.isNew {
-				label = m.SchemeCreate
-			}
-			if ui.PrimaryButton(c, label).Clicked() {
-				a.saveSchemeDraft(ps, st)
+			if !st.draft.Unsupported {
+				label := m.SchemeSave
+				if st.isNew {
+					label = m.SchemeCreate
+				}
+				if ui.PrimaryButton(c, label).Clicked() {
+					a.saveSchemeDraft(ps, st)
+				}
 			}
 			if !st.isNew && st.selectedID != "" {
 				if ui.Button(c, m.SchemeDelete).TextColor(t.Danger).Clicked() {

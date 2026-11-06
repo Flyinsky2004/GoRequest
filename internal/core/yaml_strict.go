@@ -22,12 +22,12 @@ const (
 // expansion cost so untrusted project files cannot trigger stack overflows or
 // quadratic/exponential alias bombs.
 type YAMLLimits struct {
-	MaxBytes          int64
-	MaxDepth          int
-	MaxNodes          int
-	MaxAliases        int
-	MaxExpandedNodes  int
-	AllowMergeKeys    bool // false by default: implicit cross/in-file << merges are rejected
+	MaxBytes         int64
+	MaxDepth         int
+	MaxNodes         int
+	MaxAliases       int
+	MaxExpandedNodes int
+	AllowMergeKeys   bool // false by default: implicit cross/in-file << merges are rejected
 }
 
 // Effective returns a copy of l with zero fields replaced by safe defaults.
@@ -61,17 +61,9 @@ func init() {
 		if err != nil {
 			return err
 		}
-		stripped := stripTopLevelExtensions(doc)
-		var buf bytes.Buffer
-		enc := yaml.NewEncoder(&buf)
-		enc.SetIndent(2)
-		if err := enc.Encode(stripped); err != nil {
-			return err
-		}
-		if err := enc.Close(); err != nil {
-			return err
-		}
-		return decodeStrict(buf.Bytes(), out)
+		_ = doc
+		// Entities carry Extensions directly (model.go), so keep top-level extensions.
+		return decodeStrict(data, out)
 	}
 }
 
@@ -329,6 +321,7 @@ var allowedInlineAuthKeys = map[string]bool{
 	"name":          true,
 	"in":            true,
 	"value":         true,
+	"oauth":         true,
 }
 
 func auditRequestAST(root *yaml.Node) error {
@@ -412,6 +405,12 @@ func auditAuthSchemeMapping(n *yaml.Node, allowTopExtensions bool) error {
 		}
 		if !allowedInlineAuthKeys[k.Value] {
 			return configErrorf("unknown auth field %q (line %d)", k.Value, k.Line)
+		}
+		if k.Value == "oauth" {
+			if v.Kind != yaml.MappingNode {
+				return configErrorf("oauth must be a mapping (line %d)", v.Line)
+			}
+			continue
 		}
 		if v.Kind != yaml.ScalarNode {
 			return configErrorf("auth field %q must be a scalar (line %d)", k.Value, v.Line)

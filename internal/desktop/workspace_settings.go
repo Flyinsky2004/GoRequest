@@ -389,6 +389,7 @@ func (m *Manager) workspacePrefs() *workspacePrefsStore {
 			path = workspacePrefsPathFor(m.cfg.path)
 		}
 		m.prefs = newWorkspacePrefsStore(path)
+		m.prefs.markdownChanged = m.invalidateMarkdownPreviews
 	}
 	return m.prefs
 }
@@ -524,7 +525,7 @@ func (s *workspacePrefsStore) settingsGroups(c *ui.Context, p uikit.Palette, m *
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, m.FontSizeLabel).FontSize(12).TextColor(p.Muted).Width(150)
 				cur := strconv.Itoa(s.fontSize())
-				if ui.Select(c, &cur, fontSizeChoices()).Width(90).Changed() {
+				if uikit.ActionCursor(ui.Select(c, &cur, fontSizeChoices())).Width(90).Changed() {
 					if n, err := strconv.Atoi(cur); err == nil {
 						s.setFontSize(n)
 						if setStatus != nil {
@@ -536,18 +537,18 @@ func (s *workspacePrefsStore) settingsGroups(c *ui.Context, p uikit.Palette, m *
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, m.TabSizeLabel).FontSize(12).TextColor(p.Muted).Width(150)
 				cur := strconv.Itoa(s.tabSize())
-				if ui.Select(c, &cur, tabSizeChoices()).Width(90).Changed() {
+				if uikit.ActionCursor(ui.Select(c, &cur, tabSizeChoices())).Width(90).Changed() {
 					if n, err := strconv.Atoi(cur); err == nil {
 						s.setTabSize(n)
 					}
 				}
 			})
 			wrap := s.softWrap()
-			if ui.Checkbox(c, &wrap, m.SoftWrapLabel).Changed() {
+			if uikit.ActionCursor(ui.Checkbox(c, &wrap, m.SoftWrapLabel)).Changed() {
 				s.setSoftWrap(wrap)
 			}
 			nums := s.lineNumbers()
-			if ui.Checkbox(c, &nums, m.LineNumbersLabel).Changed() {
+			if uikit.ActionCursor(ui.Checkbox(c, &nums, m.LineNumbersLabel)).Changed() {
 				s.setLineNumbers(nums)
 			}
 		})
@@ -556,7 +557,7 @@ func (s *workspacePrefsStore) settingsGroups(c *ui.Context, p uikit.Palette, m *
 	settingsGroup(c, p, m.AutoSaveSection, func() {
 		ui.Column(c).Gap(6).FillWidth().Children(func() {
 			on := s.autoSaveEnabled()
-			if ui.Checkbox(c, &on, m.AutoSaveEnable).Changed() {
+			if uikit.ActionCursor(ui.Checkbox(c, &on, m.AutoSaveEnable)).Changed() {
 				s.setAutoSaveEnabled(on)
 				if setStatus != nil {
 					if on {
@@ -569,7 +570,7 @@ func (s *workspacePrefsStore) settingsGroups(c *ui.Context, p uikit.Palette, m *
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, m.AutoSaveDelayLabel).FontSize(12).TextColor(p.Muted).Width(150)
 				cur := delaySecondsLabel(s.autoSaveDelay())
-				if ui.Select(c, &cur, delayChoices()).Width(90).Changed() {
+				if uikit.ActionCursor(ui.Select(c, &cur, delayChoices())).Width(90).Changed() {
 					if n, err := strconv.Atoi(cur); err == nil {
 						s.setAutoSaveDelaySeconds(n)
 					}
@@ -585,7 +586,7 @@ func (s *workspacePrefsStore) settingsGroups(c *ui.Context, p uikit.Palette, m *
 				def := def
 				on := s.shortcutEnabled(def.ID)
 				label := fmt.Sprintf("%s  (%s)", def.Label, def.Keys)
-				if ui.Checkbox(c, &on, label).Changed() {
+				if uikit.ActionCursor(ui.Checkbox(c, &on, label)).Changed() {
 					s.setShortcutEnabled(def.ID, on)
 				}
 			}

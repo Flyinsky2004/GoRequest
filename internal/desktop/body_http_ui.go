@@ -247,5 +247,12 @@ func (a *App) buildTrackedTabPlan(ctx context.Context, tab *Tab) (*core.Request,
 	if err != nil {
 		return req, nil, red, err
 	}
+	if auth != nil {
+		if t := strings.ToLower(strings.TrimSpace(auth.Type)); t == "oauth2" || t == "oidc" {
+			if _, err := a.ApplyTabOAuthIfConfigured(ctx, ps, tab, plan, red, true); err != nil {
+				return req, nil, red, err
+			}
+		}
+	}
 	return req, plan, red, nil
 }

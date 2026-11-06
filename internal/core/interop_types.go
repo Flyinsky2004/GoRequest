@@ -170,6 +170,9 @@ type ImportOptions struct {
 	ArchiveLimits ArchiveLimits
 	// Redactor is an optional pre-configured Redactor; if nil, a fresh Redactor is created.
 	Redactor *Redactor
+	// AllowOpenAPI routes OpenAPI/Swagger documents in StageAutoImport to the A03
+	// converter (StageOpenAPIImport) instead of the blocked triage plan.
+	AllowOpenAPI bool
 }
 
 func (o ImportOptions) normalized() ImportOptions {
@@ -455,6 +458,9 @@ func StageAutoImport(p *Project, data []byte, filename string, opts ImportOption
 	}
 	switch format {
 	case FormatOpenAPI, FormatSwagger2:
+		if opts.AllowOpenAPI {
+			return StageOpenAPIImport(p, data, filename, OpenAPIImportOptions{InteropOptions: opts})
+		}
 		return buildOpenAPITriagePlan(p, format, version, filename, opts), nil
 	case FormatCURL:
 		return StageCURLImport(p, string(data), opts)

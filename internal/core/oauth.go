@@ -317,6 +317,9 @@ var (
 )
 
 // ExtractOAuthConfig extracts OAuthConfig from an AuthScheme (supporting both top-level OAuth hook and Extensions["oauth"]).
+// With the native field hook installed, that field wins; a legacy
+// Extensions["oauth"] is consulted only when the native field is empty so old
+// project files still load. SetOAuthConfig never writes both representations.
 func ExtractOAuthConfig(s *AuthScheme) (*OAuthConfig, error) {
 	if s == nil {
 		return nil, nil
@@ -370,13 +373,30 @@ func ExtractOAuthConfig(s *AuthScheme) (*OAuthConfig, error) {
 	return &cfg, nil
 }
 
-// SetOAuthConfig writes an OAuthConfig onto an AuthScheme so it round-trips through YAML preservation cleanly.
+// SetOAuthConfig writes an OAuthConfig onto an AuthScheme so it round-trips
+// through YAML preservation cleanly. When the model has a native OAuth field
+// (integration hook), that field is the single source of truth: writing the
+// legacy Extensions["oauth"] as well would serialize the same config twice.
+// The extension path is kept only for builds without the native field hook.
 func SetOAuthConfig(s *AuthScheme, cfg *OAuthConfig) {
 	if s == nil {
 		return
 	}
 	if authSchemeSetOAuthHook != nil {
+		if cfg == nil {
+			authSchemeSetOAuthHook(s, nil)
+			// Drop a stale legacy extension too, so a cleared config cannot be
+			// resurrected from the old representation on the next load.
+			if s.Extensions != nil {
+				delete(s.Extensions, "oauth")
+			}
+			return
+		}
 		authSchemeSetOAuthHook(s, cfg.Clone())
+		if s.Extensions != nil {
+			delete(s.Extensions, "oauth")
+		}
+		return
 	}
 	if cfg == nil {
 		if s.Extensions != nil {

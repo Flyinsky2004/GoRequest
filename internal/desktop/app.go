@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"gorequest/internal/core"
+	"gorequest/internal/desktop/uikit"
 )
 
 var (
@@ -200,6 +201,8 @@ func (a *App) View(c *ui.Context) {
 	a.transferModal(c, t)
 	a.b03CustomMethodModal(c, t)
 	a.InteropModals(c, t)
+	a.OpenAPIModals(c, t)
+	a.IdentityManagementModals(c, t)
 	if a.git != nil {
 		a.git.modals(c, t)
 	}
@@ -276,6 +279,11 @@ func (a *App) send(tab *Tab) {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	confirmed := a.prepareConfirmedSend(tab)
+	if confirmed == nil && identityMgmtFor(ps).policy != nil {
+		cancel()
+		return
+	}
 	req, plan, red, err := a.buildTrackedTabPlan(ctx, tab)
 	if err != nil {
 		cancel()
@@ -283,6 +291,7 @@ func (a *App) send(tab *Tab) {
 		return
 	}
 	a.attachNetworkToPlan(tab, req, plan, red)
+	a.attachConfirmedNetworkOptions(tab, plan, confirmed)
 
 	tab.cancel = cancel
 	tab.Sending = true
@@ -408,15 +417,15 @@ func (a *App) closeGuardModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, a.closeGuard.errMsg).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.cancelCloseGuard()
 					open = false
 				}
-				if ui.Button(c, m.Discard).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Discard)).Clicked() {
 					a.resolveCloseGuard(true)
 					open = false
 				}
-				if ui.PrimaryButton(c, m.SaveAll).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, m.SaveAll)).Clicked() {
 					a.resolveCloseGuard(false)
 					// Keep the modal open only while a save error remains.
 					open = a.closeGuard.active

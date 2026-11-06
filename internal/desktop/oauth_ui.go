@@ -204,6 +204,12 @@ func (a *App) oauthLocale() string {
 }
 
 // resolveActiveOAuthScheme locates the AuthScheme being edited on tab (either project-level scheme or inline auth).
+//
+// The tab's CURRENT AuthMode is authoritative. In particular, "none" (and any
+// other non-OAuth mode) must never fall back to a stale inline OAuth scheme left
+// in the saved Request.Auth: silently resurrecting it would leak old credentials
+// and contradict the user's explicit choice. Only oauth2/oidc inline, ref to an
+// oauth2/oidc scheme, and inherit of an oauth2/oidc scheme are resolved.
 func (a *App) resolveActiveOAuthScheme(ps *projectState, tab *Tab) (*core.AuthScheme, string) {
 	if ps == nil && tab != nil && tab.Owner != nil {
 		ps = tab.Owner
@@ -220,47 +226,39 @@ func (a *App) resolveActiveOAuthScheme(ps *projectState, tab *Tab) (*core.AuthSc
 	}
 
 	mode := strings.ToLower(strings.TrimSpace(tab.AuthMode))
-	if (mode == "oauth2" || mode == "oidc") && tab.authPassthrough != nil && tab.authPassthrough.Inline != nil {
-		id := strings.TrimSpace(tab.authPassthrough.Inline.ID)
-		if id == "" {
-			id = "inline:" + strings.TrimSpace(tab.Title)
+	switch mode {
+	case "oauth2", "oidc":
+		if tab.authPassthrough != nil && tab.authPassthrough.Inline != nil {
+			id := strings.TrimSpace(tab.authPassthrough.Inline.ID)
+			if id == "" {
+				id = "inline:" + strings.TrimSpace(tab.Title)
+			}
+			return tab.authPassthrough.Inline, id
 		}
-		return tab.authPassthrough.Inline, id
-	}
-
-	if mode == "ref" && proj != nil && proj.AuthSchemes != nil {
-		refID := strings.TrimSpace(tab.AuthRefID)
-		if s := proj.AuthSchemes[refID]; s != nil {
-			st := strings.ToLower(strings.TrimSpace(s.Type))
-			if st == "oauth2" || st == "oidc" {
-				return s, refID
+		// An OAuth mode loaded from disk always carries its inline scheme in
+		// authPassthrough (see fillAuth). No saved-Entry fallback here: that is
+		// precisely the stale-inline leak this guard prevents.
+	case "ref":
+		if proj != nil && proj.AuthSchemes != nil {
+			refID := strings.TrimSpace(tab.AuthRefID)
+			if s := proj.AuthSchemes[refID]; s != nil {
+				st := strings.ToLower(strings.TrimSpace(s.Type))
+				if st == "oauth2" || st == "oidc" {
+					return s, refID
+				}
 			}
 		}
-	}
-
-	if mode == "inherit" && proj != nil {
-		if eff, err := proj.ResolveEffectiveAuth(tab.Entry, &core.Request{}); err == nil && eff != nil && eff.Scheme != nil {
-			st := strings.ToLower(strings.TrimSpace(eff.Scheme.Type))
-			if st == "oauth2" || st == "oidc" {
-				id := eff.RefID
-				if id == "" {
-					id = eff.Scheme.ID
+	case "inherit":
+		if proj != nil {
+			if eff, err := proj.ResolveEffectiveAuth(tab.Entry, &core.Request{}); err == nil && eff != nil && eff.Scheme != nil {
+				st := strings.ToLower(strings.TrimSpace(eff.Scheme.Type))
+				if st == "oauth2" || st == "oidc" {
+					id := eff.RefID
+					if id == "" {
+						id = eff.Scheme.ID
+					}
+					return eff.Scheme, id
 				}
-				return eff.Scheme, id
-			}
-		}
-	}
-
-	if tab.Entry != nil && tab.Entry.Request != nil && tab.Entry.Request.Auth != nil {
-		ar := tab.Entry.Request.Auth
-		if ar.Inline != nil {
-			st := strings.ToLower(strings.TrimSpace(ar.Inline.Type))
-			if st == "oauth2" || st == "oidc" {
-				id := strings.TrimSpace(ar.Inline.ID)
-				if id == "" {
-					id = "inline:" + strings.TrimSpace(tab.Entry.Request.ID)
-				}
-				return ar.Inline, id
 			}
 		}
 	}
@@ -739,9 +737,33 @@ func (a *App) triggerOAuthRevokeToken(ps *projectState, tab *Tab) {
 	})
 }
 
-// renderOAuthEditor renders the native MyGo UI configuration panel, interactive flow buttons,
-// RFC 8628 Device Challenge banner, and Token / OIDC Claims Inspector for an oauth2 or oidc scheme.
+// oauthReadOnlyNotice explains why ref/inherit schemes cannot be edited here.
+// It is kept out of oauthMessages so the two-language completeness test does
+// not require a new entry in every translation table.
+func oauthReadOnlyNotice(locale string) string {
+	if locale == "en" {
+		return "Read-only: this scheme is referenced or inherited from a project file. Edits made here are not saved; use the scheme editor in Identity Management."
+	}
+	return "只读：此方案由项目文件引用或上级继承。此处编辑不会被保存；请在身份管理的方案编辑器中修改。"
+}
+
+// renderOAuthEditor renders the editable native MyGo UI configuration panel,
+// interactive flow buttons, RFC 8628 Device Challenge banner, and Token / OIDC
+// Claims Inspector for an inline oauth2/oidc request mode.
 func (a *App) renderOAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
+	a.renderOAuthEditorMode(c, t, tab, false)
+}
+
+// renderOAuthEditorMode is the shared implementation. readOnly is used when the
+// active OAuth scheme comes from "ref"/"inherit" rather than an inline
+// oauth2/oidc mode. Those schemes belong to a shared project file (or an
+// inherited parent), and editing them through the request tab would only mutate
+// the in-memory project while marking the request Dirty — a save of the request
+// would NOT persist the scheme. To avoid claiming a save that never happens, the
+// panel is a read-only inspector: no field writes, no flow buttons, no config
+// commit, and no Dirty flag. Editing must go through the reusable scheme editor
+// (Identity Management), which has a real, digest-protected save.
+func (a *App) renderOAuthEditorMode(c *ui.Context, t *ui.Theme, tab *Tab, readOnly bool) {
 	if tab == nil {
 		return
 	}
@@ -794,6 +816,28 @@ func (a *App) renderOAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 
 	if statusText == "" {
 		statusText = om.StatusIdle
+	}
+
+	if readOnly {
+		// Inspect-only: the scheme is owned by a project file / parent folder,
+		// not by this request. Never present an editable form that would only
+		// mark the request Dirty while the scheme itself is never saved.
+		ui.Column(c).Gap(6).Padding(10, 12).BorderWidth(1).BorderColor(pal.Hairline).Radius(8).FillWidth().Children(func() {
+			ui.Text(c, om.SectionTitle).FontSize(13).FontWeight(600)
+			ui.Text(c, oauthReadOnlyNotice(a.oauthLocale())).FontSize(11).TextColor(pal.Muted)
+			ui.Text(c, fmt.Sprintf("%s / %s", schemeType, grantType)).FontSize(12).TextColor(pal.Text)
+			if strings.TrimSpace(issuer) != "" {
+				renderOAuthInspectorKV(c, pal, om.IssuerLabel, issuer)
+			}
+			if strings.TrimSpace(tokenURL) != "" {
+				renderOAuthInspectorKV(c, pal, om.TokenURLLabel, tokenURL)
+			}
+			if strings.TrimSpace(clientID) != "" {
+				renderOAuthInspectorKV(c, pal, om.ClientIDLabel, clientID)
+			}
+			renderOAuthInspectorCard(c, pal, okColor, warnColor, cachedRec, om)
+		})
+		return
 	}
 
 	changed := false

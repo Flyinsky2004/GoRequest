@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -548,7 +549,20 @@ func TestProductionPolicyPromptIsOneShotAndExact(t *testing.T) {
 	}
 	tab := ps.activeTab()
 	tab.Method = "POST"
-	tab.URL = "https://api.example.com/v1/orders"
+	// A local httptest server is the ONLY network target. Marking the "dev"
+	// environment as production still forces the one-shot confirmation, but an
+	// approved send must reach this loopback server rather than any real public
+	// host. The handler also acts as a tripwire: any request arriving here is
+	// expected and counted; the test asserts an unconfirmed send never arrives.
+	var hits atomic.Int32
+	var gotMethod atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		gotMethod.Store(r.Method)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	tab.URL = srv.URL + "/v1/orders"
 	// Mark this exact existing environment as production in device-local
 	// settings only. A shared project file never relaxes device policy.
 	netSt := projectNetStateFor(ps, a)
@@ -560,7 +574,8 @@ func TestProductionPolicyPromptIsOneShotAndExact(t *testing.T) {
 	st := identityMgmtFor(ps)
 	envID := ps.currentEnv()
 
-	// Default device policy confirms mutating production requests.
+	// Default device policy confirms mutating production requests, even to a
+	// loopback target, because the production guard is environment-based.
 	if a.preflightTargetPolicy(tab) {
 		t.Fatal("production POST should require confirmation")
 	}
@@ -570,6 +585,9 @@ func TestProductionPolicyPromptIsOneShotAndExact(t *testing.T) {
 	prompt := st.policy
 	if prompt.RequestID != entry.Request.ID || prompt.Method != "POST" || prompt.EnvID != envID {
 		t.Fatalf("prompt scope wrong: %+v", prompt)
+	}
+	if prompt.URL != tab.URL {
+		t.Fatalf("prompt target must be the local server, got %q", prompt.URL)
 	}
 
 	// Render the confirmation dialog, click through, and verify the token is one
@@ -584,9 +602,9 @@ func TestProductionPolicyPromptIsOneShotAndExact(t *testing.T) {
 	}
 	// The public send path runs the request on a background goroutine and
 	// posts its result to this window's queue. Drain it on the test goroutine
-	// so no later assertion races with a late UI update. Before the integrator
-	// applies the patch the production send fails explicitly; after wiring it
-	// consumes the exact token and reaches the unreachable example host.
+	// so no later assertion races with a late UI update. With the wiring in
+	// place the approved send consumes the exact token and reaches ONLY the
+	// local httptest server.
 	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()
 	for tab.Sending {
@@ -600,6 +618,15 @@ func TestProductionPolicyPromptIsOneShotAndExact(t *testing.T) {
 	if st.policy != nil {
 		t.Fatal("prompt not dismissed")
 	}
+	if tab.RespErr != "" {
+		t.Fatalf("confirmed production send failed: %q", tab.RespErr)
+	}
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("confirmed send must hit the local server exactly once, got %d", got)
+	}
+	if got := gotMethod.Load(); got != "POST" {
+		t.Fatalf("confirmed send used wrong method %v", got)
+	}
 
 	// Re-create a fresh one-shot token for the exact-scope assertions so the
 	// test is independent of whether the integrator patch is applied.
@@ -612,7 +639,7 @@ func TestProductionPolicyPromptIsOneShotAndExact(t *testing.T) {
 	if token.Consume(entry.Request.ID, "PUT", envID, tab.URL) {
 		t.Fatal("token matched a different method")
 	}
-	if token.Consume(entry.Request.ID, "POST", envID, "https://api.example.com/v1/orders?changed=1") {
+	if token.Consume(entry.Request.ID, "POST", envID, srv.URL+"/v1/orders?changed=1") {
 		t.Fatal("token matched a different target")
 	}
 	if token.Consume(entry.Request.ID, "POST", "other-env", tab.URL) {
@@ -631,6 +658,11 @@ func TestProductionPolicyPromptIsOneShotAndExact(t *testing.T) {
 	// A new send must re-evaluate policy rather than reuse a broad authorization.
 	if a.preflightTargetPolicy(tab) {
 		t.Fatal("new send must re-evaluate policy")
+	}
+	// Re-evaluation records a fresh pending prompt and must NOT have issued a
+	// second network request: the earlier approval was one-shot only.
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("unconfirmed re-send reached the network (%d hits)", got)
 	}
 }
 

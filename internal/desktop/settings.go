@@ -56,7 +56,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 			ui.Column(c).Gap(10).FillWidth().Children(func() {
 				settingsGroup(c, p, m.AppearanceLabel, func() {
 					choice := appearanceDisplay(m, cfg.appearance())
-					if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
+					if uikit.ActionCursor(ui.Select(c, &choice, appearanceChoices(m))).Width(180).Changed() {
 						cfg.setAppearance(appearanceCanonical(m, choice))
 						if setStatus != nil {
 							setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
@@ -66,7 +66,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 
 				settingsGroup(c, p, m.LanguageLabel, func() {
 					choice := languageLabel(cfg.language())
-					if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
+					if uikit.ActionCursor(ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish})).Width(180).Changed() {
 						cfg.setLanguage(languageFromLabel(choice))
 						if setStatus != nil {
 							langMsgs := messagesFor(cfg.language())
@@ -77,7 +77,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 
 				settingsGroup(c, p, m.StartupLabel, func() {
 					restore := cfg.restoreLastEnabled()
-					if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
+					if uikit.ActionCursor(ui.Checkbox(c, &restore, m.RestoreLast)).Changed() {
 						cfg.setRestoreLast(restore)
 						if setStatus != nil {
 							if restore {
@@ -91,12 +91,13 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 
 				if prefs != nil {
 					prefs.settingsGroups(c, p, m, setStatus)
+					prefs.markdownSettingsGroup(c, p, cfg.language(), setStatus)
 				}
 
 				settingsGroup(c, p, m.HistorySettingsLabel, func() {
 					ui.Column(c).Gap(8).Children(func() {
 						snap := cfg.historySaveSnapshots()
-						if ui.Checkbox(c, &snap, m.HistorySaveSnapshots).Changed() {
+						if uikit.ActionCursor(ui.Checkbox(c, &snap, m.HistorySaveSnapshots)).Changed() {
 							cfg.setHistorySaveSnapshots(snap)
 							if !snap {
 								// Bodies cannot be captured when snapshots are off.
@@ -104,7 +105,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 							}
 						}
 						bodies := cfg.historySaveBodies()
-						cb := ui.Checkbox(c, &bodies, m.HistorySaveBodies).Disabled(!snap)
+						cb := uikit.ActionCursor(ui.Checkbox(c, &bodies, m.HistorySaveBodies).Disabled(!snap))
 						if snap && cb.Changed() {
 							cfg.setHistorySaveBodies(bodies)
 						}
@@ -112,7 +113,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 							ui.Text(c, m.HistoryRetentionLabel).Grow(1).FontSize(12).TextColor(p.Muted).SingleLine()
 							choices := historyRetentionChoices(m)
 							choice := historyRetentionLabel(m, cfg.historyRetentionDays())
-							if ui.Select(c, &choice, choices).Width(190).Changed() {
+							if uikit.ActionCursor(ui.Select(c, &choice, choices)).Width(190).Changed() {
 								cfg.setHistoryRetentionDays(historyRetentionValue(choices, choice))
 							}
 						})
@@ -141,7 +142,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 		})
 
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-			if ui.PrimaryButton(c, m.Done).Clicked() {
+			if uikit.ActionCursor(ui.PrimaryButton(c, m.Done)).Clicked() {
 				*open = false
 			}
 		})

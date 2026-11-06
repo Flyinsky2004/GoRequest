@@ -72,6 +72,14 @@ type authSchemeDraft struct {
 	Name          string
 	In            string
 	Value         string
+
+	// OAuth is carried unchanged through an edit session. The B05 scheme
+	// editor only knows bearer/basic/apikey fields; silently coercing an
+	// oauth2/oidc scheme to bearer would drop its OAuthConfig on the next
+	// save. Keeping the original config intact while presenting the scheme
+	// read-only avoids that data loss without inventing a new OAuth editor.
+	OAuth       *core.OAuthConfig
+	Unsupported bool
 }
 
 type schemeDeleteDialog struct {
@@ -181,14 +189,27 @@ func draftFromScheme(s *core.AuthScheme) authSchemeDraft {
 		d.Username, d.Password = s.Username, s.Password
 	case "apikey":
 		d.Name, d.In, d.Value = s.Name, core.NormalizeAPIKeyLocation(s.In), s.Value
-	default:
-		d.Type = "bearer"
+	case "bearer":
 		d.Token = s.Token
+	case "oauth2", "oidc":
+		// Preserve the real type and the OAuth configuration, and mark the
+		// draft unsupported so the editor does not offer a bearer conversion.
+		if cfg, err := core.ExtractOAuthConfig(s); err == nil {
+			d.OAuth = cfg
+		}
+		d.Unsupported = true
+	default:
+		// Unknown future types: keep them read-only too rather than coercing
+		// them into bearer and dropping their fields.
+		d.Unsupported = true
 	}
 	return d
 }
 
 func (d *authSchemeDraft) toScheme() (*core.AuthScheme, error) {
+	if d.Unsupported {
+		return nil, fmt.Errorf("auth type %q is read-only in the scheme editor", d.Type)
+	}
 	s := &core.AuthScheme{
 		SchemaVersion: d.SchemaVersion,
 		ID:            strings.TrimSpace(d.ID),

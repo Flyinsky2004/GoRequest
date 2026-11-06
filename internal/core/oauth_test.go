@@ -564,3 +564,37 @@ func TestOAuthClientCredentialsRevocationAndCrossOriginRedirectGuard(t *testing.
 		}
 	}
 }
+
+// TestSetOAuthConfigUsesSingleRepresentation guards the A04 + integration
+// wiring: with the native AuthScheme.OAuth field installed (auth.go init hook),
+// SetOAuthConfig must write ONLY that field. Writing Extensions["oauth"] as
+// well serializes the config twice and the strict loader rejects the file.
+func TestSetOAuthConfigUsesSingleRepresentation(t *testing.T) {
+	cfg := &OAuthConfig{
+		GrantType:        OAuthGrantClientCredentials,
+		ClientID:         "single-rep-client",
+		TokenURL:         "https://issuer.example.invalid/token",
+		ClientAuthMethod: OAuthClientAuthBasic,
+	}
+	s := &AuthScheme{ID: "oauth-scheme", Type: "oauth2", Extensions: map[string]any{"oauth": map[string]any{"clientId": "legacy"}}}
+	SetOAuthConfig(s, cfg)
+	if s.OAuth == nil || s.OAuth.ClientID != cfg.ClientID {
+		t.Fatalf("native OAuth field not set: %+v", s.OAuth)
+	}
+	if _, exists := s.Extensions["oauth"]; exists {
+		t.Fatalf("legacy extensions.oauth not cleared; would duplicate config: %+v", s.Extensions)
+	}
+	got, err := ExtractOAuthConfig(s)
+	if err != nil || got == nil || got.ClientID != cfg.ClientID {
+		t.Fatalf("extract after set mismatch: cfg=%+v err=%v", got, err)
+	}
+
+	// Clearing removes both representations.
+	SetOAuthConfig(s, nil)
+	if s.OAuth != nil {
+		t.Fatal("native OAuth field not cleared")
+	}
+	if _, exists := s.Extensions["oauth"]; exists {
+		t.Fatal("legacy extensions.oauth not cleared on nil config")
+	}
+}

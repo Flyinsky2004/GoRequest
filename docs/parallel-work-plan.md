@@ -306,3 +306,18 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 用户要求由 Herdr 新开一个 CC 接手合并和清理。当前 main `4142dbc` 未变；11条功能/UI分支已合入 `integrate/all-agent-deliveries` / `../GoRequest-integration` 的 `3a8631b`。公共接线15个源文件已修改且交给接手者继续，尚未commit/快进main。首轮全仓race、带ui04_integration的UI组合专项、鉴权/OAuth专项通过；最终vet和修复后的门禁待完成，真实窗口/平台待验收。旧11个分支/worktree/agent暂未删除。
 
 精确交接、验证日志、待查跨卡问题及清理tab清单见 [全分支集成交接](task-results/integration-all-handoff-2026-11-06.md)。后续负责人须保留该集成worktree的既有接线改动，不按未知dirty丢弃。仅在最终进入main且验收满足后更新勾选。
+
+### 14.1 接手集成与交付（2026-11-06，t2r）
+
+- **接手句柄**：Herdr 终端 `t2r`、tab `tbc11684376b52d0324d8a2c4c1f8483e0`，新版 Herdr 新开的集成与清理 CC；默认模型 Hy4 (hy4std)，用户未覆盖。用户声明从此时起不再并发写该 worktree。上一位集成人已于 `15b7955` 仅提交交接文档/账本，15 个源文件接线留在工作区由本会话继承并完成。
+- **交付合并**：11 条功能/UI 分支的 no-ff 合并（至 `3a8631b`）由上一位集成人完成，本会话不重做；继承全部 15 个公共接线源文件并在集成分支提交 `integrate(all): finish public wiring and cross-card fixes for all 11 deliveries`（25 files / +806/-141，最终哈希见 main 的 `git log`，主目录 ff-only 快进后即为 main 提交）。最终集成报告见 [integration-all-final-2026-11-06.md](task-results/integration-all-final-2026-11-06.md)。
+- **必要跨卡修复**（均有无窗口回归测试，不扩成 A02 或新产品功能）：
+  1. `TestProductionPolicyPromptIsOneShotAndExact` 改用本地 `httptest`，确认后真实发送到本机且只命中一次，未确认的再评估不发任何请求；消除对 `api.example.com` 的公网依赖。
+  2. `resolveActiveOAuthScheme` 以当前 `AuthMode` 为准，`none`/`bearer`/其他模式不再回退读取 `Request.Auth` 里的旧 inline OAuth，避免旧凭据/模式泄漏。
+  3. B05 方案编辑：`draftFromScheme` 对 oauth2/oidc 保留真实类型与 `OAuthConfig` 并标记只读，`toScheme` 拒绝转换；UI 隐藏类型 Select/字段/保存按钮，防止编辑保存静默把 OAuth 变 bearer 丢字段。
+  4. A04 ref/inherit OAuth 编辑改为只读检视（明确提示"此处编辑不保存，请用身份管理方案编辑器"），不再改内存方案、不标请求 Dirty、不虚报保存；内联 oauth2/oidc 模式仍可编辑并随请求保存。
+  5. `SetOAuthConfig` 只写原生 `AuthScheme.OAuth` 单一表示，清除遗留 `extensions.oauth`，修复双重序列化导致严格加载器拒绝新请求文件；`ExtractOAuthConfig` 保留旧文件兼容。
+  6. `requestAuthModes` 加入 `oauth2`/`oidc` 作为一等内联模式（保存走 `authPassthrough`、发包走 `ApplyTabOAuthIfConfigured`，非只加模式），并有保存/重开往返测试。
+- **验证**：`go build ./...`、`go vet ./...`、`go test -race ./...`（全包）、`-tags ui04_integration` UI 组合专项、鉴权/OAuth/生产确认专项及跨卡回归均通过。日志 `/private/tmp/gorequest-final-race.log`。
+- **如实记录的限制**：A01 Runner Core 与 A03 Schema 各有独立端口，**未做跨包 adapter 联合接线**，不宣称 Runner/Schema 联合验收或完整 Runner UI（A02 尚未开发）；未做真实窗口/macOS 拖动、系统凭据后端、原生文件对话框及 Windows/Linux 三平台实机人工验收，不勾为人工通过。
+- **清理**：按交接表精确关闭 11 个旧交付 agent tab（不动 `t1h`、不停 Herdr app/core、不关闭本会话），在确认 clean 且分支为 main 祖先后用不带 force 的 `git worktree remove` / `git branch -d` 删除 11 个旧 worktree/分支；集成 worktree 干净且已合入 main 后从主目录删除。主目录用户 dirty（`examples/sample-project/.gorequest/environments/dev.yaml`、未跟踪调试二进制）全程保留，不提交/删除/覆盖。不 push、不改共享 git config、不 reset/clean。

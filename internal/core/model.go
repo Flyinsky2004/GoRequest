@@ -150,6 +150,7 @@ type AuthScheme struct {
 	In            string         `yaml:"in,omitempty"`    // header | query | cookie
 	Value         string         `yaml:"value,omitempty"` // api key value template
 	Extensions    map[string]any `yaml:"extensions,omitempty"`
+	OAuth         *OAuthConfig   `yaml:"oauth,omitempty"` // type oauth2 | oidc (A04)
 }
 
 // Request is one request stored as its own YAML file.
