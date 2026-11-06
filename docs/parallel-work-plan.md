@@ -321,3 +321,20 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 - **验证**：`go build ./...`、`go vet ./...`、`go test -race ./...`（全包）、`-tags ui04_integration` UI 组合专项、鉴权/OAuth/生产确认专项及跨卡回归均通过。日志 `/private/tmp/gorequest-final-race.log`。
 - **如实记录的限制**：A01 Runner Core 与 A03 Schema 各有独立端口，**未做跨包 adapter 联合接线**，不宣称 Runner/Schema 联合验收或完整 Runner UI（A02 尚未开发）；未做真实窗口/macOS 拖动、系统凭据后端、原生文件对话框及 Windows/Linux 三平台实机人工验收，不勾为人工通过。
 - **清理与 final main**：11 个旧交付 agent tab 均用 `herdr-app do tab.close` 精确 ID + `confirmed:true` 返回 `ok:true`（不动 `t1h`、不停 Herdr app/core、不关闭本会话 `t2r`）；逐个复核 11 分支均为 main 祖先且 worktree 全部 CLEAN 后，用不带 force 的 `git worktree remove` / `git branch -d` 删除全部 11 个旧 worktree/分支；集成 worktree 干净且 `integrate/all-agent-deliveries` 已是 main 祖先后，从主目录删除该 worktree/分支。主目录 `git merge --ff-only integrate/all-agent-deliveries` 把 main 从 `4142dbc` 快进到 **`ac06595`**（最终代码集成提交）；随后在主目录仅提交记账文档与一处措辞澄清（`docs: record final main ff-only, branch/agent cleanup and verification` 等，均在 `ac06595` 之后、无源码改动；各提交哈希见 `git log`）。`hc ls` 仅剩 `t1h`（用户）与 `t2r`（本集成 CC），`git worktree list` 仅剩主目录 main，`git branch` 仅剩 `main`。主目录用户 dirty（`examples/sample-project/.gorequest/environments/dev.yaml`、`examples/demo-server/__debug_bin3694048428`）全程保留，不提交/删除/覆盖。不 push、不改共享 git config、不 reset/clean。
+
+## 15. 用户反馈修复并行派工（CC / Herdr，2026-11-07）
+
+用户反馈六项：①存储同步误报「当前版本与磁盘版本不一致」，点「恢复」把编辑回退成旧版本；②移动接口到别的文件夹后左树不刷新，需重开项目才更新；③JSON 高亮的花括号/逗号等标点颜色太淡；④响应区 JSON 树折叠/展开按钮过大、箭头过小、留白多（用户已确认指响应区 JSON 树，非左目录树）；⑤单独开 CC 讨论「环境密钥」设计（普通变量 vs Secret、本机工具威胁模型）；⑥设置界面改为左分类栏 + 右主内容。
+
+共同基线 `3cc1731459ff1c44d70cbd48b0e5ea3fa7773caf`（main，未含主目录脏的示例环境/dev 产物）。各卡独立 worktree，均由新版 Herdr `herdr-app do tab.new` 在同一 GoRequest space 启动 Claude Code（CC），会话级 `--dangerously-skip-permissions`（经用户明确授权 Full Access；安全分类器首次拦截、用户授权后放行）。`--task` 把任务作为首消息下发，启动核对均为 working、目录正确、无信任框阻塞。
+
+| 任务 | 用户问题 | 分支 / worktree | 终端 | 专属文件归属 |
+| --- | --- | --- | --- | --- |
+| FIX01 | ①同步冲突误报 / 恢复回退 | `cc/FIX01-sync-conflict` / `../GoRequest-FIX01` | `t2t` | `desktop/file_sync*.go`、`core/file_sync.go`(SyncEngine)、`core/file_watcher.go`(仅必要) |
+| FIX02 | ②移动后树不刷新 | `cc/FIX02-tree-refresh` / `../GoRequest-FIX02` | `t2v` | `desktop/tree_actions.go`、`desktop/collection_tree.go`(渲染)、`core/folders.go`(Move*) |
+| FIX03 | ③JSON 标点色过淡 | `cc/FIX03-json-syntax-color` / `../GoRequest-FIX03` | `t2w` | `desktop/uikit/syntax.go`（`TokenPunctuation/Operator` 由 `p.Faint` 改可读折中色） |
+| FIX04 | ④响应 JSON 树折叠按钮过大 | `cc/FIX04-json-tree-toggle` / `../GoRequest-FIX04` | `t2x` | `desktop/response_view.go`（`responseJSONTreeView` 折叠控件/占位） |
+| FIX05 | ⑥设置左分类栏+右内容 | `cc/FIX05-settings-layout` / `../GoRequest-FIX05` | `t2y` | `desktop/settings.go`、新增 `desktop/settings_i18n.go`（不改 `i18n.go`） |
+| ASK01 | ⑤密钥设计讨论（不写码） | 主目录只读（无分支） | `t2z` | 只读 `platform/secrets.go`、`core/variables.go/auth.go`、相关 docs；只讨论不改文件 |
+
+约束与验证：各卡只在本 worktree 工作、不操作 main/他人 worktree、不 merge/cherry-pick/push、不 reset/clean、不启子 agent、不动示例环境与 `__debug_bin*`；公共壳层（`i18n.go/app.go/project_state.go/manager.go/nav.go/workspace.go/tab.go/config.go/go.mod/go.sum`）只交最小接线 patch 由集成人合入。各卡须 `go build ./...`、`go vet ./...`、`go test -race ./...` 并加回归用例，交付写 `docs/task-results/<ID>.md`，不自行勾总账本。本机提示词与句柄存 `/private/tmp/gorequest-fix-20261107/`（`*.prompt.txt`、`sessions.json`），不入 Git。当前仅领取/启动，不代表修复完成；集成验收后另行打勾。ASK01 为与用户直接对话的设计讨论，不产出代码。
