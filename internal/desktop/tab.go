@@ -37,11 +37,21 @@ type Tab struct {
 	kvFocusVal bool
 	BodyIdx    int
 	BodyText   string
-	AuthMode   string
-	AuthIdx    int
-	AuthToken  string
-	AuthUser   string
-	AuthPass   string
+	AuthMode     string
+	AuthIdx      int
+	AuthRefID    string
+	AuthToken    string
+	AuthUser     string
+	AuthPass     string
+	AuthKeyName  string
+	AuthKeyIn    string
+	AuthKeyValue string
+	// authInlineVer/authInlineID/authKeyInOmitted/authPassthrough preserve exact
+	// round-trip semantics when non-auth fields (such as URL) are edited.
+	authInlineVer    int
+	authInlineID     string
+	authKeyInOmitted bool
+	authPassthrough  *core.AuthRef
 	Timeout    string
 	Section    int // 0 params, 1 headers, 2 body, 3 auth
 
@@ -106,37 +116,73 @@ func requestFromTab(tab *Tab) (*core.Request, error) {
 	}
 	base.HTTP = httpDef
 	base.Timeout = strings.TrimSpace(tab.Timeout)
-	switch tab.AuthMode {
-	case "bearer":
-		base.Auth = &core.AuthRef{Mode: "inline", Inline: &core.AuthScheme{SchemaVersion: 1, Type: "bearer", Token: tab.AuthToken}}
-	case "basic":
-		base.Auth = &core.AuthRef{Mode: "inline", Inline: &core.AuthScheme{SchemaVersion: 1, Type: "basic", Username: tab.AuthUser, Password: tab.AuthPass}}
-	default:
-		base.Auth = &core.AuthRef{Mode: "none"}
+	authRef, err := authRefFromTab(tab)
+	if err != nil {
+		return nil, fmt.Errorf("auth: %w", err)
 	}
+	base.Auth = authRef
 	return &base, nil
 }
 
-// fillAuth copies the effective auth scheme of a request into a fresh tab.
-func fillAuth(p *core.Project, tab *Tab, req *core.Request) {
-	scheme, err := p.AuthFor(req)
-	if err != nil || scheme == nil {
-		tab.AuthMode = "none"
-		tab.AuthIdx = 0
-		return
+// fillAuth copies the request's own declared auth semantics (inherit, explicit
+// none, scheme ref, or inline bearer/basic/apikey) into a tab without flattening
+// refs into inline schemes or turning inherit/unknown schemes into "none".
+func fillAuth(_ *core.Project, tab *Tab, req *core.Request) {
+	tab.AuthMode = "inherit"
+	tab.AuthIdx = 0
+	tab.AuthRefID = ""
+	tab.AuthToken = ""
+	tab.AuthUser = ""
+	tab.AuthPass = ""
+	tab.AuthKeyName = ""
+	tab.AuthKeyIn = "header"
+	tab.AuthKeyValue = ""
+	tab.authInlineVer = core.SupportedSchemaVersion
+	tab.authInlineID = ""
+	tab.authKeyInOmitted = false
+	tab.authPassthrough = nil
+
+	if req != nil && req.Auth != nil && req.Auth.Mode != "" {
+		switch req.Auth.Mode {
+		case "none":
+			tab.AuthMode = "none"
+		case "ref":
+			tab.AuthMode = "ref"
+			tab.AuthRefID = req.Auth.Ref
+		case "inline":
+			if req.Auth.Inline == nil {
+				tab.AuthMode = "none"
+			} else {
+				s := req.Auth.Inline
+				tab.authInlineVer = s.SchemaVersion
+				tab.authInlineID = s.ID
+				switch strings.ToLower(strings.TrimSpace(s.Type)) {
+				case "", "none":
+					tab.AuthMode = "none"
+				case "bearer":
+					tab.AuthMode = "bearer"
+					tab.AuthToken = s.Token
+				case "basic":
+					tab.AuthMode = "basic"
+					tab.AuthUser = s.Username
+					tab.AuthPass = s.Password
+				case "apikey":
+					tab.AuthMode = "apikey"
+					tab.AuthKeyName = s.Name
+					tab.AuthKeyIn = core.NormalizeAPIKeyLocation(s.In)
+					tab.authKeyInOmitted = strings.TrimSpace(s.In) == ""
+					tab.AuthKeyValue = s.Value
+				default:
+					tab.AuthMode = strings.ToLower(strings.TrimSpace(s.Type))
+					tab.authPassthrough = core.CloneAuthRef(req.Auth)
+				}
+			}
+		default:
+			tab.AuthMode = req.Auth.Mode
+			tab.authPassthrough = core.CloneAuthRef(req.Auth)
+		}
 	}
-	switch scheme.Type {
-	case "bearer":
-		tab.AuthMode = "bearer"
-		tab.AuthToken = scheme.Token
-	case "basic":
-		tab.AuthMode = "basic"
-		tab.AuthUser = scheme.Username
-		tab.AuthPass = scheme.Password
-	default:
-		tab.AuthMode = "none"
-	}
-	tab.AuthIdx = indexOf(authModes, tab.AuthMode)
+	tab.AuthIdx = indexOf(requestAuthModes, tab.AuthMode)
 }
 
 // --- helpers -------------------------------------------------------------
