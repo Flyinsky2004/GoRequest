@@ -259,6 +259,22 @@ func (r *Redactor) SanitizeExecResult(res *ExecResult) *ExecResult {
 		red = NewRedactor()
 	}
 	cp := *res
+	cp.FinalURL = red.sanitizeURL(res.FinalURL)
+	cp.SuggestedFilename = red.RedactString(res.SuggestedFilename)
+	cp.Redirects = append([]RedirectHop(nil), res.Redirects...)
+	for i := range cp.Redirects {
+		cp.Redirects[i].FromURL = red.sanitizeURL(cp.Redirects[i].FromURL)
+		cp.Redirects[i].ToURL = red.sanitizeURL(cp.Redirects[i].ToURL)
+	}
+	cp.Cookies = append([]CookieEntry(nil), res.Cookies...)
+	for i := range cp.Cookies {
+		cp.Cookies[i].Value = redactedMask
+	}
+	if res.Trace != nil {
+		trace := *res.Trace
+		trace.ProxyUsed = red.sanitizeURL(trace.ProxyUsed)
+		cp.Trace = &trace
+	}
 	if len(res.Headers) > 0 {
 		cp.Headers = make([][2]string, len(res.Headers))
 		for i, kv := range res.Headers {

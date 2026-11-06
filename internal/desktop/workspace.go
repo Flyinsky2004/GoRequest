@@ -338,14 +338,10 @@ func (a *App) emptyTabHint(c *ui.Context, p uikit.Palette, msg string) {
 	})
 }
 
-// buildSettings holds per-request build options (currently the timeout).
+// buildSettings holds per-request build options and B04 network/transport settings.
 func (a *App) buildSettings(c *ui.Context, t *ui.Theme, tab *Tab, m *messages) {
-	p := uikit.PaletteFor(t)
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, m.TimeoutLabel).FontSize(12).TextColor(p.Muted)
-		if ui.TextInput(c, &tab.Timeout).Width(120).Placeholder("10s").Changed() {
-			tab.Dirty = true
-		}
+	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+		a.renderRequestNetworkSettings(c, t, tab)
 	})
 }
 

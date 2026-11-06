@@ -282,6 +282,7 @@ func (a *App) send(tab *Tab) {
 		a.status = translate(a.msg().RequestFailedPrefix, red.RedactError(err).Error())
 		return
 	}
+	a.attachNetworkToPlan(tab, req, plan, red)
 
 	tab.cancel = cancel
 	tab.Sending = true

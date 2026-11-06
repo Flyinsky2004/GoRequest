@@ -128,7 +128,7 @@
 | B03 | agy-B03 | `../GoRequest-B03` / `agy/B03-http-body` | 已合并，自动化通过；人工验收待补 | `ec3d6d5` / `b9a5812` + 本轮接线 | 基线 `666ed61`；终端 `t1q`，标签 `B03 HTTP Body · agy`；复杂 Body/文件映射/编码优先，公共入口交最小接线 patch |
 | B09 | agy-B09（Opus 5.5 High） | `../GoRequest-B09` / `agy/B09-docs-basic` | 已合并，自动化通过；架构/人工验收待补 | `5bbe4c7` / `6336f7d` + 本轮接线 | 基线 `23662f3`；终端 `t1r`，标签 `B09 文档工作台 · Opus 5.5`；模型 `claude-opus-5-5-high`；大纲/搜索/图片附件/离线导航，公共入口交接线 patch |
 | B02 | CC-B02（当前配置默认模型） | `../GoRequest-B02` / `cc/B02-workspace` | 已集成，自动化通过；人工/平台验收待补 | `a83cda1` / `8c1f18a` + 集成修复 | 基线 `c0b4f61`；Herdr `t24`，`B02 工作区 · CC`；补全局/项目互转与工作区缺口 |
-| B04 | agy-B04（Argon Medium） | `../GoRequest-B04` / `agy/B04-network-response` | 实施中（Full Access） | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t25`，`B04 网络响应 · agy Argon`；网络/Cookie/响应及 B05 策略端口挂接 |
+| B04 | agy-B04（Argon Medium） | `../GoRequest-B04` / `agy/B04-network-response` | 已集成，自动化通过；人工/平台验收待补 | `082f479` / `e5bda1b` + 网络接线 | 基线 `c0b4f61`；Herdr `t25`，`B04 网络响应 · agy Argon`；网络/Cookie/响应及 B05 策略端口挂接 |
 | B06 | CC-B06（当前配置默认模型） | `../GoRequest-B06` / `cc/B06-local-history` | 已集成，自动化通过；人工/平台验收待补 | `c78f468` / `c5548f1` + 集成修复 | 基线 `c0b4f61`；Herdr `t26`，`B06 本地历史 · CC`；在现有元数据历史上补快照/筛选/限额/隐私 |
 | B07 | CC-B07（当前配置默认模型） | `../GoRequest-B07` / `cc/B07-git` | 已集成，自动化通过；人工/平台验收待补 | `80014fd` / `0bee8f4` + 集成修复 | 基线 `c0b4f61`；Herdr `t27`，`B07 Git 工作流 · CC`；独立 Git 服务、面板及 hook/凭据策略 |
 | B08 | agy-B08（Argon Medium） | `../GoRequest-B08` / `agy/B08-import-export` | 已集成，自动化通过；人工/平台验收待补 | `6cf5fbd` / `0be5ae5` + 集成修复 | 基线 `c0b4f61`；Herdr `t28`，`B08 导入导出 · agy Argon`；cURL/Postman/便携包及变更预览 |
@@ -204,6 +204,21 @@ B09 启动核对：已确认新 worktree 的目录信任；屏幕明确显示 `C
 - [x] B02 本轮代码交付集成：工作区/互转/设置，补互转最新保存内容与脏缓冲保护。
 - [x] B06 本轮代码交付集成：本地历史/隐私策略，与工作区设置共存。
 - [x] B07 本轮代码交付集成：Git 导航、面板、模态及关闭时取消接线。
+- [x] B04 本轮代码交付集成：高级网络/Cookie/JSON 树/二进制保存，发送/请求设置入口接线；生产确认仍缺。
 - [x] B08 本轮代码交付集成：菜单/导入导出模态，补撤销编辑保护与附件冲突保护。
 
-以上子项只表示代码集成与自动化通过，不关闭第 3 节整卡；人工/平台及交付报告中的剩余项继续保留。B04 暂未纳入四项快照，其终端/分支在后续明确交付前保留。
+以上子项只表示代码集成与自动化通过，不关闭第 3 节整卡；人工/平台及交付报告中的剩余项继续保留。B04 随后完成提交 `082f479` 并以 `e5bda1b` 合入；主发送路径/设置接线与网络元数据脱敏由集成人补齐。
+
+## 11. 下一批领取边界（2 agy + 3 CC）
+
+第二批五卡合并后从新 main 的同一干净提交创建以下 worktree。实际终端/基线将在启动核对后登记；未核对启动前不视为执行中。各 agent 只修改本卡专属文件，公共模型/加载/桌面壳层交集成人 patch；本账本与实现状态由集成人更新。
+
+| 子任务 | 代理 | 分支 / worktree | 本轮边界与并行依赖 |
+| --- | --- | --- | --- |
+| A01 | CC | `cc/A01-runner-core` / `../GoRequest-A01` | 断言/提取、Runner/Suite/数据隔离/事件/报告；A02 等稳定接口后再开。Schema 校验用注入端口，复用 B04 网络。 |
+| A03 | agy Argon Medium | `agy/A03-openapi-schema` / `../GoRequest-A03` | OpenAPI/Schema 独立服务，3.1/3.2 分别验收；复用 B08 预览，公共路由和模型交 patch。 |
+| B05-UI | CC | `cc/B05-identity-ui` / `../GoRequest-B05-UI` | 复用方案/文件夹鉴权/系统凭据管理与生产确认 UI，复用现有引擎；不做 OAuth。 |
+| A04 | agy Argon Medium | `agy/A04-oauth-oidc` / `../GoRequest-A04` | OAuth/OIDC 独立服务/专属 UI，复用 B04/B05，不重写基础方案/凭据 UI。 |
+| R01-parser | CC | `cc/R01-core-parser` / `../GoRequest-R01-parser` | 仅移除 Core 对 MyGo Markdown parser 包路径依赖，保留文档语义；本轮唯一直接写 go.mod/go.sum 者。完整 R01 继续未完成。 |
+
+新卡不自动将整张正式版任务勾完；A01/A03/A04 先完成可运行闭环，再如实登记剩余阶段。新 agy 沿用用户切换后的 `gemini-4-argon-medium` 与会话 Full Access；CC 沿用当前默认配置。不得恢复额度已耗尽的旧 Opus 会话。

@@ -1,8 +1,10 @@
 package core
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -83,5 +85,29 @@ func TestPortableAttachmentConflictsProtectUserFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("attachment undo failed")
+	}
+}
+
+func TestNetworkResultSanitizerCoversNewMetadata(t *testing.T) {
+	red := NewRedactor()
+	red.RegisterSecret("network-secret")
+	raw := &ExecResult{
+		FinalURL:  "https://example.com/?key=network-secret",
+		Redirects: []RedirectHop{{FromURL: "https://example.com/network-secret", ToURL: "https://user:unregistered-password@example.com/"}},
+		Cookies:   []CookieEntry{{Name: "sid", Value: "unregistered-cookie"}},
+		Trace:     &NetworkTrace{ProxyUsed: "http://user:proxy-password@localhost:8080"},
+	}
+	safe := red.SanitizeExecResult(raw)
+	data, err := json.Marshal(safe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"network-secret", "unregistered-password", "unregistered-cookie", "proxy-password"} {
+		if strings.Contains(string(data), secret) {
+			t.Fatalf("metadata leaked %s", secret)
+		}
+	}
+	if raw.Cookies[0].Value != "unregistered-cookie" || raw.Redirects[0].FromURL != "https://example.com/network-secret" || raw.Trace.ProxyUsed != "http://user:proxy-password@localhost:8080" {
+		t.Fatal("sanitizer modified live network state")
 	}
 }

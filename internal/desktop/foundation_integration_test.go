@@ -2,6 +2,8 @@ package desktop
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -131,5 +133,28 @@ func TestFoundationImportIsRecordedInLocalHistoryAndVisibleToGit(t *testing.T) {
 	}
 	if _, err := os.Stat(ps.project.Dir + "/" + tab.Entry.RelPath); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestFoundationSendUsesNetworkJarAndLocalHistory(t *testing.T) {
+	a, ps := openTestProject(t, "NetworkHistory")
+	a.mgr.history = &historyStore{dir: t.TempDir()}
+	qw := &queuedWindow{fakeWindow: &fakeWindow{}, updates: make(chan func(), 16)}
+	a.win = qw
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "test-session-secret", Path: "/"})
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+	tab := openRequestTabs(t, ps, "SendWithNetwork")[0]
+	tab.URL = server.URL
+	a.send(tab)
+	waitForSendDone(t, qw, tab)
+	if tab.Resp == nil || tab.Resp.Trace == nil || a.cookieJarFor(ps).Count() != 1 {
+		t.Fatal("application send did not attach network options")
+	}
+	if len(a.mgr.history.load(historyKey(ps))) != 1 {
+		t.Fatal("network send not recorded in local history")
 	}
 }
