@@ -162,6 +162,9 @@ func (t *RequestTransfer) Apply() error {
 		return &ConflictError{Path: t.Entry.RelPath, Baseline: t.Entry.BaselineDigest, Disk: diskDigest}
 	}
 
+	if blocked, _ := sensitiveTransferFindings(t.Entry.Request); blocked {
+		return configErrorf("source now contains inline credentials; generate a new transfer preview")
+	}
 	var data []byte
 	if t.Mode == TransferMove {
 		// Moving preserves the file's own content byte for byte (the ID is
@@ -174,6 +177,10 @@ func (t *RequestTransfer) Apply() error {
 		if err != nil {
 			return err
 		}
+	}
+	var transferred Request
+	if err := decodeStrict(data, &transferred); err != nil {
+		return err
 	}
 	digest := Digest(data)
 	if err := t.Target.Store.SaveChecked(t.TargetRel, data, ""); err != nil {
@@ -189,10 +196,7 @@ func (t *RequestTransfer) Apply() error {
 		}
 	}
 
-	req := t.request
-	if t.Mode == TransferMove {
-		req = t.Entry.Request
-	}
+	req := &transferred
 	entry := &RequestEntry{
 		Request:        req,
 		RelPath:        t.TargetRel,

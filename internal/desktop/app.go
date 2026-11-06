@@ -34,6 +34,8 @@ type closeGuard struct {
 // closing one never discards another's edits, and a background request result
 // is posted to the window that started it.
 type App struct {
+	git      *gitController
+	gitView  bool
 	mgr      *Manager
 	win      window
 	ps       *projectState
@@ -197,6 +199,10 @@ func (a *App) View(c *ui.Context) {
 	a.formsModals(c, t)
 	a.transferModal(c, t)
 	a.b03CustomMethodModal(c, t)
+	a.InteropModals(c, t)
+	if a.git != nil {
+		a.git.modals(c, t)
+	}
 }
 
 func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {

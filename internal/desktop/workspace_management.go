@@ -339,6 +339,10 @@ func (a *App) applyTransfer() {
 	if d == nil || d.plan == nil {
 		return
 	}
+	if d.mode == core.TransferMove && d.sourceApp != nil && d.sourceApp.dirtyTabFor(d.entry) != nil {
+		d.err = translate(a.msg().TransferDirtyMove, d.entry.Request.Name)
+		return
+	}
 	if err := d.plan.Apply(); err != nil {
 		d.err = err.Error()
 		return

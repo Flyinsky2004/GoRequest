@@ -304,6 +304,7 @@ func (m *Manager) onWorkspaceClosed(app *App) {
 	app.closed = true
 	app.cancelAllRequests()
 	app.StopFileSync()
+	app.git.close()
 	customMethodMu.Lock()
 	delete(customMethodStates, app)
 	customMethodMu.Unlock()

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -348,24 +349,62 @@ func (r *ImportReceipt) Rollback() error {
 		return errors.New("import receipt already rolled back")
 	}
 	projRoot := projectRootDir(r.project)
-	var firstErr error
-	for i := len(r.rootApplied) - 1; i >= 0; i-- {
-		if err := rollbackProjectRootAttachment(projRoot, r.rootApplied[i]); err != nil && firstErr == nil {
-			firstErr = err
+	// Check every imported file before undoing any of them: later edits belong
+	// to the user and must survive an import undo.
+	for _, rw := range r.rootApplied {
+		data, exists, err := checkSafeProjectRootTarget(projRoot, rw.relPath)
+		if err != nil {
+			return err
+		}
+		if !exists || Digest(data) != Digest(rw.content) {
+			return &ConflictError{Path: rw.relPath, Baseline: Digest(rw.content), Disk: Digest(data)}
 		}
 	}
+	if cr := r.changeReceipt; cr != nil && !cr.rolledBack {
+		for _, preview := range cr.Previews {
+			rel := preview.RelPath
+			if preview.Kind == ChangeMove {
+				rel = preview.TargetPath
+			}
+			abs, err := cr.store.resolve(rel)
+			if err != nil {
+				return err
+			}
+			data, err := os.ReadFile(abs)
+			if err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			digest := ""
+			if err == nil {
+				digest = Digest(data)
+			}
+			if digest != preview.AfterDigest {
+				return &ConflictError{Path: rel, Baseline: preview.AfterDigest, Disk: digest}
+			}
+			if preview.Kind == ChangeMove && cr.store.Exists(preview.RelPath) {
+				return &ConflictError{Path: preview.RelPath}
+			}
+		}
+	}
+	for len(r.rootApplied) > 0 {
+		i := len(r.rootApplied) - 1
+		if err := rollbackProjectRootAttachment(projRoot, r.rootApplied[i]); err != nil {
+			return err
+		}
+		r.rootApplied = r.rootApplied[:i]
+	}
 	if r.changeReceipt != nil {
-		if err := r.changeReceipt.Rollback(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := r.changeReceipt.Rollback(); err != nil {
+			return err
 		}
 	}
 	if r.project != nil {
-		if err := ReloadProjectInMemory(r.project); err != nil && firstErr == nil {
-			firstErr = err
+		if err := ReloadProjectInMemory(r.project); err != nil {
+			return err
 		}
 	}
 	r.rolledBack = true
-	return firstErr
+	return nil
 }
 
 func projectRootDir(p *Project) string {

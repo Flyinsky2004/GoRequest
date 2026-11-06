@@ -227,6 +227,10 @@ func (a *App) ConfirmAndApplyImport() {
 		st.ImportErr = "Generate a preview before applying."
 		return
 	}
+	if err := a.checkImportBuffers(st.StagedPlan.Preview()); err != nil {
+		st.ImportErr = err.Error()
+		return
+	}
 	receipt, err := st.StagedPlan.Apply()
 	if err != nil {
 		st.ImportErr = err.Error()
@@ -277,6 +281,10 @@ func (a *App) RollbackLastImport() {
 		st.ImportErr = "No applied import receipt available to roll back."
 		return
 	}
+	if err := a.checkImportBuffers(st.LastReceipt.Preview()); err != nil {
+		st.ImportErr = err.Error()
+		return
+	}
 	if err := st.LastReceipt.Rollback(); err != nil {
 		st.ImportErr = err.Error()
 		return
@@ -284,19 +292,14 @@ func (a *App) RollbackLastImport() {
 	st.LastReceipt = nil
 	st.ImportErr = ""
 
-	// Close any open request tabs whose request no longer exists after rollback
-	var keptTabs []*Tab
-	for _, tab := range a.ps.tabs {
+	// Remove only clean tabs from the reverted import, preserving the active
+	// tab identity rather than adjusting its numeric index after rebuilding a slice.
+	for _, tab := range append([]*Tab(nil), a.ps.tabs...) {
 		if tab.Kind == "request" && tab.Entry != nil && tab.Entry.Request != nil {
-			if _, ok := a.ps.project.Requests[tab.Entry.Request.ID]; !ok {
-				continue
+			if _, ok := a.ps.project.Requests[tab.Entry.Request.ID]; !ok && !tab.Dirty && !tab.Sending {
+				a.ps.removeTab(tab)
 			}
 		}
-		keptTabs = append(keptTabs, tab)
-	}
-	a.ps.tabs = keptTabs
-	if a.ps.active >= len(a.ps.tabs) {
-		a.ps.active = len(a.ps.tabs) - 1
 	}
 
 	if peekFileSync(a.ps) != nil {
@@ -634,4 +637,25 @@ func writeExportBytes(targetPath string, data []byte) error {
 
 func _keepSlicesRef() {
 	_ = slices.Clone[[]string]
+}
+
+// checkImportBuffers protects edits made after a preview or after an import.
+// Applying or undoing a file transaction must never discard a dirty buffer.
+func (a *App) checkImportBuffers(preview core.ImportPreview) error {
+	affected := map[string]bool{}
+	for _, c := range preview.Changes {
+		affected[c.RelPath] = true
+		if c.TargetPath != "" {
+			affected[c.TargetPath] = true
+		}
+	}
+	for _, tab := range a.ps.tabs {
+		if affected[tabRelPath(tab)] && (tab.Dirty || tab.Sending) {
+			return fmt.Errorf(a.interopMsg().ImportBufferBusy, tabRelPath(tab))
+		}
+	}
+	if e := a.ps.envUI; e != nil && e.open && e.dirty() && affected[e.relPath] {
+		return fmt.Errorf(a.interopMsg().ImportBufferBusy, e.relPath)
+	}
+	return nil
 }

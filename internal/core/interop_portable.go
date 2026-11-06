@@ -719,7 +719,7 @@ func StagePortableBundleImport(p *Project, bundleBytes []byte, opts ImportOption
 				if action == "update" {
 					cs.Update(finalRel, raw, baseline)
 				} else {
-					cs.Create(finalRel, raw, )
+					cs.Create(finalRel, raw)
 				}
 			}
 		} else if strings.HasPrefix(rel, "assets/") || strings.HasPrefix(rel, "docs/assets/") {
@@ -1649,31 +1649,19 @@ func applyProjectRootAttachment(rootDir string, rw stagedRootFile) ([]byte, bool
 	if err != nil {
 		return nil, false, err
 	}
-	if rw.baselineDigest != "" {
-		if !existed {
-			return nil, false, fmt.Errorf("baseline mismatch for %q: file disappeared", rw.relPath)
-		}
-		if Digest(existing) != rw.baselineDigest {
-			return nil, false, fmt.Errorf("baseline mismatch for %q: modified externally", rw.relPath)
-		}
-	}
-	abs := filepath.Join(rootDir, filepath.FromSlash(rw.relPath))
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return nil, false, err
-	}
-	if err := os.WriteFile(abs, rw.content, 0o644); err != nil {
+	if err := NewStore(rootDir).SaveChecked(rw.relPath, rw.content, rw.baselineDigest); err != nil {
 		return nil, false, err
 	}
 	return existing, existed, nil
 }
 
 func rollbackProjectRootAttachment(rootDir string, rw stagedRootFile) error {
-	abs := filepath.Join(rootDir, filepath.FromSlash(rw.relPath))
-	if rw.existedBefore {
-		return os.WriteFile(abs, rw.previousBytes, 0o644)
-	}
-	if err := os.Remove(abs); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if _, _, err := checkSafeProjectRootTarget(rootDir, rw.relPath); err != nil {
 		return err
 	}
-	return nil
+	store := NewStore(rootDir)
+	if rw.existedBefore {
+		return store.SaveChecked(rw.relPath, rw.previousBytes, Digest(rw.content))
+	}
+	return store.RemoveChecked(rw.relPath, Digest(rw.content))
 }

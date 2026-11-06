@@ -80,6 +80,7 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
 	if mm.Item(m.MoveEllipsis).Disabled(!canMove).Chosen() {
 		a.openMove(tab)
 	}
+	a.BuildInteropProjectMenuItems(c, mm)
 	mm.Separator()
 	if mm.Item(m.CopyProjectPath).Chosen() {
 		if c != nil {
@@ -113,6 +114,7 @@ func (a *App) buildNewMenu(mm *ui.Menu, ps *projectState) {
 	if mm.Item(m.NewEnv).Chosen() {
 		a.openNewEnvironment()
 	}
+	a.BuildInteropNewMenuItems(mm)
 }
 
 // envMenu draws the environment selector. Its menu previews the current

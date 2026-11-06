@@ -127,11 +127,11 @@
 | B05 | agy-B05 | `../GoRequest-B05` / `agy/B05-identity` | 已合并，部分 UI/策略未完成 | `bdca843` / `45170c4` + 本轮接线 | 基线 `be92379`；Herdr 终端 `t1k`，标签 `B05 鉴权凭据 · agy`；优先 ref/继承/API Key 保真，公共壳层交接线 patch |
 | B03 | agy-B03 | `../GoRequest-B03` / `agy/B03-http-body` | 已合并，自动化通过；人工验收待补 | `ec3d6d5` / `b9a5812` + 本轮接线 | 基线 `666ed61`；终端 `t1q`，标签 `B03 HTTP Body · agy`；复杂 Body/文件映射/编码优先，公共入口交最小接线 patch |
 | B09 | agy-B09（Opus 5.5 High） | `../GoRequest-B09` / `agy/B09-docs-basic` | 已合并，自动化通过；架构/人工验收待补 | `5bbe4c7` / `6336f7d` + 本轮接线 | 基线 `23662f3`；终端 `t1r`，标签 `B09 文档工作台 · Opus 5.5`；模型 `claude-opus-5-5-high`；大纲/搜索/图片附件/离线导航，公共入口交接线 patch |
-| B02 | CC-B02（当前配置默认模型） | `../GoRequest-B02` / `cc/B02-workspace` | 实施中 | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t24`，`B02 工作区 · CC`；补全局/项目互转与工作区缺口 |
+| B02 | CC-B02（当前配置默认模型） | `../GoRequest-B02` / `cc/B02-workspace` | 已集成，自动化通过；人工/平台验收待补 | `a83cda1` / `8c1f18a` + 集成修复 | 基线 `c0b4f61`；Herdr `t24`，`B02 工作区 · CC`；补全局/项目互转与工作区缺口 |
 | B04 | agy-B04（Argon Medium） | `../GoRequest-B04` / `agy/B04-network-response` | 实施中（Full Access） | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t25`，`B04 网络响应 · agy Argon`；网络/Cookie/响应及 B05 策略端口挂接 |
-| B06 | CC-B06（当前配置默认模型） | `../GoRequest-B06` / `cc/B06-local-history` | 实施中 | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t26`，`B06 本地历史 · CC`；在现有元数据历史上补快照/筛选/限额/隐私 |
-| B07 | CC-B07（当前配置默认模型） | `../GoRequest-B07` / `cc/B07-git` | 实施中 | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t27`，`B07 Git 工作流 · CC`；独立 Git 服务、面板及 hook/凭据策略 |
-| B08 | agy-B08（Argon Medium） | `../GoRequest-B08` / `agy/B08-import-export` | 实施中（Full Access） | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t28`，`B08 导入导出 · agy Argon`；cURL/Postman/便携包及变更预览 |
+| B06 | CC-B06（当前配置默认模型） | `../GoRequest-B06` / `cc/B06-local-history` | 已集成，自动化通过；人工/平台验收待补 | `c78f468` / `c5548f1` + 集成修复 | 基线 `c0b4f61`；Herdr `t26`，`B06 本地历史 · CC`；在现有元数据历史上补快照/筛选/限额/隐私 |
+| B07 | CC-B07（当前配置默认模型） | `../GoRequest-B07` / `cc/B07-git` | 已集成，自动化通过；人工/平台验收待补 | `80014fd` / `0bee8f4` + 集成修复 | 基线 `c0b4f61`；Herdr `t27`，`B07 Git 工作流 · CC`；独立 Git 服务、面板及 hook/凭据策略 |
+| B08 | agy-B08（Argon Medium） | `../GoRequest-B08` / `agy/B08-import-export` | 已集成，自动化通过；人工/平台验收待补 | `6cf5fbd` / `0be5ae5` + 集成修复 | 基线 `c0b4f61`；Herdr `t28`，`B08 导入导出 · agy Argon`；cURL/Postman/便携包及变更预览 |
 | 其余未勾选任务 | 未分配 | 尚未创建 | 未分配 | 无 | 等后续派工逐项登记 |
 
 本轮启动记录：`/private/tmp/gorequest-agy-20261106/sessions.json`；每项同目录有 `<ID>.prompt.txt`、`<ID>.retry.log`、`<ID>.retry.output.json`。这些是本机临时运行资料，不提交 Git，后续可能清理；长期交付证据由各 agent 写入各自分支 `docs/task-results/<ID>.md`。首次 auto 启动因账号不支持及后台命令无法交互授权而退出；accept-edits + 会话命令 allow 规则重试同样被拒绝，均已退出，未产出功能改动。不修改用户全局设置。随后按用户指定的新版说明，用 Herdr app 在 GoRequest space 新建 B01/B05 两个标签页并交互启动 agy。首次启动分别为 `t1j`、`t1k`，当时状态 blocked，屏幕为 “Do you trust the contents of this project?”；当时依 hc 手册等待用户确认；后续已获明确 Full Access 授权并解除。最新启动句柄另记本机 `herdr-sessions.json`。PID 仅表示历史启动进程，后续查询应结合进程、日志和分支提交确认状态。启动前确认另有 `ui-stage3` worktree，两个 agy 均被要求不触碰它或 main；主目录的示例环境和 `.claude/` 保持原状。
@@ -196,3 +196,14 @@ B09 启动核对：已确认新 worktree 的目录信任；屏幕明确显示 `C
 交付到各自分支 `docs/task-results/<ID>.md` 与必要的 `<ID>-integration.patch`，记录提交、实际验证、未完成项、人工/平台限制。只在后续集成验收后勾完成，本次创建/启动不等于功能已实现。
 
 本机可恢复启动资料：`/private/tmp/gorequest-foundation-20261106/sessions.json` 与五份 `<ID>.prompt.txt`；临时资料可能被清理，长期任务范围以本节及对应任务卡为准。旧的第一批清理记录为历史，不代表本批新 worktree 已被删除。
+
+## 10. 第二批交付集成与后续派工（2026-11-06）
+
+集成起点 `7639c0e`，独立集成分支 `integrate/foundation-deliveries`。仅合并实际提交且可验证的交付；主目录原有示例环境和调试二进制保留，不提交。交付 patch 的 B02/B06 接线已在功能提交内，B07/B08 由集成人补齐；完整证据见 [第二批集成报告](task-results/integration-foundation-2026-11-06.md)。
+
+- [x] B02 本轮代码交付集成：工作区/互转/设置，补互转最新保存内容与脏缓冲保护。
+- [x] B06 本轮代码交付集成：本地历史/隐私策略，与工作区设置共存。
+- [x] B07 本轮代码交付集成：Git 导航、面板、模态及关闭时取消接线。
+- [x] B08 本轮代码交付集成：菜单/导入导出模态，补撤销编辑保护与附件冲突保护。
+
+以上子项只表示代码集成与自动化通过，不关闭第 3 节整卡；人工/平台及交付报告中的剩余项继续保留。B04 暂未纳入四项快照，其终端/分支在后续明确交付前保留。

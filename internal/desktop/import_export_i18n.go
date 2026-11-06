@@ -2,6 +2,7 @@ package desktop
 
 // interopMessages holds localized strings for the B08 Import / Export modals.
 type interopMessages struct {
+	ImportBufferBusy     string // %s path
 	ImportMenuLabel      string
 	ImportCURLMenuLabel  string
 	ExportMenuLabel      string
@@ -61,6 +62,7 @@ type interopMessages struct {
 }
 
 var interopEN = interopMessages{
+	ImportBufferBusy:     "Save or discard edits and stop any active request before changing %s.",
 	ImportMenuLabel:      "Import (cURL / Postman / Bundle)…",
 	ImportCURLMenuLabel:  "Import from cURL…",
 	ExportMenuLabel:      "Export / Portable Bundle…",
@@ -120,6 +122,7 @@ var interopEN = interopMessages{
 }
 
 var interopZH = interopMessages{
+	ImportBufferBusy:     "请先保存或放弃编辑，并停止正在执行的请求，再变更 %s。",
 	ImportMenuLabel:      "导入 (cURL / Postman / 便携包)…",
 	ImportCURLMenuLabel:  "从 cURL 导入…",
 	ExportMenuLabel:      "导出 / 便携包…",

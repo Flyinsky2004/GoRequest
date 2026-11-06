@@ -26,23 +26,32 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
 		a.navHeader(c, p)
 		ui.Box(c).Height(1).Background(p.Hairline)
 
-		// Requests / History switch (§3): a small segmented view toggle.
+		// Requests / History / Git switch (§3): a small segmented view toggle.
 		ui.Column(c).Padding(6, 10, 6, 10).Children(func() {
 			idx := 0
 			if a.historyView {
 				idx = 1
 			}
-			seg, changed := uikit.SimpleSegmented(c, p, &idx, []string{m.RequestsGroup, m.HistoryLabel})
+			if a.gitView {
+				idx = 2
+			}
+			seg, changed := uikit.SimpleSegmented(c, p, &idx, []string{m.RequestsGroup, m.HistoryLabel, a.gitMsg().NavLabel})
 			seg.FillWidth()
 			if changed {
 				a.historyView = idx == 1
+				a.gitView = idx == 2
 				if a.historyView {
 					a.reloadHistory()
 				}
 			}
 		})
 
-		if a.historyView {
+		if a.gitView {
+			if a.git == nil {
+				a.git = newGitController(a)
+			}
+			a.git.panel(c, t)
+		} else if a.historyView {
 			a.historyPanel(c, t)
 		} else {
 			a.filterBox(c, p, m)
