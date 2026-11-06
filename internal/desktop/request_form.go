@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -288,6 +289,22 @@ func textToRows(text string, kind kvKind) ([]*KVRow, error) {
 	return rows, nil
 }
 
+// autoHeadersFor lists the headers MyGo / net/http add for a request, shown
+// read-only at the top of the Headers tab so the user can see what actually
+// ships. Host and Content-Length come from the URL and body; the rest are the
+// client defaults.
+func autoHeadersFor(tab *Tab) [][2]string {
+	var out [][2]string
+	if u, err := url.Parse(strings.TrimSpace(tab.URL)); err == nil && u.Host != "" {
+		out = append(out, [2]string{"Host", u.Host})
+	}
+	if n := len([]byte(strings.TrimSpace(tab.BodyText))); n > 0 {
+		out = append(out, [2]string{"Content-Length", strconv.Itoa(n)})
+	}
+	out = append(out, [2]string{"Accept-Encoding", "gzip"}, [2]string{"User-Agent", "Go-http-client/1.1"})
+	return out
+}
+
 func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
@@ -318,6 +335,17 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 			}
 		}
 	})
+
+	if kind == kvHeader {
+		for _, h := range autoHeadersFor(tab) {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 8).Height(30).Children(func() {
+				ui.Box(c).Width(28)
+				ui.Icon(c, uikit.IconLock).FontSize(12).TextColor(p.Faint)
+				ui.Text(c, h[0]).FontSize(12).TextColor(p.Faint).Width(188)
+				ui.Text(c, h[1]).FontSize(12).TextColor(p.Faint).Grow(1).SingleLine()
+			}).Tooltip(m.AutoHeaderTip)
+		}
+	}
 
 	if textMode {
 		ui.Box(c).Grow(1).FillWidth().Radius(10).BorderWidth(1).BorderColor(p.Hairline).Clip().Children(func() {

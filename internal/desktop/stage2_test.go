@@ -85,3 +85,32 @@ func TestKVTextRoundTrip(t *testing.T) {
 		t.Fatal("a line without a separator must be an error")
 	}
 }
+
+func TestResponseEmptyStateSingleMessage(t *testing.T) {
+	a, ps := openTestProject(t, "Empty")
+	tab := openRequestTabs(t, ps, "Alpha")[0]
+	tab.Resp = nil
+	tt := ui.NewTester(a.View, 1100, 820)
+	tt.Frame()
+	if !tt.HasText("Send a request to see its response here") {
+		t.Fatalf("empty state missing; texts=%v", tt.Texts())
+	}
+	if tt.HasText("No response yet") {
+		t.Fatalf("duplicate 'No response yet' should be gone; texts=%v", tt.Texts())
+	}
+}
+
+func TestAutoHeadersShown(t *testing.T) {
+	a, ps := openTestProject(t, "AutoHdr")
+	tab := openRequestTabs(t, ps, "Alpha")[0]
+	tab.URL = "https://api.example.com/users"
+	tab.Section = 2 // Headers
+	tab.BodyText = "hello"
+	tt := ui.NewTester(a.View, 1100, 820)
+	tt.Frame()
+	for _, want := range []string{"Host", "Accept-Encoding", "Content-Length"} {
+		if !tt.HasText(want) {
+			t.Fatalf("auto header %q missing; texts=%v", want, tt.Texts())
+		}
+	}
+}

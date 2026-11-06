@@ -159,6 +159,7 @@ type messages struct {
 	AddRow         string
 	RowNoKey       string // %d, %q
 	VarLabel       string
+	AutoHeaderTip  string
 	UndefinedVars  string // %d
 	SendGuardTitle string
 	SendGuardHint  string // %s
@@ -179,6 +180,8 @@ type messages struct {
 	ErrorLabel        string
 	NoResponseYet     string
 	NoResponseHint    string
+	SendShortcutHint  string
+	CopyResponse      string
 	BodySection       string
 	HeadersSection    string
 	Pretty            string
@@ -373,6 +376,7 @@ var messagesZh = messages{
 	AddRow:         "添加行",
 	RowNoKey:       "第 %d 行：值 %q 没有键",
 	VarLabel:       "变量",
+	AutoHeaderTip:  "由请求内容自动生成",
 	UndefinedVars:  "%d 个变量未定义",
 	SendGuardTitle: "存在未定义变量",
 	SendGuardHint:  "以下变量在当前环境未定义：%s。发送前请定义，或仍然发送。",
@@ -391,6 +395,8 @@ var messagesZh = messages{
 	ErrorLabel:        "错误",
 	NoResponseYet:     "尚无响应",
 	NoResponseHint:    "发送请求以在此查看响应。",
+	SendShortcutHint:  "⌘↩ 发送 · ⌘L 聚焦地址栏",
+	CopyResponse:      "复制响应",
 	BodySection:       "正文",
 	HeadersSection:    "头部",
 	Pretty:            "美化",
@@ -578,6 +584,7 @@ var messagesEn = messages{
 	AddRow:         "Add row",
 	RowNoKey:       "row %d: value %q has no key",
 	VarLabel:       "Vars",
+	AutoHeaderTip:  "Generated automatically from the request",
 	UndefinedVars:  "%d undefined variable(s)",
 	SendGuardTitle: "Undefined variables",
 	SendGuardHint:  "These variables are undefined in the current environment: %s. Define them, or send anyway.",
@@ -596,6 +603,8 @@ var messagesEn = messages{
 	ErrorLabel:        "Error",
 	NoResponseYet:     "No response yet",
 	NoResponseHint:    "Send a request to see its response here.",
+	SendShortcutHint:  "⌘↩ send · ⌘L focus address",
+	CopyResponse:      "Copy response",
 	BodySection:       "Body",
 	HeadersSection:    "Headers",
 	Pretty:            "Pretty",

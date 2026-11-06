@@ -102,6 +102,10 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				if tab.RespSection == 0 {
 					ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw)
 				}
+				if b := uikit.IconButton(c, p, uikit.IconCopy, m.CopyResponse); b.Clicked() {
+					c.WriteClipboard(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
+					a.status = m.Copied
+				}
 			}
 		})
 
@@ -126,8 +130,11 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			return
 		}
 		if tab.Resp == nil {
-			ui.Column(c).Grow(1).Center().Children(func() {
-				ui.Text(c, m.NoResponseHint).TextColor(p.Muted)
+			// One empty state only (§7/D9): icon + one line + shortcut hint.
+			ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
+				ui.Icon(c, uikit.IconSend).FontSize(28).TextColor(p.Faint)
+				ui.Text(c, m.NoResponseHint).FontSize(13).TextColor(p.Muted)
+				ui.Text(c, m.SendShortcutHint).FontSize(12).TextColor(p.Faint)
 			})
 			return
 		}
@@ -163,7 +170,8 @@ func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palet
 			ui.Text(c, m.TruncatedNotice).FontSize(12).TextColor(uikit.MethodColor("POST", p))
 		}
 	default:
-		ui.Text(c, m.NoResponseYet).FontSize(12).TextColor(p.Muted)
+		// No response yet: the single centered empty state below carries the
+		// message, so the status line stays blank here (§7/D9).
 	}
 }
 

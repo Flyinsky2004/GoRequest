@@ -212,7 +212,7 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		}
 		uikit.UnderlineTabs(c, p, &tab.Section, labels, badges)
 
-		ui.SplitVertical(c, &tab.RespSize, func() {
+		ui.SplitVerticalPercent(c, &tab.Owner.buildPct, func() {
 			ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
 				switch tab.Section {
 				case 0:

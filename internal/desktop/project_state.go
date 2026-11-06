@@ -22,6 +22,9 @@ type projectState struct {
 	envSel   string
 	sel      string // sidebar selection id within this project ("req:..."/"doc:..."/"folder:...")
 	docSplit float32
+	// buildPct is the build/response split percentage (build pane share) for
+	// request tabs, 64 by default (§7) and adjusted when the user drags it.
+	buildPct float32
 
 	// envUI is the in-progress environment create/edit draft for this project.
 	// Keeping it per project means switching projects cannot apply one project's
@@ -42,6 +45,7 @@ func newProjectState(root string, p *core.Project) *projectState {
 		project:   p,
 		envSel:    "(none)",
 		docSplit:  0.5,
+		buildPct:  64,
 		expanded:  map[string]bool{},
 		collapsed: map[string]bool{},
 	}
