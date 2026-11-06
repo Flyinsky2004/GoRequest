@@ -30,6 +30,7 @@ go build -o bin/gorequest-desktop ./cmd/gorequest-desktop
 | 文档 | 内容 |
 | --- | --- |
 | [实现状态](docs/implementation-status.md) | **MVP 已实现能力、构建/运行、验证结果与未实现项** |
+| [正式版差距与并行任务账本](docs/parallel-work-plan.md) | 代码差距、CC/worktree 分工、依赖、验收与完成勾选 |
 | [产品需求](docs/product-requirements.md) | 定位、用户场景、基础能力、1.0+ 范围和优先级 |
 | [技术架构](docs/architecture.md) | Native UI、纯 Go Core、模块边界与执行生命周期 |
 | [存储格式](docs/storage-format.md) | 全局/项目分离、目录树、版本、请求与测试套件 YAML 示例 |
