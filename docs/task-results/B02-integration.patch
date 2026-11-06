@@ -1,0 +1,570 @@
+diff --git a/internal/desktop/app.go b/internal/desktop/app.go
+index 741d811..05b230b 100644
+--- a/internal/desktop/app.go
++++ b/internal/desktop/app.go
+@@ -6,6 +6,7 @@ package desktop
+ import (
+ 	"context"
+ 	"fmt"
++	"time"
+ 
+ 	"github.com/egoist/mygo"
+ 	"github.com/egoist/mygo/ui"
+@@ -96,6 +97,19 @@ type App struct {
+ 	moveProject *projectState
+ 	moveTarget  string
+ 	moveErr     string
++
++	// isGlobal marks the personal/scratch workspace window opened from the OS
++	// application-data directory. It is never written to the recent-project
++	// list and offers project transfers instead of being a project itself.
++	isGlobal bool
++
++	// transfer is the pending cross-workspace copy/move preview (B02).
++	transfer *transferDraft
++
++	// autoSaveStop stops the safe auto-save ticker when the window closes;
++	// autoSaveLast is the UI-thread clock of the last attempt.
++	autoSaveStop chan struct{}
++	autoSaveLast time.Time
+ }
+ 
+ // wire connects the project window's lifecycle to the manager and the close
+@@ -111,7 +125,15 @@ func (a *App) wire() {
+ 			a.openCloseGuard(false)
+ 		}
+ 	})
+-	a.win.OnClosed(func() { a.mgr.onWorkspaceClosed(a) })
++	a.win.OnClosed(func() {
++		a.stopAutoSaveTicker()
++		a.mgr.onWorkspaceClosed(a)
++	})
++	// Only a real native window owns a UI queue that can drive the timer; the
++	// headless fake windows used by tests never start a background goroutine.
++	if nw, ok := a.win.(nativeWindower); ok && nw.nativeWindow() != nil {
++		a.startAutoSaveTicker()
++	}
+ }
+ 
+ // saveGeometry remembers the window size and sidebar width so the workbench
+@@ -169,11 +191,12 @@ func (a *App) View(c *ui.Context) {
+ 	a.sendGuardModal(c, t)
+ 	a.historyClearModal(c, t)
+ 	a.formsModals(c, t)
++	a.transferModal(c, t)
+ 	a.b03CustomMethodModal(c, t)
+ }
+ 
+ func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
+-	renderSettings(c, t, a.mgr.cfg, &a.showSettings, func(s string) { a.status = s })
++	renderSettings(c, t, a.mgr.cfg, a.mgr.workspacePrefs(), &a.showSettings, func(s string) { a.status = s })
+ }
+ 
+ // --- actions -------------------------------------------------------------
+diff --git a/internal/desktop/collection_tree.go b/internal/desktop/collection_tree.go
+index 7714bb5..348a881 100644
+--- a/internal/desktop/collection_tree.go
++++ b/internal/desktop/collection_tree.go
+@@ -58,20 +58,13 @@ func (a *App) matchText(text string) bool {
+ }
+ 
+ func (a *App) reqMatch(e *core.RequestEntry) bool {
+-	if e == nil || e.Request == nil {
+-		return false
+-	}
+-	if a.matchText(e.Request.Name) {
+-		return true
+-	}
+-	if e.Request.HTTP != nil && a.matchText(e.Request.HTTP.Method) {
+-		return true
+-	}
+-	return false
++	// The shared Core matcher searches name, method, URL and body text, so the
++	// sidebar filter and any future result list agree on what "matches" means.
++	return core.MatchRequest(e, a.filterQuery)
+ }
+ 
+ func (a *App) docMatch(d *core.DocEntry) bool {
+-	return d != nil && a.matchText(d.Name)
++	return core.MatchDoc(d, a.filterQuery)
+ }
+ 
+ // folderMatch reports whether a folder or any descendant request/document
+diff --git a/internal/desktop/i18n.go b/internal/desktop/i18n.go
+index 4ba8496..bb407c1 100644
+--- a/internal/desktop/i18n.go
++++ b/internal/desktop/i18n.go
+@@ -91,6 +91,58 @@ type messages struct {
+ 	Projects        string
+ 	ProjectsTip     string
+ 
++	// New-project wizard and the personal workspace.
++	NewProject               string
++	NewProjectTip            string
++	NewProjectTitle          string
++	NewProjectHint           string
++	ProjectNamePlaceholder   string
++	ProjectLocationLabel     string
++	Browse                   string
++	ChooseProjectLocation    string
++	ChooseProjectLocationMsg string
++	NewProjectFolderHint     string
++	ErrEnterProjectName      string
++	ErrEnterProjectLocation  string
++	NewProjectFailed         string // %s
++	CreatedProject           string // %s
++	GlobalWorkspace          string
++	GlobalWorkspaceTip       string
++	GlobalWorkspaceTitle     string
++	GlobalWorkspaceOpened    string
++
++	// Recent-list management.
++	RecentSearchPlaceholder string
++	RecentNoMatch           string
++	PinRecent               string
++	UnpinRecent             string
++	RemoveRecent            string
++	RemovedRecent           string // %s
++
++	// Project <-> global workspace transfer.
++	CopyToGlobal            string
++	MoveToGlobal            string
++	CopyToProject           string
++	MoveToProject           string
++	TransferSameWorkspace   string
++	TransferTitle           string
++	TransferTarget          string
++	TransferIDCopy          string // %s
++	TransferIDMove          string // %s
++	TransferDirtyCopy       string
++	TransferDirtyMove       string // %s
++	TransferSecrets         string // %s
++	TransferBlocked         string
++	TransferConfirm         string
++	TransferDone            string // %s
++	TransferFailed          string // %s
++	TransferWarnInline      string // %s
++	TransferWarnAuth        string // %s
++	TransferWarnVar         string // %s
++	TransferWarnDoc         string // %s
++	TransferWarnLocalFile   string // %s
++	TransferWarnDefaultAuth string // %s
++
+ 	// Status line and validation feedback.
+ 	OpenFailed          string // %s
+ 	WindowNotReady      string
+@@ -163,6 +215,7 @@ type messages struct {
+ 	OpenRow        string
+ 	NewRequestHere string
+ 	Duplicate      string
++	DuplicateDoc   string
+ 	MoveTo         string
+ 	Delete         string
+ 	Undo           string
+@@ -310,6 +363,33 @@ type messages struct {
+ 	SecretNote          string
+ 	InMemoryConfig      string
+ 
++	// Workbench preferences (B02).
++	EditorSection         string
++	FontSizeLabel         string
++	FontSizeStatus        string // %d
++	TabSizeLabel          string
++	SoftWrapLabel         string
++	LineNumbersLabel      string
++	AutoSaveSection       string
++	AutoSaveEnable        string
++	AutoSaveDelayLabel    string
++	AutoSaveSafetyNote    string
++	AutoSaveOnStatus      string // %s
++	AutoSaveOffStatus     string
++	AutoSaveSkipped       string // %d
++	AutoSaveSaved         string // %d
++	ShortcutsSection      string
++	ShortcutsNote         string
++	ShortcutNewRequest    string
++	ShortcutCloseTab      string
++	ShortcutTabSwitch     string
++	ShortcutFocusURL      string
++	ShortcutQuickSearch   string
++	ShortcutEditEnv       string
++	ShortcutToggleSidebar string
++	ShortcutUndoDelete    string
++	ShortcutRename        string
++
+ 	// Native dialog titles/messages.
+ 	OpenDialogTitle   string
+ 	OpenDialogMessage string
+@@ -337,6 +417,55 @@ var messagesZh = messages{
+ 	Projects:        "项目",
+ 	ProjectsTip:     "显示项目选择窗口",
+ 
++	NewProject:               "新建项目…",
++	NewProjectTip:            "在所选位置创建一个新的 .gorequest 项目",
++	NewProjectTitle:          "新建项目",
++	NewProjectHint:           "在选定位置创建一个新的 GoRequest 项目；不会写入现有文件。",
++	ProjectNamePlaceholder:   "例如 订单 API",
++	ProjectLocationLabel:     "位置",
++	Browse:                   "浏览…",
++	ChooseProjectLocation:    "选择项目位置",
++	ChooseProjectLocationMsg: "新项目会创建为所选文件夹下的一个子文件夹。",
++	NewProjectFolderHint:     "项目会创建在「位置/名称」子文件夹中，该文件夹必须不存在或为空。",
++	ErrEnterProjectName:      "请输入项目名称。",
++	ErrEnterProjectLocation:  "请选择项目位置。",
++	NewProjectFailed:         "新建项目：%s",
++	CreatedProject:           "已创建项目 %s",
++	GlobalWorkspace:          "个人工作区",
++	GlobalWorkspaceTip:       "打开保存在本机的临时请求与个人集合",
++	GlobalWorkspaceTitle:     "个人工作区",
++	GlobalWorkspaceOpened:    "已打开个人工作区（本机数据目录，不属于任何 Git 项目）",
++
++	RecentSearchPlaceholder: "搜索最近项目…",
++	RecentNoMatch:           "没有匹配的最近项目",
++	PinRecent:               "固定到顶部",
++	UnpinRecent:             "取消固定",
++	RemoveRecent:            "从最近列表移除",
++	RemovedRecent:           "已从最近列表移除 %s",
++
++	CopyToGlobal:            "复制到个人工作区",
++	MoveToGlobal:            "移动到个人工作区",
++	CopyToProject:           "复制到项目",
++	MoveToProject:           "移动到项目",
++	TransferSameWorkspace:   "源和目标工作区相同",
++	TransferTitle:           "跨工作区转移预览",
++	TransferTarget:          "目标文件",
++	TransferIDCopy:          "复制会分配新 ID：%s",
++	TransferIDMove:          "移动会保留稳定 ID：%s",
++	TransferDirtyCopy:       "该请求有未保存编辑；只会复制已保存的版本。",
++	TransferDirtyMove:       "「%s」有未保存编辑，请先保存或放弃后再移动。",
++	TransferSecrets:         "保留的密钥引用（值不会复制）：%s",
++	TransferBlocked:         "已阻止：请先把内联凭据或字面 Cookie 改为 {{secret.name}} 引用。",
++	TransferConfirm:         "确认转移",
++	TransferDone:            "已转移到 %s",
++	TransferFailed:          "转移：%s",
++	TransferWarnInline:      "内联敏感值：%s（不会复制）",
++	TransferWarnAuth:        "目标缺少鉴权方案 %s",
++	TransferWarnVar:         "目标未定义变量 %s（环境仍可在运行时提供）",
++	TransferWarnDoc:         "目标缺少关联文档 %s",
++	TransferWarnLocalFile:   "本机文件绑定 %s 只保留槽名，需在目标设备重新绑定",
++	TransferWarnDefaultAuth: "目标项目默认鉴权为 %s，可能改变未显式设置鉴权的请求",
++
+ 	OpenFailed:          "打开失败：%s",
+ 	WindowNotReady:      "打开失败：窗口未就绪",
+ 	SwitchedTo:          "已切换到 %s",
+@@ -405,6 +534,7 @@ var messagesZh = messages{
+ 	OpenRow:        "打开",
+ 	NewRequestHere: "在此新建请求",
+ 	Duplicate:      "复制请求",
++	DuplicateDoc:   "复制文档",
+ 	MoveTo:         "移动到…",
+ 	Delete:         "删除",
+ 	Undo:           "撤销",
+@@ -544,6 +674,32 @@ var messagesZh = messages{
+ 	SecretNote:          "密钥值来自名为 GOREQUEST_SECRET_<NAME> 的环境变量；项目文件只保留 {{secret.name}} 引用。",
+ 	InMemoryConfig:      "内存中（无配置目录）",
+ 
++	EditorSection:         "编辑器",
++	FontSizeLabel:         "字号",
++	FontSizeStatus:        "编辑器字号：%d",
++	TabSizeLabel:          "缩进宽度",
++	SoftWrapLabel:         "自动换行",
++	LineNumbersLabel:      "显示行号",
++	AutoSaveSection:       "自动保存",
++	AutoSaveEnable:        "启用安全自动保存",
++	AutoSaveDelayLabel:    "保存间隔（秒）",
++	AutoSaveSafetyNote:    "自动保存只写入基线未变的缓冲区；外部修改、冲突和已删除文件会被跳过，绝不会覆盖或复活它们。",
++	AutoSaveOnStatus:      "已启用自动保存（%s 秒）",
++	AutoSaveOffStatus:     "已关闭自动保存",
++	AutoSaveSkipped:       "自动保存跳过 %d 个有外部修改或已删除的文件",
++	AutoSaveSaved:         "已自动保存 %d 个文件",
++	ShortcutsSection:      "快捷键",
++	ShortcutsNote:         "取消勾选可停用对应快捷键；输入框内的编辑快捷键不受影响。",
++	ShortcutNewRequest:    "新建请求",
++	ShortcutCloseTab:      "关闭当前标签",
++	ShortcutTabSwitch:     "切换标签",
++	ShortcutFocusURL:      "聚焦地址栏",
++	ShortcutQuickSearch:   "快速搜索",
++	ShortcutEditEnv:       "编辑环境",
++	ShortcutToggleSidebar: "显示/隐藏侧栏",
++	ShortcutUndoDelete:    "撤销删除",
++	ShortcutRename:        "重命名",
++
+ 	OpenDialogTitle:   "打开 GoRequest 项目",
+ 	OpenDialogMessage: "选择包含 .gorequest/ 目录的文件夹。",
+ }
+@@ -570,6 +726,55 @@ var messagesEn = messages{
+ 	Projects:        "Projects",
+ 	ProjectsTip:     "Show the project chooser",
+ 
++	NewProject:               "New Project…",
++	NewProjectTip:            "Create a new .gorequest project at a chosen location",
++	NewProjectTitle:          "New Project",
++	NewProjectHint:           "Create a new GoRequest project at a chosen location; nothing existing is overwritten.",
++	ProjectNamePlaceholder:   "e.g. Orders API",
++	ProjectLocationLabel:     "Location",
++	Browse:                   "Browse…",
++	ChooseProjectLocation:    "Choose Project Location",
++	ChooseProjectLocationMsg: "The new project is created as a subfolder of the folder you choose.",
++	NewProjectFolderHint:     "The project is created in a \"location/name\" subfolder, which must be missing or empty.",
++	ErrEnterProjectName:      "Enter a project name.",
++	ErrEnterProjectLocation:  "Choose a project location.",
++	NewProjectFailed:         "New project: %s",
++	CreatedProject:           "Created project %s",
++	GlobalWorkspace:          "Personal Workspace",
++	GlobalWorkspaceTip:       "Open local scratch requests and personal collections",
++	GlobalWorkspaceTitle:     "Personal Workspace",
++	GlobalWorkspaceOpened:    "Opened the personal workspace (local app data, not part of any Git project)",
++
++	RecentSearchPlaceholder: "Search recent projects…",
++	RecentNoMatch:           "No recent project matches",
++	PinRecent:               "Pin to top",
++	UnpinRecent:             "Unpin",
++	RemoveRecent:            "Remove from recents",
++	RemovedRecent:           "Removed %s from recent projects",
++
++	CopyToGlobal:            "Copy to Personal Workspace",
++	MoveToGlobal:            "Move to Personal Workspace",
++	CopyToProject:           "Copy to Project",
++	MoveToProject:           "Move to Project",
++	TransferSameWorkspace:   "Source and destination workspaces are the same",
++	TransferTitle:           "Cross-workspace Transfer Preview",
++	TransferTarget:          "Target file",
++	TransferIDCopy:          "Copy assigns a new ID: %s",
++	TransferIDMove:          "Move keeps the stable ID: %s",
++	TransferDirtyCopy:       "This request has unsaved edits; only its saved version is copied.",
++	TransferDirtyMove:       "%q has unsaved edits; save or discard before moving it.",
++	TransferSecrets:         "Secret references kept (values are not copied): %s",
++	TransferBlocked:         "Blocked: replace inline credentials or literal Cookies with {{secret.name}} references first.",
++	TransferConfirm:         "Transfer",
++	TransferDone:            "Transferred to %s",
++	TransferFailed:          "Transfer: %s",
++	TransferWarnInline:      "Inline sensitive value: %s (not copied)",
++	TransferWarnAuth:        "The destination has no auth scheme %s",
++	TransferWarnVar:         "Variable %s is not defined in the destination (an environment may still supply it)",
++	TransferWarnDoc:         "Linked document %s is missing in the destination",
++	TransferWarnLocalFile:   "Local file binding %s keeps only its slot name and must be rebound on this device",
++	TransferWarnDefaultAuth: "The destination's default auth is %s, which may change requests without explicit auth",
++
+ 	OpenFailed:          "open failed: %s",
+ 	WindowNotReady:      "open failed: window not ready",
+ 	SwitchedTo:          "switched to %s",
+@@ -638,6 +843,7 @@ var messagesEn = messages{
+ 	OpenRow:        "Open",
+ 	NewRequestHere: "New Request Here",
+ 	Duplicate:      "Duplicate Request",
++	DuplicateDoc:   "Duplicate Document",
+ 	MoveTo:         "Move To…",
+ 	Delete:         "Delete",
+ 	Undo:           "Undo",
+@@ -777,6 +983,32 @@ var messagesEn = messages{
+ 	SecretNote:          "Secret values come from environment variables named GOREQUEST_SECRET_<NAME>; project files keep only {{secret.name}} references.",
+ 	InMemoryConfig:      "in-memory (no config directory)",
+ 
++	EditorSection:         "Editor",
++	FontSizeLabel:         "Font size",
++	FontSizeStatus:        "Editor font size: %d",
++	TabSizeLabel:          "Indent width",
++	SoftWrapLabel:         "Soft wrap",
++	LineNumbersLabel:      "Show line numbers",
++	AutoSaveSection:       "Auto-save",
++	AutoSaveEnable:        "Enable safe auto-save",
++	AutoSaveDelayLabel:    "Save interval (seconds)",
++	AutoSaveSafetyNote:    "Auto-save writes only buffers whose baseline is unchanged; external edits, conflicts and deleted files are skipped, never overwritten or resurrected.",
++	AutoSaveOnStatus:      "Auto-save enabled (%s s)",
++	AutoSaveOffStatus:     "Auto-save disabled",
++	AutoSaveSkipped:       "Auto-save skipped %d file(s) with external changes or deletion",
++	AutoSaveSaved:         "Auto-saved %d file(s)",
++	ShortcutsSection:      "Shortcuts",
++	ShortcutsNote:         "Unchecking a shortcut removes that binding; editing shortcuts inside text fields are unaffected.",
++	ShortcutNewRequest:    "New request",
++	ShortcutCloseTab:      "Close current tab",
++	ShortcutTabSwitch:     "Switch tabs",
++	ShortcutFocusURL:      "Focus URL",
++	ShortcutQuickSearch:   "Quick search",
++	ShortcutEditEnv:       "Edit environment",
++	ShortcutToggleSidebar: "Toggle sidebar",
++	ShortcutUndoDelete:    "Undo delete",
++	ShortcutRename:        "Rename",
++
+ 	OpenDialogTitle:   "Open GoRequest Project",
+ 	OpenDialogMessage: "Choose a folder that contains a .gorequest/ directory.",
+ }
+diff --git a/internal/desktop/manager.go b/internal/desktop/manager.go
+index 7d61f38..83e4dce 100644
+--- a/internal/desktop/manager.go
++++ b/internal/desktop/manager.go
+@@ -65,6 +65,11 @@ type Manager struct {
+ 	history    *historyStore
+ 	newWindow  windowFactory
+ 	explicit   string // -project flag value, "" when none
++	// prefs holds the B02 workspace preferences (editor, auto-save, shortcut
++	// toggles and pinned recents) in their own local file. It is created on
++	// first use from the config directory, so a config-less test or run never
++	// writes to a real user path.
++	prefs *workspacePrefsStore
+ 
+ 	workspaces []*App
+ 	welcome    *welcomeState
+diff --git a/internal/desktop/settings.go b/internal/desktop/settings.go
+index 1814458..9a9105b 100644
+--- a/internal/desktop/settings.go
++++ b/internal/desktop/settings.go
+@@ -37,74 +37,83 @@ func applyAppearance(c *ui.Context, cfg *configStore) {
+ // project) while *open is true. It exposes configuration that actually works —
+ // appearance, interface language and the startup restore preference — plus real
+ // application info.
+-func renderSettings(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setStatus func(string)) {
++func renderSettings(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspacePrefsStore, open *bool, setStatus func(string)) {
+ 	if !*open {
+ 		return
+ 	}
+ 	ui.Modal(c, open, func() {
+-		settingsBody(c, t, cfg, open, setStatus)
++		settingsBody(c, t, cfg, prefs, open, setStatus)
+ 	})
+ }
+ 
+-func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setStatus func(string)) {
++func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspacePrefsStore, open *bool, setStatus func(string)) {
+ 	m := messagesFor(cfg.language())
+ 	p := uikit.PaletteFor(t)
+ 	ui.Column(c).Gap(10).MinWidth(520).Children(func() {
+ 		ui.Text(c, m.SettingsTitle).FontSize(17).FontWeight(700).TextColor(p.Text)
+-
+-		settingsGroup(c, p, m.AppearanceLabel, func() {
+-			choice := appearanceDisplay(m, cfg.appearance())
+-			if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
+-				cfg.setAppearance(appearanceCanonical(m, choice))
+-				if setStatus != nil {
+-					setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
+-				}
+-			}
+-		})
+-
+-		settingsGroup(c, p, m.LanguageLabel, func() {
+-			choice := languageLabel(cfg.language())
+-			if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
+-				cfg.setLanguage(languageFromLabel(choice))
+-				if setStatus != nil {
+-					langMsgs := messagesFor(cfg.language())
+-					setStatus(translate(langMsgs.LanguageStatus, languageLabel(cfg.language())))
+-				}
+-			}
+-		})
+-
+-		settingsGroup(c, p, m.StartupLabel, func() {
+-			restore := cfg.restoreLastEnabled()
+-			if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
+-				cfg.setRestoreLast(restore)
+-				if setStatus != nil {
+-					if restore {
+-						setStatus(m.StartupOn)
+-					} else {
+-						setStatus(m.StartupOff)
++		// The preference groups grew past a small welcome window, so they scroll
++		// while the Done action stays fixed and reachable.
++		ui.Scroll(c).MaxHeight(300).Children(func() {
++			ui.Column(c).Gap(10).Children(func() {
++				settingsGroup(c, p, m.AppearanceLabel, func() {
++					choice := appearanceDisplay(m, cfg.appearance())
++					if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
++						cfg.setAppearance(appearanceCanonical(m, choice))
++						if setStatus != nil {
++							setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
++						}
+ 					}
++				})
++
++				settingsGroup(c, p, m.LanguageLabel, func() {
++					choice := languageLabel(cfg.language())
++					if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
++						cfg.setLanguage(languageFromLabel(choice))
++						if setStatus != nil {
++							langMsgs := messagesFor(cfg.language())
++							setStatus(translate(langMsgs.LanguageStatus, languageLabel(cfg.language())))
++						}
++					}
++				})
++
++				settingsGroup(c, p, m.StartupLabel, func() {
++					restore := cfg.restoreLastEnabled()
++					if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
++						cfg.setRestoreLast(restore)
++						if setStatus != nil {
++							if restore {
++								setStatus(m.StartupOn)
++							} else {
++								setStatus(m.StartupOff)
++							}
++						}
++					}
++				})
++
++				if prefs != nil {
++					prefs.settingsGroups(c, p, m, setStatus)
+ 				}
+-			}
+-		})
+ 
+-		ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
+-			ui.Column(c).Gap(2).Children(func() {
+-				infoRow := func(k, v string) {
+-					ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+-						ui.Text(c, k).Width(120).FontSize(12).TextColor(p.Muted).SingleLine()
+-						ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
++				ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
++					ui.Column(c).Gap(2).Children(func() {
++						infoRow := func(k, v string) {
++							ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
++								ui.Text(c, k).Width(120).FontSize(12).TextColor(p.Muted).SingleLine()
++								ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
++							})
++						}
++						infoRow(m.VersionLabel, appVersion)
++						infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
++						infoRow(m.GoLabel, runtime.Version())
++						infoRow(m.ConfigFileLabel, configLocation(m, cfg))
++						infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
+ 					})
+-				}
+-				infoRow(m.VersionLabel, appVersion)
+-				infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
+-				infoRow(m.GoLabel, runtime.Version())
+-				infoRow(m.ConfigFileLabel, configLocation(m, cfg))
+-				infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
++				})
++
++				ui.Text(c, m.SecretNote).FontSize(12).TextColor(p.Muted)
+ 			})
+ 		})
+ 
+-		ui.Text(c, m.SecretNote).FontSize(12).TextColor(p.Muted)
+-
+ 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+ 			if ui.PrimaryButton(c, m.Done).Clicked() {
+ 				*open = false
+diff --git a/internal/desktop/uikit/icons.go b/internal/desktop/uikit/icons.go
+index 7145ae0..0b0281a 100644
+--- a/internal/desktop/uikit/icons.go
++++ b/internal/desktop/uikit/icons.go
+@@ -37,6 +37,7 @@ var (
+ 	IconCheck    = svgIcon(`<polyline points="20 6 9 17 4 12"/>`)
+ 	IconSend     = svgIcon(`<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>`)
+ 	IconStar     = svgIcon(`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`)
++	IconPin      = svgIcon(`<path d="M12 17v5"/><path d="M9 10.76V7h6v3.76a5 5 0 0 0 2 4V17H7v-2.24a5 5 0 0 0 2-4z"/>`)
+ 	IconRetry    = svgIcon(`<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>`)
+ 	IconCopy     = svgIcon(`<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>`)
+ 	IconFolder   = svgIcon(`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`)
+diff --git a/internal/desktop/workspace.go b/internal/desktop/workspace.go
+index ce4d25f..f8101d8 100644
+--- a/internal/desktop/workspace.go
++++ b/internal/desktop/workspace.go
+@@ -176,6 +176,8 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
+ 			return // The final tab may have been closed by the tab bar this frame.
+ 		}
+ 		a.fileSyncTabBanner(c, t, ps, tab)
++		a.applyEditorPrefs(tab)
++		a.workspaceBreadcrumb(c, t, tab)
+ 		if tab.Kind == "request" {
+ 			a.requestView(c, t, tab)
+ 		} else {
