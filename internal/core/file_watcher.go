@@ -2,8 +2,8 @@ package core
 
 import (
 	"context"
-	"encoding/binary"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -75,8 +75,13 @@ type ProjectWatcher struct {
 	doneCh    chan struct{}
 	closeOnce sync.Once
 
-	mu            sync.Mutex
+	mu sync.Mutex
+	// baselineToken and baselineFiles describe the last settled on-disk state.
+	// baselineFiles is kept so a single local write can be acknowledged per-path
+	// (see AcknowledgeCurrent) without swallowing unrelated concurrent external
+	// changes elsewhere in the tree.
 	baselineToken string
+	baselineFiles map[string]string
 
 	scans   atomic.Uint64
 	trigs   atomic.Uint64
@@ -94,7 +99,7 @@ func StartWatcher(parent context.Context, s *Store, opts WatchOptions, onChange 
 		parent = context.Background()
 	}
 	eff := opts.effective(s)
-	initialToken, err := computeTreeToken(s, eff.Limits)
+	initialFiles, err := computeTreeState(s, eff.Limits)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +112,8 @@ func StartWatcher(parent context.Context, s *Store, opts WatchOptions, onChange 
 		cancel:        cancel,
 		triggerCh:     make(chan struct{}, 1),
 		doneCh:        make(chan struct{}),
-		baselineToken: initialToken,
+		baselineToken: treeTokenOf(initialFiles),
+		baselineFiles: initialFiles,
 	}
 	go w.loop()
 	return w, nil
@@ -127,20 +133,44 @@ func (w *ProjectWatcher) Trigger() {
 	}
 }
 
-// AcknowledgeCurrent updates the watcher's settled token to match the current
-// on-disk tree so local saves recorded on the caller's thread do not fire a
-// redundant notification.
-func (w *ProjectWatcher) AcknowledgeCurrent() {
+// AcknowledgeCurrent updates the watcher's settled baseline so local writes do
+// not fire a redundant notification.
+//
+// With no paths it acknowledges the entire current tree (used after a full
+// SyncNow pass has reconciled all disk state). With explicit paths it advances
+// the baseline ONLY for those paths, leaving every other file at its prior
+// baseline digest. This is essential for correctness: acknowledging the whole
+// tree after saving one file would silently swallow a genuine external change
+// that happened to another file in the same window.
+func (w *ProjectWatcher) AcknowledgeCurrent(paths ...string) {
 	if w == nil {
 		return
 	}
-	tok, err := computeTreeToken(w.store, w.opts.Limits)
+	cur, err := computeTreeState(w.store, w.opts.Limits)
 	if err != nil {
 		return
 	}
 	w.mu.Lock()
-	w.baselineToken = tok
-	w.mu.Unlock()
+	defer w.mu.Unlock()
+	if len(paths) == 0 || w.baselineFiles == nil {
+		w.baselineFiles = cur
+		w.baselineToken = treeTokenOf(cur)
+		return
+	}
+	next := make(map[string]string, len(w.baselineFiles)+len(paths))
+	for k, v := range w.baselineFiles {
+		next[k] = v
+	}
+	for _, p := range paths {
+		p = filepath.ToSlash(p)
+		if d, ok := cur[p]; ok {
+			next[p] = d
+		} else {
+			delete(next, p)
+		}
+	}
+	w.baselineFiles = next
+	w.baselineToken = treeTokenOf(next)
 }
 
 // Stats returns a snapshot of the watcher's activity counters.
@@ -209,10 +239,11 @@ func (w *ProjectWatcher) loop() {
 
 	inspect := func() {
 		w.scans.Add(1)
-		tok, err := computeTreeToken(w.store, w.opts.Limits)
+		cur, err := computeTreeState(w.store, w.opts.Limits)
 		if err != nil {
 			return
 		}
+		tok := treeTokenOf(cur)
 		w.mu.Lock()
 		baseTok := w.baselineToken
 		w.mu.Unlock()
@@ -238,7 +269,7 @@ func (w *ProjectWatcher) loop() {
 			rem := w.opts.MaxBatchWait - elapsed
 			if rem <= 0 {
 				// Flush right away on MaxBatchWait ceiling.
-				w.flushToken(tok)
+				w.flushState(cur)
 				pendingToken = ""
 				batchStart = time.Time{}
 				stopDebounce()
@@ -265,12 +296,13 @@ func (w *ProjectWatcher) loop() {
 			// Re-verify once on quiet timer expiration: if still changing and under
 			// MaxBatchWait, wait one more short quiet window; otherwise flush.
 			w.scans.Add(1)
-			tok, err := computeTreeToken(w.store, w.opts.Limits)
+			cur, err := computeTreeState(w.store, w.opts.Limits)
 			if err != nil {
 				pendingToken = ""
 				batchStart = time.Time{}
 				continue
 			}
+			tok := treeTokenOf(cur)
 			w.mu.Lock()
 			baseTok := w.baselineToken
 			w.mu.Unlock()
@@ -284,7 +316,7 @@ func (w *ProjectWatcher) loop() {
 				wait := w.opts.DebounceWindow
 				if rem := w.opts.MaxBatchWait - time.Since(batchStart); rem < wait {
 					if rem <= 0 {
-						w.flushToken(tok)
+						w.flushState(cur)
 						pendingToken = ""
 						batchStart = time.Time{}
 						continue
@@ -294,20 +326,22 @@ func (w *ProjectWatcher) loop() {
 				armDebounce(wait)
 				continue
 			}
-			w.flushToken(tok)
+			w.flushState(cur)
 			pendingToken = ""
 			batchStart = time.Time{}
 		}
 	}
 }
 
-func (w *ProjectWatcher) flushToken(tok string) {
+func (w *ProjectWatcher) flushState(state map[string]string) {
+	tok := treeTokenOf(state)
 	w.mu.Lock()
 	if tok == w.baselineToken {
 		w.mu.Unlock()
 		return
 	}
 	w.baselineToken = tok
+	w.baselineFiles = state
 	w.mu.Unlock()
 
 	w.batches.Add(1)
@@ -316,17 +350,13 @@ func (w *ProjectWatcher) flushToken(tok string) {
 	}
 }
 
-// computeTreeToken hashes the sorted paths and content digests of all tracked
-// files under s.Root (respecting StoreLimits and ignoring temp/swap files).
-// Reading bounded content digests directly avoids false negatives when multiple
-// writes occur within coarse filesystem mtime granularity.
-func computeTreeToken(s *Store, limits StoreLimits) (string, error) {
+// computeTreeState returns a deterministic map of tracked-relative-path to
+// content digest for all files under s.Root. The map can be reduced to a token
+// (treeTokenOf) and is also used to acknowledge a single saved path without
+// disturbing the settled baseline of other files.
+func computeTreeState(s *Store, limits StoreLimits) (map[string]string, error) {
 	lim := limits.Effective()
-	type item struct {
-		rel    string
-		digest string
-	}
-	var items []item
+	files := map[string]string{}
 	count := 0
 	err := filepath.WalkDir(s.Root, func(absPath string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -352,7 +382,7 @@ func computeTreeToken(s *Store, limits StoreLimits) (string, error) {
 		rel := filepath.ToSlash(relOS)
 		if d.Type()&os.ModeSymlink != 0 {
 			if _, serr := s.resolve(rel); serr != nil {
-				items = append(items, item{rel: rel, digest: "symlink-err"})
+				files[rel] = "symlink-err"
 				if d.IsDir() {
 					return filepath.SkipDir
 				}
@@ -371,7 +401,7 @@ func computeTreeToken(s *Store, limits StoreLimits) (string, error) {
 		}
 		count++
 		if count > lim.MaxTrackedFiles {
-			items = append(items, item{rel: rel, digest: "limit-exceeded"})
+			files[rel] = "limit-exceeded"
 			return filepath.SkipAll
 		}
 		maxB := lim.MaxYAMLBytes
@@ -387,25 +417,45 @@ func computeTreeToken(s *Store, limits StoreLimits) (string, error) {
 			if fi, ierr := d.Info(); ierr == nil {
 				var sz [8]byte
 				binary.LittleEndian.PutUint64(sz[:], uint64(fi.Size()))
-				items = append(items, item{rel: rel, digest: "oversize:" + hex.EncodeToString(sz[:])})
+				files[rel] = "oversize:" + hex.EncodeToString(sz[:])
 			} else {
-				items = append(items, item{rel: rel, digest: "err"})
+				files[rel] = "err"
 			}
 			return nil
 		}
-		items = append(items, item{rel: rel, digest: dig})
+		files[rel] = dig
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].rel < items[j].rel })
+	return files, nil
+}
+
+func treeTokenOf(files map[string]string) string {
+	rels := make([]string, 0, len(files))
+	for rel := range files {
+		rels = append(rels, rel)
+	}
+	sort.Strings(rels)
 	h := sha256.New()
-	for _, it := range items {
-		h.Write([]byte(it.rel))
+	for _, rel := range rels {
+		h.Write([]byte(rel))
 		h.Write([]byte{0})
-		h.Write([]byte(it.digest))
+		h.Write([]byte(files[rel]))
 		h.Write([]byte{'\n'})
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// computeTreeToken hashes the sorted paths and content digests of all tracked
+// files under s.Root (respecting StoreLimits and ignoring temp/swap files).
+// Reading bounded content digests directly avoids false negatives when multiple
+// writes occur within coarse filesystem mtime granularity.
+func computeTreeToken(s *Store, limits StoreLimits) (string, error) {
+	files, err := computeTreeState(s, limits)
+	if err != nil {
+		return "", err
+	}
+	return treeTokenOf(files), nil
 }

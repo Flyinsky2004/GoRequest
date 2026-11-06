@@ -1088,8 +1088,26 @@ func (e *SyncEngine) ScanAndSync() (*SyncReport, error) {
 			continue
 		}
 
-		// Suppress self-write events when buffer is clean and already at NewDigest.
-		if !buf.Dirty && ev.NewDigest != "" && buf.BaselineDigest == ev.NewDigest && ev.Kind == SyncModified {
+		// Self-write suppression: if the on-disk digest already equals this
+		// buffer's own reading baseline, the change we observed is NOT an external
+		// divergence from what the buffer is based on — it is GoRequest's own
+		// write reflected back by the watcher (an in-place rename that rewrites
+		// the same path, a save whose snapshot echo raced the ack, etc.). This must
+		// be suppressed for clean AND dirty buffers so a local save/rename is never
+		// misreported as an external conflict; otherwise the user is offered a
+		// "reload disk" that would silently revert their unsaved edits.
+		if ev.Kind == SyncModified && ev.NewDigest != "" &&
+			buf.BaselineDigest != "" && buf.BaselineDigest == ev.NewDigest {
+			if buf.Dirty {
+				// Keep the dirty entry bound to the open tab so the in-memory model
+				// is not overwritten by the disk copy the tab already sits on top of.
+				if ev.EntityKind == EntityRequest && ev.EntityID != "" {
+					protectedDirtyReqIDs[ev.EntityID] = true
+				}
+				if ev.EntityKind == EntityEnvironment && ev.EntityID != "" {
+					protectedDirtyEnvIDs[ev.EntityID] = true
+				}
+			}
 			continue
 		}
 
