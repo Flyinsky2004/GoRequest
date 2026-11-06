@@ -193,7 +193,16 @@ func (a *App) projectContents(c *ui.Context, t *ui.Theme) {
 	filtering := a.filtering()
 	reqShown, folderShown, docShown := 0, 0, 0
 
-	ui.Column(c).Gap(1).FillWidth().Children(func() {
+	// The whole list accepts a dragged request as a drop on the root: the
+	// innermost accepting row (a folder) wins over this outer target.
+	list := ui.Column(c).Gap(1).FillWidth()
+	if _, ok := ui.DragOver[draggedRequest](list); ok {
+		list.Background(p.Accent.Alpha(0.10))
+	}
+	if dropped, ok := ui.Drop[draggedRequest](list); ok {
+		a.moveRequestByID(dropped.id, "")
+	}
+	list.Children(func() {
 		// Requests.
 		a.sectionHeader(c, p, m.RequestsGroup, "requests", []sectionAction{
 			{icon: uikit.IconPlus, tip: m.NewRequest, fn: a.openNewRequest},
@@ -263,6 +272,9 @@ func (a *App) requestRow(c *ui.Context, t *ui.Theme, ps *projectState, e *core.R
 	} else if sel {
 		row.Background(p.Press)
 	}
+	if over, ok := ui.DragOver[draggedRequest](row); ok && over.id != e.Request.ID {
+		row.Background(p.Accent.Alpha(0.16))
+	}
 	if row.Clicked() {
 		ps.sel = id
 		if err := ps.openSelection(id); err != nil {
@@ -270,11 +282,19 @@ func (a *App) requestRow(c *ui.Context, t *ui.Theme, ps *projectState, e *core.R
 		}
 	}
 	row.Children(func() {
-		a.drawTreeLabel(c, p, e, sel)
+		a.drawTreeLabel(c, p, e, sel, id)
 	})
+	row.PopoverMenu(func(mm *ui.Menu) { a.requestMenu(mm, e, id) })
+	// Request rows are drag sources; accepting a drop on another request row
+	// moves the dragged request into that row's folder (so releasing over a row
+	// never falls through to the root target).
+	row.Drag(draggedRequest{id: e.Request.ID})
+	if dropped, ok := ui.Drop[draggedRequest](row); ok && dropped.id != e.Request.ID {
+		a.moveRequestByID(dropped.id, folderRelOfPath(e.RelPath))
+	}
 }
 
-func (a *App) drawTreeLabel(c *ui.Context, p uikit.Palette, e *core.RequestEntry, sel bool) {
+func (a *App) drawTreeLabel(c *ui.Context, p uikit.Palette, e *core.RequestEntry, sel bool, selID string) {
 	weight := 500
 	col := p.Text
 	if sel {
@@ -284,7 +304,7 @@ func (a *App) drawTreeLabel(c *ui.Context, p uikit.Palette, e *core.RequestEntry
 		ui.Text(c, e.Request.HTTP.Method).Font("monospace").FontWeight(700).FontSize(11).
 			TextColor(uikit.MethodColor(e.Request.HTTP.Method, p)).Width(42).SingleLine()
 	}
-	ui.RichText(c, a.nameSpans(p, e.Request.Name, weight, col)...).Grow(1)
+	a.treeRowLabel(c, selID, a.nameSpans(p, e.Request.Name, weight, col))
 }
 
 // folderNode draws a folder as a row with a rotating chevron and folder icon,
@@ -294,7 +314,8 @@ func (a *App) drawTreeLabel(c *ui.Context, p uikit.Palette, e *core.RequestEntry
 func (a *App) folderNode(c *ui.Context, t *ui.Theme, ps *projectState, n *core.CollectionEntry, depth, order int) {
 	filtering := a.filtering()
 	open := ps.expanded[n.RelPath] || filtering
-	sel := ps.sel == "folder:"+n.RelPath
+	selID := "folder:" + n.RelPath
+	sel := ps.sel == selID
 	p := uikit.PaletteFor(t)
 
 	row := ui.Row(c).Key("folder-node:"+n.RelPath).FillWidth().AlignItems(ui.Center).Height(30).
@@ -303,6 +324,9 @@ func (a *App) folderNode(c *ui.Context, t *ui.Theme, ps *projectState, n *core.C
 		row.Background(p.Hover)
 	} else if sel {
 		row.Background(p.Press)
+	}
+	if _, ok := ui.DragOver[draggedRequest](row); ok {
+		row.Background(p.Accent.Alpha(0.18))
 	}
 	row.Children(func() {
 		b := ui.Row(c).Grow(1).Height(30).Gap(6).AlignItems(ui.Center)
@@ -318,22 +342,26 @@ func (a *App) folderNode(c *ui.Context, t *ui.Theme, ps *projectState, n *core.C
 			if sel {
 				weight = 600
 			}
-			ui.RichText(c, a.nameSpans(p, n.Name, weight, p.Text)...).Grow(1)
+			a.treeRowLabel(c, selID, a.nameSpans(p, n.Name, weight, p.Text))
 		})
 		b.Label(n.Name)
 		if b.Clicked() {
 			ps.expanded[n.RelPath] = !ps.expanded[n.RelPath]
-			ps.sel = "folder:" + n.RelPath
+			ps.sel = selID
 		}
 		if row.Hovered() {
 			plus := uikit.IconButton(c, p, uikit.IconPlus, a.msg().NewRequest)
 			plus.Absolute().Right(6).Top(-2)
 			if plus.Clicked() {
-				ps.sel = "folder:" + n.RelPath
+				ps.sel = selID
 				a.openNewRequest()
 			}
 		}
 	})
+	row.PopoverMenu(func(mm *ui.Menu) { a.folderMenu(mm, n, selID) })
+	if dropped, ok := ui.Drop[draggedRequest](row); ok {
+		a.moveRequestByID(dropped.id, collectionRelOf(n.RelPath))
+	}
 	if !open {
 		return
 	}
@@ -371,7 +399,7 @@ func (a *App) docRow(c *ui.Context, t *ui.Theme, ps *projectState, d *core.DocEn
 		}
 		b.Children(func() {
 			ui.Icon(c, uikit.IconFile).FontSize(13).TextColor(p.Muted)
-			ui.RichText(c, a.nameSpans(p, d.Name, weight, p.Text)...).Grow(1)
+			a.treeRowLabel(c, id, a.nameSpans(p, d.Name, weight, p.Text))
 		})
 		b.Label(d.Name)
 		if b.Clicked() {
@@ -381,4 +409,5 @@ func (a *App) docRow(c *ui.Context, t *ui.Theme, ps *projectState, d *core.DocEn
 			}
 		}
 	})
+	row.PopoverMenu(func(mm *ui.Menu) { a.docMenu(mm, d, id) })
 }
