@@ -1,0 +1,117 @@
+diff --git a/internal/core/validate.go b/internal/core/validate.go
+index c6cd40b..08636ae 100644
+--- a/internal/core/validate.go
++++ b/internal/core/validate.go
+@@ -78,8 +78,10 @@ func validateRequest(r *Request, path string, p *Project) []Issue {
+ 		add("http-missing", "request has no http block")
+ 		return issues
+ 	}
+-	if strings.ContainsAny(r.HTTP.Method, " \t\r\n") {
+-		add("method", fmt.Sprintf("invalid method %q", r.HTTP.Method))
++	if strings.TrimSpace(r.HTTP.Method) != "" {
++		if err := ValidateHTTPMethod(r.HTTP.Method); err != nil {
++			add("method", err.Error())
++		}
+ 	}
+ 	if strings.TrimSpace(r.HTTP.URL) == "" {
+ 		add("url", "request url is empty")
+@@ -90,15 +92,8 @@ func validateRequest(r *Request, path string, p *Project) []Issue {
+ 		}
+ 	}
+ 	if r.HTTP.Body != nil {
+-		switch strings.ToLower(strings.TrimSpace(r.HTTP.Body.Type)) {
+-		case "json", "text", "xml":
+-		case "":
+-			add("body-type", "body has no type")
+-		default:
+-			add("body-type", fmt.Sprintf("unsupported body type %q (MVP supports json, text, xml)", r.HTTP.Body.Type))
+-		}
+-		if r.HTTP.Body.File != "" {
+-			add("body-file", "body.file is not supported yet")
++		if err := ValidateBody(r.HTTP.Body); err != nil {
++			add("body", err.Error())
+ 		}
+ 	}
+ 	if r.Timeout != "" {
+diff --git a/internal/desktop/app.go b/internal/desktop/app.go
+index 4873676..6faaa8c 100644
+--- a/internal/desktop/app.go
++++ b/internal/desktop/app.go
+@@ -134,6 +134,7 @@ func (a *App) View(c *ui.Context) {
+ 	a.closeGuardModal(c, t)
+ 	a.sendGuardModal(c, t)
+ 	a.formsModals(c, t)
++	a.b03CustomMethodModal(c, t)
+ }
+ 
+ func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
+@@ -214,27 +215,17 @@ func (a *App) clearDirty() {
+ // meanwhile, so a result can never land in another project's window.
+ func (a *App) send(tab *Tab) {
+ 	ps := a.ps
+-	req, err := requestFromTab(tab)
+-	if err != nil {
+-		a.status = translate(a.msg().RequestFailedPrefix, err.Error())
+-		return
+-	}
+-	vars, _, err := ps.project.ResolveVars(tab.Entry, ps.currentEnv())
+-	if err != nil {
+-		a.status = err.Error()
+-		return
+-	}
+-	auth, err := ps.project.AuthFor(req)
+-	if err != nil {
+-		a.status = err.Error()
+-		return
+-	}
+-	plan, err := core.BuildPlan(req, vars, a.mgr.secrets, auth)
++	ctx, cancel := context.WithCancel(context.Background())
++	req, plan, err := a.buildTabPlan(ctx, tab)
+ 	if err != nil {
+-		a.status = err.Error()
++		cancel()
++		if req == nil {
++			a.status = translate(a.msg().RequestFailedPrefix, err.Error())
++		} else {
++			a.status = err.Error()
++		}
+ 		return
+ 	}
+-	ctx, cancel := context.WithCancel(context.Background())
+ 	tab.cancel = cancel
+ 	tab.Sending = true
+ 	tab.RespErr = ""
+diff --git a/internal/desktop/project_state.go b/internal/desktop/project_state.go
+index cd44bdd..6c363f2 100644
+--- a/internal/desktop/project_state.go
++++ b/internal/desktop/project_state.go
+@@ -181,6 +181,7 @@ func fillTabFromRequest(tab *Tab, entry *core.RequestEntry, p *core.Project) {
+ 		tab.BodyIdx = indexOf(bodyTypes, req.HTTP.Body.Type)
+ 		tab.BodyText = core.BodyEditText(req.HTTP.Body)
+ 	}
++	tab.resetBodyState()
+ 	fillAuth(p, tab, req)
+ }
+ 
+diff --git a/internal/desktop/workspace.go b/internal/desktop/workspace.go
+index 75666bd..bbd3c20 100644
+--- a/internal/desktop/workspace.go
++++ b/internal/desktop/workspace.go
+@@ -249,7 +249,7 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
+ 			grp := ui.Row(c).Grow(1).Height(40).Radius(10).BorderWidth(1).BorderColor(p.Hairline).
+ 				Background(p.BG).AlignItems(ui.Center).Clip()
+ 			grp.Children(func() {
+-				a.methodPicker(c, p, tab)
++				a.b03MethodPicker(c, p, tab)
+ 				ui.Box(c).Width(1).Height(22).Background(p.Hairline)
+ 				inp := ui.TextInput(c, &tab.URL).Grow(1).Font("monospace")
+ 				inp.OnShortcut(0, ui.KeyEnter, func() { a.trySend(tab) })
+@@ -279,7 +279,7 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
+ 				a.trySend(tab)
+ 			}
+ 		})
+-		a.urlVarLine(c, t, tab)
++		a.b03URLPreview(c, t, tab)
+ 	})
+ }
+ 
