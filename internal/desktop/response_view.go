@@ -156,42 +156,96 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 // responseFindBar is the small in-panel find strip (§7): a query field, match
 // count, and previous/next buttons. It drives the read-only response editor's
 // native find instead of opening a system dialog.
+// findMatches returns the start offsets of query in text, case-insensitively.
+// It is capped so a pathological query cannot stall a frame.
+func findMatches(text, query string) []int {
+	if query == "" {
+		return nil
+	}
+	lower, q := strings.ToLower(text), strings.ToLower(query)
+	var out []int
+	for i := 0; len(out) < 10000; {
+		j := strings.Index(lower[i:], q)
+		if j < 0 {
+			break
+		}
+		at := i + j
+		out = append(out, at)
+		i = at + len(q)
+	}
+	return out
+}
+
+// lineOf returns the 0-based line number containing offset in text.
+func lineOf(text string, offset int) int {
+	if offset < 0 {
+		return 0
+	}
+	if offset > len(text) {
+		offset = len(text)
+	}
+	return strings.Count(text[:offset], "\n")
+}
+
+// responseFindBar is the small in-panel find strip (§7): a query field, match
+// count, and previous/next buttons. It selects the match in the read-only
+// response editor, never opening a system dialog or the editor's own bar.
 func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
 	if !tab.respFindOpen {
 		return
 	}
 	m := a.msg()
 	p := uikit.PaletteFor(t)
+	st := a.responseEditorFor(t, tab)
+	body := responseBodyText(tab.Resp, tab.RespRawIdx == 1)
 	ui.Row(c).Gap(6).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
 		ui.Icon(c, uikit.IconSearch).FontSize(13).TextColor(p.Muted)
 		in := ui.TextInput(c, &tab.respFindQuery).Width(220).Placeholder(m.FindPlaceholder)
-		// Focus only on the frame the bar opens, so the prev/next buttons stay
-		// clickable and typing does not fight a per-frame Focus.
 		if tab.respFindFocus {
 			in.Focus()
 			tab.respFindFocus = false
 		}
 		in.OnShortcut(0, ui.KeyEscape, func() { tab.respFindOpen = false })
-		in.OnShortcut(ui.Cmd, ui.KeyF, func() { tab.respFindOpen = false })
-		st := a.responseEditorFor(t, tab)
 		if in.Changed() {
-			st.Find(tab.respFindQuery)
+			tab.respFindIdx = 0
+			tab.respFindJump = true
 		}
-		count, current := st.FindMatches()
-		if count > 0 {
-			ui.Textf(c, m.FindCount, current+1, count).FontSize(11).FontFeatures("tnum").TextColor(p.Faint)
-		} else if tab.respFindQuery != "" {
-			ui.Text(c, m.FindNone).FontSize(11).TextColor(p.Faint)
-		}
+		matches := findMatches(body, tab.respFindQuery)
 		ui.Box(c).Grow(1)
-		if ui.Button(c, "↑").Clicked() {
-			st.Run(editor.FindPrevious)
-		}
-		if ui.Button(c, "↓").Clicked() {
-			st.Run(editor.FindNext)
+		if len(matches) > 0 {
+			if ui.Button(c, "↑").Clicked() {
+				tab.respFindIdx--
+				tab.respFindJump = true
+			}
+			if ui.Button(c, "↓").Clicked() {
+				tab.respFindIdx++
+				tab.respFindJump = true
+			}
+			// Clamp after the buttons so a click never indexes out of range.
+			if tab.respFindIdx >= len(matches) {
+				tab.respFindIdx = 0
+			}
+			if tab.respFindIdx < 0 {
+				tab.respFindIdx = len(matches) - 1
+			}
+			ui.Textf(c, m.FindCount, tab.respFindIdx+1, len(matches)).FontSize(11).
+				FontFeatures("tnum").TextColor(p.Faint)
+		} else {
+			tab.respFindIdx = 0
+			if tab.respFindQuery != "" {
+				ui.Text(c, m.FindNone).FontSize(11).TextColor(p.Faint)
+			}
 		}
 		if b := uikit.IconButton(c, p, uikit.IconClose, m.Cancel); b.Clicked() {
 			tab.respFindOpen = false
+		}
+		// Jump only when the query or the chosen match changed, so the user's
+		// own selection in the body is left alone on later frames.
+		if tab.respFindJump && len(matches) > 0 {
+			start := matches[tab.respFindIdx]
+			st.Select(start, start+len(tab.respFindQuery))
+			st.ScrollTo(lineOf(body, start))
+			tab.respFindJump = false
 		}
 	})
 }

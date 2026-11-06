@@ -32,7 +32,9 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
 			if a.historyView {
 				idx = 1
 			}
-			if _, changed := uikit.Segmented(c, p, &idx, []string{m.RequestsGroup, m.HistoryLabel}); changed {
+			seg, changed := uikit.SimpleSegmented(c, p, &idx, []string{m.RequestsGroup, m.HistoryLabel})
+			seg.FillWidth()
+			if changed {
 				a.historyView = idx == 1
 				if a.historyView {
 					a.reloadHistory()

@@ -150,8 +150,10 @@ func Segmented(c *ui.Context, p Palette, selected *int, labels []string) (ui.Ele
 			d.Opacity(d.AnimateTo("seg-div", op, AnimHover))
 		}
 
-		// Labels on top.
-		ui.Row(c).FillHeight().Children(func() {
+		// Labels on top. The row fills the track so its cells line up with the
+		// percentage-positioned capsule; a shrink-to-fit row would leave the
+		// labels bunched under the capsule.
+		ui.Row(c).FillWidth().FillHeight().Children(func() {
 			for i, label := range labels {
 				i := i
 				cell := ui.Box(c).Grow(1).FillHeight().Center()
@@ -173,6 +175,45 @@ func Segmented(c *ui.Context, p Palette, selected *int, labels []string) (ui.Ele
 				}
 			}
 		})
+	})
+	return track, changed
+}
+
+// SimpleSegmented is a small two-or-more-way switch built from ordinary
+// layout (no absolutely positioned capsule), so it stays aligned at any
+// explicit width: a rounded track with one rounded cell per label, the chosen
+// cell filled with the capsule color. The returned bool reports a change.
+func SimpleSegmented(c *ui.Context, p Palette, selected *int, labels []string) (ui.Element, bool) {
+	n := len(labels)
+	if *selected < 0 {
+		*selected = 0
+	}
+	if *selected >= n {
+		*selected = n - 1
+	}
+	track := ui.Row(c).Height(24).Radius(6).Padding(2).Gap(2).Background(trackColor(p))
+	var changed bool
+	track.Children(func() {
+		for i, label := range labels {
+			i := i
+			cell := ui.Box(c).Grow(1).FillHeight().Radius(4).Center()
+			if i == *selected {
+				cell.Background(capsuleColor(p))
+			}
+			cell.Children(func() {
+				col, weight := p.Muted, 500
+				if i == *selected {
+					col, weight = p.Text, 600
+				} else if cell.Hovered() {
+					col = p.Text
+				}
+				ui.Text(c, label).FontSize(13).FontWeight(weight).TextColor(col).SingleLine()
+			})
+			if cell.Clicked() && i != *selected {
+				*selected = i
+				changed = true
+			}
+		}
 	})
 	return track, changed
 }

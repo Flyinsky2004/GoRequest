@@ -81,6 +81,8 @@ type Tab struct {
 	respFindOpen  bool
 	respFindQuery string
 	respFindFocus bool
+	respFindIdx   int
+	respFindJump  bool
 }
 
 // requestFromTab builds a core.Request from the tab's edited fields.

@@ -376,18 +376,17 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 	rows := tab.rows(kind)
 	textMode := *tab.textMode(kind)
 
-	// Column headers — shown once — plus the key:value / text switch.
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 8).Children(func() {
-		ui.Box(c).Width(14)
-		ui.Box(c).Width(16)
-		ui.Text(c, m.Key).FontSize(12).FontWeight(600).TextColor(p.Muted).Width(200)
-		ui.Text(c, m.Value).FontSize(12).FontWeight(600).TextColor(p.Muted).Grow(1)
-		ui.Box(c).Width(28)
+	// View switch, right-aligned in its own row above the table so it never
+	// squeezes the column headers (§6).
+	ui.Row(c).Padding(0, 8).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Grow(1)
 		idx := 0
 		if textMode {
 			idx = 1
 		}
-		if _, changed := uikit.Segmented(c, p, &idx, []string{m.KeyValueMode, m.TextMode}); changed {
+		seg, changed := uikit.SimpleSegmented(c, p, &idx, []string{m.KeyValueMode, m.TextMode})
+		seg.Width(132)
+		if changed {
 			if idx == 1 {
 				*tab.rawPtr(kind) = rowsToText(rows, kind)
 				tab.kvErr = ""
@@ -402,10 +401,20 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 		}
 	})
 
+	// Column headers — shown once.
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 8).Children(func() {
+		ui.Box(c).Width(14)
+		ui.Box(c).Width(16)
+		ui.Text(c, m.Key).FontSize(12).FontWeight(600).TextColor(p.Muted).Width(200)
+		ui.Text(c, m.Value).FontSize(12).FontWeight(600).TextColor(p.Muted).Grow(1)
+		ui.Box(c).Width(28)
+	})
+
 	if kind == kvHeader {
 		for _, h := range autoHeadersFor(tab) {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 8).Height(30).Children(func() {
-				ui.Box(c).Width(28)
+				ui.Box(c).Width(14)
+				ui.Box(c).Width(16)
 				ui.Icon(c, uikit.IconLock).FontSize(12).TextColor(p.Faint)
 				ui.Text(c, h[0]).FontSize(12).TextColor(p.Faint).Width(188)
 				ui.Text(c, h[1]).FontSize(12).TextColor(p.Faint).Grow(1).SingleLine()

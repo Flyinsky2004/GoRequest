@@ -215,6 +215,13 @@ func TestResponseFindBarOpens(t *testing.T) {
 	if !tab.respFindOpen {
 		t.Fatal("⌘F should open the response find bar")
 	}
+	// Typing a query shows the hit count and prev/next controls.
+	tab.respFindQuery = "needle"
+	tab.respFindJump = true
+	tt.Frame()
+	if !tt.HasText("1 / 1") {
+		t.Fatalf("find count missing; texts=%v", tt.Texts())
+	}
 	if !tt.HasText("↑") || !tt.HasText("↓") {
 		t.Fatalf("find bar prev/next buttons missing; texts=%v", tt.Texts())
 	}
