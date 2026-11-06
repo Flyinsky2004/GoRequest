@@ -1,0 +1,65 @@
+# A01 Runner Core 公共接线说明（增量 patch）
+
+状态：A01 专属模块已实现并自测。本文件是给集成人的精确接线说明；`core/model.go` 等公共入口**本卡未修改**，因此没有强制性公共代码 patch。请勿把下面的示例当作已冻结的公共模型字段。
+
+## 1. 本卡实际新增文件
+
+- `internal/runner/**`：断言/JSONPath 子集、提取/敏感传播、Suite DAG、CSV/JSON 数据行、声明式前后置、失败/重试/取消、事件、结果、JSON/JUnit 报告。
+- `docs/specs/runner-core-contracts.md`：A01 初始契约（**未冻结**）。
+- `docs/task-results/A01.md`：交付记录。
+- `docs/task-results/A01-integration.patch`：本文件（无代码 hunk，只有接线步骤）。
+
+## 2. 公共模型/加载/校验增量：`core/model.go`
+
+`Request.Assert []yaml.Node` 已存在且已被 A01 消费，**无需修改**。Suite 和数据集不从公共模型加载，统一走：
+
+```go
+suite, err := runner.LoadSuite(project, "suites/<name>.suite.yaml")
+```
+
+`LoadSuite` 使用 `core.Store.ReadBounded`，拒绝路径穿越、符号链接逃逸、超大文件、多文档、未知字段。数据集文件由 `LoadSuite` 内的 `DatasetSpec.File` 经同一 Store 读取。后续若集成人决定把 Suite 提升为公共项目实体，请新增**独立** `Suite` 模型及加载器，并让本包 `ParseSuite` 继续作为专用解析入口，不要改写 `Request.Assert` 的现有字段类型。
+
+## 3. 桌面/网络接线（A02 后续，非本卡 UI）
+
+```go
+import "gorequest/internal/runner"
+
+suite, err := runner.LoadSuite(ps.project, rel)
+r := runner.New(ps.project, suite, runner.Options{
+    Environment:    ps.currentEnv(),
+    Secrets:        a.mgrSecrets(),             // 已有 B05 本地凭据端口
+    ExecuteOptions: a.networkOptionsFor(...),  // 已有 B04 阶段超时/代理/TLS/重定向/Jar 模板
+    PlanOptions: core.PlanOptions{
+        ProjectRoot: ps.project.Dir,
+        LocalFiles:  a.localFilesFor(ps),
+    },
+    PreparePlan: func(req *core.Request, plan *core.Plan, red *core.Redactor) {
+        a.attachNetworkToPlanForRequest(req, plan, red) // 复用桌面现有 B04 接线
+    },
+    Emit: func(e runner.Event) { /* 投递到本窗口 Window.Update，不跨窗口 */ },
+    Schema: a03Validator, // A03 实现 runner.SchemaValidator；没有时 schema 断言预检失败
+})
+if err := r.Prepare(ctx); err != nil { /* 发网前展示 config error */ }
+result, err := r.Run(ctx)
+runner.WriteJSONReport(w, result)
+runner.WriteJUnitReport(w, result)
+// 或 runner.ExportReports(result, runner.ReportOptions{Dir: localRunDir})
+```
+
+关键约束：
+
+- `Runner` 强制 `Interactive=false`、`Confirmed=false`，生产确认只失败不自动放行；B05-UI 的交互确认流程不能由 Runner 代劳。
+- `Options.ExecuteOptions.CookieJar` 会被每行独立 jar 覆盖；不要为整个 runner 注入共享 jar。`DisableCookies` 仍有效。
+- `Emitter` 由引擎串行调用，但可能来自后台 goroutine；桌面必须把事件投递到**发起运行窗口**的 `Window.Update`，不要使用全局 UI map。
+- `SchemaValidator`/`SchemaPreflighter` 是 A01 定义的小接口，A03 实现；A01 不导入/不实现 OpenAPI/Schema 库。
+- 报告/运行状态只写调用者选择的本机运行目录；`ExportReports` 不写 `.gorequest/`，不自动创建项目内文件。
+
+## 4. 事件/结果端口（A02 可先消费）
+
+`runner.Event` 含 `Seq/Time/RunID/Row/StepID/Attempt/Kind/Status/HTTPStatus/DurationMs/Extraction/Sensitive/Message`；`Kind` 见 `internal/runner/events.go`。`RunResult` 含 run ID、快照摘要、逐行/逐步骤/逐尝试、断言/提取元信息、脱敏响应头/URL、失败分类、汇总和取消标记。**不含原始 Body、Secret、Cookie 值、私钥**。`WriteJSONReport`/`WriteJUnitReport`/`ExportReports` 和 `Marshal*Report` 均已可用。报告格式版本 `ReportFormatVersion=1`，契约细节见 `docs/specs/runner-core-contracts.md` §6；与 A02 联调后再由集成人冻结。
+
+## 5. 依赖与验证边界
+
+- 未改 `go.mod/go.sum`；本包只依赖标准库、`gopkg.in/yaml.v3` 和 `gorequest/internal/core`。
+- 未改 desktop、core 公共入口、公共文档账本/实现状态；未操作 main/其他 worktree；未 push/merge/cherry-pick。
+- 验证：`go build ./...`、`go vet ./...`、`go test -race ./...`（结果见 `docs/task-results/A01.md`）。真实桌面窗口、A02 面板、三平台导出对话框和 A03/A04 联合验收未做。
