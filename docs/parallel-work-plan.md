@@ -249,9 +249,9 @@ B09 启动核对：已确认新 worktree 的目录信任；屏幕明确显示 `C
 
 | 修复子任务 | 用户问题 | 分支 / worktree | 文件归属 | 状态 |
 | --- | --- | --- | --- | --- |
-| UI01-tabs | 1、2 | `codex/UI01-tabs` / `../GoRequest-UI01-tabs` | `desktop/tab_bar.go`、`uikit/tab.go` 及独立测试；滚动条上移/变细和关闭按钮对齐，同步实际内联标签与组件示例 | 待启动核对 |
-| UI02-cursors | 3 | `codex/UI02-cursors` / `../GoRequest-UI02-cursors` | `uikit/components.go`、`uikit/response.go`、其他按钮组件及必要现有视图的 cursor 增量；不直接改 UI01/UI03 专属文件 | 待启动核对 |
-| UI03-response | 4 | `codex/UI03-response-toolbar` / `../GoRequest-UI03-response` | `desktop/response_view.go`、独立布局/交互测试；内容分类固定靠左，正文格式切换与上下文操作在其后，不改网络引擎 | 待启动核对 |
+| UI01-tabs | 1、2 | `codex/UI01-tabs` / `../GoRequest-UI01-tabs` | `desktop/tab_bar.go`、`uikit/tab.go` 及独立测试；滚动条上移/变细和关闭按钮对齐，同步实际内联标签与组件示例 | 已领取 / Herdr working |
+| UI02-cursors | 3 | `codex/UI02-cursors` / `../GoRequest-UI02-cursors` | `uikit/components.go`、`uikit/response.go`、其他按钮组件及必要现有视图的 cursor 增量；不直接改 UI01/UI03 专属文件 | 已领取 / Herdr working |
+| UI03-response | 4 | `codex/UI03-response-toolbar` / `../GoRequest-UI03-response` | `desktop/response_view.go`、独立布局/交互测试；内容分类固定靠左，正文格式切换与上下文操作在其后，不改网络引擎 | 已领取 / Herdr working |
 
 UI02 如发现标签/响应文件存在直接按钮，交该两卡精确位置清单/patch，交集成人统一应用；不批量覆盖其他工作。UI01/UI03 在本卡修改区域同步设定启用按钮 CursorPointer，禁用状态/文本编辑/拖拽/滚动仍保留正确光标。视觉更细不等于缩小关闭按钮或滚动条拖拽命中范围。必须保留标签切换/中键/双击/脏关闭保护，以及响应树/二进制/下载/取消功能。
 
@@ -260,3 +260,15 @@ UI02 如发现标签/响应文件存在直接按钮，交该两卡精确位置�
 - [ ] UI03 响应区固定切换顺序：待实现、集成及验证。
 
 先核对当前 MyGo v0.7.4 本地 API，再选择最小修复；不修改 Go module 缓存或升级依赖。验证应针对几何/hover/交互风险，无窗口自动化和真实窗口检查分别记录；不要宣称未做的人工验收通过。提交专属交付报告 docs/task-results/UI0x.md，功能集成后由集成人打勾。
+
+### UI 修复实际启动记录
+
+共同代码基线 `870339d9e4c389db69adec4122bf9acd49d38a15`。三条通过新版 `herdr-app do tab.new` 创建独立标签，Codex 交互模式含 `--no-daemon`，沿用当前配置默认模型；屏幕均显示 **GPT-6.1-Sol default**、正确任务与目录，hc 均为 working。会话级 `danger-full-access` / `approval never`，未改全局设置；其余五条功能开发未中断。
+
+| 子任务 | Herdr 终端 | tab ID | 实际 worktree / 分支 |
+| --- | --- | --- | --- |
+| UI01 | `t2h` | `tba6311f6a4d13cd3f47a95ffa88c8c735` | `../GoRequest-UI01-tabs` / `codex/UI01-tabs` |
+| UI02 | `t2j` | `tb2c214198624c5d1df0da742ffccb4a55` | `../GoRequest-UI02-cursors` / `codex/UI02-cursors` |
+| UI03 | `t2k` | `tbbce012658901615a4b9862379369656e` | `../GoRequest-UI03-response` / `codex/UI03-response-toolbar` |
+
+本机完整提示词与启动句柄：`/private/tmp/gorequest-ui-codex-20261106/`，仅为临时资料，不入 Git。长期范围与交付证据以上述卡片及后续 `docs/task-results/UI01.md` / `UI02.md` / `UI03.md` 为准。当前仅领取和启动，不表示修复完成；功能集成后再打勾。
