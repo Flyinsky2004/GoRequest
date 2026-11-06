@@ -16,7 +16,8 @@ import (
 //   - string                   = GET green mixed 20% toward Muted (pressed gray)
 //   - number                   = PUT blue
 //   - boolean / null           = PATCH purple
-//   - punctuation / brackets   = Faint
+//   - punctuation / brackets   = Text mixed 60% toward Muted (structural
+//     separators: clearly readable, but one step softer than keys)
 //   - XML tag                  = PUT blue
 //   - XML attribute            = POST amber mixed toward Muted
 func EditorTheme(t *ui.Theme) *editor.Theme {
@@ -41,6 +42,11 @@ func EditorTheme(t *ui.Theme) *editor.Theme {
 
 	strColor := green.Mix(p.Muted, 0.20)
 	attrColor := amber.Mix(p.Muted, 0.30)
+	// Punctuation and operators (JSON braces, brackets, commas, colons) are
+	// structural separators. Faint was too low-contrast to read; sitting
+	// 60% from Text toward Muted keeps them clearly legible on both the light
+	// and dark backgrounds while staying one step softer than the keys.
+	punctColor := p.Text.Mix(p.Muted, 0.60)
 
 	set := func(k editor.TokenKind, c ui.Color) { ct.Tokens[k].Color = c }
 	set(editor.TokenProperty, p.Text)
@@ -48,8 +54,8 @@ func EditorTheme(t *ui.Theme) *editor.Theme {
 	set(editor.TokenEscape, strColor)
 	set(editor.TokenNumber, blue)
 	set(editor.TokenConstant, purple) // true / false / null
-	set(editor.TokenPunctuation, p.Faint)
-	set(editor.TokenOperator, p.Faint)
+	set(editor.TokenPunctuation, punctColor)
+	set(editor.TokenOperator, punctColor)
 	set(editor.TokenKeyword, purple)
 	set(editor.TokenTag, blue)
 	set(editor.TokenAttribute, attrColor)
