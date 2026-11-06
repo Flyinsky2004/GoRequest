@@ -461,6 +461,13 @@ func (a *App) moveRequestTo(e *core.RequestEntry, targetRel string) {
 	}
 	ps.sel = "req:" + e.Request.ID
 	a.status = translate(m.MovedStatus, e.RelPath)
+	// A context-menu/drag move runs from a native menu callback or a drop, not
+	// from the frame that draws the tree. The in-memory tree is rebuilt by Core,
+	// but nothing would ask for a new frame, so the sidebar would keep showing
+	// the old location until some unrelated input repainted it. Request one now
+	// so the moved row appears in its target folder (and leaves the source)
+	// immediately, without reopening the project.
+	a.requestTreeRepaint()
 }
 
 // moveRequestByID moves the request with the given stable ID into targetRel.
@@ -488,6 +495,19 @@ func (a *App) moveFolderTo(n *core.CollectionEntry, targetRel string) {
 	ps.expandChain(moved.RelPath)
 	ps.sel = "folder:" + moved.RelPath
 	a.status = translate(a.msg().MovedStatus, moved.RelPath)
+	// Repaint so the folder (and any requests it carried) shows at its new
+	// position right away; see moveRequestTo for why this is explicit.
+	a.requestTreeRepaint()
+}
+
+// requestTreeRepaint asks the window for a fresh frame after a tree mutation
+// made outside a render pass (native menu callbacks and drag drops). It is a
+// no-op for headless tests/windows that have no window attached.
+func (a *App) requestTreeRepaint() {
+	if a.win == nil || a.win.IsDestroyed() {
+		return
+	}
+	a.win.Update(func() {})
 }
 
 // deleteTreeRow deletes the selected request, folder or document immediately
