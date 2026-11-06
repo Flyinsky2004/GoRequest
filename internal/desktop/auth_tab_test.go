@@ -640,3 +640,93 @@ func TestAPIKeyUISendAndSaveAllThreeLocations(t *testing.T) {
 	assertNoSecretInDir(t, dir, secretList)
 	assertNoSecretInDir(t, cfgDir, secretList)
 }
+
+func TestAuthEditorFolderInheritanceOriginPreviewAndPolicyNotice(t *testing.T) {
+	dir := seedAuthFixtureProject(t)
+	m, _ := newTestManager(t)
+	secretVal := "ULTRA-SENSITIVE-KEY-909"
+	m.secrets = core.MapSecrets{
+		"defToken":  "ULTRA-DEF-908",
+		"apiKeyHdr": secretVal,
+	}
+	if err := m.openProject(dir); err != nil {
+		t.Fatal(err)
+	}
+	app := m.workspaces[0]
+	ps := app.ps
+
+	// Add project + env variable override to verify variable origin preview.
+	ps.project.File.Variables["keyHeaderName"] = "X-Proj-Key"
+	ps.project.Environments["dev"].Variables["keyHeaderName"] = "X-Env-Key"
+
+	if _, err := ps.project.NewFolder("", "orders"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ps.project.NewFolder("", "public"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ps.project.SetFolderAuth("orders", &core.AuthRef{Mode: "ref", Ref: "shared-bearer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ps.project.SetFolderAuth("public", &core.AuthRef{Mode: "none"}); err != nil {
+		t.Fatal(err)
+	}
+
+	ordersEntry, err := ps.createRequestIn("orders", "List Orders")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps.openRequest(ordersEntry)
+	ordersTab := ps.activeTab()
+	ordersTab.Section = 1
+
+	tt := ui.NewTester(app.View, 1200, 820)
+	tt.Frame()
+	if !tt.HasText("Inherits folder auth (collections/orders): shared-bearer · bearer (token: {{secret.refToken}})") {
+		t.Fatalf("missing folder inherit summary; texts=%v", tt.Texts())
+	}
+	// refToken is missing in m.secrets -> missing secret diagnostic shown, no secret leaked.
+	if !tt.HasText("{{secret.refToken}} · missing secret") {
+		t.Fatalf("missing secret diagnostic not shown; texts=%v", tt.Texts())
+	}
+
+	// Folder that explicitly sets auth: none clears project default auth!
+	pubEntry, err := ps.createRequestIn("public", "Public Feed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps.openRequest(pubEntry)
+	pubTab := ps.activeTab()
+	pubTab.Section = 1
+	tt.Frame()
+	if !tt.HasText("Folder (collections/public) explicitly clears inherited auth; sends without credentials.") {
+		t.Fatalf("missing folder clear summary; texts=%v", tt.Texts())
+	}
+
+	// Switch to inline apikey with templated key name, bound secret, and non-loopback plain HTTP URL.
+	pubTab.AuthMode = "apikey"
+	pubTab.AuthKeyIn = "header"
+	pubTab.AuthKeyName = "{{keyHeaderName}}"
+	pubTab.AuthKeyValue = "{{secret.apiKeyHdr}}"
+	pubTab.URL = "http://api.example.com/v1/feed"
+	tt.Frame()
+	tt.Advance(time.Minute)
+	if tt.FramePending() {
+		t.Fatal("Auth editor must not continuously request animation frames when idle")
+	}
+
+	if !tt.HasText("{{keyHeaderName}} · from environment:dev = X-Env-Key (overrides project)") {
+		t.Fatalf("missing variable origin/override preview; texts=%v", tt.Texts())
+	}
+	if !tt.HasText("{{secret.apiKeyHdr}} · bound (memory)") {
+		t.Fatalf("missing bound secret status; texts=%v", tt.Texts())
+	}
+	if !tt.HasText(`Target policy notice: sending credentials over plain HTTP to non-loopback host "api.example.com"`) {
+		t.Fatalf("missing plain-HTTP credential target policy notice; texts=%v", tt.Texts())
+	}
+	for _, txt := range tt.Texts() {
+		if strings.Contains(txt, secretVal) || strings.Contains(txt, "ULTRA-DEF-908") {
+			t.Fatalf("secret value leaked into rendered UI text: %q", txt)
+		}
+	}
+}

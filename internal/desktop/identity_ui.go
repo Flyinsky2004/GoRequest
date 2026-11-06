@@ -15,60 +15,105 @@ import (
 // Keeping technical tokens untranslated follows internal/desktop/i18n.go rules.
 var requestAuthModes = []string{"inherit", "none", "ref", "bearer", "basic", "apikey"}
 
+type authDiagItem struct {
+	text string
+	warn bool
+}
+
 // identityMessages holds localized labels for the B05 Auth/Identity UI so that
 // internal/desktop/i18n.go (owned by the integrator) does not need to be edited
 // directly in this worktree. Exact merge keys for i18n.go are documented in
 // docs/task-results/B05.md.
 type identityMessages struct {
-	InheritSummaryNone    string
-	InheritSummaryProject string // %s (scheme summary)
-	InheritSummaryMissing string // %q (scheme id)
-	ExplicitNoneHint      string
-	SchemeRefLabel        string
-	ChooseScheme          string
-	SchemeResolvedPrefix  string // %s
-	SchemeMissingWarning  string // %q
-	SchemeEmptyHint       string
-	APIKeyLocation        string
-	APIKeyName            string
-	APIKeyValue           string
-	PreservedAuthHint     string // %q
+	InheritSummaryNone     string
+	InheritSummaryProject  string // %s (scheme summary)
+	InheritSummaryFolder   string // %s (folder path), %s (scheme summary)
+	InheritClearedByFolder string // %s (folder path)
+	InheritSummaryMissing  string // %q (scheme id)
+	ExplicitNoneHint       string
+	SchemeRefLabel         string
+	ChooseScheme           string
+	SchemeResolvedPrefix   string // %s
+	SchemeMissingWarning   string // %q
+	SchemeEmptyHint        string
+	APIKeyLocation         string
+	APIKeyName             string
+	APIKeyValue            string
+	PreservedAuthHint      string // %q
+	DiagSectionTitle       string
+	SecretBoundFmt         string // %s (name), %s (backend)
+	SecretMissingFmt       string // %s (name)
+	SecretUnavailableFmt   string // %s (name), %s (backend)
+	VarOriginFmt           string // %s (name), %s (source), %s (masked/safe value)
+	VarOverrideSuffixFmt   string // %s (overridden layers)
+	VarUndefinedFmt        string // %s (name)
+	VarErrorFmt            string // %s (name), %s (error)
+	PolicyWarnPrefix       string // %s (reason)
 }
 
 var identityMessagesZh = identityMessages{
-	InheritSummaryNone:    "继承上级鉴权（当前上级未配置默认鉴权，实际不附加凭据）。",
-	InheritSummaryProject: "继承项目默认鉴权：%s",
-	InheritSummaryMissing: "项目默认鉴权 %q 未找到，发送前需修正。",
-	ExplicitNoneHint:      "显式清除继承鉴权（此请求不附加任何凭据）。",
-	SchemeRefLabel:        "复用鉴权方案 ID（.gorequest/auth/*.auth.yaml）",
-	ChooseScheme:          "选择方案",
-	SchemeResolvedPrefix:  "当前引用方案：%s",
-	SchemeMissingWarning:  "未找到鉴权方案 %q；保存仍保留引用，但发送前需创建该方案。",
-	SchemeEmptyHint:       "请输入或选择一个鉴权方案 ID。",
-	APIKeyLocation:        "发送位置",
-	APIKeyName:            "参数/头/Cookie 名称",
-	APIKeyValue:           "密钥值（建议使用 {{secret.name}} 避免明文落盘）",
-	PreservedAuthHint:     "保留已配置的鉴权类型 %q（未修改时原样往返保存）。",
+	InheritSummaryNone:     "继承上级鉴权（当前上级未配置默认鉴权，实际不附加凭据）。",
+	InheritSummaryProject:  "继承项目默认鉴权：%s",
+	InheritSummaryFolder:   "继承文件夹鉴权（%s）：%s",
+	InheritClearedByFolder: "上级文件夹（%s）已显式清除鉴权，此请求实际不附加凭据。",
+	InheritSummaryMissing:  "上级引用的鉴权方案 %q 未找到，发送前需修正。",
+	ExplicitNoneHint:       "显式清除继承鉴权（此请求不附加任何凭据）。",
+	SchemeRefLabel:         "复用鉴权方案 ID（.gorequest/auth/*.auth.yaml）",
+	ChooseScheme:           "选择方案",
+	SchemeResolvedPrefix:   "当前引用方案：%s",
+	SchemeMissingWarning:   "未找到鉴权方案 %q；保存仍保留引用，但发送前需创建该方案。",
+	SchemeEmptyHint:        "请输入或选择一个鉴权方案 ID。",
+	APIKeyLocation:         "发送位置",
+	APIKeyName:             "参数/头/Cookie 名称",
+	APIKeyValue:            "密钥值（建议使用 {{secret.name}} 避免明文落盘）",
+	PreservedAuthHint:      "保留已配置的鉴权类型 %q（未修改时原样往返保存）。",
+	DiagSectionTitle:       "变量来源与目标策略预览",
+	SecretBoundFmt:         "{{secret.%s}} · 已绑定（%s）",
+	SecretMissingFmt:       "{{secret.%s}} · 未绑定秘密",
+	SecretUnavailableFmt:   "{{secret.%s}} · 凭据后端不可用（%s）",
+	VarOriginFmt:           "{{%s}} · 来源 %s = %s",
+	VarOverrideSuffixFmt:   "（覆盖 %s）",
+	VarUndefinedFmt:        "{{%s}} · 未定义变量",
+	VarErrorFmt:            "{{%s}} · 解析错误：%s",
+	PolicyWarnPrefix:       "目标策略提示：%s",
 }
 
 var identityMessagesEn = identityMessages{
-	InheritSummaryNone:    "Inherits parent auth (no default auth configured; sends without credentials).",
-	InheritSummaryProject: "Inherits project default auth: %s",
-	InheritSummaryMissing: "Project default auth %q not found; fix before sending.",
-	ExplicitNoneHint:      "Explicitly clears inherited auth for this request.",
-	SchemeRefLabel:        "Reusable auth scheme ID (.gorequest/auth/*.auth.yaml)",
-	ChooseScheme:          "Schemes",
-	SchemeResolvedPrefix:  "Referenced scheme: %s",
-	SchemeMissingWarning:  "Auth scheme %q not found; ref is preserved on save, define it before sending.",
-	SchemeEmptyHint:       "Enter or choose an auth scheme ID.",
-	APIKeyLocation:        "Add to",
-	APIKeyName:            "Key name",
-	APIKeyValue:           "Value (use {{secret.name}} to keep secrets out of files)",
-	PreservedAuthHint:     "Preserving configured auth %q (round-trips unchanged unless switched).",
+	InheritSummaryNone:     "Inherits parent auth (no default auth configured; sends without credentials).",
+	InheritSummaryProject:  "Inherits project default auth: %s",
+	InheritSummaryFolder:   "Inherits folder auth (%s): %s",
+	InheritClearedByFolder: "Folder (%s) explicitly clears inherited auth; sends without credentials.",
+	InheritSummaryMissing:  "Inherited auth scheme %q not found; fix before sending.",
+	ExplicitNoneHint:       "Explicitly clears inherited auth for this request.",
+	SchemeRefLabel:         "Reusable auth scheme ID (.gorequest/auth/*.auth.yaml)",
+	ChooseScheme:           "Schemes",
+	SchemeResolvedPrefix:   "Referenced scheme: %s",
+	SchemeMissingWarning:   "Auth scheme %q not found; ref is preserved on save, define it before sending.",
+	SchemeEmptyHint:        "Enter or choose an auth scheme ID.",
+	APIKeyLocation:         "Add to",
+	APIKeyName:             "Key name",
+	APIKeyValue:            "Value (use {{secret.name}} to keep secrets out of files)",
+	PreservedAuthHint:      "Preserving configured auth %q (round-trips unchanged unless switched).",
+	DiagSectionTitle:       "Variable origins & target policy",
+	SecretBoundFmt:         "{{secret.%s}} · bound (%s)",
+	SecretMissingFmt:       "{{secret.%s}} · missing secret",
+	SecretUnavailableFmt:   "{{secret.%s}} · backend unavailable (%s)",
+	VarOriginFmt:           "{{%s}} · from %s = %s",
+	VarOverrideSuffixFmt:   " (overrides %s)",
+	VarUndefinedFmt:        "{{%s}} · undefined variable",
+	VarErrorFmt:            "{{%s}} · resolution error: %s",
+	PolicyWarnPrefix:       "Target policy notice: %s",
+}
+
+func (a *App) identityLangCode() string {
+	if a != nil && a.mgr != nil && a.mgr.cfg != nil && parseLanguage(string(a.mgr.cfg.language())) == langEnglish {
+		return "en"
+	}
+	return "zh-CN"
 }
 
 func (a *App) identityMsg() *identityMessages {
-	if a != nil && a.mgr != nil && a.mgr.cfg != nil && parseLanguage(string(a.mgr.cfg.language())) == langEnglish {
+	if a.identityLangCode() == "en" {
 		return &identityMessagesEn
 	}
 	return &identityMessagesZh
@@ -158,17 +203,16 @@ func authRefFromTab(tab *Tab) (*core.AuthRef, error) {
 }
 
 // authTemplateStrings returns the template-bearing strings active for this
-// tab's configured auth, for pre-send undefined-variable checks and origin
-// previews.
+// tab's configured auth, including folder/project inherited schemes.
 func (tab *Tab) authTemplateStrings(p *core.Project) []string {
 	if tab == nil {
 		return nil
 	}
 	switch tab.AuthMode {
 	case "", "inherit":
-		if p != nil && p.File != nil && p.File.Defaults != nil && p.File.Defaults.Auth != "" && p.File.Defaults.Auth != "none" {
-			if s, ok := p.AuthSchemes[p.File.Defaults.Auth]; ok {
-				return schemeTemplateStrings(s)
+		if p != nil {
+			if eff, err := p.ResolveEffectiveAuth(tab.Entry, &core.Request{}); err == nil && eff != nil && eff.Scheme != nil {
+				return schemeTemplateStrings(eff.Scheme)
 			}
 		}
 		return nil
@@ -274,8 +318,26 @@ func (a *App) projectOf(tab *Tab) *core.Project {
 	return nil
 }
 
-// renderAuthEditor renders the request Auth tab, supporting inherit, none, ref,
-// bearer, basic and apikey (header/query/cookie) without losing references.
+func (a *App) activeEnvOf(tab *Tab) string {
+	if tab != nil && tab.Owner != nil {
+		return tab.Owner.currentEnv()
+	}
+	if a != nil && a.ps != nil {
+		return a.ps.currentEnv()
+	}
+	return ""
+}
+
+func (a *App) secretsProvider() core.SecretProvider {
+	if a != nil && a.mgr != nil {
+		return a.mgr.secrets
+	}
+	return nil
+}
+
+// renderAuthEditor renders the request Auth tab, supporting inherit (across
+// folder and project layers), none, ref, bearer, basic and apikey
+// (header/query/cookie) plus memoized variable-origin & target-policy previews.
 func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 	m := a.msg()
 	im := a.identityMsg()
@@ -310,19 +372,7 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 
 	switch tab.AuthMode {
 	case "inherit":
-		defAuth := ""
-		if proj != nil && proj.File != nil && proj.File.Defaults != nil {
-			defAuth = strings.TrimSpace(proj.File.Defaults.Auth)
-		}
-		if defAuth == "" || defAuth == "none" {
-			ui.Text(c, im.InheritSummaryNone).FontSize(12).TextColor(t.TextMuted)
-		} else if s, ok := proj.AuthSchemes[defAuth]; ok {
-			ui.Text(c, translate(im.InheritSummaryProject, defAuth+" · "+summarizeAuthScheme(s))).
-				FontSize(12).TextColor(t.TextMuted)
-		} else {
-			ui.Text(c, translate(im.InheritSummaryMissing, defAuth)).
-				FontSize(12).TextColor(uikit.MethodColor("DELETE", pal))
-		}
+		renderInheritSummary(c, t, pal, im, proj, tab)
 
 	case "none":
 		ui.Text(c, m.NoAuth).TextColor(t.TextMuted)
@@ -375,11 +425,11 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 		}
 
 	case "apikey":
-		locIdx := indexOf(core.APIKeyLocations, core.NormalizeAPIKeyLocation(tab.AuthKeyIn))
+		tab.AuthKeyInIdx = indexOf(core.APIKeyLocations, core.NormalizeAPIKeyLocation(tab.AuthKeyIn))
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, im.APIKeyLocation).FontSize(12).TextColor(t.TextMuted)
-			if ui.Segmented(c, &locIdx, core.APIKeyLocations...).Changed() {
-				tab.AuthKeyIn = core.APIKeyLocations[locIdx]
+			if ui.Segmented(c, &tab.AuthKeyInIdx, core.APIKeyLocations...).Changed() {
+				tab.AuthKeyIn = core.APIKeyLocations[tab.AuthKeyInIdx]
 				tab.authKeyInOmitted = false
 				tab.Dirty = true
 			}
@@ -395,5 +445,270 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 
 	default:
 		ui.Text(c, translate(im.PreservedAuthHint, tab.AuthMode)).FontSize(12).TextColor(t.TextMuted)
+	}
+
+	a.renderAuthDiagnostics(c, t, pal, im, proj, tab)
+}
+
+func renderInheritSummary(c *ui.Context, t *ui.Theme, pal uikit.Palette, im *identityMessages, proj *core.Project, tab *Tab) {
+	if proj == nil {
+		ui.Text(c, im.InheritSummaryNone).FontSize(12).TextColor(t.TextMuted)
+		return
+	}
+	// Pass an empty Request override so we resolve the parent hierarchy even if
+	// the underlying saved entry had a different auth before this edit.
+	eff, err := proj.ResolveEffectiveAuth(tab.Entry, &core.Request{})
+	if err != nil {
+		missingID := extractMissingSchemeName(proj, tab.Entry)
+		if missingID != "" {
+			ui.Text(c, translate(im.InheritSummaryMissing, missingID)).
+				FontSize(12).TextColor(uikit.MethodColor("DELETE", pal))
+			return
+		}
+		ui.Text(c, err.Error()).FontSize(12).TextColor(uikit.MethodColor("DELETE", pal))
+		return
+	}
+	if eff == nil || eff.SourceKind == "none" {
+		ui.Text(c, im.InheritSummaryNone).FontSize(12).TextColor(t.TextMuted)
+		return
+	}
+	switch eff.SourceKind {
+	case "folder":
+		folderLabel := strings.TrimSuffix(eff.SourcePath, "/collection.yaml")
+		if eff.Mode == "none" || eff.Scheme == nil {
+			ui.Text(c, translate(im.InheritClearedByFolder, folderLabel)).
+				FontSize(12).TextColor(t.TextMuted)
+			return
+		}
+		desc := summarizeAuthScheme(eff.Scheme)
+		if eff.RefID != "" {
+			desc = eff.RefID + " · " + desc
+		}
+		ui.Text(c, translate(im.InheritSummaryFolder, folderLabel, desc)).
+			FontSize(12).TextColor(t.TextMuted)
+	case "project":
+		if eff.Mode == "none" || eff.Scheme == nil {
+			ui.Text(c, im.InheritSummaryNone).FontSize(12).TextColor(t.TextMuted)
+			return
+		}
+		desc := summarizeAuthScheme(eff.Scheme)
+		if eff.RefID != "" {
+			desc = eff.RefID + " · " + desc
+		}
+		ui.Text(c, translate(im.InheritSummaryProject, desc)).
+			FontSize(12).TextColor(t.TextMuted)
+	default:
+		ui.Text(c, im.InheritSummaryNone).FontSize(12).TextColor(t.TextMuted)
+	}
+}
+
+func extractMissingSchemeName(proj *core.Project, entry *core.RequestEntry) string {
+	if proj == nil {
+		return ""
+	}
+	if entry != nil {
+		parts := strings.Split(strings.TrimPrefix(entry.RelPath, "collections/"), "/")
+		if len(parts) > 1 {
+			for i := len(parts) - 1; i >= 1; i-- {
+				sub := strings.Join(parts[:i], "/")
+				if fa := proj.FolderAuth(sub); fa != nil && fa.Mode != "" {
+					if fa.Mode == "ref" {
+						return fa.Ref
+					}
+					return ""
+				}
+			}
+		}
+	}
+	if proj.File != nil && proj.File.Defaults != nil {
+		return strings.TrimSpace(proj.File.Defaults.Auth)
+	}
+	return ""
+}
+
+func (a *App) renderAuthDiagnostics(c *ui.Context, t *ui.Theme, pal uikit.Palette, im *identityMessages, proj *core.Project, tab *Tab) {
+	if tab == nil || proj == nil {
+		return
+	}
+	envID := a.activeEnvOf(tab)
+	relPath := ""
+	if tab.Entry != nil {
+		relPath = tab.Entry.RelPath
+	}
+	cacheKey := strings.Join([]string{
+		a.identityLangCode(),
+		envID,
+		relPath,
+		tab.Method,
+		tab.URL,
+		tab.AuthMode,
+		tab.AuthRefID,
+		tab.AuthToken,
+		tab.AuthUser,
+		tab.AuthPass,
+		tab.AuthKeyIn,
+		tab.AuthKeyName,
+		tab.AuthKeyValue,
+	}, "\x1f")
+
+	if tab.authDiagKey != cacheKey {
+		tab.authDiagKey = cacheKey
+		tab.authDiagItems = computeAuthDiagnostics(im, proj, tab, envID, a.secretsProvider())
+	}
+
+	if len(tab.authDiagItems) == 0 {
+		return
+	}
+
+	warnColor := uikit.MethodColor("DELETE", pal)
+	ui.Column(c).Gap(4).Children(func() {
+		ui.Text(c, im.DiagSectionTitle).FontSize(11).TextColor(t.TextMuted)
+		for _, item := range tab.authDiagItems {
+			col := t.TextMuted
+			if item.warn {
+				col = warnColor
+			}
+			ui.Text(c, item.text).FontSize(11).TextColor(col)
+		}
+	})
+}
+
+func computeAuthDiagnostics(im *identityMessages, proj *core.Project, tab *Tab, envID string, secrets core.SecretProvider) []authDiagItem {
+	var items []authDiagItem
+
+	tplStrings := tab.authTemplateStrings(proj)
+	seenTpl := map[string]bool{}
+	var tplNames []string
+	for _, s := range tplStrings {
+		for _, name := range core.TemplateNames(s) {
+			if !seenTpl[name] {
+				seenTpl[name] = true
+				tplNames = append(tplNames, name)
+			}
+		}
+	}
+
+	insp, _ := proj.InspectVariables(tab.Entry, envID, secrets, nil)
+
+	for _, name := range tplNames {
+		if secName, ok := strings.CutPrefix(name, "secret."); ok {
+			secName = strings.TrimSpace(secName)
+			st := core.InspectSecretFrom(secrets, secName)
+			switch st.State {
+			case core.SecretStateBound:
+				items = append(items, authDiagItem{
+					text: translate(im.SecretBoundFmt, secName, st.Backend),
+				})
+			case core.SecretStateUnavailable:
+				items = append(items, authDiagItem{
+					text: translate(im.SecretUnavailableFmt, secName, st.Backend),
+					warn: true,
+				})
+			default:
+				items = append(items, authDiagItem{
+					text: translate(im.SecretMissingFmt, secName),
+					warn: true,
+				})
+			}
+			continue
+		}
+
+		if insp != nil {
+			if ve, exists := insp.ByName[name]; exists {
+				if ve.Error != "" {
+					items = append(items, authDiagItem{
+						text: translate(im.VarErrorFmt, name, ve.Error),
+						warn: true,
+					})
+					continue
+				}
+				line := translate(im.VarOriginFmt, name, ve.Effective.Label(), ve.DisplayValue)
+				if len(ve.Overridden) > 0 {
+					prevLabels := make([]string, len(ve.Overridden))
+					for i, ov := range ve.Overridden {
+						prevLabels[i] = ov.Label()
+					}
+					line += translate(im.VarOverrideSuffixFmt, strings.Join(prevLabels, ", "))
+				}
+				items = append(items, authDiagItem{text: line})
+				continue
+			}
+		}
+		items = append(items, authDiagItem{
+			text: translate(im.VarUndefinedFmt, name),
+			warn: true,
+		})
+	}
+
+	// Best-effort target & production policy preview (never leaks secret values).
+	if strings.TrimSpace(tab.URL) != "" {
+		vars, _, err := proj.ResolveVarsWith(tab.Entry, envID, nil)
+		if err == nil {
+			red := core.NewRedactor()
+			resolvedURL, errU := resolveWithRedactor(tab.URL, vars, secrets, red)
+			if errU == nil && strings.TrimSpace(resolvedURL) != "" {
+				hasCreds := tabHasEffectiveCredentials(proj, tab)
+				pol := core.MergeTargetPolicy(nil, nil)
+				dec, _ := core.EvaluateTarget(pol, core.TargetCheckInput{
+					URL:            resolvedURL,
+					Method:         tab.Method,
+					EnvID:          envID,
+					HasCredentials: hasCreds,
+					Interactive:    true,
+				})
+				if dec != nil && (dec.Outcome == core.DecisionConfirmRequired || dec.Outcome == core.DecisionDeny) {
+					for _, reason := range dec.Reasons {
+						items = append(items, authDiagItem{
+							text: translate(im.PolicyWarnPrefix, red.RedactString(reason)),
+							warn: true,
+						})
+					}
+				}
+			}
+		}
+	}
+
+	return items
+}
+
+func resolveWithRedactor(raw string, vars map[string]string, secrets core.SecretProvider, red *core.Redactor) (string, error) {
+	r := core.NewResolver(vars, secretTracker{inner: secrets, red: red})
+	return r.Resolve(raw)
+}
+
+type secretTracker struct {
+	inner core.SecretProvider
+	red   *core.Redactor
+}
+
+func (s secretTracker) Get(name string) (string, bool) {
+	if s.inner == nil {
+		return "", false
+	}
+	v, ok := s.inner.Get(name)
+	if ok && s.red != nil {
+		s.red.RegisterSecret(v)
+	}
+	return v, ok
+}
+
+func tabHasEffectiveCredentials(proj *core.Project, tab *Tab) bool {
+	if tab == nil {
+		return false
+	}
+	switch tab.AuthMode {
+	case "none":
+		return false
+	case "bearer", "basic", "apikey", "ref":
+		return true
+	case "", "inherit":
+		if proj != nil {
+			if eff, err := proj.ResolveEffectiveAuth(tab.Entry, &core.Request{}); err == nil && eff != nil {
+				return eff.Scheme != nil
+			}
+		}
+		return false
+	default:
+		return true
 	}
 }

@@ -43,15 +43,18 @@ type Tab struct {
 	AuthToken    string
 	AuthUser     string
 	AuthPass     string
-	AuthKeyName  string
-	AuthKeyIn    string
-	AuthKeyValue string
+	AuthKeyName   string
+	AuthKeyIn     string
+	AuthKeyInIdx  int
+	AuthKeyValue  string
 	// authInlineVer/authInlineID/authKeyInOmitted/authPassthrough preserve exact
 	// round-trip semantics when non-auth fields (such as URL) are edited.
 	authInlineVer    int
 	authInlineID     string
 	authKeyInOmitted bool
 	authPassthrough  *core.AuthRef
+	authDiagKey      string
+	authDiagItems    []authDiagItem
 	Timeout    string
 	Section    int // 0 params, 1 headers, 2 body, 3 auth
 
@@ -136,11 +139,14 @@ func fillAuth(_ *core.Project, tab *Tab, req *core.Request) {
 	tab.AuthPass = ""
 	tab.AuthKeyName = ""
 	tab.AuthKeyIn = "header"
+	tab.AuthKeyInIdx = 0
 	tab.AuthKeyValue = ""
 	tab.authInlineVer = core.SupportedSchemaVersion
 	tab.authInlineID = ""
 	tab.authKeyInOmitted = false
 	tab.authPassthrough = nil
+	tab.authDiagKey = ""
+	tab.authDiagItems = nil
 
 	if req != nil && req.Auth != nil && req.Auth.Mode != "" {
 		switch req.Auth.Mode {
@@ -170,6 +176,7 @@ func fillAuth(_ *core.Project, tab *Tab, req *core.Request) {
 					tab.AuthMode = "apikey"
 					tab.AuthKeyName = s.Name
 					tab.AuthKeyIn = core.NormalizeAPIKeyLocation(s.In)
+					tab.AuthKeyInIdx = indexOf(core.APIKeyLocations, tab.AuthKeyIn)
 					tab.authKeyInOmitted = strings.TrimSpace(s.In) == ""
 					tab.AuthKeyValue = s.Value
 				default:
