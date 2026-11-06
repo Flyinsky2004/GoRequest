@@ -521,7 +521,7 @@ func (a *App) docBody(c *ui.Context, t *ui.Theme, tab *Tab, src string, opts *ma
 		editor.View(c, tab.DocEditor).Grow(1).FillWidth()
 	case 2:
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-			markdown.View(c, src, opts)
+			a.markdownPreview(c, src, opts)
 		})
 	default:
 		docSplit := &tab.Owner.docSplit
@@ -529,7 +529,7 @@ func (a *App) docBody(c *ui.Context, t *ui.Theme, tab *Tab, src string, opts *ma
 			editor.View(c, tab.DocEditor).Grow(1).FillWidth()
 		}, func() {
 			ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-				markdown.View(c, src, opts)
+				a.markdownPreview(c, src, opts)
 			})
 		}).Grow(1).FillWidth()
 	}
@@ -540,6 +540,7 @@ func (a *App) docMarkdownOptions(c *ui.Context, root ui.Element, tab *Tab, st *d
 		st.options = &markdown.Options{}
 	}
 	o := st.options
+	o.Theme = a.mgr.workspacePrefs().markdownPolicy().theme(c.Theme())
 	o.LoadImage = func(ref string) (ui.ImageSource, error) {
 		data, info, err := tab.Owner.project.ReadDocAsset(tab.DocRel, ref)
 		if err != nil {
@@ -554,4 +555,14 @@ func (a *App) docMarkdownOptions(c *ui.Context, root ui.Element, tab *Tab, st *d
 	o.Anchor = st.anchor
 	o.AnchorVersion = st.anchorVersion
 	return o
+}
+
+// Padding belongs to the scroll content so all four edges remain available,
+// including below the last block. The native view retains its parser, image,
+// selection and scroll caches across preference updates.
+func (a *App) markdownPreview(c *ui.Context, src string, opts *markdown.Options) {
+	padding := float32(a.mgr.workspacePrefs().markdownPolicy().Padding)
+	ui.Column(c).FillWidth().Padding(padding).Label("markdown-preview-insets").Children(func() {
+		markdown.View(c, src, opts).FillWidth().Label("markdown-preview-content")
+	})
 }

@@ -57,12 +57,17 @@ type workspacePrefs struct {
 	AutoSaveDelaySeconds int      `json:"autoSaveDelaySeconds,omitempty"`
 	DisabledShortcuts    []string `json:"disabledShortcuts,omitempty"`
 	PinnedProjects       []string `json:"pinnedProjects,omitempty"`
+
+	Markdown markdownPreferences `json:"markdown,omitempty"`
 }
 
 // workspacePrefsStore reads and writes workspacePrefs atomically. An empty path
 // is memory-only, so headless tests and a platform without a config directory
 // still work.
 type workspacePrefsStore struct {
+	// UI-thread callback; no preference data is stored in project files.
+	markdownChanged func()
+
 	path string
 
 	mu  sync.Mutex
