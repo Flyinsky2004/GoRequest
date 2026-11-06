@@ -421,6 +421,14 @@ func TestHistoryRetentionCleanupOnOpen(t *testing.T) {
 	}
 }
 
+func TestHistoryUnavailableWithoutConfigDirectory(t *testing.T) {
+	a, _ := openTestProject(t, "NoHistory")
+	a.reloadHistory()
+	if !strings.Contains(a.historyUI.diag, "disabled") {
+		t.Fatalf("an unavailable history directory should be diagnosed: %q", a.historyUI.diag)
+	}
+}
+
 func TestHistoryWriteFailureIsSurfaced(t *testing.T) {
 	a, ps, _ := newHistoryTestApp(t)
 	blocker := filepath.Join(t.TempDir(), "blocked")

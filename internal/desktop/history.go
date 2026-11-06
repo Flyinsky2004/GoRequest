@@ -290,6 +290,7 @@ func (a *App) reloadHistory() {
 	a.historyUI.diag = ""
 	if s.dir == "" {
 		a.historyRecords = nil
+		a.historyUI.diag = a.msg().HistoryUnavailable
 		return
 	}
 	s.configure(a.historyLimits())

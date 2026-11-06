@@ -308,6 +308,7 @@ type messages struct {
 	HistoryResultNetwork     string
 	HistoryResultCanceled    string
 	HistoryNoMatch           string
+	HistoryUnavailable       string
 	HistoryPrivacyNote       string
 	HistoryDetailTitle       string
 	HistoryDetailSummary     string
@@ -593,6 +594,7 @@ var messagesZh = messages{
 	HistoryResultNetwork:     "网络/配置错误",
 	HistoryResultCanceled:    "已取消",
 	HistoryNoMatch:           "没有符合筛选条件的历史",
+	HistoryUnavailable:       "本机没有可用的配置目录，历史已禁用",
 	HistoryPrivacyNote:       "历史只保存在本机；默认仅保存脱敏元数据，正文需在设置中显式开启。",
 	HistoryDetailTitle:       "历史详情",
 	HistoryDetailSummary:     "概要",
@@ -875,6 +877,7 @@ var messagesEn = messages{
 	HistoryResultNetwork:     "Network/config error",
 	HistoryResultCanceled:    "Canceled",
 	HistoryNoMatch:           "No history matches these filters",
+	HistoryUnavailable:       "No local config directory is available, so history is disabled",
 	HistoryPrivacyNote:       "History stays on this device. Only redacted metadata is saved by default; bodies require an explicit opt-in.",
 	HistoryDetailTitle:       "History Detail",
 	HistoryDetailSummary:     "Summary",
