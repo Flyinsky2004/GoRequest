@@ -3,6 +3,7 @@
 - **任务 ID**：`B05-UI`（可复用方案管理、文件夹鉴权编辑、系统凭据录入/更新/删除、来源/缺失诊断、生产策略确认 UI）
 - **工作目录 / 分支**：`/Users/flyinsky/Documents/Coding/GoLang/GoRequest-B05-UI` / `cc/B05-identity-ui`
 - **共同提交基线**：`4223cd48612ac5925a2451e391184b5551d35066`
+- **提交**：`fa7583d`（`feat(identity): add native scheme, folder and credential management`）
 - **本卡状态**：专属模块、独立测试、证据文档和接线 patch 已交付；**公共入口未直接接线、未勾选总卡**，由集成人应用 `B05-UI-integration.patch` 后统一验收。
 
 ## 1. 先核对实际代码，避免重复实现
@@ -68,7 +69,7 @@
 | `gofmt -w <本卡 .go 文件>` | 通过 |
 | `go build ./...` | 通过 |
 | `go vet ./...` | 通过 |
-| `go test -race ./...` | 通过（全包；详见提交后报告内记录的哈希） |
+| `go test -race ./...` | 通过（全包，exit 0；core 5.790s、desktop 56.943s、platform 1.447s，其余包通过） |
 | 临时应用 `B05-UI-integration.patch` 后 `go build ./...`、`go vet ./...`、`go test -race ./...` | 通过；随后 `git apply -R` 精确撤回，`git apply --check` 再次通过 |
 | 未应用 patch 的基线 `go build ./...`、`go vet ./...`、`go test -race ./...` | 通过；未接线时生产策略仍失败关闭，不静默放行 |
 
