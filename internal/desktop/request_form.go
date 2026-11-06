@@ -199,6 +199,71 @@ func (t *Tab) removeRow(kind kvKind, id string) {
 	*p = kept
 }
 
+// kvDrag is the payload a row's drag handle carries, so a row dropped onto
+// another reorders the list.
+type kvDrag struct {
+	kind kvKind
+	id   string
+}
+
+// moveBy swaps a row with its neighbour in the same section (Alt+Up/Down). It
+// never moves a real row onto the trailing blank ghost row.
+func (t *Tab) moveBy(kind kvKind, id string, delta int) {
+	p := t.rowsPtr(kind)
+	rows := *p
+	i := -1
+	for idx, r := range rows {
+		if r.ID == id {
+			i = idx
+			break
+		}
+	}
+	if i < 0 {
+		return
+	}
+	j := i + delta
+	if j < 0 || j >= len(rows) || rows[j].isBlank() {
+		return
+	}
+	rows[i], rows[j] = rows[j], rows[i]
+}
+
+// moveRowTo moves the row with movingID to sit where targetID currently is.
+func (t *Tab) moveRowTo(kind kvKind, movingID, targetID string) {
+	if movingID == "" || movingID == targetID {
+		return
+	}
+	p := t.rowsPtr(kind)
+	rows := *p
+	rest := make([]*KVRow, 0, len(rows))
+	var moving *KVRow
+	for _, r := range rows {
+		if r.ID == movingID {
+			moving = r
+			continue
+		}
+		rest = append(rest, r)
+	}
+	if moving == nil {
+		return
+	}
+	tj := -1
+	for i, r := range rest {
+		if r.ID == targetID {
+			tj = i
+			break
+		}
+	}
+	if tj < 0 {
+		return
+	}
+	out := make([]*KVRow, 0, len(rows))
+	out = append(out, rest[:tj]...)
+	out = append(out, moving)
+	out = append(out, rest[tj:]...)
+	*p = out
+}
+
 // ensureTrailingBlank appends a blank row when the last row holds data, so
 // there is always an empty line to type into.
 func (t *Tab) ensureTrailingBlank(kind kvKind) {
@@ -313,7 +378,8 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 
 	// Column headers — shown once — plus the key:value / text switch.
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 8).Children(func() {
-		ui.Box(c).Width(28)
+		ui.Box(c).Width(14)
+		ui.Box(c).Width(16)
 		ui.Text(c, m.Key).FontSize(12).FontWeight(600).TextColor(p.Muted).Width(200)
 		ui.Text(c, m.Value).FontSize(12).FontWeight(600).TextColor(p.Muted).Grow(1)
 		ui.Box(c).Width(28)
@@ -396,11 +462,20 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 		r.Background(p.Hover)
 	}
 	r.Children(func() {
+		// Drag handle: only in the default table view (kvRow is never called in
+		// text mode), so autocomplete/text views never offer drag (per spec rule).
+		if blank {
+			ui.Box(c).Width(14)
+		} else {
+			g := ui.Box(c).Width(14).Height(24).Center()
+			g.Children(func() {
+				ui.Icon(c, uikit.IconMore).FontSize(12).TextColor(p.Faint)
+			})
+			g.Drag(kvDrag{kind: kind, id: row.ID}).Tooltip(m.DragTip)
+		}
 		if ui.Checkbox(c, &row.Enabled, "").Changed() {
 			tab.Dirty = true
 		}
-		// Placeholders belong to the ghost row only (D8-①); real rows rely on the
-		// single column header.
 		keyPh := ""
 		if blank {
 			keyPh = m.Key
@@ -410,6 +485,8 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 			keyEl.Focus()
 			tab.kvFocusID = ""
 		}
+		keyEl.OnShortcut(ui.Alt, ui.KeyUp, func() { tab.moveBy(kind, row.ID, -1); tab.kvFocusID = row.ID; tab.kvFocusVal = false })
+		keyEl.OnShortcut(ui.Alt, ui.KeyDown, func() { tab.moveBy(kind, row.ID, 1); tab.kvFocusID = row.ID; tab.kvFocusVal = false })
 		if keyEl.Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
@@ -420,6 +497,12 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 		}
 		vals := filterSuggestions(valueSuggestions(row.Name, kind), row.Value)
 		valEl := ui.Autocomplete(c, &row.Value, vals).Grow(1).Placeholder(valPh)
+		if tab.kvFocusID == row.ID && tab.kvFocusVal {
+			valEl.Focus()
+			tab.kvFocusID = ""
+		}
+		valEl.OnShortcut(ui.Alt, ui.KeyUp, func() { tab.moveBy(kind, row.ID, -1); tab.kvFocusID = row.ID; tab.kvFocusVal = false })
+		valEl.OnShortcut(ui.Alt, ui.KeyDown, func() { tab.moveBy(kind, row.ID, 1); tab.kvFocusID = row.ID; tab.kvFocusVal = false })
 		if valEl.Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
@@ -439,4 +522,9 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 			tab.Dirty = true
 		}
 	})
+	// Drop target: a row dropped onto this one reorders the list.
+	if src, ok := ui.Drop[kvDrag](r); ok && src.kind == kind && src.id != row.ID {
+		tab.moveRowTo(kind, src.id, row.ID)
+		tab.Dirty = true
+	}
 }

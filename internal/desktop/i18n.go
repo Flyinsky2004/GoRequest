@@ -158,6 +158,7 @@ type messages struct {
 	CancelRequest  string
 	AddRow         string
 	RowNoKey       string // %d, %q
+	DragTip        string
 	VarLabel       string
 	AutoHeaderTip  string
 	UndefinedVars  string // %d
@@ -381,6 +382,7 @@ var messagesZh = messages{
 	CancelRequest:  "取消",
 	AddRow:         "添加行",
 	RowNoKey:       "第 %d 行：值 %q 没有键",
+	DragTip:        "拖拽排序（默认表格视图）",
 	VarLabel:       "变量",
 	AutoHeaderTip:  "由请求内容自动生成",
 	UndefinedVars:  "%d 个变量未定义",
@@ -595,6 +597,7 @@ var messagesEn = messages{
 	CancelRequest:  "Cancel",
 	AddRow:         "Add row",
 	RowNoKey:       "row %d: value %q has no key",
+	DragTip:        "Drag to reorder (table view)",
 	VarLabel:       "Vars",
 	AutoHeaderTip:  "Generated automatically from the request",
 	UndefinedVars:  "%d undefined variable(s)",

@@ -158,3 +158,26 @@ func TestRestoreHistory(t *testing.T) {
 		t.Fatal("restoring should switch back to the request view")
 	}
 }
+
+func TestKVRowsReorder(t *testing.T) {
+	tab := &Tab{QueryRows: []*KVRow{
+		{ID: "a", Name: "a", Enabled: true},
+		{ID: "b", Name: "b", Enabled: true},
+		newBlankRow(),
+	}}
+	// moveBy: swap b up with a.
+	tab.moveBy(kvQuery, "b", -1)
+	if tab.QueryRows[0].Name != "b" || tab.QueryRows[1].Name != "a" {
+		t.Fatalf("moveBy wrong: %s,%s", tab.QueryRows[0].Name, tab.QueryRows[1].Name)
+	}
+	// moveBy onto the trailing blank is refused.
+	tab.moveBy(kvQuery, "a", 0)
+	if len(tab.QueryRows) != 3 || tab.QueryRows[2].isBlank() == false {
+		t.Fatal("ghost row must stay last")
+	}
+	// moveRowTo: move a to b's slot.
+	tab.moveRowTo(kvQuery, "a", "b")
+	if tab.QueryRows[0].Name != "a" || tab.QueryRows[1].Name != "b" {
+		t.Fatalf("moveRowTo wrong: %s,%s", tab.QueryRows[0].Name, tab.QueryRows[1].Name)
+	}
+}
