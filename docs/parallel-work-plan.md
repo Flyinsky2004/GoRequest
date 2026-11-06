@@ -157,3 +157,15 @@ B09 启动核对：已确认新 worktree 的目录信任；屏幕明确显示 `C
 - [x] B09 交付已合并；文档大纲/搜索/安全附件/导航可用，刷新新文档组合用例通过。人工平台验收与 Core 直接依赖 MyGo 纯 Go parser 的边界处理待补。
 
 集成事实、提交与验证见 [本轮集成报告](task-results/integration-2026-11-06.md)。后续从剩余项继续，不重复派工这些已经合入的代码；旧的 integration.patch 是交付时的参考，不再原样重复应用。
+
+## 8. 2026-11-06 旧分支与 worktree 清理
+
+用户明确要求清理旧分支。核对 B01/B03/B05/B09 与集成分支均为 `main`（`d64c380`）的祖先，五个 worktree 均无未提交或未跟踪文件，Herdr 中已无占用这些目录的运行 agent；随后使用不带 force 的 `git worktree remove` 和 `git branch -d` 清理：
+
+- `agy/B01-file-sync` / `../GoRequest-B01`
+- `agy/B03-http-body` / `../GoRequest-B03`
+- `agy/B05-identity` / `../GoRequest-B05`
+- `agy/B09-docs-basic` / `../GoRequest-B09`
+- `integrate/agy-deliveries` / `../GoRequest-integration`
+
+以上分支名称、路径和终端 ID 在前文均为历史交付记录，不代表仍存在。所有功能提交保留于 `main` 历史；后续剩余任务从最新 `main` 新建分支，不尝试恢复旧目录。仅保留主 worktree 和本地 `main`；未操作远程分支、未 push，主目录原有环境改动与调试文件保持原状。

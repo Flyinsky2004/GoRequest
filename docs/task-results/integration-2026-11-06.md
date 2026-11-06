@@ -1,6 +1,6 @@
 # B01 / B03 / B05 / B09 集成记录
 
-日期：2026-11-06。主分支基线：`8d4e379`（已经包含 UI stage3）。本轮在独立 worktree `GoRequest-integration`、分支 `integrate/agy-deliveries` 完成合并和验证，再快进主分支；不改动主目录原有的示例环境值或调试二进制。未 push，保留各功能 worktree。
+日期：2026-11-06。主分支基线：`8d4e379`（已经包含 UI stage3）。本轮在独立 worktree `GoRequest-integration`、分支 `integrate/agy-deliveries` 完成合并和验证，再快进主分支；不改动主目录原有的示例环境值或调试二进制。未 push；合并时保留各功能 worktree，随后按用户要求清理已合并旧分支及 worktree，见[任务账本清理记录](../parallel-work-plan.md#8-2026-11-06-旧分支与-worktree-清理)。
 
 ## 合并来源
 
