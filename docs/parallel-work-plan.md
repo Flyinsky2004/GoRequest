@@ -123,11 +123,12 @@
 
 | 任务 | 负责人 | 实际 worktree / 分支 | 状态 | 功能提交 / 集成提交 | 验证证据 / 限制 |
 | --- | --- | --- | --- | --- | --- |
-| B01 | agy-B01 | `../GoRequest-B01` / `agy/B01-file-sync` | 实施中（Full Access） | 无 / 未集成 | 基线 `be92379`；Herdr 终端 `t1j`，标签 `B01 文件保护 · agy`；优先文件刷新/冲突模型，公共壳层交接线 patch |
-| B05 | agy-B05 | `../GoRequest-B05` / `agy/B05-identity` | 实施中（Full Access） | 无 / 未集成 | 基线 `be92379`；Herdr 终端 `t1k`，标签 `B05 鉴权凭据 · agy`；优先 ref/继承/API Key 保真，公共壳层交接线 patch |
+| B01 | agy-B01 | `../GoRequest-B01` / `agy/B01-file-sync` | 已交付，待审查集成 | 分支 HEAD `19f005c` / 未集成 | 基线 `be92379`；Herdr 终端 `t1j`，标签 `B01 文件保护 · agy`；优先文件刷新/冲突模型，公共壳层交接线 patch |
+| B05 | agy-B05 | `../GoRequest-B05` / `agy/B05-identity` | 已交付，待审查集成 | 分支 HEAD `bdca843` / 未集成 | 基线 `be92379`；Herdr 终端 `t1k`，标签 `B05 鉴权凭据 · agy`；优先 ref/继承/API Key 保真，公共壳层交接线 patch |
+| B03 | agy-B03 | `../GoRequest-B03` / `agy/B03-http-body` | 实施中（Full Access） | 无 / 未集成 | 基线 `666ed61`；终端 `t1q`，标签 `B03 HTTP Body · agy`；复杂 Body/文件映射/编码优先，公共入口交最小接线 patch |
 | 其余未勾选任务 | 未分配 | 尚未创建 | 未分配 | 无 | 等后续派工逐项登记 |
 
-本轮启动记录：`/private/tmp/gorequest-agy-20261106/sessions.json`；每项同目录有 `<ID>.prompt.txt`、`<ID>.retry.log`、`<ID>.retry.output.json`。这些是本机临时运行资料，不提交 Git，后续可能清理；长期交付证据由各 agent 写入各自分支 `docs/task-results/<ID>.md`。首次 auto 启动因账号不支持及后台命令无法交互授权而退出；accept-edits + 会话命令 allow 规则重试同样被拒绝，均已退出，未产出功能改动。不修改用户全局设置。随后按用户指定的新版说明，用 Herdr app 在 GoRequest space 新建 B01/B05 两个标签页并交互启动 agy。当前分别为 `t1j`、`t1k`，状态 blocked，屏幕为 “Do you trust the contents of this project?”；依 hc 手册要求等待用户确认，不代答权限对话框。最新启动句柄另记本机 `herdr-sessions.json`。PID 仅表示历史启动进程，后续查询应结合进程、日志和分支提交确认状态。启动前确认另有 `ui-stage3` worktree，两个 agy 均被要求不触碰它或 main；主目录的示例环境和 `.claude/` 保持原状。
+本轮启动记录：`/private/tmp/gorequest-agy-20261106/sessions.json`；每项同目录有 `<ID>.prompt.txt`、`<ID>.retry.log`、`<ID>.retry.output.json`。这些是本机临时运行资料，不提交 Git，后续可能清理；长期交付证据由各 agent 写入各自分支 `docs/task-results/<ID>.md`。首次 auto 启动因账号不支持及后台命令无法交互授权而退出；accept-edits + 会话命令 allow 规则重试同样被拒绝，均已退出，未产出功能改动。不修改用户全局设置。随后按用户指定的新版说明，用 Herdr app 在 GoRequest space 新建 B01/B05 两个标签页并交互启动 agy。首次启动分别为 `t1j`、`t1k`，当时状态 blocked，屏幕为 “Do you trust the contents of this project?”；当时依 hc 手册等待用户确认；后续已获明确 Full Access 授权并解除。最新启动句柄另记本机 `herdr-sessions.json`。PID 仅表示历史启动进程，后续查询应结合进程、日志和分支提交确认状态。启动前确认另有 `ui-stage3` worktree，两个 agy 均被要求不触碰它或 main；主目录的示例环境和 `.claude/` 保持原状。
 
 仅在以下条件全部满足后，由集成人将对应 `[ ]` 改为 `[x]`：功能提交已进入共同集成分支；该卡验收满足；必要测试通过；实现状态文档同步；记录提交和证据。只有引擎或只有 UI 的部分完成，应另记子项完成，不能勾整卡。
 
@@ -136,3 +137,5 @@
 后续会话从此文件恢复派工与打勾，不依赖聊天上下文。若实际代码超前或需求变更，先更新证据与缺口，再调整任务，不根据旧账本重复开发。
 
 2026-11-06 权限更新：用户明确要求两个 agy 进入 Full Access；已在原 Herdr 终端 `t1j`/`t1k` 中恢复各自原会话，启动参数含 `--dangerously-skip-permissions`，未改全局设置。目录信任等待为历史状态，现已解除；功能仍未集成验收，不打勾。
+
+2026-11-06 第三条派工：经用户要求通过新版 Herdr 新建 B03 标签页和独立 worktree，沿用会话级 Full Access、默认 agent/model。B01/B05 已有交付文档及分支提交，尚未审查/集成/验收；不以 Herdr done 状态认定整卡完成。现有用户终端 t1m/t1p 未操作。
