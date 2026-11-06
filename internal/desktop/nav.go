@@ -78,15 +78,20 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// navHeader draws the wordmark in the traffic-light safe area: on macOS the
-// content starts at x=78 so it never sits under the traffic lights (§2); other
-// platforms use a small inset. The area is 52 DIPs tall, matching macOS.
+// navHeader centers the wordmark between the macOS window-control band and
+// the separator below. TitleBar reports AppKit's actual reserved band (and is
+// zero in full screen); do not infer the controls' position from an x inset.
+// Keep the usual 52-DIP header, allowing 30 DIPs below taller control bands
+// for the existing 17-point wordmark and balanced breathing room.
 func (a *App) navHeader(c *ui.Context, p uikit.Palette) {
-	left := float32(12)
+	top, bottom, height := float32(8), float32(6), float32(52)
+	left, right := float32(14), float32(12)
 	if runtime.GOOS == "darwin" {
-		left = 78
+		top, bottom = c.TitleBar().Height, 0
+		left, right = 12, 14
+		height = max(height, top+30)
 	}
-	ui.Column(c).Padding(8, left, 6, 14).Gap(1).Height(52).Justify(ui.Center).Children(func() {
+	ui.Column(c).Padding(top, right, bottom, left).Gap(1).Height(height).Justify(ui.Center).Children(func() {
 		ui.Text(c, "GoRequest").Bold().FontSize(17).TextColor(p.Text).SingleLine()
 	})
 }
