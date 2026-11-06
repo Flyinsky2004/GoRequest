@@ -1,0 +1,493 @@
+--- a/internal/desktop/app.go
++++ b/internal/desktop/app.go
+@@ -12,6 +12,7 @@
+ 	"github.com/egoist/mygo/ui"
+ 
+ 	"gorequest/internal/core"
++	"gorequest/internal/desktop/uikit"
+ )
+ 
+ var (
+@@ -408,15 +409,15 @@
+ 				ui.Text(c, a.closeGuard.errMsg).FontSize(12).TextColor(t.Danger)
+ 			}
+ 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+-				if ui.Button(c, m.Cancel).Clicked() {
++				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
+ 					a.cancelCloseGuard()
+ 					open = false
+ 				}
+-				if ui.Button(c, m.Discard).Clicked() {
++				if uikit.ActionCursor(ui.Button(c, m.Discard)).Clicked() {
+ 					a.resolveCloseGuard(true)
+ 					open = false
+ 				}
+-				if ui.PrimaryButton(c, m.SaveAll).Clicked() {
++				if uikit.ActionCursor(ui.PrimaryButton(c, m.SaveAll)).Clicked() {
+ 					a.resolveCloseGuard(false)
+ 					// Keep the modal open only while a save error remains.
+ 					open = a.closeGuard.active
+--- a/internal/desktop/nav.go
++++ b/internal/desktop/nav.go
+@@ -66,7 +66,7 @@
+ 		// Fixed Settings entry.
+ 		ui.Box(c).Height(1).Background(p.Hairline)
+ 		ui.Column(c).Padding(8, 10).Children(func() {
+-			b := ui.Button(c, "").FillWidth().Tooltip(m.OpenSettingsTip)
++			b := uikit.ActionCursor(ui.Button(c, "")).FillWidth().Tooltip(m.OpenSettingsTip)
+ 			b.Children(func() {
+ 				ui.Icon(c, iconSettings).FontSize(15).TextColor(p.Muted)
+ 				ui.Text(c, m.Settings).SingleLine().Grow(1)
+--- a/internal/desktop/workspace.go
++++ b/internal/desktop/workspace.go
+@@ -39,7 +39,7 @@
+ 	ui.Row(c).Padding(8, 12).Gap(6).AlignItems(ui.Center).Height(46).
+ 		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+ 		// Left: project name + switch dropdown.
+-		ui.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) })
++		uikit.ActionCursor(ui.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) }))
+ 		ui.Box(c).Grow(1)
+ 		// Environment area: a fixed single-line label (never wraps) + selector.
+ 		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(p.Muted).SingleLine().Width(32)
+@@ -49,7 +49,7 @@
+ 		}
+ 		// Far right: the New Request pill and the "+" new menu. Saving lives
+ 		// in the request's own header (§8), not here.
+-		pill := ui.ButtonBase(c).Height(36).Radius(999).Padding(0, 18).Gap(6).AlignItems(ui.Center).Background(p.Hover)
++		pill := uikit.ActionCursor(ui.ButtonBase(c)).Height(36).Radius(999).Padding(0, 18).Gap(6).AlignItems(ui.Center).Background(p.Hover)
+ 		pill.Children(func() {
+ 			ui.Icon(c, uikit.IconPlus).FontSize(14).TextColor(p.Text)
+ 			ui.Text(c, m.NewRequest).FontSize(14).FontWeight(600).TextColor(p.Text).SingleLine()
+@@ -58,7 +58,7 @@
+ 		if pill.Clicked() {
+ 			a.openNewRequest()
+ 		}
+-		ui.MenuButton(c, "+", func(mm *ui.Menu) { a.buildNewMenu(mm, ps) })
++		uikit.ActionCursor(ui.MenuButton(c, "+", func(mm *ui.Menu) { a.buildNewMenu(mm, ps) }))
+ 	})
+ }
+ 
+@@ -124,7 +124,7 @@
+ 	if label == "" {
+ 		label = "(none)"
+ 	}
+-	ui.MenuButton(c, label, func(mm *ui.Menu) {
++	uikit.ActionCursor(ui.MenuButton(c, label, func(mm *ui.Menu) {
+ 		m := a.msg()
+ 		if ps.currentEnv() != "" {
+ 			if env := ps.project.Environments[ps.currentEnv()]; env != nil {
+@@ -155,7 +155,7 @@
+ 		if mm.Item(m.NewEnv).Chosen() {
+ 			a.openNewEnvironment()
+ 		}
+-	})
++	}))
+ }
+ 
+ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
+@@ -305,7 +305,7 @@
+ 			TextColor(uikit.MethodColor(tab.Method, p)).SingleLine()
+ 		ui.Icon(c, uikit.IconChevron).FontSize(11).TextColor(p.Muted)
+ 	})
+-	row.PopoverMenuButton(func(mm *ui.Menu) {
++	uikit.ActionCursor(row).PopoverMenuButton(func(mm *ui.Menu) {
+ 		for _, meth := range methods {
+ 			if mm.Item(meth).Checked(meth == tab.Method).Chosen() {
+ 				tab.Method = meth
+@@ -322,7 +322,7 @@
+ 		return
+ 	}
+ 	m := a.msg()
+-	btn := ui.Button(c, m.Save).Label(m.Save + " ⌘S").Tooltip(m.Save + " ⌘S")
++	btn := uikit.ActionCursor(ui.Button(c, m.Save)).Label(m.Save + " ⌘S").Tooltip(m.Save + " ⌘S")
+ 	if tab.Dirty {
+ 		btn = btn.TextColor(p.Accent)
+ 	}
+--- a/internal/desktop/settings.go
++++ b/internal/desktop/settings.go
+@@ -56,7 +56,7 @@
+ 			ui.Column(c).Gap(10).FillWidth().Children(func() {
+ 				settingsGroup(c, p, m.AppearanceLabel, func() {
+ 					choice := appearanceDisplay(m, cfg.appearance())
+-					if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
++					if uikit.ActionCursor(ui.Select(c, &choice, appearanceChoices(m))).Width(180).Changed() {
+ 						cfg.setAppearance(appearanceCanonical(m, choice))
+ 						if setStatus != nil {
+ 							setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
+@@ -66,7 +66,7 @@
+ 
+ 				settingsGroup(c, p, m.LanguageLabel, func() {
+ 					choice := languageLabel(cfg.language())
+-					if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
++					if uikit.ActionCursor(ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish})).Width(180).Changed() {
+ 						cfg.setLanguage(languageFromLabel(choice))
+ 						if setStatus != nil {
+ 							langMsgs := messagesFor(cfg.language())
+@@ -77,7 +77,7 @@
+ 
+ 				settingsGroup(c, p, m.StartupLabel, func() {
+ 					restore := cfg.restoreLastEnabled()
+-					if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
++					if uikit.ActionCursor(ui.Checkbox(c, &restore, m.RestoreLast)).Changed() {
+ 						cfg.setRestoreLast(restore)
+ 						if setStatus != nil {
+ 							if restore {
+@@ -96,7 +96,7 @@
+ 				settingsGroup(c, p, m.HistorySettingsLabel, func() {
+ 					ui.Column(c).Gap(8).Children(func() {
+ 						snap := cfg.historySaveSnapshots()
+-						if ui.Checkbox(c, &snap, m.HistorySaveSnapshots).Changed() {
++						if uikit.ActionCursor(ui.Checkbox(c, &snap, m.HistorySaveSnapshots)).Changed() {
+ 							cfg.setHistorySaveSnapshots(snap)
+ 							if !snap {
+ 								// Bodies cannot be captured when snapshots are off.
+@@ -104,7 +104,7 @@
+ 							}
+ 						}
+ 						bodies := cfg.historySaveBodies()
+-						cb := ui.Checkbox(c, &bodies, m.HistorySaveBodies).Disabled(!snap)
++						cb := uikit.ActionCursor(ui.Checkbox(c, &bodies, m.HistorySaveBodies).Disabled(!snap))
+ 						if snap && cb.Changed() {
+ 							cfg.setHistorySaveBodies(bodies)
+ 						}
+@@ -112,7 +112,7 @@
+ 							ui.Text(c, m.HistoryRetentionLabel).Grow(1).FontSize(12).TextColor(p.Muted).SingleLine()
+ 							choices := historyRetentionChoices(m)
+ 							choice := historyRetentionLabel(m, cfg.historyRetentionDays())
+-							if ui.Select(c, &choice, choices).Width(190).Changed() {
++							if uikit.ActionCursor(ui.Select(c, &choice, choices)).Width(190).Changed() {
+ 								cfg.setHistoryRetentionDays(historyRetentionValue(choices, choice))
+ 							}
+ 						})
+@@ -141,7 +141,7 @@
+ 		})
+ 
+ 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+-			if ui.PrimaryButton(c, m.Done).Clicked() {
++			if uikit.ActionCursor(ui.PrimaryButton(c, m.Done)).Clicked() {
+ 				*open = false
+ 			}
+ 		})
+--- a/internal/desktop/tab_bar.go
++++ b/internal/desktop/tab_bar.go
+@@ -82,7 +82,7 @@
+ 
+ 	var clicked, closeClicked bool
+ 	outer.Children(func() {
+-		act := ui.ButtonBase(c).Grow(1).Height(38).Gap(6).PaddingX(2)
++		act := uikit.ActionCursor(ui.ButtonBase(c)).Grow(1).Height(38).Gap(6).PaddingX(2)
+ 		act.Children(func() {
+ 			if tab.Kind == "request" && tab.Method != "" {
+ 				ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(11).
+@@ -119,7 +119,7 @@
+ 				dotOpacity = 1
+ 			}
+ 			dot.Opacity(dotOpacity)
+-			cb := ui.Button(c, "✕").Label(closeLabel)
++			cb := uikit.ActionCursor(ui.Button(c, "✕")).Label(closeLabel)
+ 			var closeOpacity float32
+ 			if hovered {
+ 				closeOpacity = 1
+@@ -173,7 +173,7 @@
+ 	}
+ 	labels := uniqueTabLabels(ps)
+ 	msgs := a.msg()
+-	ui.MenuButton(c, fmt.Sprintf(msgs.OpenTabsMenu, len(ps.tabs)), func(m *ui.Menu) {
++	uikit.ActionCursor(ui.MenuButton(c, fmt.Sprintf(msgs.OpenTabsMenu, len(ps.tabs)), func(m *ui.Menu) {
+ 		for i, tab := range ps.tabs {
+ 			label := labels[i]
+ 			activeTab := ps.tabs[ps.active]
+@@ -196,7 +196,7 @@
+ 		if m.Item(msgs.CloseAll).Chosen() {
+ 			a.closeAll()
+ 		}
+-	})
++	}))
+ }
+ 
+ // uniqueTabLabels returns one menu label per tab, disambiguating duplicate
+--- a/internal/desktop/uikit/tab.go
++++ b/internal/desktop/uikit/tab.go
+@@ -49,7 +49,7 @@
+ 
+ 	var clicked, closeClicked bool
+ 	outer.Children(func() {
+-		act := ui.ButtonBase(c).Grow(1).Height(38).Gap(6).PaddingX(2)
++		act := ActionCursor(ui.ButtonBase(c)).Grow(1).Height(38).Gap(6).PaddingX(2)
+ 		act.Children(func() {
+ 			if s.Method != "" {
+ 				ui.Text(c, s.Method).Font("monospace").FontWeight(700).FontSize(11).
+@@ -70,7 +70,7 @@
+ 		slot.Children(func() {
+ 			dot := ui.Box(c).Size(7, 7).Radius(999).Background(MethodColor("POST", p)).PassThrough()
+ 			dot.Opacity(tern(s.Dirty && !hovered, 1, 0))
+-			cb := ui.Button(c, "✕").Label(closeLabel)
++			cb := ActionCursor(ui.Button(c, "✕")).Label(closeLabel)
+ 			cb.Opacity(tern(hovered, 1, 0))
+ 			if cb.Clicked() {
+ 				closeClicked = true
+--- a/internal/desktop/response_view.go
++++ b/internal/desktop/response_view.go
+@@ -176,24 +176,24 @@
+ 
+ 			// Project-isolated Cookie Jar & Network/TLS Settings buttons are
+ 			// always reachable from the request workspace toolbar.
+-			if ui.Button(c, fmt.Sprintf(nm.CookieJarBtnFmt, jar.Count())).Clicked() {
++			if uikit.ActionCursor(ui.Button(c, fmt.Sprintf(nm.CookieJarBtnFmt, jar.Count()))).Clicked() {
+ 				a.openCookieJarModal(ps)
+ 			}
+-			if ui.Button(c, nm.NetworkBtn).Clicked() {
++			if uikit.ActionCursor(ui.Button(c, nm.NetworkBtn)).Clicked() {
+ 				a.openNetworkSettingsModal(ps)
+ 			}
+ 
+ 			if tab.Resp != nil && !tab.Sending && tab.RespErr == "" {
+-				ui.Segmented(c, &tab.RespSection, m.BodySection, m.HeadersSection, nm.CookiesSection, nm.NetworkSection)
++				uikit.NativeSegmented(c, &tab.RespSection, m.BodySection, m.HeadersSection, nm.CookiesSection, nm.NetworkSection)
+ 				if tab.RespSection == 0 {
+ 					if !tab.Resp.IsBinary {
+ 						if responseBodyIsJSON(tab.Resp) && tab.Resp.BodySize <= largeResponseThreshold {
+-							ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
++							uikit.NativeSegmented(c, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
+ 						} else {
+ 							if tab.RespRawIdx > 1 {
+ 								tab.RespRawIdx = 0
+ 							}
+-							ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw)
++							uikit.NativeSegmented(c, &tab.RespRawIdx, m.Pretty, m.Raw)
+ 						}
+ 						if b := uikit.IconButton(c, p, uikit.IconSearch, m.FindPlaceholder); b.Clicked() {
+ 							tab.respFindOpen = !tab.respFindOpen
+@@ -356,11 +356,11 @@
+ 
+ 		ui.Box(c).Grow(1)
+ 		if matchCount > 0 {
+-			if ui.Button(c, "↑").Clicked() {
++			if uikit.ActionCursor(ui.Button(c, "↑")).Clicked() {
+ 				tab.respFindIdx--
+ 				tab.respFindJump = true
+ 			}
+-			if ui.Button(c, "↓").Clicked() {
++			if uikit.ActionCursor(ui.Button(c, "↓")).Clicked() {
+ 				tab.respFindIdx++
+ 				tab.respFindJump = true
+ 			}
+@@ -534,7 +534,7 @@
+ 		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
+ 			ui.Text(c, nm.BinaryPayloadTitle).FontSize(13).FontWeight(600).TextColor(p.Text)
+ 			ui.Box(c).Grow(1)
+-			if ui.PrimaryButton(c, nm.SaveBinaryBtn).Clicked() {
++			if uikit.ActionCursor(ui.PrimaryButton(c, nm.SaveBinaryBtn)).Clicked() {
+ 				a.saveResponse(tab)
+ 			}
+ 		})
+@@ -586,10 +586,10 @@
+ 
+ 	ui.Column(c).Grow(1).FillWidth().Children(func() {
+ 		ui.Row(c).Gap(8).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+-			if ui.Button(c, nm.ExpandAllBtn).Clicked() {
++			if uikit.ActionCursor(ui.Button(c, nm.ExpandAllBtn)).Clicked() {
+ 				clear(ts.collapsedPaths)
+ 			}
+-			if ui.Button(c, nm.CollapseAllBtn).Clicked() {
++			if uikit.ActionCursor(ui.Button(c, nm.CollapseAllBtn)).Clicked() {
+ 				collapseAllContainers(ts.jsonTreeRoot, ts.collapsedPaths)
+ 			}
+ 			if ts.jsonTreeTrunc {
+@@ -619,7 +619,7 @@
+ 							if !row.Expanded {
+ 								glyph = "▸"
+ 							}
+-							if ui.Button(c, glyph).Clicked() {
++							if uikit.ActionCursor(ui.Button(c, glyph)).Clicked() {
+ 								ts.collapsedPaths[n.Path] = row.Expanded
+ 							}
+ 						} else {
+@@ -637,11 +637,11 @@
+ 						ui.Text(c, n.Path).FontSize(10).Font("monospace").SingleLine().TextColor(p.Faint)
+ 						ui.Box(c).Grow(1)
+ 
+-						if ui.Button(c, nm.CopyJSONPathBtn).Clicked() {
++						if uikit.ActionCursor(ui.Button(c, nm.CopyJSONPathBtn)).Clicked() {
+ 							c.WriteClipboard(n.Path)
+ 							a.status = m.Copied
+ 						}
+-						if ui.Button(c, nm.CopyValueBtn).Clicked() {
++						if uikit.ActionCursor(ui.Button(c, nm.CopyValueBtn)).Clicked() {
+ 							c.WriteClipboard(n.RawValue)
+ 							a.status = m.Copied
+ 						}
+--- a/internal/desktop/documentation.go
++++ b/internal/desktop/documentation.go
+@@ -278,28 +278,28 @@
+ 
+ func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, st *docViewState, dm *docMessages, m *messages) {
+ 	ui.Row(c).Gap(8).Padding(8, 12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+-		ui.Segmented(c, &tab.Section, m.SplitView, m.EditView, m.PreviewView)
+-		if ui.Button(c, dm.Outline).Clicked() {
++		uikit.NativeSegmented(c, &tab.Section, m.SplitView, m.EditView, m.PreviewView)
++		if uikit.ActionCursor(ui.Button(c, dm.Outline)).Clicked() {
+ 			st.outlineOpen = !st.outlineOpen
+ 		}
+-		if ui.Button(c, dm.Search).Clicked() {
++		if uikit.ActionCursor(ui.Button(c, dm.Search)).Clicked() {
+ 			st.searchOpen = !st.searchOpen
+ 		}
+ 		problems := dm.Problems
+ 		if n := len(st.diagnostics); n > 0 {
+ 			problems = fmt.Sprintf("%s (%d)", dm.Problems, n)
+ 		}
+-		if ui.Button(c, problems).Clicked() {
++		if uikit.ActionCursor(ui.Button(c, problems)).Clicked() {
+ 			st.problemsOpen = !st.problemsOpen
+ 			st.diagnostics = tab.Owner.project.DiagnoseDoc(tab.DocRel, tab.DocEditor.Buffer.String())
+ 		}
+ 		ui.Box(c).Grow(1)
+ 		if tab.Dirty {
+-			if ui.PrimaryButton(c, m.SaveDoc).Clicked() {
++			if uikit.ActionCursor(ui.PrimaryButton(c, m.SaveDoc)).Clicked() {
+ 				a.saveActive()
+ 			}
+ 		}
+-		ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) { a.docInsertMenu(mm, tab, dm) })
++		uikit.ActionCursor(ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) { a.docInsertMenu(mm, tab, dm) }))
+ 	})
+ }
+ 
+@@ -367,7 +367,7 @@
+ 						TextColor(color).SingleLine()
+ 				})
+ 				row.Label(fmt.Sprintf(dm.HeadingLabel, h.Level, h.Text))
+-				if row.Clicked() {
++				if uikit.ActionCursor(row).Clicked() {
+ 					a.docGoToHeading(tab, st, h)
+ 				}
+ 			}
+@@ -391,9 +391,9 @@
+ 			return true
+ 		})
+ 		ui.Box(c).Width(190).Children(func() {
+-			ui.Segmented(c, &st.searchScope, dm.ThisDoc, dm.AllDocs)
+-		})
+-		if ui.Button(c, dm.SearchAction).Clicked() {
++			uikit.NativeSegmented(c, &st.searchScope, dm.ThisDoc, dm.AllDocs)
++		})
++		if uikit.ActionCursor(ui.Button(c, dm.SearchAction)).Clicked() {
+ 			run()
+ 		}
+ 	})
+@@ -444,7 +444,7 @@
+ 						ui.Text(c, label).FontSize(12).TextColor(p.Text).SingleLine()
+ 					})
+ 					row.Label(label)
+-					if row.Clicked() {
++					if uikit.ActionCursor(row).Clicked() {
+ 						a.openDocSearchMatch(root, tab, match)
+ 					}
+ 				}
+@@ -477,7 +477,7 @@
+ 					ui.Text(c, label).FontSize(12).TextColor(severityColor(d.Severity, p)).SingleLine()
+ 				})
+ 				row.Label(label)
+-				if row.Clicked() {
++				if uikit.ActionCursor(row).Clicked() {
+ 					a.docGoToLine(tab, st, d.Line, d.Column)
+ 				}
+ 			}
+--- a/internal/desktop/identity_ui.go
++++ b/internal/desktop/identity_ui.go
+@@ -382,7 +382,7 @@
+ 
+ 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+ 		ui.Text(c, m.AuthTab).FontSize(12).TextColor(t.TextMuted)
+-		if ui.Select(c, &tab.AuthMode, modes).Changed() {
++		if uikit.ActionCursor(ui.Select(c, &tab.AuthMode, modes)).Changed() {
+ 			tab.AuthIdx = indexOf(requestAuthModes, tab.AuthMode)
+ 			tab.authPassthrough = nil
+ 			tab.authKeyInOmitted = false
+@@ -414,14 +414,14 @@
+ 				tab.Dirty = true
+ 			}
+ 			if len(schemeIDs) > 0 {
+-				ui.MenuButton(c, im.ChooseScheme, func(mm *ui.Menu) {
++				uikit.ActionCursor(ui.MenuButton(c, im.ChooseScheme, func(mm *ui.Menu) {
+ 					for _, id := range schemeIDs {
+ 						if mm.Item(id).Checked(strings.TrimSpace(tab.AuthRefID) == id).Chosen() {
+ 							tab.AuthRefID = id
+ 							tab.Dirty = true
+ 						}
+ 					}
+-				})
++				}))
+ 			}
+ 		})
+ 		refID := strings.TrimSpace(tab.AuthRefID)
+@@ -456,7 +456,7 @@
+ 		tab.AuthKeyInIdx = indexOf(core.APIKeyLocations, core.NormalizeAPIKeyLocation(tab.AuthKeyIn))
+ 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+ 			ui.Text(c, im.APIKeyLocation).FontSize(12).TextColor(t.TextMuted)
+-			if ui.Segmented(c, &tab.AuthKeyInIdx, core.APIKeyLocations...).Changed() {
++			if uikit.NativeSegmented(c, &tab.AuthKeyInIdx, core.APIKeyLocations...).Changed() {
+ 				tab.AuthKeyIn = core.APIKeyLocations[tab.AuthKeyInIdx]
+ 				tab.authKeyInOmitted = false
+ 				tab.Dirty = true
+--- a/internal/desktop/workspace_settings.go
++++ b/internal/desktop/workspace_settings.go
+@@ -519,7 +519,7 @@
+ 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+ 				ui.Text(c, m.FontSizeLabel).FontSize(12).TextColor(p.Muted).Width(150)
+ 				cur := strconv.Itoa(s.fontSize())
+-				if ui.Select(c, &cur, fontSizeChoices()).Width(90).Changed() {
++				if uikit.ActionCursor(ui.Select(c, &cur, fontSizeChoices())).Width(90).Changed() {
+ 					if n, err := strconv.Atoi(cur); err == nil {
+ 						s.setFontSize(n)
+ 						if setStatus != nil {
+@@ -531,18 +531,18 @@
+ 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+ 				ui.Text(c, m.TabSizeLabel).FontSize(12).TextColor(p.Muted).Width(150)
+ 				cur := strconv.Itoa(s.tabSize())
+-				if ui.Select(c, &cur, tabSizeChoices()).Width(90).Changed() {
++				if uikit.ActionCursor(ui.Select(c, &cur, tabSizeChoices())).Width(90).Changed() {
+ 					if n, err := strconv.Atoi(cur); err == nil {
+ 						s.setTabSize(n)
+ 					}
+ 				}
+ 			})
+ 			wrap := s.softWrap()
+-			if ui.Checkbox(c, &wrap, m.SoftWrapLabel).Changed() {
++			if uikit.ActionCursor(ui.Checkbox(c, &wrap, m.SoftWrapLabel)).Changed() {
+ 				s.setSoftWrap(wrap)
+ 			}
+ 			nums := s.lineNumbers()
+-			if ui.Checkbox(c, &nums, m.LineNumbersLabel).Changed() {
++			if uikit.ActionCursor(ui.Checkbox(c, &nums, m.LineNumbersLabel)).Changed() {
+ 				s.setLineNumbers(nums)
+ 			}
+ 		})
+@@ -551,7 +551,7 @@
+ 	settingsGroup(c, p, m.AutoSaveSection, func() {
+ 		ui.Column(c).Gap(6).FillWidth().Children(func() {
+ 			on := s.autoSaveEnabled()
+-			if ui.Checkbox(c, &on, m.AutoSaveEnable).Changed() {
++			if uikit.ActionCursor(ui.Checkbox(c, &on, m.AutoSaveEnable)).Changed() {
+ 				s.setAutoSaveEnabled(on)
+ 				if setStatus != nil {
+ 					if on {
+@@ -564,7 +564,7 @@
+ 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+ 				ui.Text(c, m.AutoSaveDelayLabel).FontSize(12).TextColor(p.Muted).Width(150)
+ 				cur := delaySecondsLabel(s.autoSaveDelay())
+-				if ui.Select(c, &cur, delayChoices()).Width(90).Changed() {
++				if uikit.ActionCursor(ui.Select(c, &cur, delayChoices())).Width(90).Changed() {
+ 					if n, err := strconv.Atoi(cur); err == nil {
+ 						s.setAutoSaveDelaySeconds(n)
+ 					}
+@@ -580,7 +580,7 @@
+ 				def := def
+ 				on := s.shortcutEnabled(def.ID)
+ 				label := fmt.Sprintf("%s  (%s)", def.Label, def.Keys)
+-				if ui.Checkbox(c, &on, label).Changed() {
++				if uikit.ActionCursor(ui.Checkbox(c, &on, label)).Changed() {
+ 					s.setShortcutEnabled(def.ID, on)
+ 				}
+ 			}

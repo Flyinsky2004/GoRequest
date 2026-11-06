@@ -61,19 +61,19 @@ func (w *welcomeState) view(c *ui.Context) {
 
 		// Actions.
 		ui.Row(c).Padding(0, 24, 8, 24).Gap(10).AlignItems(ui.Center).Children(func() {
-			if ui.PrimaryButton(c, m.OpenProject).Tooltip(m.ChooseFolderTip).Clicked() {
+			if uikit.ActionCursor(ui.PrimaryButton(c, m.OpenProject)).Tooltip(m.ChooseFolderTip).Clicked() {
 				mgr.pickProject(w.win)
 			}
-			if ui.Button(c, m.NewProject).Tooltip(m.NewProjectTip).Clicked() {
+			if uikit.ActionCursor(ui.Button(c, m.NewProject)).Tooltip(m.NewProjectTip).Clicked() {
 				w.openNewProject()
 			}
-			if ui.Button(c, m.GlobalWorkspace).Tooltip(m.GlobalWorkspaceTip).Clicked() {
+			if uikit.ActionCursor(ui.Button(c, m.GlobalWorkspace)).Tooltip(m.GlobalWorkspaceTip).Clicked() {
 				if err := mgr.openGlobalWorkspace(); err != nil {
 					w.status = translate(m.OpenFailed, err.Error())
 				}
 			}
 			ui.Box(c).Grow(1)
-			if ui.Button(c, m.Settings).Clicked() {
+			if uikit.ActionCursor(ui.Button(c, m.Settings)).Clicked() {
 				w.showSettings = true
 			}
 		})
@@ -103,7 +103,7 @@ func (w *welcomeState) view(c *ui.Context) {
 				if mgr.workspacePrefs().pinned(rp.Path) {
 					icon = uikit.IconPin
 				}
-				item := ui.SidebarItem(c, "project:"+rp.Path, icon, mgr.recentLabelWithPin(rp))
+				item := uikit.ActionCursor(ui.SidebarItem(c, "project:"+rp.Path, icon, mgr.recentLabelWithPin(rp)))
 				item.PopoverMenu(func(mm *ui.Menu) {
 					if mm.Item(m.OpenRow).Chosen() {
 						w.openRecent(rp.Path)
@@ -194,7 +194,7 @@ func (w *welcomeState) newProjectModal(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, m.ProjectLocationLabel).FontSize(12).TextColor(p.Muted).Width(80)
 				ui.TextInput(c, &w.newProjParent).Grow(1).SingleLine().Font("monospace")
-				if ui.Button(c, m.Browse).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Browse)).Clicked() {
 					w.mgr.pickDirectory(w.win, m.ChooseProjectLocation, m.ChooseProjectLocationMsg, func(path string) {
 						w.newProjParent = path
 					})
@@ -205,11 +205,11 @@ func (w *welcomeState) newProjectModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, w.newProjErr).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					w.newProjOpen = false
 					open = false
 				}
-				if ui.PrimaryButton(c, m.Create).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, m.Create)).Clicked() {
 					w.createProject()
 					open = w.newProjOpen
 				}

@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+
+	"gorequest/internal/desktop/uikit"
 )
 
 // This file holds the native "new folder", "new request", "move request" and
@@ -132,10 +134,10 @@ func (a *App) newRequestModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, a.formErr).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.newReqOpen = false
 				}
-				if ui.PrimaryButton(c, m.Create).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, m.Create)).Clicked() {
 					a.submitNewRequest()
 				}
 			})
@@ -160,10 +162,10 @@ func (a *App) newFolderModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, a.formErr).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.newFolderOpen = false
 				}
-				if ui.PrimaryButton(c, m.CreateFolder).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, m.CreateFolder)).Clicked() {
 					a.submitNewFolder()
 				}
 			})
@@ -185,23 +187,23 @@ func (a *App) moveModal(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Width(400).Gap(10).Padding(16).Children(func() {
 			ui.Text(c, m.MoveTitle).Bold().FontSize(16)
 			ui.Text(c, m.MoveHint).FontSize(12).TextColor(t.TextMuted)
-			ui.Select(c, &a.moveTarget, folderChoices(ps.project)).FillWidth()
+			uikit.ActionCursor(ui.Select(c, &a.moveTarget, folderChoices(ps.project))).FillWidth()
 			if a.moveErr != "" {
 				ui.Text(c, a.moveErr).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.moveOpen = false
 				}
 				if a.moveTab.Dirty {
-					if ui.PrimaryButton(c, m.SaveAndMove).Clicked() {
+					if uikit.ActionCursor(ui.PrimaryButton(c, m.SaveAndMove)).Clicked() {
 						a.doMove(true, false)
 					}
-					if ui.Button(c, m.DiscardAndMove).Clicked() {
+					if uikit.ActionCursor(ui.Button(c, m.DiscardAndMove)).Clicked() {
 						a.doMove(false, true)
 					}
 				} else {
-					if ui.PrimaryButton(c, m.MoveAction).Clicked() {
+					if uikit.ActionCursor(ui.PrimaryButton(c, m.MoveAction)).Clicked() {
 						a.doMove(false, false)
 					}
 				}
@@ -226,13 +228,13 @@ func (a *App) closeModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, f.err).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, msgs.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, msgs.Cancel)).Clicked() {
 					a.cancelClose()
 				}
-				if ui.Button(c, msgs.Discard).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, msgs.Discard)).Clicked() {
 					a.resolveCloseDirty(false)
 				}
-				if ui.PrimaryButton(c, msgs.SaveAndClose).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, msgs.SaveAndClose)).Clicked() {
 					a.resolveCloseDirty(true)
 				}
 			})

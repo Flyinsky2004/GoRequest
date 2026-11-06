@@ -23,7 +23,7 @@ func RoundButton(c *ui.Context, p Palette, ic *ui.SVG, tooltip string) ui.Elemen
 
 func iconButton(c *ui.Context, p Palette, ic *ui.SVG, tooltip string, round bool) ui.Element {
 	side := IconSizeDefault + 16
-	e := ui.Box(c).Size(side, side).Radius(999).Center()
+	e := ActionCursor(ui.Box(c).Size(side, side).Radius(999).Center())
 
 	hovered := e.Hovered()
 	scale := float32(1)
@@ -82,7 +82,7 @@ func pillButton(c *ui.Context, p Palette, style PillStyle, label string, ic *ui.
 		base, fg = p.Hover, p.Text
 	}
 
-	e := ui.Row(c).Height(height).Radius(radius).Padding(0, 18).Gap(6).AlignItems(ui.Center)
+	e := ActionCursor(ui.Row(c).Height(height).Radius(radius).Padding(0, 18).Gap(6).AlignItems(ui.Center))
 
 	hovered := e.Hovered()
 	scale := float32(1)
@@ -156,7 +156,7 @@ func Segmented(c *ui.Context, p Palette, selected *int, labels []string) (ui.Ele
 		ui.Row(c).FillWidth().FillHeight().Children(func() {
 			for i, label := range labels {
 				i := i
-				cell := ui.Box(c).Grow(1).FillHeight().Center()
+				cell := ActionCursor(ui.Box(c).Grow(1).FillHeight().Center())
 				col := p.Muted
 				hovered := cell.Hovered()
 				if i == *selected {
@@ -196,7 +196,7 @@ func SimpleSegmented(c *ui.Context, p Palette, selected *int, labels []string) (
 	track.Children(func() {
 		for i, label := range labels {
 			i := i
-			cell := ui.Box(c).Grow(1).FillHeight().Radius(4).Center()
+			cell := ActionCursor(ui.Box(c).Grow(1).FillHeight().Radius(4).Center())
 			if i == *selected {
 				cell.Background(capsuleColor(p))
 			}

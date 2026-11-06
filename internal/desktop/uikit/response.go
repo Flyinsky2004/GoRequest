@@ -52,7 +52,7 @@ func SkeletonLines(c *ui.Context, p Palette, n int) {
 // 340ms/0.30 icon spring — the two icons cross-scale and cross-fade rather than
 // hard-cutting — with the label switching between send and cancel.
 func SendButton(c *ui.Context, p Palette, sending bool, label string) (ui.Element, bool) {
-	e := ui.Row(c).Height(40).Width(104).Radius(10).Center().Background(p.Accent)
+	e := ActionCursor(ui.Row(c).Height(40).Width(104).Radius(10).Center().Background(p.Accent))
 	var clicked bool
 	e.Children(func() {
 		icon := ui.Box(c).Size(16, 16)

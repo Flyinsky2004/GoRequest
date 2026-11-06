@@ -27,15 +27,15 @@ func (g *gitController) panel(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, m.Title).FontSize(11).FontWeight(600).TextColor(p.Muted).Grow(1)
 			switch {
 			case g.busy != "":
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					g.cancelBusy()
 				}
 			case g.svc == nil:
-				if ui.Button(c, m.Retry).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Retry)).Clicked() {
 					g.retry()
 				}
 			default:
-				if ui.Button(c, m.Refresh).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Refresh)).Clicked() {
 					g.asyncRefresh()
 				}
 			}
@@ -88,7 +88,7 @@ func (g *gitController) messageBlock(c *ui.Context, p uikit.Palette, title, hint
 		ui.Text(c, title).FontSize(12).TextColor(p.Text)
 		ui.Text(c, hint).FontSize(11).TextColor(p.Faint)
 		if retry {
-			if ui.Button(c, g.msg().Retry).Clicked() {
+			if uikit.ActionCursor(ui.Button(c, g.msg().Retry)).Clicked() {
 				g.retry()
 			}
 		}
@@ -123,15 +123,15 @@ func (g *gitController) repoSummary(c *ui.Context, p uikit.Palette, m *gitMessag
 	ui.Row(c).Padding(4, 10).Gap(6).AlignItems(ui.Center).Children(func() {
 		selected := len(g.selectedPaths())
 		commit := ui.Button(c, fmt.Sprintf("%s (%d)", m.Commit, selected)).Disabled(selected == 0 || g.busy != "")
-		if commit.Clicked() {
+		if uikit.ActionCursor(commit).Clicked() {
 			g.openCommit()
 		}
 		pull := ui.Button(c, m.Pull).Disabled(g.busy != "")
-		if pull.Clicked() {
+		if uikit.ActionCursor(pull).Clicked() {
 			g.openPull()
 		}
 		push := ui.Button(c, m.Push).Disabled(g.busy != "")
-		if push.Clicked() {
+		if uikit.ActionCursor(push).Clicked() {
 			g.openPush()
 		}
 	})
@@ -150,10 +150,10 @@ func (g *gitController) list(c *ui.Context, t *ui.Theme, p uikit.Palette, m *git
 	ui.Row(c).Padding(4, 10).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, translate(m.ChangedFiles, len(entries))).FontSize(11).TextColor(p.Muted).Grow(1)
 		if len(g.selection) > 0 {
-			if ui.Button(c, m.ClearSelection).Clicked() {
+			if uikit.ActionCursor(ui.Button(c, m.ClearSelection)).Clicked() {
 				g.clearSelection()
 			}
-		} else if ui.Button(c, m.SelectAll).Clicked() {
+		} else if uikit.ActionCursor(ui.Button(c, m.SelectAll)).Clicked() {
 			g.selectAll(entries)
 		}
 	})
@@ -212,7 +212,7 @@ func (g *gitController) entryRow(c *ui.Context, t *ui.Theme, p uikit.Palette, m 
 		row.Background(p.Hover)
 	}
 	row.Children(func() {
-		ui.CheckboxBase(c, &checked).Label(e.Path).Disabled(e.Unmerged)
+		uikit.ActionCursor(ui.CheckboxBase(c, &checked).Label(e.Path).Disabled(e.Unmerged))
 		badge := e.Marker()
 		col := p.Muted
 		switch badge {
@@ -222,7 +222,7 @@ func (g *gitController) entryRow(c *ui.Context, t *ui.Theme, p uikit.Palette, m 
 			col = t.Danger
 		}
 		ui.Text(c, badge).Font("monospace").FontWeight(700).FontSize(11).TextColor(col).Width(14).SingleLine()
-		name := ui.ButtonBase(c).Grow(1).Height(24).Padding(0, 2)
+		name := uikit.ActionCursor(ui.ButtonBase(c)).Grow(1).Height(24).Padding(0, 2)
 		name.Label(translate(m.DiffTitle, e.Path)).Tooltip(e.Path)
 		name.Children(func() {
 			ui.Text(c, e.Path).FontSize(12).TextColor(p.Text).SingleLine()
@@ -281,7 +281,7 @@ func (g *gitController) commitModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, translate(m.CommitFailed, g.commitErr)).FontSize(11).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					if g.busy == "commit" {
 						g.cancelBusy()
 					}
@@ -290,7 +290,7 @@ func (g *gitController) commitModal(c *ui.Context, t *ui.Theme) {
 				}
 				commit := ui.PrimaryButton(c, m.CommitAction).
 					Disabled(g.busy != "" || g.commitMessage() == "" || len(g.selectedPaths()) == 0)
-				if commit.Clicked() {
+				if uikit.ActionCursor(commit).Clicked() {
 					g.asyncCommit()
 				}
 			})
@@ -317,7 +317,7 @@ func (g *gitController) diffModal(c *ui.Context, t *ui.Theme) {
 				if g.diffStaged {
 					idx = 1
 				}
-				ui.Segmented(c, &idx, m.DiffUnstaged, m.DiffStaged)
+				uikit.NativeSegmented(c, &idx, m.DiffUnstaged, m.DiffStaged)
 				if newStaged := idx == 1; newStaged != g.diffStaged {
 					g.diffStaged = newStaged
 					g.diff = nil
@@ -354,7 +354,7 @@ func (g *gitController) diffModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, m.Loading).FontSize(12).TextColor(p.Faint)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Close).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Close)).Clicked() {
 					g.diffOpen = false
 					open = false
 				}
@@ -403,7 +403,7 @@ func (g *gitController) confirmModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, translate(m.Busy, g.busyLabel(m))).FontSize(11).TextColor(p.Muted)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					if g.busy != "" {
 						g.cancelBusy()
 					}
@@ -412,7 +412,7 @@ func (g *gitController) confirmModal(c *ui.Context, t *ui.Theme) {
 				}
 				primary := ui.PrimaryButton(c, action).
 					Disabled(g.busy != "" || g.confirmErr != "" || g.confirmTarget == nil)
-				if primary.Clicked() {
+				if uikit.ActionCursor(primary).Clicked() {
 					if g.confirmKind == "pull" {
 						g.asyncPull()
 					} else {

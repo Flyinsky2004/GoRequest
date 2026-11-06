@@ -159,7 +159,7 @@ func (a *App) sectionHeader(c *ui.Context, p uikit.Palette, title, key string, a
 			ui.Text(c, title).FontSize(11).FontWeight(600).TextColor(p.Muted).SingleLine()
 		})
 		b.Label("section:" + title)
-		if b.Clicked() {
+		if uikit.ActionCursor(b).Clicked() {
 			ps.collapsed[key] = !folded
 		}
 		if hovered {
@@ -268,7 +268,7 @@ func (a *App) requestRow(c *ui.Context, t *ui.Theme, ps *projectState, e *core.R
 	if over, ok := ui.DragOver[draggedRequest](row); ok && over.id != e.Request.ID {
 		row.Background(p.Accent.Alpha(0.16))
 	}
-	if row.Clicked() {
+	if uikit.ActionCursor(row).Clicked() {
 		ps.sel = id
 		if err := ps.openSelection(id); err != nil {
 			a.status = err.Error()
@@ -338,7 +338,7 @@ func (a *App) folderNode(c *ui.Context, t *ui.Theme, ps *projectState, n *core.C
 			a.treeRowLabel(c, selID, a.nameSpans(p, n.Name, weight, p.Text))
 		})
 		b.Label(n.Name)
-		if b.Clicked() {
+		if uikit.ActionCursor(b).Clicked() {
 			ps.expanded[n.RelPath] = !ps.expanded[n.RelPath]
 			ps.sel = selID
 		}
@@ -395,7 +395,7 @@ func (a *App) docRow(c *ui.Context, t *ui.Theme, ps *projectState, d *core.DocEn
 			a.treeRowLabel(c, id, a.nameSpans(p, d.Name, weight, p.Text))
 		})
 		b.Label(d.Name)
-		if b.Clicked() {
+		if uikit.ActionCursor(b).Clicked() {
 			ps.sel = id
 			if err := ps.openSelection(id); err != nil {
 				a.status = err.Error()

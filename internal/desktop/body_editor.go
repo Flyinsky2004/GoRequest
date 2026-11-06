@@ -187,7 +187,7 @@ func (a *App) renderBodyEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
 		ui.Text(c, m.BodyType).FontSize(12).TextColor(p.Muted)
-		if ui.Segmented(c, &bs.modeIdx, modeLabels...).Changed() {
+		if uikit.NativeSegmented(c, &bs.modeIdx, modeLabels...).Changed() {
 			tab.bodyEditor = nil
 			bs.builtEditorKey = ""
 			bs.markMutated(tab)
@@ -241,7 +241,7 @@ func (a *App) renderUnsupportedBodyCard(c *ui.Context, p uikit.Palette, danger u
 		}
 
 		ui.Row(c).Justify(ui.End).Children(func() {
-			if ui.Button(c, bm.ReplaceUnsupportedBody).Clicked() {
+			if uikit.ActionCursor(ui.Button(c, bm.ReplaceUnsupportedBody)).Clicked() {
 				bs.unsupported = false
 				bs.loadErr = ""
 				bs.modeIdx = uiBodyModeIndex(core.BodyNone)
@@ -257,7 +257,7 @@ func (a *App) renderTextLikeBody(c *ui.Context, t *ui.Theme, p uikit.Palette, bm
 	srcLabels := []string{bm.SourceInline, bm.SourceProjectFile, bm.SourceLocalFile}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, bm.SourceLabel).FontSize(12).TextColor(p.Muted)
-		if ui.Segmented(c, &bs.textSource, srcLabels...).Changed() {
+		if uikit.NativeSegmented(c, &bs.textSource, srcLabels...).Changed() {
 			tab.bodyEditor = nil
 			bs.builtEditorKey = ""
 			bs.markMutated(tab)
@@ -352,7 +352,7 @@ func (a *App) renderLocalFileControl(c *ui.Context, p uikit.Palette, bm *bodyMes
 					_ = a.BindLocalFile(ps, slot, *pathPtr)
 				}
 			}
-			if ui.Button(c, bm.ChooseFile).Clicked() {
+			if uikit.ActionCursor(ui.Button(c, bm.ChooseFile)).Clicked() {
 				a.pickLocalFileDialog(func(chosen string) {
 					*pathPtr = chosen
 					slot := strings.TrimSpace(*slotPtr)
@@ -365,7 +365,7 @@ func (a *App) renderLocalFileControl(c *ui.Context, p uikit.Palette, bm *bodyMes
 				})
 			}
 			if strings.TrimSpace(*slotPtr) != "" {
-				if ui.Button(c, bm.UnbindFile).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, bm.UnbindFile)).Clicked() {
 					*pathPtr = ""
 					_ = a.UnbindLocalFile(ps, *slotPtr)
 				}
@@ -396,7 +396,7 @@ func (a *App) renderURLEncodedBody(c *ui.Context, p uikit.Palette, danger ui.Col
 		} else {
 			ui.Box(c).Grow(1)
 		}
-		if ui.Segmented(c, &bs.formViewMode, m.KeyValueMode, bm.BatchTextMode, bm.RawEncodedMode).Changed() {
+		if uikit.NativeSegmented(c, &bs.formViewMode, m.KeyValueMode, bm.BatchTextMode, bm.RawEncodedMode).Changed() {
 			if prevMode != 0 && bs.formErr != "" {
 				// Keep raw draft visible until syntax error is fixed so text is never lost.
 				bs.formViewMode = prevMode
@@ -475,7 +475,7 @@ func (a *App) renderFormBodyRow(c *ui.Context, p uikit.Palette, m *messages, bm 
 		r.Background(p.Hover)
 	}
 	r.Children(func() {
-		if ui.Checkbox(c, &row.Enabled, "").Changed() {
+		if uikit.ActionCursor(ui.Checkbox(c, &row.Enabled, "")).Changed() {
 			bs.markMutated(tab)
 		}
 		keyPh, valPh := "", ""
@@ -492,13 +492,13 @@ func (a *App) renderFormBodyRow(c *ui.Context, p uikit.Palette, m *messages, bm 
 			bs.markMutated(tab)
 		}
 		ui.Box(c).Width(100).Children(func() {
-			if ui.Checkbox(c, &row.Encoded, "").Changed() {
+			if uikit.ActionCursor(ui.Checkbox(c, &row.Encoded, "")).Changed() {
 				bs.markMutated(tab)
 			}
 		})
 		if blank {
 			ui.Box(c).Width(28)
-		} else if ui.Button(c, "✕").Clicked() {
+		} else if uikit.ActionCursor(ui.Button(c, "✕")).Clicked() {
 			bs.removeFormRow(row.ID)
 			bs.markMutated(tab)
 		}
@@ -511,11 +511,11 @@ func (a *App) renderMultipartBody(c *ui.Context, p uikit.Palette, danger ui.Colo
 	}
 
 	ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-		if ui.Button(c, bm.AddTextPart).Clicked() {
+		if uikit.ActionCursor(ui.Button(c, bm.AddTextPart)).Clicked() {
 			bs.multipartRows = append(bs.multipartRows, newBlankMultipartRow(partSourceText))
 			bs.markMutated(tab)
 		}
-		if ui.Button(c, bm.AddFilePart).Clicked() {
+		if uikit.ActionCursor(ui.Button(c, bm.AddFilePart)).Clicked() {
 			bs.multipartRows = append(bs.multipartRows, newBlankMultipartRow(partSourceProjectFile))
 			bs.markMutated(tab)
 		}
@@ -552,13 +552,13 @@ func (a *App) renderMultipartRow(c *ui.Context, p uikit.Palette, danger ui.Color
 	}
 	card.Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-			if ui.Checkbox(c, &row.Enabled, "").Changed() {
+			if uikit.ActionCursor(ui.Checkbox(c, &row.Enabled, "")).Changed() {
 				bs.markMutated(tab)
 			}
 			if ui.TextInput(c, &row.Name).Width(150).Placeholder(m.Key).Changed() {
 				bs.markMutated(tab)
 			}
-			if ui.Segmented(c, &row.PartSource, bm.PartKindText, bm.PartKindProjectFile, bm.PartKindLocalFile).Changed() {
+			if uikit.NativeSegmented(c, &row.PartSource, bm.PartKindText, bm.PartKindProjectFile, bm.PartKindLocalFile).Changed() {
 				bs.markMutated(tab)
 			}
 			if ui.Autocomplete(c, &row.ContentType, filterSuggestions(contentTypeSuggestions, row.ContentType)).
@@ -571,7 +571,7 @@ func (a *App) renderMultipartRow(c *ui.Context, p uikit.Palette, danger ui.Color
 				}
 			}
 			ui.Box(c).Grow(1)
-			if ui.Button(c, "✕").Clicked() {
+			if uikit.ActionCursor(ui.Button(c, "✕")).Clicked() {
 				bs.removeMultipartRow(row.ID)
 				bs.markMutated(tab)
 			}
@@ -613,7 +613,7 @@ func (a *App) renderMultipartRow(c *ui.Context, p uikit.Palette, danger ui.Color
 						_ = a.BindLocalFile(ps, slot, row.LocalPathDraft)
 					}
 				}
-				if ui.Button(c, bm.ChooseFile).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, bm.ChooseFile)).Clicked() {
 					a.pickLocalFileDialog(func(chosen string) {
 						row.LocalPathDraft = chosen
 						slot := strings.TrimSpace(row.LocalSlot)
@@ -626,7 +626,7 @@ func (a *App) renderMultipartRow(c *ui.Context, p uikit.Palette, danger ui.Color
 					})
 				}
 				if strings.TrimSpace(row.LocalSlot) != "" {
-					if ui.Button(c, bm.UnbindFile).Clicked() {
+					if uikit.ActionCursor(ui.Button(c, bm.UnbindFile)).Clicked() {
 						row.LocalPathDraft = ""
 						_ = a.UnbindLocalFile(ps, row.LocalSlot)
 					}
@@ -652,7 +652,7 @@ func (a *App) renderBinaryBody(c *ui.Context, t *ui.Theme, p uikit.Palette, bm *
 	_ = t
 	ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
 		ui.Text(c, bm.SourceLabel).FontSize(12).TextColor(p.Muted)
-		if ui.Segmented(c, &bs.binSource, bm.SourceProjectFile, bm.SourceLocalFile).Changed() {
+		if uikit.NativeSegmented(c, &bs.binSource, bm.SourceProjectFile, bm.SourceLocalFile).Changed() {
 			bs.markMutated(tab)
 		}
 		ui.Box(c).Width(12)

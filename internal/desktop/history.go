@@ -537,7 +537,7 @@ func (a *App) historyPanel(c *ui.Context, t *ui.Theme) {
 			// panel shows this project. The all-project view is read-only on
 			// purpose: one click must not erase other projects' history.
 			if len(a.historyRecords) > 0 && !a.historyUI.allProjects {
-				if b := ui.Button(c, m.ClearHistory).Clicked(); b {
+				if b := uikit.ActionCursor(ui.Button(c, m.ClearHistory)).Clicked(); b {
 					a.historyClearOpen = true
 				}
 			}
@@ -596,7 +596,7 @@ func (a *App) historyFilters(c *ui.Context, p uikit.Palette, m *messages) {
 					}
 				}
 				choice := labels[idx]
-				if ui.Select(c, &choice, labels).FillWidth().Changed() {
+				if uikit.ActionCursor(ui.Select(c, &choice, labels)).FillWidth().Changed() {
 					a.historyUI.projectKey = keys[stringIndex(labels, choice)]
 				}
 			}
@@ -606,7 +606,7 @@ func (a *App) historyFilters(c *ui.Context, p uikit.Palette, m *messages) {
 			timeChoices := []string{m.HistoryTimeAll, m.HistoryTimeToday, m.HistoryTimeWeek, m.HistoryTimeMonth}
 			timeIdx := clampIndex(a.historyUI.timeRange, len(timeChoices))
 			timeChoice := timeChoices[timeIdx]
-			if ui.Select(c, &timeChoice, timeChoices).Grow(1).Changed() {
+			if uikit.ActionCursor(ui.Select(c, &timeChoice, timeChoices)).Grow(1).Changed() {
 				a.historyUI.timeRange = stringIndex(timeChoices, timeChoice)
 			}
 
@@ -616,7 +616,7 @@ func (a *App) historyFilters(c *ui.Context, p uikit.Palette, m *messages) {
 			}
 			resultIdx := clampIndex(a.historyUI.result, len(resultChoices))
 			resultChoice := resultChoices[resultIdx]
-			if ui.Select(c, &resultChoice, resultChoices).Grow(1).Changed() {
+			if uikit.ActionCursor(ui.Select(c, &resultChoice, resultChoices)).Grow(1).Changed() {
 				a.historyUI.result = stringIndex(resultChoices, resultChoice)
 			}
 		})
@@ -630,7 +630,7 @@ func (a *App) historyRow(c *ui.Context, p uikit.Palette, m *messages, r historyR
 	if row.Hovered() {
 		row.Background(p.Hover)
 	}
-	if row.Clicked() {
+	if uikit.ActionCursor(row).Clicked() {
 		a.restoreHistory(r)
 	}
 	row.Children(func() {
@@ -649,12 +649,12 @@ func (a *App) historyRow(c *ui.Context, p uikit.Palette, m *messages, r historyR
 		}
 		ui.Text(c, fmt.Sprintf("%d ms", r.DurationMs)).FontSize(11).FontFeatures("tnum").TextColor(p.Faint).SingleLine()
 		if row.Hovered() {
-			info := ui.Button(c, "i").Absolute().Right(26).Top(-2)
+			info := uikit.ActionCursor(ui.Button(c, "i")).Absolute().Right(26).Top(-2)
 			if info.Clicked() {
 				a.historyUI.detail = r
 				a.historyUI.detailOpen = true
 			}
-			del := ui.Button(c, "✕").Absolute().Right(2).Top(-2)
+			del := uikit.ActionCursor(ui.Button(c, "✕")).Absolute().Right(2).Top(-2)
 			if del.Clicked() {
 				a.deleteHistory(r)
 			}
@@ -784,14 +784,14 @@ func (a *App) historyDetailModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, m.HistoryRedactedNote).FontSize(11).TextColor(p.Faint)
 
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.HistoryDetailDelete).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.HistoryDetailDelete)).Clicked() {
 					a.deleteHistory(r)
 					open = false
 				}
-				if ui.Button(c, m.Close).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Close)).Clicked() {
 					open = false
 				}
-				if ui.PrimaryButton(c, m.HistoryDetailOpen).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, m.HistoryDetailOpen)).Clicked() {
 					a.restoreHistory(r)
 					open = false
 				}
@@ -877,11 +877,11 @@ func (a *App) historyClearModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, m.HistoryLabel).FontSize(16).Bold().TextColor(p.Text)
 			ui.Text(c, m.ConfirmClearHistory).FontSize(12).TextColor(p.Muted)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.historyClearOpen = false
 					open = false
 				}
-				if ui.PrimaryButton(c, m.ClearHistory).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, m.ClearHistory)).Clicked() {
 					a.clearHistory()
 					a.historyClearOpen = false
 					open = false

@@ -816,10 +816,10 @@ func (a *App) networkSettingsModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 				ui.Text(c, st.netErrMsg).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).FillWidth().Children(func() {
-				if ui.Button(c, m.Close).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Close)).Clicked() {
 					st.netModalOpen = false
 				}
-				if ui.PrimaryButton(c, nm.SaveNetworkSettingsBtn).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, nm.SaveNetworkSettingsBtn)).Clicked() {
 					if err := st.applyNetworkDrafts(); err != nil {
 						st.netErrMsg = err.Error()
 					} else {
@@ -883,7 +883,7 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 				ui.Text(c, nm.RedirectModeLabel).FontSize(12).TextColor(p.Muted)
 				prevMode := st.redirectModeIdx
-				ui.Segmented(c, &st.redirectModeIdx, nm.RedirectFollowOpt, nm.RedirectNoneOpt, nm.RedirectSameOriginOpt)
+				uikit.NativeSegmented(c, &st.redirectModeIdx, nm.RedirectFollowOpt, nm.RedirectNoneOpt, nm.RedirectSameOriginOpt)
 				if st.redirectModeIdx != prevMode {
 					_ = st.applyNetworkDrafts()
 				}
@@ -893,9 +893,9 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 				if ui.TextInput(c, &st.maxRedirectsDraft).Width(70).Font("monospace").Placeholder("10").Changed() {
 					_ = st.applyNetworkDrafts()
 				}
-				ui.Checkbox(c, &st.sendCookies, nm.SendJarCookiesLabel)
+				uikit.ActionCursor(ui.Checkbox(c, &st.sendCookies, nm.SendJarCookiesLabel))
 				ui.Box(c).Grow(1)
-				if ui.Button(c, nm.OpenCookieJarBtn).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, nm.OpenCookieJarBtn)).Clicked() {
 					a.openCookieJarModal(ps)
 				}
 			})
@@ -907,7 +907,7 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 				ui.Text(c, nm.ProxyModeLabel).FontSize(12).TextColor(p.Muted)
 				prevProxy := st.proxyModeIdx
-				ui.Segmented(c, &st.proxyModeIdx, "system", "none", "http", "socks5")
+				uikit.NativeSegmented(c, &st.proxyModeIdx, "system", "none", "http", "socks5")
 				if st.proxyModeIdx != prevProxy {
 					_ = st.applyNetworkDrafts()
 				}
@@ -941,7 +941,7 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 			ui.Text(c, nm.MTLSKeyLocalOnlyNote).FontSize(11).TextColor(p.Muted)
 			ui.Row(c).Gap(12).AlignItems(ui.Center).FillWidth().Children(func() {
 				prevSys := st.useSystemCA
-				ui.Checkbox(c, &st.useSystemCA, nm.UseSystemCALabel)
+				uikit.ActionCursor(ui.Checkbox(c, &st.useSystemCA, nm.UseSystemCALabel))
 				if st.useSystemCA != prevSys {
 					_ = st.applyNetworkDrafts()
 				}
@@ -982,7 +982,7 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 				ui.Text(c, nm.ProdActionLabel).FontSize(12).TextColor(p.Muted)
 				prevAct := st.prodActionIdx
-				ui.Segmented(c, &st.prodActionIdx, "confirm", "allow_readonly", "deny", "allow")
+				uikit.NativeSegmented(c, &st.prodActionIdx, "confirm", "allow_readonly", "deny", "allow")
 				if st.prodActionIdx != prevAct {
 					_ = st.applyNetworkDrafts()
 				}
@@ -1001,9 +1001,9 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 			})
 			ui.Row(c).Gap(14).AlignItems(ui.Center).FillWidth().Children(func() {
 				prevEnf := st.enforceTLSVerify
-				ui.Checkbox(c, &st.enforceTLSVerify, nm.EnforceTLSVerifyLabel)
+				uikit.ActionCursor(ui.Checkbox(c, &st.enforceTLSVerify, nm.EnforceTLSVerifyLabel))
 				prevHTTPS := st.requireHTTPSCreds
-				ui.Checkbox(c, &st.requireHTTPSCreds, nm.RequireHTTPSCredsLabel)
+				uikit.ActionCursor(ui.Checkbox(c, &st.requireHTTPSCreds, nm.RequireHTTPSCredsLabel))
 				if st.enforceTLSVerify != prevEnf || st.requireHTTPSCreds != prevHTTPS {
 					_ = st.applyNetworkDrafts()
 				}
