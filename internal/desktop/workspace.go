@@ -173,12 +173,12 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 			}
 		})
 		if tab.Sending {
-			if ui.Button(c, m.CancelRequest).Width(104).Height(40).Radius(10).Clicked() {
+			if _, clicked := uikit.SendButton(c, p, true, m.CancelRequest); clicked {
 				if tab.cancel != nil {
 					tab.cancel()
 				}
 			}
-		} else if ui.PrimaryButton(c, m.Send).Width(104).Height(40).Radius(10).Clicked() {
+		} else if _, clicked := uikit.SendButton(c, p, false, m.Send); clicked {
 			a.send(tab)
 		}
 	})

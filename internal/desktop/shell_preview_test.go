@@ -6,8 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"gorequest/internal/core"
 )
 
 const previewBody = `{
@@ -45,6 +48,19 @@ func setupPreviewProject(t *testing.T, dark bool) *App {
 	tabs[3].BodyIdx = 0
 	tabs[3].BodyText = previewBody
 	tabs[3].Section = 3 // Body
+	tabs[3].Resp = &core.ExecResult{
+		Status:   200,
+		Proto:    "HTTP/1.1",
+		Duration: 12 * time.Millisecond,
+		BodySize: int64(len(previewBody)),
+		Body:     []byte(previewBody),
+		Pretty:   previewBody,
+		Headers: [][2]string{
+			{"Content-Type", "application/json"},
+			{"X-Request-ID", "abc123"},
+		},
+	}
+	tabs[3].respVersion = 1
 	return a
 }
 

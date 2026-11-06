@@ -177,6 +177,8 @@ type messages struct {
 	BodyEmpty         string
 	NoResponseHeaders string
 	TruncatedNotice   string
+	Retry             string
+	LargeResponseNote string
 
 	// Environment editor.
 	NewEnvTitle           string
@@ -373,6 +375,8 @@ var messagesZh = messages{
 	BodyEmpty:         "响应正文为空。",
 	NoResponseHeaders: "无响应头。",
 	TruncatedNotice:   "[已在 32 MB 处截断]",
+	Retry:             "重试",
+	LargeResponseNote: "响应较大，已降级为纯文本显示。",
 
 	NewEnvTitle:           "新建环境",
 	EditEnvTitle:          "编辑环境：%s",
@@ -562,6 +566,8 @@ var messagesEn = messages{
 	BodyEmpty:         "Response body is empty.",
 	NoResponseHeaders: "No response headers.",
 	TruncatedNotice:   "[truncated at 32 MB]",
+	Retry:             "Retry",
+	LargeResponseNote: "Large response shown as plain text.",
 
 	NewEnvTitle:           "New Environment",
 	EditEnvTitle:          "Edit Environment: %s",

@@ -60,6 +60,9 @@ type Tab struct {
 	respVersion  int
 	respBuiltVer int
 	respBuiltIdx int
+	// respBuiltDegraded records whether the cached response editor was built in
+	// the large-response plain-text mode, so a size change rebuilds it.
+	respBuiltDegraded bool
 }
 
 // requestFromTab builds a core.Request from the tab's edited fields.
