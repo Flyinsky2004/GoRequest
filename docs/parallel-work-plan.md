@@ -127,6 +127,11 @@
 | B05 | agy-B05 | `../GoRequest-B05` / `agy/B05-identity` | 已合并，部分 UI/策略未完成 | `bdca843` / `45170c4` + 本轮接线 | 基线 `be92379`；Herdr 终端 `t1k`，标签 `B05 鉴权凭据 · agy`；优先 ref/继承/API Key 保真，公共壳层交接线 patch |
 | B03 | agy-B03 | `../GoRequest-B03` / `agy/B03-http-body` | 已合并，自动化通过；人工验收待补 | `ec3d6d5` / `b9a5812` + 本轮接线 | 基线 `666ed61`；终端 `t1q`，标签 `B03 HTTP Body · agy`；复杂 Body/文件映射/编码优先，公共入口交最小接线 patch |
 | B09 | agy-B09（Opus 5.5 High） | `../GoRequest-B09` / `agy/B09-docs-basic` | 已合并，自动化通过；架构/人工验收待补 | `5bbe4c7` / `6336f7d` + 本轮接线 | 基线 `23662f3`；终端 `t1r`，标签 `B09 文档工作台 · Opus 5.5`；模型 `claude-opus-5-5-high`；大纲/搜索/图片附件/离线导航，公共入口交接线 patch |
+| B02 | CC-B02（当前配置默认模型） | `../GoRequest-B02` / `cc/B02-workspace` | 实施中 | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t24`，`B02 工作区 · CC`；补全局/项目互转与工作区缺口 |
+| B04 | agy-B04（Argon Medium） | `../GoRequest-B04` / `agy/B04-network-response` | 实施中（Full Access） | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t25`，`B04 网络响应 · agy Argon`；网络/Cookie/响应及 B05 策略端口挂接 |
+| B06 | CC-B06（当前配置默认模型） | `../GoRequest-B06` / `cc/B06-local-history` | 实施中 | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t26`，`B06 本地历史 · CC`；在现有元数据历史上补快照/筛选/限额/隐私 |
+| B07 | CC-B07（当前配置默认模型） | `../GoRequest-B07` / `cc/B07-git` | 实施中 | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t27`，`B07 Git 工作流 · CC`；独立 Git 服务、面板及 hook/凭据策略 |
+| B08 | agy-B08（Argon Medium） | `../GoRequest-B08` / `agy/B08-import-export` | 实施中（Full Access） | 无 / 未集成 | 基线 `c0b4f61`；Herdr `t28`，`B08 导入导出 · agy Argon`；cURL/Postman/便携包及变更预览 |
 | 其余未勾选任务 | 未分配 | 尚未创建 | 未分配 | 无 | 等后续派工逐项登记 |
 
 本轮启动记录：`/private/tmp/gorequest-agy-20261106/sessions.json`；每项同目录有 `<ID>.prompt.txt`、`<ID>.retry.log`、`<ID>.retry.output.json`。这些是本机临时运行资料，不提交 Git，后续可能清理；长期交付证据由各 agent 写入各自分支 `docs/task-results/<ID>.md`。首次 auto 启动因账号不支持及后台命令无法交互授权而退出；accept-edits + 会话命令 allow 规则重试同样被拒绝，均已退出，未产出功能改动。不修改用户全局设置。随后按用户指定的新版说明，用 Herdr app 在 GoRequest space 新建 B01/B05 两个标签页并交互启动 agy。首次启动分别为 `t1j`、`t1k`，当时状态 blocked，屏幕为 “Do you trust the contents of this project?”；当时依 hc 手册等待用户确认；后续已获明确 Full Access 授权并解除。最新启动句柄另记本机 `herdr-sessions.json`。PID 仅表示历史启动进程，后续查询应结合进程、日志和分支提交确认状态。启动前确认另有 `ui-stage3` worktree，两个 agy 均被要求不触碰它或 main；主目录的示例环境和 `.claude/` 保持原状。
@@ -169,3 +174,25 @@ B09 启动核对：已确认新 worktree 的目录信任；屏幕明确显示 `C
 - `integrate/agy-deliveries` / `../GoRequest-integration`
 
 以上分支名称、路径和终端 ID 在前文均为历史交付记录，不代表仍存在。所有功能提交保留于 `main` 历史；后续剩余任务从最新 `main` 新建分支，不尝试恢复旧目录。仅保留主 worktree 和本地 `main`；未操作远程分支、未 push，主目录原有环境改动与调试文件保持原状。
+
+## 9. 2026-11-06 基础工作台第二批：2 agy + 3 CC
+
+用户要求按 `~/.config/herdr-app/AGENTS.md` 使用新版 Herdr，把五条基础工作台任务分为两个 agy、三个 Claude Code。五个独立 worktree 共用干净提交 `c0b4f61`；主目录原有环境与调试文件未纳入派工基线。表中 `t24`～`t28` 为实际 Herdr 终端，均已核对目录与工作状态。
+
+两个 agy 起初使用 Opus 5.5 High，但均因额度用完未开始编码。随后用户明确表示已切换账号并选择 Argon，要求重新尝试：在原终端重新提交完整任务，确认两个界面为 **Gemini 4 Argon Medium**（`gemini-4-argon-medium`）、状态 working，且已读取文件/执行初始命令；不再切回 Opus。两者沿用会话级 Full Access。三个 CC 使用现有配置默认模型，以 acceptEdits 和本次会话工具允许配置启动，未覆盖模型/全局设置；启动核对时均 working。账号身份与凭据不写入仓库。
+
+### 本批文件归属与依赖处理
+
+| 任务 | 专属范围 | 复用与边界 |
+| --- | --- | --- |
+| B02 / CC | 新增 `core/workspace*.go`、`desktop/workspace_management*.go` / `global_workspace*.go` / `workspace_settings*.go`，必要的 `tree_actions.go` 工作区增量 | 现有重命名/删除/复制/移动、最近项与快捷键先核对；补全局临时区、新建项目与互转、搜索/面包屑/设备设置，自动保存复用 B01 |
+| B04 / agy | 新增网络/Cookie/证书本机映射模块；`core/plan.go` 仅 Execute/transport 区，`desktop/response_view.go` 本卡增量 | 保留 B03 Body 构建；复用 B05 目标/重定向/脱敏端口；只补已有响应搜索之外的缺口，不做历史模块 |
+| B06 / CC | `desktop/history.go`、新增 history/localstate 模块及测试 | 延续已有元数据历史；先适配当前 Plan/ExecResult/error/canceled，再提供未来 Runner 的 HistoryInput 入口，不重复造 A01，也不空等 A01；完整 Runner 适配仍待 A01 |
+| B07 / CC | 新增纯 Go Git service、`desktop/git*.go`、独立临时仓库测试及 Q-05 证据文档 | 明确 hook/凭据策略；保留现有暂存区、选择性提交；Pull/Push 仅临时 fixture origin 联调，不向真实项目远程操作 |
+| B08 / agy | 新增转换/便携包模块、`desktop/import_export*.go`、独立夹具 | 复用 B01 ChangeSet 与 B05 Redactor；只做 cURL/Postman/便携包，OpenAPI/Swagger 归 A03；B02 的全局项目互转不重复实现 |
+
+公共 `core/model.go/project.go/validate.go` 与桌面 `app.go/project_state.go/nav.go/manager.go/workspace.go/tab.go/config.go/settings.go/i18n.go/send_guard.go`、`go.mod/go.sum` 由集成人统一接线，各 agent 提供专属模块与精确最小 patch；必要时可在自己 worktree 临时应用自己 patch 验证，再精确撤回自己的临时改动。禁止用全局强引用 map 绕开状态所有权，禁止重置整工作区。各 agent 不操作 main/他人 worktree，不启动更多子 agent，不修改共享 Git 配置，不 push。
+
+交付到各自分支 `docs/task-results/<ID>.md` 与必要的 `<ID>-integration.patch`，记录提交、实际验证、未完成项、人工/平台限制。只在后续集成验收后勾完成，本次创建/启动不等于功能已实现。
+
+本机可恢复启动资料：`/private/tmp/gorequest-foundation-20261106/sessions.json` 与五份 `<ID>.prompt.txt`；临时资料可能被清理，长期任务范围以本节及对应任务卡为准。旧的第一批清理记录为历史，不代表本批新 worktree 已被删除。
