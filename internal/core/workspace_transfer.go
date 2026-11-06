@@ -69,7 +69,6 @@ type RequestTransfer struct {
 	DocRefs    []string
 
 	request *Request
-	content []byte
 }
 
 // PlanRequestTransfer validates a transfer and returns its preview. It reads
@@ -94,7 +93,7 @@ func PlanRequestTransfer(src, dst *Project, entry *RequestEntry, targetCollectio
 		return nil, configErrorf("target folder %q does not exist in the destination", targetRel)
 	}
 
-	content, diskDigest, err := src.Store.Read(entry.RelPath)
+	_, diskDigest, err := src.Store.Read(entry.RelPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading source request: %w", err)
 	}
@@ -109,7 +108,6 @@ func PlanRequestTransfer(src, dst *Project, entry *RequestEntry, targetCollectio
 		Entry:        entry,
 		TargetFolder: targetRel,
 		KeepID:       mode == TransferMove,
-		content:      content,
 	}
 
 	reqCopy := *entry.Request
@@ -153,9 +151,10 @@ func (t *RequestTransfer) Apply() error {
 		return configErrorf("destination file %q already exists", t.TargetRel)
 	}
 
-	// Re-check the source right before writing so an edit between preview and
-	// confirmation is reported instead of being silently overwritten/removed.
-	_, diskDigest, err := t.Source.Store.Read(t.Entry.RelPath)
+	// Re-read the source right before writing. This reports an edit made after
+	// the preview and also picks up a safe auto-save, so a copy never writes a
+	// version that was current only when the preview opened.
+	content, diskDigest, err := t.Source.Store.Read(t.Entry.RelPath)
 	if err != nil {
 		return fmt.Errorf("reading source request: %w", err)
 	}
@@ -167,9 +166,11 @@ func (t *RequestTransfer) Apply() error {
 	if t.Mode == TransferMove {
 		// Moving preserves the file's own content byte for byte (the ID is
 		// unchanged), so comments and ordering survive.
-		data = t.content
+		data = content
 	} else {
-		data, err = t.Target.EncodeRequest(t.request)
+		reqCopy := *t.Entry.Request
+		reqCopy.ID = t.TargetID
+		data, err = t.Target.EncodeRequest(&reqCopy)
 		if err != nil {
 			return err
 		}

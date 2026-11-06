@@ -380,3 +380,30 @@ func TestTransferApplyRejectsSourceChangedAfterPreview(t *testing.T) {
 		t.Fatal("conflicting transfer must not write the target")
 	}
 }
+
+func TestTransferCopyUsesContentSavedAfterPreview(t *testing.T) {
+	src := newWorkspaceProject(t, "Source")
+	dst := newWorkspaceProject(t, "Target")
+	entry := saveWorkspaceRequest(t, src, "", "Orders", func(r *Request) {
+		r.HTTP.URL = "https://api.example.com/old"
+	})
+	plan, err := PlanRequestTransfer(src, dst, entry, "", TransferCopy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := *entry.Request
+	req.HTTP.URL = "https://api.example.com/new"
+	if _, err := src.SaveRequest(entry, &req, entry.BaselineDigest); err != nil {
+		t.Fatal(err)
+	}
+	if err := plan.Apply(); err != nil {
+		t.Fatalf("apply after a safe save: %v", err)
+	}
+	copied := dst.Requests[plan.TargetID]
+	if copied == nil {
+		t.Fatal("copy missing")
+	}
+	if copied.Request.HTTP.URL != "https://api.example.com/new" {
+		t.Fatalf("copy used stale content: %q", copied.Request.HTTP.URL)
+	}
+}

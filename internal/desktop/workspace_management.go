@@ -272,9 +272,13 @@ func (a *App) transferToGlobal(e *core.RequestEntry, mode string) {
 	target, err := a.mgr.ensureGlobalWorkspaceApp()
 	if err != nil {
 		a.status = translate(a.msg().TransferFailed, err.Error())
+		a.mgr.activate(a)
 		return
 	}
 	a.beginTransfer(e, target, mode)
+	// Opening/focusing the personal workspace must not hide the preview: the
+	// modal belongs to this source window, so bring it back to the front.
+	a.mgr.activate(a)
 }
 
 // beginTransfer builds the plan and opens its preview. A dirty request can be
@@ -480,6 +484,7 @@ func (m *Manager) openGlobalWorkspace() error {
 		m.cfg.removeRecent(root)
 		m.activate(app)
 		m.keepLastProjectAfterGlobal(prevLast, root)
+		m.hideWelcome()
 		return nil
 	}
 	if err := m.openProject(root); err != nil {
@@ -497,7 +502,16 @@ func (m *Manager) openGlobalWorkspace() error {
 	}
 	app.status = m.msg().GlobalWorkspaceOpened
 	m.keepLastProjectAfterGlobal(prevLast, root)
+	m.hideWelcome()
 	return nil
+}
+
+// hideWelcome hides the chooser once a workspace window is in front, matching
+// the behaviour of opening a project.
+func (m *Manager) hideWelcome() {
+	if m.welcome != nil && m.welcome.win != nil && !m.welcome.win.IsDestroyed() {
+		m.welcome.win.Hide()
+	}
 }
 
 // keepLastProjectAfterGlobal prevents the scratch workspace from becoming the
