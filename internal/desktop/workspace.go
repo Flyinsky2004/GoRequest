@@ -176,6 +176,8 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 			return // The final tab may have been closed by the tab bar this frame.
 		}
 		a.fileSyncTabBanner(c, t, ps, tab)
+		a.applyEditorPrefs(tab)
+		a.workspaceBreadcrumb(c, t, tab)
 		if tab.Kind == "request" {
 			a.requestView(c, t, tab)
 		} else {

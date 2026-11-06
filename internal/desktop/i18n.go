@@ -91,6 +91,58 @@ type messages struct {
 	Projects        string
 	ProjectsTip     string
 
+	// New-project wizard and the personal workspace.
+	NewProject               string
+	NewProjectTip            string
+	NewProjectTitle          string
+	NewProjectHint           string
+	ProjectNamePlaceholder   string
+	ProjectLocationLabel     string
+	Browse                   string
+	ChooseProjectLocation    string
+	ChooseProjectLocationMsg string
+	NewProjectFolderHint     string
+	ErrEnterProjectName      string
+	ErrEnterProjectLocation  string
+	NewProjectFailed         string // %s
+	CreatedProject           string // %s
+	GlobalWorkspace          string
+	GlobalWorkspaceTip       string
+	GlobalWorkspaceTitle     string
+	GlobalWorkspaceOpened    string
+
+	// Recent-list management.
+	RecentSearchPlaceholder string
+	RecentNoMatch           string
+	PinRecent               string
+	UnpinRecent             string
+	RemoveRecent            string
+	RemovedRecent           string // %s
+
+	// Project <-> global workspace transfer.
+	CopyToGlobal            string
+	MoveToGlobal            string
+	CopyToProject           string
+	MoveToProject           string
+	TransferSameWorkspace   string
+	TransferTitle           string
+	TransferTarget          string
+	TransferIDCopy          string // %s
+	TransferIDMove          string // %s
+	TransferDirtyCopy       string
+	TransferDirtyMove       string // %s
+	TransferSecrets         string // %s
+	TransferBlocked         string
+	TransferConfirm         string
+	TransferDone            string // %s
+	TransferFailed          string // %s
+	TransferWarnInline      string // %s
+	TransferWarnAuth        string // %s
+	TransferWarnVar         string // %s
+	TransferWarnDoc         string // %s
+	TransferWarnLocalFile   string // %s
+	TransferWarnDefaultAuth string // %s
+
 	// Status line and validation feedback.
 	OpenFailed          string // %s
 	WindowNotReady      string
@@ -163,6 +215,7 @@ type messages struct {
 	OpenRow        string
 	NewRequestHere string
 	Duplicate      string
+	DuplicateDoc   string
 	MoveTo         string
 	Delete         string
 	Undo           string
@@ -310,6 +363,33 @@ type messages struct {
 	SecretNote          string
 	InMemoryConfig      string
 
+	// Workbench preferences (B02).
+	EditorSection         string
+	FontSizeLabel         string
+	FontSizeStatus        string // %d
+	TabSizeLabel          string
+	SoftWrapLabel         string
+	LineNumbersLabel      string
+	AutoSaveSection       string
+	AutoSaveEnable        string
+	AutoSaveDelayLabel    string
+	AutoSaveSafetyNote    string
+	AutoSaveOnStatus      string // %s
+	AutoSaveOffStatus     string
+	AutoSaveSkipped       string // %d
+	AutoSaveSaved         string // %d
+	ShortcutsSection      string
+	ShortcutsNote         string
+	ShortcutNewRequest    string
+	ShortcutCloseTab      string
+	ShortcutTabSwitch     string
+	ShortcutFocusURL      string
+	ShortcutQuickSearch   string
+	ShortcutEditEnv       string
+	ShortcutToggleSidebar string
+	ShortcutUndoDelete    string
+	ShortcutRename        string
+
 	// Native dialog titles/messages.
 	OpenDialogTitle   string
 	OpenDialogMessage string
@@ -336,6 +416,55 @@ var messagesZh = messages{
 	ChooseFolderTip: "选择包含 .gorequest/ 的文件夹",
 	Projects:        "项目",
 	ProjectsTip:     "显示项目选择窗口",
+
+	NewProject:               "新建项目…",
+	NewProjectTip:            "在所选位置创建一个新的 .gorequest 项目",
+	NewProjectTitle:          "新建项目",
+	NewProjectHint:           "在选定位置创建一个新的 GoRequest 项目；不会写入现有文件。",
+	ProjectNamePlaceholder:   "例如 订单 API",
+	ProjectLocationLabel:     "位置",
+	Browse:                   "浏览…",
+	ChooseProjectLocation:    "选择项目位置",
+	ChooseProjectLocationMsg: "新项目会创建为所选文件夹下的一个子文件夹。",
+	NewProjectFolderHint:     "项目会创建在「位置/名称」子文件夹中，该文件夹必须不存在或为空。",
+	ErrEnterProjectName:      "请输入项目名称。",
+	ErrEnterProjectLocation:  "请选择项目位置。",
+	NewProjectFailed:         "新建项目：%s",
+	CreatedProject:           "已创建项目 %s",
+	GlobalWorkspace:          "个人工作区",
+	GlobalWorkspaceTip:       "打开保存在本机的临时请求与个人集合",
+	GlobalWorkspaceTitle:     "个人工作区",
+	GlobalWorkspaceOpened:    "已打开个人工作区（本机数据目录，不属于任何 Git 项目）",
+
+	RecentSearchPlaceholder: "搜索最近项目…",
+	RecentNoMatch:           "没有匹配的最近项目",
+	PinRecent:               "固定到顶部",
+	UnpinRecent:             "取消固定",
+	RemoveRecent:            "从最近列表移除",
+	RemovedRecent:           "已从最近列表移除 %s",
+
+	CopyToGlobal:            "复制到个人工作区",
+	MoveToGlobal:            "移动到个人工作区",
+	CopyToProject:           "复制到项目",
+	MoveToProject:           "移动到项目",
+	TransferSameWorkspace:   "源和目标工作区相同",
+	TransferTitle:           "跨工作区转移预览",
+	TransferTarget:          "目标文件",
+	TransferIDCopy:          "复制会分配新 ID：%s",
+	TransferIDMove:          "移动会保留稳定 ID：%s",
+	TransferDirtyCopy:       "该请求有未保存编辑；只会复制已保存的版本。",
+	TransferDirtyMove:       "「%s」有未保存编辑，请先保存或放弃后再移动。",
+	TransferSecrets:         "保留的密钥引用（值不会复制）：%s",
+	TransferBlocked:         "已阻止：请先把内联凭据或字面 Cookie 改为 {{secret.name}} 引用。",
+	TransferConfirm:         "确认转移",
+	TransferDone:            "已转移到 %s",
+	TransferFailed:          "转移：%s",
+	TransferWarnInline:      "内联敏感值：%s（不会复制）",
+	TransferWarnAuth:        "目标缺少鉴权方案 %s",
+	TransferWarnVar:         "目标未定义变量 %s（环境仍可在运行时提供）",
+	TransferWarnDoc:         "目标缺少关联文档 %s",
+	TransferWarnLocalFile:   "本机文件绑定 %s 只保留槽名，需在目标设备重新绑定",
+	TransferWarnDefaultAuth: "目标项目默认鉴权为 %s，可能改变未显式设置鉴权的请求",
 
 	OpenFailed:          "打开失败：%s",
 	WindowNotReady:      "打开失败：窗口未就绪",
@@ -405,6 +534,7 @@ var messagesZh = messages{
 	OpenRow:        "打开",
 	NewRequestHere: "在此新建请求",
 	Duplicate:      "复制请求",
+	DuplicateDoc:   "复制文档",
 	MoveTo:         "移动到…",
 	Delete:         "删除",
 	Undo:           "撤销",
@@ -544,6 +674,32 @@ var messagesZh = messages{
 	SecretNote:          "密钥值来自名为 GOREQUEST_SECRET_<NAME> 的环境变量；项目文件只保留 {{secret.name}} 引用。",
 	InMemoryConfig:      "内存中（无配置目录）",
 
+	EditorSection:         "编辑器",
+	FontSizeLabel:         "字号",
+	FontSizeStatus:        "编辑器字号：%d",
+	TabSizeLabel:          "缩进宽度",
+	SoftWrapLabel:         "自动换行",
+	LineNumbersLabel:      "显示行号",
+	AutoSaveSection:       "自动保存",
+	AutoSaveEnable:        "启用安全自动保存",
+	AutoSaveDelayLabel:    "保存间隔（秒）",
+	AutoSaveSafetyNote:    "自动保存只写入基线未变的缓冲区；外部修改、冲突和已删除文件会被跳过，绝不会覆盖或复活它们。",
+	AutoSaveOnStatus:      "已启用自动保存（%s 秒）",
+	AutoSaveOffStatus:     "已关闭自动保存",
+	AutoSaveSkipped:       "自动保存跳过 %d 个有外部修改或已删除的文件",
+	AutoSaveSaved:         "已自动保存 %d 个文件",
+	ShortcutsSection:      "快捷键",
+	ShortcutsNote:         "取消勾选可停用对应快捷键；输入框内的编辑快捷键不受影响。",
+	ShortcutNewRequest:    "新建请求",
+	ShortcutCloseTab:      "关闭当前标签",
+	ShortcutTabSwitch:     "切换标签",
+	ShortcutFocusURL:      "聚焦地址栏",
+	ShortcutQuickSearch:   "快速搜索",
+	ShortcutEditEnv:       "编辑环境",
+	ShortcutToggleSidebar: "显示/隐藏侧栏",
+	ShortcutUndoDelete:    "撤销删除",
+	ShortcutRename:        "重命名",
+
 	OpenDialogTitle:   "打开 GoRequest 项目",
 	OpenDialogMessage: "选择包含 .gorequest/ 目录的文件夹。",
 }
@@ -569,6 +725,55 @@ var messagesEn = messages{
 	ChooseFolderTip: "Choose a folder containing .gorequest/",
 	Projects:        "Projects",
 	ProjectsTip:     "Show the project chooser",
+
+	NewProject:               "New Project…",
+	NewProjectTip:            "Create a new .gorequest project at a chosen location",
+	NewProjectTitle:          "New Project",
+	NewProjectHint:           "Create a new GoRequest project at a chosen location; nothing existing is overwritten.",
+	ProjectNamePlaceholder:   "e.g. Orders API",
+	ProjectLocationLabel:     "Location",
+	Browse:                   "Browse…",
+	ChooseProjectLocation:    "Choose Project Location",
+	ChooseProjectLocationMsg: "The new project is created as a subfolder of the folder you choose.",
+	NewProjectFolderHint:     "The project is created in a \"location/name\" subfolder, which must be missing or empty.",
+	ErrEnterProjectName:      "Enter a project name.",
+	ErrEnterProjectLocation:  "Choose a project location.",
+	NewProjectFailed:         "New project: %s",
+	CreatedProject:           "Created project %s",
+	GlobalWorkspace:          "Personal Workspace",
+	GlobalWorkspaceTip:       "Open local scratch requests and personal collections",
+	GlobalWorkspaceTitle:     "Personal Workspace",
+	GlobalWorkspaceOpened:    "Opened the personal workspace (local app data, not part of any Git project)",
+
+	RecentSearchPlaceholder: "Search recent projects…",
+	RecentNoMatch:           "No recent project matches",
+	PinRecent:               "Pin to top",
+	UnpinRecent:             "Unpin",
+	RemoveRecent:            "Remove from recents",
+	RemovedRecent:           "Removed %s from recent projects",
+
+	CopyToGlobal:            "Copy to Personal Workspace",
+	MoveToGlobal:            "Move to Personal Workspace",
+	CopyToProject:           "Copy to Project",
+	MoveToProject:           "Move to Project",
+	TransferSameWorkspace:   "Source and destination workspaces are the same",
+	TransferTitle:           "Cross-workspace Transfer Preview",
+	TransferTarget:          "Target file",
+	TransferIDCopy:          "Copy assigns a new ID: %s",
+	TransferIDMove:          "Move keeps the stable ID: %s",
+	TransferDirtyCopy:       "This request has unsaved edits; only its saved version is copied.",
+	TransferDirtyMove:       "%q has unsaved edits; save or discard before moving it.",
+	TransferSecrets:         "Secret references kept (values are not copied): %s",
+	TransferBlocked:         "Blocked: replace inline credentials or literal Cookies with {{secret.name}} references first.",
+	TransferConfirm:         "Transfer",
+	TransferDone:            "Transferred to %s",
+	TransferFailed:          "Transfer: %s",
+	TransferWarnInline:      "Inline sensitive value: %s (not copied)",
+	TransferWarnAuth:        "The destination has no auth scheme %s",
+	TransferWarnVar:         "Variable %s is not defined in the destination (an environment may still supply it)",
+	TransferWarnDoc:         "Linked document %s is missing in the destination",
+	TransferWarnLocalFile:   "Local file binding %s keeps only its slot name and must be rebound on this device",
+	TransferWarnDefaultAuth: "The destination's default auth is %s, which may change requests without explicit auth",
 
 	OpenFailed:          "open failed: %s",
 	WindowNotReady:      "open failed: window not ready",
@@ -638,6 +843,7 @@ var messagesEn = messages{
 	OpenRow:        "Open",
 	NewRequestHere: "New Request Here",
 	Duplicate:      "Duplicate Request",
+	DuplicateDoc:   "Duplicate Document",
 	MoveTo:         "Move To…",
 	Delete:         "Delete",
 	Undo:           "Undo",
@@ -776,6 +982,32 @@ var messagesEn = messages{
 	RecentProjectsLabel: "Recent projects",
 	SecretNote:          "Secret values come from environment variables named GOREQUEST_SECRET_<NAME>; project files keep only {{secret.name}} references.",
 	InMemoryConfig:      "in-memory (no config directory)",
+
+	EditorSection:         "Editor",
+	FontSizeLabel:         "Font size",
+	FontSizeStatus:        "Editor font size: %d",
+	TabSizeLabel:          "Indent width",
+	SoftWrapLabel:         "Soft wrap",
+	LineNumbersLabel:      "Show line numbers",
+	AutoSaveSection:       "Auto-save",
+	AutoSaveEnable:        "Enable safe auto-save",
+	AutoSaveDelayLabel:    "Save interval (seconds)",
+	AutoSaveSafetyNote:    "Auto-save writes only buffers whose baseline is unchanged; external edits, conflicts and deleted files are skipped, never overwritten or resurrected.",
+	AutoSaveOnStatus:      "Auto-save enabled (%s s)",
+	AutoSaveOffStatus:     "Auto-save disabled",
+	AutoSaveSkipped:       "Auto-save skipped %d file(s) with external changes or deletion",
+	AutoSaveSaved:         "Auto-saved %d file(s)",
+	ShortcutsSection:      "Shortcuts",
+	ShortcutsNote:         "Unchecking a shortcut removes that binding; editing shortcuts inside text fields are unaffected.",
+	ShortcutNewRequest:    "New request",
+	ShortcutCloseTab:      "Close current tab",
+	ShortcutTabSwitch:     "Switch tabs",
+	ShortcutFocusURL:      "Focus URL",
+	ShortcutQuickSearch:   "Quick search",
+	ShortcutEditEnv:       "Edit environment",
+	ShortcutToggleSidebar: "Toggle sidebar",
+	ShortcutUndoDelete:    "Undo delete",
+	ShortcutRename:        "Rename",
 
 	OpenDialogTitle:   "Open GoRequest Project",
 	OpenDialogMessage: "Choose a folder that contains a .gorequest/ directory.",

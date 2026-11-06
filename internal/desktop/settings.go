@@ -37,73 +37,82 @@ func applyAppearance(c *ui.Context, cfg *configStore) {
 // project) while *open is true. It exposes configuration that actually works —
 // appearance, interface language and the startup restore preference — plus real
 // application info.
-func renderSettings(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setStatus func(string)) {
+func renderSettings(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspacePrefsStore, open *bool, setStatus func(string)) {
 	if !*open {
 		return
 	}
 	ui.Modal(c, open, func() {
-		settingsBody(c, t, cfg, open, setStatus)
+		settingsBody(c, t, cfg, prefs, open, setStatus)
 	})
 }
 
-func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setStatus func(string)) {
+func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspacePrefsStore, open *bool, setStatus func(string)) {
 	m := messagesFor(cfg.language())
 	p := uikit.PaletteFor(t)
 	ui.Column(c).Gap(10).MinWidth(520).Children(func() {
 		ui.Text(c, m.SettingsTitle).FontSize(17).FontWeight(700).TextColor(p.Text)
-
-		settingsGroup(c, p, m.AppearanceLabel, func() {
-			choice := appearanceDisplay(m, cfg.appearance())
-			if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
-				cfg.setAppearance(appearanceCanonical(m, choice))
-				if setStatus != nil {
-					setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
-				}
-			}
-		})
-
-		settingsGroup(c, p, m.LanguageLabel, func() {
-			choice := languageLabel(cfg.language())
-			if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
-				cfg.setLanguage(languageFromLabel(choice))
-				if setStatus != nil {
-					langMsgs := messagesFor(cfg.language())
-					setStatus(translate(langMsgs.LanguageStatus, languageLabel(cfg.language())))
-				}
-			}
-		})
-
-		settingsGroup(c, p, m.StartupLabel, func() {
-			restore := cfg.restoreLastEnabled()
-			if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
-				cfg.setRestoreLast(restore)
-				if setStatus != nil {
-					if restore {
-						setStatus(m.StartupOn)
-					} else {
-						setStatus(m.StartupOff)
+		// The preference groups grew past a small welcome window, so they scroll
+		// while the Done action stays fixed and reachable.
+		ui.Scroll(c).MaxHeight(300).Children(func() {
+			ui.Column(c).Gap(10).Children(func() {
+				settingsGroup(c, p, m.AppearanceLabel, func() {
+					choice := appearanceDisplay(m, cfg.appearance())
+					if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
+						cfg.setAppearance(appearanceCanonical(m, choice))
+						if setStatus != nil {
+							setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
+						}
 					}
-				}
-			}
-		})
+				})
 
-		ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
-			ui.Column(c).Gap(2).Children(func() {
-				infoRow := func(k, v string) {
-					ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, k).Width(120).FontSize(12).TextColor(p.Muted).SingleLine()
-						ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
-					})
+				settingsGroup(c, p, m.LanguageLabel, func() {
+					choice := languageLabel(cfg.language())
+					if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
+						cfg.setLanguage(languageFromLabel(choice))
+						if setStatus != nil {
+							langMsgs := messagesFor(cfg.language())
+							setStatus(translate(langMsgs.LanguageStatus, languageLabel(cfg.language())))
+						}
+					}
+				})
+
+				settingsGroup(c, p, m.StartupLabel, func() {
+					restore := cfg.restoreLastEnabled()
+					if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
+						cfg.setRestoreLast(restore)
+						if setStatus != nil {
+							if restore {
+								setStatus(m.StartupOn)
+							} else {
+								setStatus(m.StartupOff)
+							}
+						}
+					}
+				})
+
+				if prefs != nil {
+					prefs.settingsGroups(c, p, m, setStatus)
 				}
-				infoRow(m.VersionLabel, appVersion)
-				infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
-				infoRow(m.GoLabel, runtime.Version())
-				infoRow(m.ConfigFileLabel, configLocation(m, cfg))
-				infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
+
+				ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
+					ui.Column(c).Gap(2).Children(func() {
+						infoRow := func(k, v string) {
+							ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+								ui.Text(c, k).Width(120).FontSize(12).TextColor(p.Muted).SingleLine()
+								ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
+							})
+						}
+						infoRow(m.VersionLabel, appVersion)
+						infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
+						infoRow(m.GoLabel, runtime.Version())
+						infoRow(m.ConfigFileLabel, configLocation(m, cfg))
+						infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
+					})
+				})
+
+				ui.Text(c, m.SecretNote).FontSize(12).TextColor(p.Muted)
 			})
 		})
-
-		ui.Text(c, m.SecretNote).FontSize(12).TextColor(p.Muted)
 
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 			if ui.PrimaryButton(c, m.Done).Clicked() {

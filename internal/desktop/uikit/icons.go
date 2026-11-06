@@ -37,6 +37,7 @@ var (
 	IconCheck    = svgIcon(`<polyline points="20 6 9 17 4 12"/>`)
 	IconSend     = svgIcon(`<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>`)
 	IconStar     = svgIcon(`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`)
+	IconPin      = svgIcon(`<path d="M12 17v5"/><path d="M9 10.76V7h6v3.76a5 5 0 0 0 2 4V17H7v-2.24a5 5 0 0 0 2-4z"/>`)
 	IconRetry    = svgIcon(`<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>`)
 	IconCopy     = svgIcon(`<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>`)
 	IconFolder   = svgIcon(`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`)

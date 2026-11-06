@@ -65,6 +65,11 @@ type Manager struct {
 	history    *historyStore
 	newWindow  windowFactory
 	explicit   string // -project flag value, "" when none
+	// prefs holds the B02 workspace preferences (editor, auto-save, shortcut
+	// toggles and pinned recents) in their own local file. It is created on
+	// first use from the config directory, so a config-less test or run never
+	// writes to a real user path.
+	prefs *workspacePrefsStore
 
 	workspaces []*App
 	welcome    *welcomeState
