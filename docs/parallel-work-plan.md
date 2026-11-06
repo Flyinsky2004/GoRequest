@@ -300,3 +300,9 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 | UI06 | `t2p` | `tbb334d79b5e3069136d41f33a19aeb9a1` | `codex/UI06-markdown-preview` / `../GoRequest-UI06-markdown-preview` |
 
 完整提示词/句柄存本机临时 `/private/tmp/gorequest-ui2-codex-20261106/`，不提交；长期交付记录为 docs/task-results/UI04.md、UI05.md、UI06.md。UI02 已发送新增文件归属提醒，documentation.go/workspace_settings.go/navHeader 的手型增量仅交 patch。旧任务会话不关闭，R01-parser 已显示 done 但本轮未审查/合并，不据此勾完成。
+
+## 14. 全分支集成移交 CC（2026-11-06）
+
+用户要求由 Herdr 新开一个 CC 接手合并和清理。当前 main `4142dbc` 未变；11条功能/UI分支已合入 `integrate/all-agent-deliveries` / `../GoRequest-integration` 的 `3a8631b`。公共接线15个源文件已修改且交给接手者继续，尚未commit/快进main。首轮全仓race、带ui04_integration的UI组合专项、鉴权/OAuth专项通过；最终vet和修复后的门禁待完成，真实窗口/平台待验收。旧11个分支/worktree/agent暂未删除。
+
+精确交接、验证日志、待查跨卡问题及清理tab清单见 [全分支集成交接](task-results/integration-all-handoff-2026-11-06.md)。后续负责人须保留该集成worktree的既有接线改动，不按未知dirty丢弃。仅在最终进入main且验收满足后更新勾选。
