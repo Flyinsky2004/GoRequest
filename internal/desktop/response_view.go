@@ -18,6 +18,17 @@ import (
 // big response cannot stall rendering (§5.9).
 const largeResponseThreshold = 2 << 20
 
+// JSON tree collapse/expand chevron metrics. The chevron gets a compact square
+// hit target close to the row's text height instead of the theme button's wide
+// padding (which made a single glyph float in a large box). Non-container rows
+// reserve the same width and height so keys stay in one aligned column, row to
+// row. Kept as constants so the container toggle and the placeholder cannot
+// drift apart.
+const (
+	jsonTreeToggleSize  float32 = 16 // square hit target (px) for ▾/▸
+	jsonTreeToggleGlyph float32 = 12 // chevron font size (px), matches row text
+)
+
 // headerRow is one response header line shown read-only. Duplicate names stay
 // as separate rows and are never collapsed into a map that would drop them.
 type headerRow struct {
@@ -650,11 +661,21 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
 							if !row.Expanded {
 								glyph = "▸"
 							}
-							if ui.Button(c, glyph).Cursor(ui.CursorPointer).Clicked() {
+							// A look-free ButtonBase keeps the pointer/keyboard
+							// behavior of Button but drops its wide theme padding,
+							// so the chevron sits in a compact square instead of
+							// floating in a large box.
+							toggle := ui.ButtonBase(c).
+								Size(jsonTreeToggleSize, jsonTreeToggleSize).
+								Radius(3).Cursor(ui.CursorPointer)
+							toggle.Children(func() {
+								ui.Text(c, glyph).FontSize(jsonTreeToggleGlyph).TextColor(p.Muted)
+							})
+							if toggle.Clicked() {
 								ts.collapsedPaths[n.Path] = row.Expanded
 							}
 						} else {
-							ui.Box(c).Width(22).Height(1)
+							ui.Box(c).Width(jsonTreeToggleSize).Height(jsonTreeToggleSize)
 						}
 
 						if n.Key != "" {
