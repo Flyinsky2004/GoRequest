@@ -79,10 +79,12 @@ func TestMergedProjectWindowsKeepFoldersTabsAndEnvironmentsSeparate(t *testing.T
 		t.Fatal("project one state leaked into project two")
 	}
 	tt := ui.NewTester(a.View, 1200, 820)
-	for _, want := range []string{"New Request", "Open Tabs (1)"} {
-		if !tt.HasText(want) {
-			t.Fatalf("merged workspace missing %q: %v", want, tt.Texts())
-		}
+	// One tab no longer shows the overflow menu (§4: hidden with 1–2 tabs).
+	if !tt.HasText("New Request") {
+		t.Fatalf("merged workspace missing New Request: %v", tt.Texts())
+	}
+	if tt.HasText("Open Tabs") {
+		t.Fatalf("overflow menu must be hidden with one tab: %v", tt.Texts())
 	}
 	if err := tt.Click("integration"); err != nil {
 		t.Fatalf("open env menu: %v", err)

@@ -99,12 +99,14 @@ func TestTabBarCloseButtonThroughView(t *testing.T) {
 
 func TestOpenedTabsMenuSwitchThroughView(t *testing.T) {
 	a, ps := openTestProject(t, "Demo")
-	tabs := openRequestTabs(t, ps, "Alpha", "Beta")
+	// The menu only appears once the strip holds more than two tabs, so open
+	// seven and drive the menu as a normal overflow case.
+	tabs := openRequestTabs(t, ps, "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta")
 	ps.active = 0
 	tt := ui.NewTester(a.View, 1100, 820)
 	tt.Frame()
 
-	if err := tt.Click("Open Tabs (2)"); err != nil {
+	if err := tt.Click("Open Tabs (7)"); err != nil {
 		t.Fatalf("open tabs menu: %v", err)
 	}
 	items := tt.Menu()
@@ -119,7 +121,7 @@ func TestOpenedTabsMenuSwitchThroughView(t *testing.T) {
 	}
 
 	// Closing a specific tab from the opened list.
-	if err := tt.Click("Open Tabs (2)"); err != nil {
+	if err := tt.Click("Open Tabs (7)"); err != nil {
 		t.Fatalf("reopen tabs menu: %v", err)
 	}
 	if err := tt.ChooseMenuItem(tabDisplayLabel(tabs[0]), "Close"); err != nil {
