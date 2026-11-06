@@ -5,8 +5,6 @@ import (
 	"strconv"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/egoist/mygo/ui/editor"
-	"github.com/egoist/mygo/ui/markdown"
 
 	"gorequest/internal/desktop/uikit"
 )
@@ -371,34 +369,5 @@ func (a *App) authEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 }
 
 func (a *App) docView(c *ui.Context, t *ui.Theme, tab *Tab) {
-	m := a.msg()
-	ui.Column(c).Grow(1).FillHeight().Children(func() {
-		ui.Row(c).Gap(8).Padding(8, 12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-			ui.Segmented(c, &tab.Section, m.SplitView, m.EditView, m.PreviewView)
-			ui.Box(c).Grow(1)
-			if tab.Dirty {
-				if ui.PrimaryButton(c, m.SaveDoc).Clicked() {
-					a.saveActive()
-				}
-			}
-		})
-		src := tab.DocEditor.Buffer.String()
-		switch tab.Section {
-		case 1:
-			editor.View(c, tab.DocEditor).Grow(1).FillWidth()
-		case 2:
-			ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-				markdown.View(c, src, nil)
-			})
-		default:
-			docSplit := &tab.Owner.docSplit
-			ui.Split(c, docSplit, func() {
-				editor.View(c, tab.DocEditor).Grow(1).FillWidth()
-			}, func() {
-				ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-					markdown.View(c, src, nil)
-				})
-			}).Grow(1).FillWidth()
-		}
-	})
+	a.docWorkspaceView(c, t, tab)
 }
