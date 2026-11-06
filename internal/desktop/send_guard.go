@@ -85,16 +85,16 @@ func (a *App) sendGuardModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, m.SendGuardTitle).FontSize(16).Bold().TextColor(p.Text)
 			ui.Text(c, translate(m.SendGuardHint, strings.Join(named, ", "))).FontSize(12).TextColor(p.Muted)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.sendGuard = nil
 					open = false
 				}
-				if ui.Button(c, m.GoDefine).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.GoDefine)).Clicked() {
 					a.sendGuard = nil
 					open = false
 					a.openEditEnvironment()
 				}
-				if ui.PrimaryButton(c, m.SendAnyway).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, m.SendAnyway)).Clicked() {
 					tab := a.sendGuard.tab
 					a.sendGuard = nil
 					open = false

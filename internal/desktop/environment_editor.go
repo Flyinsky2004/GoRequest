@@ -6,6 +6,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"gorequest/internal/desktop/uikit"
+
 	"gorequest/internal/core"
 )
 
@@ -336,7 +338,7 @@ func (a *App) envEditorBody(c *ui.Context, t *ui.Theme, ps *projectState, e *env
 				}
 			})
 		})
-		if ui.Button(c, m.AddVariable).Clicked() {
+		if uikit.ActionCursor(ui.Button(c, m.AddVariable)).Clicked() {
 			e.varRows = append(e.varRows, newEnvVarRow())
 		}
 
@@ -350,7 +352,7 @@ func (a *App) envEditorBody(c *ui.Context, t *ui.Theme, ps *projectState, e *env
 				e.envSecretRow(c, t, ps, row, m)
 			}
 		})
-		if ui.Button(c, m.AddSecretName).Clicked() {
+		if uikit.ActionCursor(ui.Button(c, m.AddSecretName)).Clicked() {
 			e.secretRows = append(e.secretRows, &envSecretRow{ID: nextRowID()})
 		}
 
@@ -361,24 +363,24 @@ func (a *App) envEditorBody(c *ui.Context, t *ui.Theme, ps *projectState, e *env
 		if e.confirmDiscard {
 			ui.Text(c, m.DiscardEnvConfirm).FontSize(12).TextColor(t.Danger)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.KeepEditing).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.KeepEditing)).Clicked() {
 					e.confirmDiscard = false
 				}
-				if ui.PrimaryButton(c, m.Discard).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, m.Discard)).Clicked() {
 					e.close()
 				}
 			})
 			return
 		}
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-			if ui.Button(c, m.Cancel).Clicked() {
+			if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 				if e.dirty() {
 					e.confirmDiscard = true
 				} else {
 					e.close()
 				}
 			}
-			if ui.PrimaryButton(c, m.Save).Clicked() {
+			if uikit.ActionCursor(ui.PrimaryButton(c, m.Save)).Clicked() {
 				a.saveEnvironmentDraft(ps)
 			}
 		})
@@ -393,7 +395,7 @@ func (e *environmentEditor) envVarRow(c *ui.Context, t *ui.Theme, ps *projectSta
 			ui.Box(c).Width(24)
 			return
 		}
-		if ui.Button(c, "✕").Clicked() {
+		if uikit.ActionCursor(ui.Button(c, "✕")).Clicked() {
 			e.removeVarRow(row.ID)
 		}
 	})
@@ -406,7 +408,7 @@ func (e *environmentEditor) envSecretRow(c *ui.Context, t *ui.Theme, ps *project
 			ui.Box(c).Width(24)
 			return
 		}
-		if ui.Button(c, "✕").Clicked() {
+		if uikit.ActionCursor(ui.Button(c, "✕")).Clicked() {
 			e.removeSecretRow(row.ID)
 		}
 	})

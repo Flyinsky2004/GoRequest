@@ -629,7 +629,7 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 			})
 			g.Drag(kvDrag{kind: kind, id: row.ID}).Tooltip(m.DragTip)
 		}
-		if ui.Checkbox(c, &row.Enabled, "").Changed() {
+		if uikit.ActionCursor(ui.Checkbox(c, &row.Enabled, "")).Changed() {
 			tab.Dirty = true
 		}
 		keyPh := ""
@@ -676,7 +676,7 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 		valEl.OnShortcut(0, ui.KeyEnter, func() { tab.kvFocusNextRowKey(nextID) })
 		if blank {
 			ui.Box(c).Width(28)
-		} else if ui.Button(c, "✕").Clicked() {
+		} else if uikit.ActionCursor(ui.Button(c, "✕")).Clicked() {
 			tab.removeRow(kind, row.ID)
 			tab.ensureTrailingBlank(kind)
 			tab.Dirty = true

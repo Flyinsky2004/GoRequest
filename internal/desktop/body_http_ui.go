@@ -83,7 +83,7 @@ func (a *App) b03MethodPicker(c *ui.Context, p uikit.Palette, tab *Tab) {
 			TextColor(uikit.MethodColor(tab.Method, p)).SingleLine()
 		ui.Icon(c, uikit.IconChevron).FontSize(11).TextColor(p.Muted)
 	})
-	row.PopoverMenuButton(func(mm *ui.Menu) {
+	uikit.ActionCursor(row).PopoverMenuButton(func(mm *ui.Menu) {
 		for _, meth := range methods {
 			if mm.Item(meth).Checked(meth == tab.Method).Chosen() {
 				tab.Method = meth
@@ -122,10 +122,10 @@ func (a *App) b03CustomMethodModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, st.errMsg).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					st.open = false
 				}
-				if ui.PrimaryButton(c, bm.ApplyMethod).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, bm.ApplyMethod)).Clicked() {
 					a.submitCustomMethodDialog()
 				}
 			})

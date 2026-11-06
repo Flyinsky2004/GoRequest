@@ -207,7 +207,7 @@ func (a *App) breadcrumbCrumb(c *ui.Context, p uikit.Palette, label string, clic
 	r.Children(func() {
 		ui.Text(c, label).FontSize(11).TextColor(p.Muted).SingleLine()
 	})
-	if r.Clicked() && click != nil {
+	if click != nil && uikit.ActionCursor(r).Clicked() {
 		click()
 	}
 }
@@ -421,12 +421,12 @@ func (a *App) transferModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, d.err).FontSize(12).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Cancel).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.cancelTransfer()
 					open = false
 				}
 				confirm := ui.PrimaryButton(c, m.TransferConfirm).Disabled(d.plan.Blocked)
-				if confirm.Clicked() {
+				if uikit.ActionCursor(confirm).Clicked() {
 					a.applyTransfer()
 					// A failed apply keeps the draft (and its error) open; a
 					// successful one cleared it.

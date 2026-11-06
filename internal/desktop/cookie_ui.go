@@ -91,7 +91,7 @@ func (a *App) cookieJarModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 					FontSize(12).FontFeatures("tnum").TextColor(p.Muted)
 				ui.Box(c).Grow(1)
 				if jar.Count() > 0 {
-					if ui.Button(c, nm.CookieClearAll).TextColor(t.Danger).Clicked() {
+					if uikit.ActionCursor(ui.Button(c, nm.CookieClearAll)).TextColor(t.Danger).Clicked() {
 						jar.Clear()
 						cui.errMsg = ""
 						a.status = nm.CookieClearedStatus
@@ -164,10 +164,10 @@ func (a *App) cookieJarModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 							if revealed {
 								revealLabel = nm.HideSecret
 							}
-							if ui.Button(c, revealLabel).Clicked() {
+							if uikit.ActionCursor(ui.Button(c, revealLabel)).Clicked() {
 								cui.revealedKeys[key] = !revealed
 							}
-							if ui.Button(c, nm.CookieEditBtn).Clicked() {
+							if uikit.ActionCursor(ui.Button(c, nm.CookieEditBtn)).Clicked() {
 								cui.editDomain = ck.Domain
 								cui.editPath = ck.Path
 								cui.editName = ck.Name
@@ -178,7 +178,7 @@ func (a *App) cookieJarModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 								cui.editSameSite = ck.SameSite
 								cui.errMsg = ""
 							}
-							if ui.Button(c, m.Delete).TextColor(t.Danger).Clicked() {
+							if uikit.ActionCursor(ui.Button(c, m.Delete)).TextColor(t.Danger).Clicked() {
 								jar.Delete(ck.Domain, ck.Path, ck.Name)
 							}
 						})
@@ -196,11 +196,11 @@ func (a *App) cookieJarModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 					ui.TextInput(c, &cui.editValue).Grow(1).Font("monospace").Placeholder(nm.CookieValuePlaceholder)
 				})
 				ui.Row(c).Gap(12).AlignItems(ui.Center).FillWidth().Children(func() {
-					ui.Checkbox(c, &cui.editHostOnly, "HostOnly")
-					ui.Checkbox(c, &cui.editSecure, "Secure")
-					ui.Checkbox(c, &cui.editHttpOnly, "HttpOnly")
+					uikit.ActionCursor(ui.Checkbox(c, &cui.editHostOnly, "HostOnly"))
+					uikit.ActionCursor(ui.Checkbox(c, &cui.editSecure, "Secure"))
+					uikit.ActionCursor(ui.Checkbox(c, &cui.editHttpOnly, "HttpOnly"))
 					ui.Box(c).Grow(1)
-					if ui.PrimaryButton(c, nm.CookieSaveBtn).Clicked() {
+					if uikit.ActionCursor(ui.PrimaryButton(c, nm.CookieSaveBtn)).Clicked() {
 						err := jar.Upsert(core.CookieEntry{
 							Domain:   cui.editDomain,
 							Path:     cui.editPath,
@@ -226,7 +226,7 @@ func (a *App) cookieJarModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 			})
 
 			ui.Row(c).Justify(ui.End).Children(func() {
-				if ui.Button(c, m.Close).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, m.Close)).Clicked() {
 					cui.open = false
 				}
 			})
@@ -265,7 +265,7 @@ func (a *App) responseCookiesView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit.
 				nm.CookieJarTitle, jar.Count())).
 				FontSize(12).FontFeatures("tnum").TextColor(p.Muted)
 			ui.Box(c).Grow(1)
-			if ui.Button(c, nm.OpenCookieJarBtn).Clicked() {
+			if uikit.ActionCursor(ui.Button(c, nm.OpenCookieJarBtn)).Clicked() {
 				a.openCookieJarModal(ps)
 			}
 		})
@@ -297,7 +297,7 @@ func (a *App) responseCookiesView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit.
 							if revealed {
 								lbl = nm.HideSecret
 							}
-							if ui.Button(c, lbl).Clicked() {
+							if uikit.ActionCursor(ui.Button(c, lbl)).Clicked() {
 								st.cookieUI.revealedKeys[key] = !revealed
 							}
 						}

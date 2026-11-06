@@ -88,7 +88,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 				ui.Text(c, im.ImportModalTitle).FontSize(16).FontWeight(700).TextColor(p.Text)
 				ui.Box(c).Grow(1)
 				if st.LastReceipt != nil {
-					if ui.Button(c, im.UndoLastImportButton).Clicked() {
+					if uikit.ActionCursor(ui.Button(c, im.UndoLastImportButton)).Clicked() {
 						a.RollbackLastImport()
 					}
 				}
@@ -137,7 +137,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 					if ui.TextInput(c, &st.ImportFilePath).Grow(1).Placeholder(im.FilePathPlaceholder).Submitted() {
 						a.StageImportPreview()
 					}
-					if ui.Button(c, im.BrowseFileButton).Clicked() {
+					if uikit.ActionCursor(ui.Button(c, im.BrowseFileButton)).Clicked() {
 						a.pickLocalFileDialog(func(chosen string) {
 							st.ImportFilePath = chosen
 							a.StageImportPreview()
@@ -242,7 +242,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 
 			// Footer action buttons
 			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).AlignItems(ui.Center).Children(func() {
-				if ui.Button(c, im.PreviewButton).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, im.PreviewButton)).Clicked() {
 					a.StageImportPreview()
 				}
 				canApply := st.StagedPlan != nil && st.StagedPlan.Preview().CanApply
@@ -250,10 +250,10 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 				if !canApply {
 					applyBtn.Disabled(true)
 				}
-				if applyBtn.Clicked() && canApply {
+				if uikit.ActionCursor(applyBtn).Clicked() && canApply {
 					a.ConfirmAndApplyImport()
 				}
-				if ui.Button(c, im.CloseButton).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, im.CloseButton)).Clicked() {
 					st.ImportOpen = false
 				}
 			})
@@ -314,12 +314,12 @@ func (a *App) exportModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, im.OutputPathLabel+":").FontSize(12).TextColor(p.Muted)
 				ui.TextInput(c, &st.ExportOutputPath).Grow(1).Placeholder(im.OutputPathPlaceholder)
-				if ui.Button(c, im.BrowseFileButton).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, im.BrowseFileButton)).Clicked() {
 					a.pickLocalFileDialog(func(chosen string) {
 						st.ExportOutputPath = chosen
 					})
 				}
-				ui.Checkbox(c, &st.ExportOverwrite, im.AllowOverwriteLabel)
+				uikit.ActionCursor(ui.Checkbox(c, &st.ExportOverwrite, im.AllowOverwriteLabel))
 			})
 
 			if st.ExportErr != "" {
@@ -350,16 +350,16 @@ func (a *App) exportModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 
 			// Footer actions
 			ui.Row(c).FillWidth().Gap(8).Justify(ui.End).AlignItems(ui.Center).Children(func() {
-				if ui.Button(c, im.RefreshPreviewButton).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, im.RefreshPreviewButton)).Clicked() {
 					a.RefreshExportPreview()
 				}
-				if ui.Button(c, im.CopyClipboardButton).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, im.CopyClipboardButton)).Clicked() {
 					a.CopyExportPreviewToClipboard(c)
 				}
-				if ui.PrimaryButton(c, im.SaveToFileButton).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, im.SaveToFileButton)).Clicked() {
 					a.ExecuteExportToFile()
 				}
-				if ui.Button(c, im.CloseButton).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, im.CloseButton)).Clicked() {
 					st.ExportOpen = false
 				}
 			})

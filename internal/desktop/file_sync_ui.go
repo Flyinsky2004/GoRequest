@@ -49,21 +49,21 @@ func (a *App) fileSyncTabBanner(c *ui.Context, t *ui.Theme, ps *projectState, ta
 				ui.Text(c, summary).Grow(1).FontSize(12).FontWeight(600).TextColor(p.Text)
 
 				if conflict != nil && !modalActiveForTab {
-					if ui.PrimaryButton(c, fm.ResolveConflictBtn).Clicked() {
+					if uikit.ActionCursor(ui.PrimaryButton(c, fm.ResolveConflictBtn)).Clicked() {
 						a.OpenConflictModal(tab)
 					}
 					if conflict.DiskExists {
 						if conflict.ParseErr == "" && !conflict.HasGitConflict {
-							if ui.Button(c, fm.ReloadDiskBtn).Clicked() {
+							if uikit.ActionCursor(ui.Button(c, fm.ReloadDiskBtn)).Clicked() {
 								_ = a.ResolveTabConflict(tab, core.ResolutionReloadDisk)
 							}
 						}
 					} else {
-						if ui.Button(c, fm.AcceptDeleteBtn).Clicked() {
+						if uikit.ActionCursor(ui.Button(c, fm.AcceptDeleteBtn)).Clicked() {
 							_ = a.ResolveTabConflict(tab, core.ResolutionAcceptDelete)
 						}
 					}
-					if ui.Button(c, fm.SaveAsCopyBtn).Clicked() {
+					if uikit.ActionCursor(ui.Button(c, fm.SaveAsCopyBtn)).Clicked() {
 						_ = a.ResolveTabConflict(tab, core.ResolutionSaveAsCopy)
 					}
 				}
@@ -128,7 +128,7 @@ func (a *App) fileSyncModal(c *ui.Context, t *ui.Theme, ps *projectState) {
 				ui.Text(c, title).Bold().FontSize(16).TextColor(p.Text)
 				ui.Box(c).Grow(1)
 				if conflict.DiskExists {
-					ui.Segmented(c, &ctrl.modalMode, fm.ModeThreeVersions, fm.ModeBaseToDisk, fm.ModeDiskToEdited)
+					uikit.NativeSegmented(c, &ctrl.modalMode, fm.ModeThreeVersions, fm.ModeBaseToDisk, fm.ModeDiskToEdited)
 				}
 			})
 
@@ -175,34 +175,34 @@ func (a *App) fileSyncModal(c *ui.Context, t *ui.Theme, ps *projectState) {
 
 			// Action bar.
 			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-				if ui.Button(c, fm.KeepEditingLater).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, fm.KeepEditingLater)).Clicked() {
 					a.CloseConflictModal()
 				}
 				if conflict.DiskExists {
-					if ui.Button(c, fm.AutoMergeThreeWay).Clicked() {
+					if uikit.ActionCursor(ui.Button(c, fm.AutoMergeThreeWay)).Clicked() {
 						a.RunThreeWayMergeInModal()
 					}
 				}
 				ui.Box(c).Grow(1)
 				if conflict.DiskExists {
 					if conflict.ParseErr == "" && !conflict.HasGitConflict {
-						if ui.Button(c, fm.ReloadDiskBtn).Clicked() {
+						if uikit.ActionCursor(ui.Button(c, fm.ReloadDiskBtn)).Clicked() {
 							_ = a.ResolveTabConflict(tab, core.ResolutionReloadDisk)
 						}
 					}
 				} else {
-					if ui.Button(c, fm.AcceptDeleteBtn).Clicked() {
+					if uikit.ActionCursor(ui.Button(c, fm.AcceptDeleteBtn)).Clicked() {
 						_ = a.ResolveTabConflict(tab, core.ResolutionAcceptDelete)
 					}
 				}
-				if ui.Button(c, fm.SaveAsCopyBtn).Clicked() {
+				if uikit.ActionCursor(ui.Button(c, fm.SaveAsCopyBtn)).Clicked() {
 					_ = a.ResolveTabConflict(tab, core.ResolutionSaveAsCopy)
 				}
 				primaryLabel := fm.SaveResolution
 				if !conflict.DiskExists {
 					primaryLabel = fm.RestoreDeleted
 				}
-				if ui.PrimaryButton(c, primaryLabel).Clicked() {
+				if uikit.ActionCursor(ui.PrimaryButton(c, primaryLabel)).Clicked() {
 					_ = a.ResolveTabConflict(tab, core.ResolutionApplyMerged)
 				}
 			})

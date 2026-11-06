@@ -30,7 +30,7 @@ func UnderlineTabs(c *ui.Context, p Palette, selected *int, labels []string, bad
 		for i, label := range labels {
 			i := i
 			sel := i == *selected
-			b := ui.ButtonBase(c).Height(40).Padding(0, 10).Gap(4).AlignItems(ui.Center)
+			b := ActionCursor(ui.ButtonBase(c).Height(40).Padding(0, 10).Gap(4).AlignItems(ui.Center))
 			b.Children(func() {
 				col, weight := p.Muted, 500
 				if sel {
