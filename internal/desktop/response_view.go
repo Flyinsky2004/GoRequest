@@ -170,46 +170,50 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	jar := a.cookieJarFor(ps)
 
 	ui.Column(c).Grow(1).FillHeight().Background(p.BG).Children(func() {
-		ui.Row(c).Gap(8).Padding(6, 10).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(p.Hairline).Children(func() {
-			a.responseStatus(c, tab, m, p)
-			ui.Box(c).Grow(1)
-
-			// Project-isolated Cookie Jar & Network/TLS Settings buttons are
-			// always reachable from the request workspace toolbar.
-			if ui.Button(c, fmt.Sprintf(nm.CookieJarBtnFmt, jar.Count())).Clicked() {
-				a.openCookieJarModal(ps)
-			}
-			if ui.Button(c, nm.NetworkBtn).Clicked() {
-				a.openNetworkSettingsModal(ps)
-			}
-
+		// Navigation is the first, non-shrinking group. Context controls wrap
+		// after it; metrics and project settings have their own independent row.
+		// Neither changing body mode nor a long status can move its left anchor.
+		ui.Row(c).FillWidth().Wrap().Gap(8).Padding(6, 10).AlignItems(ui.Start).
+			BorderWidth(1, 0, 0, 0).BorderColor(p.Hairline).Children(func() {
 			if tab.Resp != nil && !tab.Sending && tab.RespErr == "" {
-				ui.Segmented(c, &tab.RespSection, m.BodySection, m.HeadersSection, nm.CookiesSection, nm.NetworkSection)
-				if tab.RespSection == 0 {
-					if !tab.Resp.IsBinary {
+				responseSegments(c, t, &tab.RespSection, m.BodySection, m.HeadersSection, nm.CookiesSection, nm.NetworkSection)
+				if tab.RespSection == 0 && !tab.Resp.IsBinary {
+					ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 						if responseBodyIsJSON(tab.Resp) && tab.Resp.BodySize <= largeResponseThreshold {
-							ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
+							responseSegments(c, t, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
 						} else {
 							if tab.RespRawIdx > 1 {
 								tab.RespRawIdx = 0
 							}
-							ui.Segmented(c, &tab.RespRawIdx, m.Pretty, m.Raw)
+							responseSegments(c, t, &tab.RespRawIdx, m.Pretty, m.Raw)
 						}
-						if b := uikit.IconButton(c, p, uikit.IconSearch, m.FindPlaceholder); b.Clicked() {
+						if b := uikit.IconButton(c, p, uikit.IconSearch, m.FindPlaceholder).Label(m.FindPlaceholder).Cursor(ui.CursorPointer); b.Clicked() {
 							tab.respFindOpen = !tab.respFindOpen
 							if tab.respFindOpen {
 								tab.respFindFocus = true
 							}
 						}
+					})
+				}
+				ui.Row(c).Shrink(0).Gap(8).Children(func() {
+					if b := uikit.IconButton(c, p, uikit.IconCopy, m.CopyResponse).Label(m.CopyResponse).Cursor(ui.CursorPointer); b.Clicked() {
+						c.WriteClipboard(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
+						a.status = m.Copied
 					}
-				}
-				if b := uikit.IconButton(c, p, uikit.IconCopy, m.CopyResponse); b.Clicked() {
-					c.WriteClipboard(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
-					a.status = m.Copied
-				}
-				if b := uikit.IconButton(c, p, uikit.IconFile, m.SaveResponse); b.Clicked() {
-					a.saveResponse(tab)
-				}
+					if b := uikit.IconButton(c, p, uikit.IconFile, m.SaveResponse).Label(m.SaveResponse).Cursor(ui.CursorPointer); b.Clicked() {
+						a.saveResponse(tab)
+					}
+				})
+			}
+		})
+		ui.Row(c).FillWidth().Wrap().Gap(8).Padding(4, 10).AlignItems(ui.Center).Children(func() {
+			a.responseStatus(c, tab, m, p)
+			// Project settings remain usable even without a response.
+			if ui.Button(c, fmt.Sprintf(nm.CookieJarBtnFmt, jar.Count())).Cursor(ui.CursorPointer).Clicked() {
+				a.openCookieJarModal(ps)
+			}
+			if ui.Button(c, nm.NetworkBtn).Cursor(ui.CursorPointer).Clicked() {
+				a.openNetworkSettingsModal(ps)
 			}
 		})
 
@@ -261,6 +265,33 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		}
 		a.cookieJarModal(c, t, tab)
 		a.networkSettingsModal(c, t, tab)
+	})
+}
+
+// responseSegments uses MyGo's native segmented radio/focus behavior and
+// theme geometry. Setting the cursor on each clickable segment is necessary:
+// MyGo stops cursor inheritance at clickable children of a Segmented track.
+func responseSegments(c *ui.Context, t *ui.Theme, selected *int, labels ...string) {
+	parts := ui.SegmentedBase(c, selected, len(labels))
+	parts.Track.AlignItems(ui.Stretch).Padding(t.Space(0.5)).Gap(t.Space(0.5)).
+		Radius(t.Radius).Background(t.Surface).Border(1, t.Border).Children(func() {
+		for i, label := range labels {
+			segment := parts.Segment(i).Cursor(ui.CursorPointer).
+				Padding(t.Space(1), t.Space(3)).Gap(t.Space(1.5)).
+				Radius(max(t.Radius-t.Space(0.5), 0)).TextColor(t.Text)
+			if i == *selected {
+				face := t.Background
+				if t.Dark {
+					face = t.SurfacePressed
+				}
+				segment.Background(face).Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.12))
+			} else if segment.Pressed() {
+				segment.Background(t.SurfacePressed)
+			} else if segment.Hovered() {
+				segment.Background(t.SurfaceHover)
+			}
+			segment.Children(func() { ui.Text(c, label).SingleLine() })
+		}
 	})
 }
 
@@ -330,7 +361,7 @@ func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
 		body = responseBodyText(tab.Resp, tab.RespRawIdx == 1)
 	}
 
-	ui.Row(c).Gap(6).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+	ui.Row(c).FillWidth().Wrap().Gap(6).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
 		ui.Icon(c, uikit.IconSearch).FontSize(13).TextColor(p.Muted)
 		in := ui.TextInput(c, &tab.respFindQuery).Width(220).Placeholder(m.FindPlaceholder)
 		if tab.respFindFocus {
@@ -356,11 +387,11 @@ func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
 
 		ui.Box(c).Grow(1)
 		if matchCount > 0 {
-			if ui.Button(c, "↑").Clicked() {
+			if ui.Button(c, "↑").Cursor(ui.CursorPointer).Clicked() {
 				tab.respFindIdx--
 				tab.respFindJump = true
 			}
-			if ui.Button(c, "↓").Clicked() {
+			if ui.Button(c, "↓").Cursor(ui.CursorPointer).Clicked() {
 				tab.respFindIdx++
 				tab.respFindJump = true
 			}
@@ -383,7 +414,7 @@ func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
 				ui.Text(c, m.FindNone).FontSize(11).TextColor(p.Faint)
 			}
 		}
-		if b := uikit.IconButton(c, p, uikit.IconClose, m.Cancel); b.Clicked() {
+		if b := uikit.IconButton(c, p, uikit.IconClose, m.Cancel).Label(m.Cancel).Cursor(ui.CursorPointer); b.Clicked() {
 			tab.respFindOpen = false
 		}
 		// Jump only when the query or the chosen match changed, so the user's
@@ -484,7 +515,7 @@ func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palet
 func (a *App) responseError(c *ui.Context, t *ui.Theme, tab *Tab, m *messages, p uikit.Palette) {
 	ui.Column(c).Grow(1).FillWidth().Center().Gap(12).Children(func() {
 		ui.Text(c, tab.RespErr).FontSize(13).TextColor(p.Muted).MaxWidth(460).TextAlign(ui.Center)
-		if b := uikit.PillButton(c, p, uikit.PillPrimary, m.Retry, uikit.IconRetry); b.Clicked() {
+		if b := uikit.PillButton(c, p, uikit.PillPrimary, m.Retry, uikit.IconRetry).Cursor(ui.CursorPointer); b.Clicked() {
 			a.send(tab)
 		}
 	})
@@ -534,7 +565,7 @@ func (a *App) responseBinaryView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit.P
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, nm.BinaryPayloadTitle).FontSize(13).FontWeight(600).TextColor(p.Text)
 			ui.Box(c).Grow(1)
-			if ui.PrimaryButton(c, nm.SaveBinaryBtn).Clicked() {
+			if ui.PrimaryButton(c, nm.SaveBinaryBtn).Cursor(ui.CursorPointer).Clicked() {
 				a.saveResponse(tab)
 			}
 		})
@@ -585,11 +616,11 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
 	rows, _, _ := core.FlattenJSONTree(ts.jsonTreeRoot, ts.collapsedPaths, tab.respFindQuery, core.MaxResponseSearchMatches)
 
 	ui.Column(c).Grow(1).FillWidth().Children(func() {
-		ui.Row(c).Gap(8).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
-			if ui.Button(c, nm.ExpandAllBtn).Clicked() {
+		ui.Row(c).FillWidth().Wrap().Gap(8).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+			if ui.Button(c, nm.ExpandAllBtn).Cursor(ui.CursorPointer).Clicked() {
 				clear(ts.collapsedPaths)
 			}
-			if ui.Button(c, nm.CollapseAllBtn).Clicked() {
+			if ui.Button(c, nm.CollapseAllBtn).Cursor(ui.CursorPointer).Clicked() {
 				collapseAllContainers(ts.jsonTreeRoot, ts.collapsedPaths)
 			}
 			if ts.jsonTreeTrunc {
@@ -619,7 +650,7 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
 							if !row.Expanded {
 								glyph = "▸"
 							}
-							if ui.Button(c, glyph).Clicked() {
+							if ui.Button(c, glyph).Cursor(ui.CursorPointer).Clicked() {
 								ts.collapsedPaths[n.Path] = row.Expanded
 							}
 						} else {
@@ -637,11 +668,11 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
 						ui.Text(c, n.Path).FontSize(10).Font("monospace").SingleLine().TextColor(p.Faint)
 						ui.Box(c).Grow(1)
 
-						if ui.Button(c, nm.CopyJSONPathBtn).Clicked() {
+						if ui.Button(c, nm.CopyJSONPathBtn).Cursor(ui.CursorPointer).Clicked() {
 							c.WriteClipboard(n.Path)
 							a.status = m.Copied
 						}
-						if ui.Button(c, nm.CopyValueBtn).Clicked() {
+						if ui.Button(c, nm.CopyValueBtn).Cursor(ui.CursorPointer).Clicked() {
 							c.WriteClipboard(n.RawValue)
 							a.status = m.Copied
 						}
