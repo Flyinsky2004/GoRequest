@@ -91,6 +91,12 @@ func (a *App) wire() {
 func (a *App) View(c *ui.Context) {
 	applyAppearance(c, a.mgr.cfg)
 	t := c.Theme()
+	// The rail keeps its workspace range (220–380 DIPs) even while dragged.
+	if a.navWidth < 220 {
+		a.navWidth = 220
+	} else if a.navWidth > 380 {
+		a.navWidth = 380
+	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Split(c, &a.navWidth, func() { a.nav(c, t) }, func() { a.workspace(c, t) }).Grow(1).FillWidth()
 		if a.status != "" {

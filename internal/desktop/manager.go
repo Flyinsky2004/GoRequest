@@ -151,10 +151,11 @@ func (m *Manager) openProject(path string) error {
 	app := &App{mgr: m, ps: ps, navWidth: 260}
 	app.win = m.newWindow(windowSpec{
 		Title:     "GoRequest — " + ps.name(),
-		Width:     1200,
-		Height:    820,
-		MinWidth:  820,
-		MinHeight: 560,
+		Width:     1320,
+		Height:    860,
+		MinWidth:  1024,
+		MinHeight: 640,
+		Chrome:    true,
 		View:      app.View,
 	})
 	app.wire()

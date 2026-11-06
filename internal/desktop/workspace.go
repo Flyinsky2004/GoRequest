@@ -4,6 +4,8 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/markdown"
+
+	"gorequest/internal/desktop/uikit"
 )
 
 // workspace draws the right side: the project/environment bar and the open tabs
@@ -11,10 +13,11 @@ import (
 func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 	ps := a.ps
 	m := a.msg()
-	ui.Column(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
+	p := uikit.PaletteFor(t)
+	ui.Column(c).Grow(1).FillHeight().MinWidth(0).Background(p.BG).Children(func() {
 		if ps == nil {
 			ui.Column(c).Grow(1).Center().Children(func() {
-				ui.Text(c, m.NoProjectLoaded).TextColor(t.TextMuted)
+				ui.Text(c, m.NoProjectLoaded).TextColor(p.Muted)
 			})
 			return
 		}
@@ -25,13 +28,15 @@ func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 
 func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 	m := a.msg()
-	ui.Row(c).Padding(8, 12).Gap(8).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+	p := uikit.PaletteFor(t)
+	ui.Row(c).Padding(8, 12).Gap(8).AlignItems(ui.Center).Height(46).
+		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
 		ui.Column(c).Gap(1).Shrink(1).MinWidth(0).Clip().Children(func() {
-			ui.Text(c, ps.name()).Bold().SingleLine()
-			ui.Text(c, displayPath(ps.root)).FontSize(11).TextColor(t.TextMuted).SingleLine()
+			ui.Text(c, ps.name()).Bold().SingleLine().TextColor(p.Text)
+			ui.Text(c, displayPath(ps.root)).FontSize(11).TextColor(p.Muted).SingleLine()
 		})
 		ui.Box(c).Grow(1)
-		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(p.Muted)
 		opts := append([]string{"(none)"}, ps.project.EnvOrder...)
 		if ui.Select(c, &ps.envSel, opts).Width(150).Changed() {
 			a.status = translate(m.EnvironmentStatus, ps.envSel)
@@ -49,7 +54,7 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 			a.openEditEnvironment()
 		}
 		if !ps.canEditEnv() {
-			ui.Text(c, m.SelectEnvHint).FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, m.SelectEnvHint).FontSize(11).TextColor(p.Muted)
 		}
 		if ui.Button(c, m.NewRequest).Clicked() {
 			a.openNewRequest()

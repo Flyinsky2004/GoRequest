@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/egoist/mygo/ui"
+
+	"gorequest/internal/desktop/uikit"
 )
 
 // This file draws the open-tab strip above the workspace and the "Open Tabs"
@@ -31,9 +33,10 @@ func tabDisplayLabel(tab *Tab) string {
 // menu, so a narrow window never squeezes the URL/editor area and the active tab
 // stays reachable.
 func (a *App) tabBar(c *ui.Context, t *ui.Theme, ps *projectState) {
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(6).Padding(4, 6).
-		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-		ui.ScrollHorizontal(c).Grow(1).Height(34).Children(func() {
+	p := uikit.PaletteFor(t)
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(6).Padding(0, 8).
+		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+		ui.ScrollHorizontal(c).Grow(1).Height(40).Children(func() {
 			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
 				for _, tab := range ps.tabs {
 					a.tabItem(c, t, ps, tab)
@@ -44,31 +47,30 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme, ps *projectState) {
 	})
 }
 
-// tabItem draws one tab: a clickable label and a close button. The active tab is
-// styled distinctly. A stable key and unique close label keep interaction on the
-// intended tab even as neighbours are added or removed.
+// tabItem draws one tab through the kit's TabItem: a method-colored tag, a
+// truncated title, an unsaved dot or a close × on hover, and the active
+// tab's accent underline. The full label and the close label are the
+// accessibility identities the strip's actions (and tests) use.
 func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
-	active := ps.activeTab() == tab
-	bg := t.Background
-	if active {
-		bg = t.Surface
+	p := uikit.PaletteFor(t)
+	m := a.msg()
+	spec := uikit.TabSpec{
+		Title:  tab.Title,
+		Active: ps.activeTab() == tab,
+		Dirty:  tab.Dirty,
 	}
-	ui.Row(c).Key("tab:"+tabIdentity(tab)).AlignItems(ui.Center).Gap(2).
-		Padding(3, 6).Radius(6).Background(bg).Children(func() {
-		m := a.msg()
-		label := tabDisplayLabel(tab)
-		b := ui.Button(c, label)
-		if active {
-			b.Bold()
-		}
-		if b.Clicked() {
-			ps.activateTab(tab)
-		}
-		closeLabel := translate(m.CloseTabTip, tabIdentity(tab))
-		if ui.Button(c, "✕").Label(closeLabel).Tooltip(translate(m.CloseTabTip, tab.Title)).Clicked() {
-			a.startClose(ps, []*Tab{tab})
-		}
-	})
+	if tab.Kind == "request" {
+		spec.Method = tab.Method
+	}
+	closeLabel := translate(m.CloseTabTip, tabIdentity(tab))
+	_, clicked, closeClicked := uikit.TabItem(c, p, "tab:"+tabIdentity(tab), spec, closeLabel)
+	if closeClicked {
+		a.startClose(ps, []*Tab{tab})
+		return
+	}
+	if clicked {
+		ps.activateTab(tab)
+	}
 }
 
 // openedMenu draws the "Open Tabs" menu button. It lists each open tab with

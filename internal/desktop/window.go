@@ -41,7 +41,12 @@ type windowSpec struct {
 	Height    int
 	MinWidth  int
 	MinHeight int
-	View      func(*ui.Context)
+	// Chrome makes the window a modern AppKit-style workbench window: the title
+	// bar is hidden (the view draws its own top bar under the traffic lights)
+	// and the sidebar shows the system's sidebar vibrancy behind it. Off for the
+	// lightweight launcher.
+	Chrome bool
+	View   func(*ui.Context)
 }
 
 // windowFactory creates a window for a spec. The default builds a MyGo native
@@ -66,12 +71,17 @@ func (r *realWindow) nativeWindow() *mygo.Window               { return r.w }
 
 // newRealWindow builds a real MyGo native UI window from a spec.
 func newRealWindow(s windowSpec) window {
-	return &realWindow{w: mygo.NewWindow(mygo.WindowOptions{
+	opts := mygo.WindowOptions{
 		Title:     s.Title,
 		Width:     s.Width,
 		Height:    s.Height,
 		MinWidth:  s.MinWidth,
 		MinHeight: s.MinHeight,
 		Content:   ui.View(s.View),
-	})}
+	}
+	if s.Chrome {
+		opts.TitleBarStyle = mygo.TitleBarHidden
+		opts.Vibrancy = mygo.VibrancySidebar
+	}
+	return &realWindow{w: mygo.NewWindow(opts)}
 }
