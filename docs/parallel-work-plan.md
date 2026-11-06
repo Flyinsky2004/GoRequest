@@ -222,3 +222,21 @@ B09 启动核对：已确认新 worktree 的目录信任；屏幕明确显示 `C
 | R01-parser | CC | `cc/R01-core-parser` / `../GoRequest-R01-parser` | 仅移除 Core 对 MyGo Markdown parser 包路径依赖，保留文档语义；本轮唯一直接写 go.mod/go.sum 者。完整 R01 继续未完成。 |
 
 新卡不自动将整张正式版任务勾完；A01/A03/A04 先完成可运行闭环，再如实登记剩余阶段。新 agy 沿用用户切换后的 `gemini-4-argon-medium` 与会话 Full Access；CC 沿用当前默认配置。不得恢复额度已耗尽的旧 Opus 会话。
+
+### 本轮清理与实际启动记录
+
+`main` 已快进至 `4223cd4`（含五项合并及最终接线/脱敏修复；前序公共接线 `9c1115f`）。最终 `go build ./...`、`go vet ./...`、`go test -race ./...` 全部通过。B02/B04/B06/B07/B08 五个 worktree 均确认干净、分支头已是 main 祖先；关闭本轮对应 Herdr t24～t28 后以不带 force 的 worktree remove / branch -d 删除旧目录和分支，同时删除已合并的集成分支/worktree。用户其他终端与主目录原有示例环境/调试二进制未动。功能提交均保留在 main 历史，未操作远程。
+
+新任务共同基线 `4223cd48612ac5925a2451e391184b5551d35066`，以下均通过新版 Herdr app 的 tab.new 在同一个 GoRequest space 启动，彼此独立 worktree；新派工不重复使用已删除的旧目录。
+
+| 子任务 | 实际终端 | 实际分支 / worktree | 负责人/模型 | 领取状态 |
+| --- | --- | --- | --- | --- |
+| A01 | `t2b` | `cc/A01-runner-core` / `../GoRequest-A01` | CC / 当前默认模型 / acceptEdits | 实施中；已核对正确目录、任务与读取命令 |
+| A03 | `t2c` | `agy/A03-openapi-schema` / `../GoRequest-A03` | agy / Gemini 4 Argon Medium / Full Access | 实施中；已确认目录信任，屏幕显示 Argon Medium 并已读取任务资料 |
+| B05-UI | `t2d` | `cc/B05-identity-ui` / `../GoRequest-B05-UI` | CC / 当前默认模型 / acceptEdits | 实施中；已核对正确目录、任务与读取命令 |
+| A04 | `t2f` | `agy/A04-oauth-oidc` / `../GoRequest-A04` | agy / Gemini 4 Argon Medium / Full Access | 实施中；已确认目录信任，屏幕显示 Argon Medium 并已读取任务资料 |
+| R01-parser | `t2g` | `cc/R01-core-parser` / `../GoRequest-R01-parser` | CC / 当前默认模型 / acceptEdits | 实施中；已核对正确目录、任务与读取命令 |
+
+提示词与精确 tab ID 仅存本机临时 `/private/tmp/gorequest-next-20261106/{sessions.json,<ID>.prompt.txt}`，不入 Git。后续查询以终端屏幕、分支提交与交付文档交叉核对；新任务未交付/未集成，暂不打勾。A02 仍未分派，等待 A01 稳定接口。B05-UI 和 R01-parser 为旧卡的独立剩余子任务，不能把它们算作新的正式版整卡。
+
+启动核对补充：五个终端均为 working，三个 CC 屏幕显示当前配置 DeepSeek-V4.1-Flash / accept edits；两个 agy 屏幕均显示 Gemini 4 Argon Medium，目录信任按用户既有授权解除。当前 agy 对 `--model gemini-4-argon-medium` 有未识别提示并忽略该 flag，但会话实际沿用用户已选中的 Argon Medium，未回落到 Opus；后续重启应先核对 CLI 支持的模型 ID 与实际屏幕，不能只凭启动参数断言模型。
