@@ -446,6 +446,12 @@ func TestSettingsSheetShowsWorkbenchPreferenceGroups(t *testing.T) {
 	if err := tt.Click("Settings"); err != nil {
 		t.Fatal(err)
 	}
+	// The settings sheet now has a left category rail (FIX05); the workbench
+	// preference groups live under the "Workspace" category.
+	if err := tt.Click("Workspace"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	for _, want := range []string{"Editor", "Auto-save", "Shortcuts", "Font size", "Enable safe auto-save"} {
 		if !tt.HasText(want) {
 			t.Fatalf("settings missing %q; texts=%v", want, tt.Texts())

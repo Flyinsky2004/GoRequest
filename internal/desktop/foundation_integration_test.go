@@ -17,7 +17,13 @@ func TestFoundationCombinedSettingsAndInteropEntry(t *testing.T) {
 	a.showSettings = true
 	tt := ui.NewTester(a.View, 1200, 820)
 	tt.Frame()
-	for _, label := range []string{a.msg().EditorSection, a.msg().AutoSaveSection, a.msg().HistorySettingsLabel} {
+	// The settings sheet's left rail groups preferences (FIX05); the editor and
+	// auto-save groups live under the "Workspace" category.
+	if err := tt.Click("Workspace"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	for _, label := range []string{a.msg().EditorSection, a.msg().AutoSaveSection} {
 		if !tt.HasText(label) {
 			t.Fatalf("missing combined settings group %q", label)
 		}

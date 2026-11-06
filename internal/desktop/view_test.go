@@ -108,7 +108,16 @@ func TestWorkspaceViewSeparatedFromWelcome(t *testing.T) {
 	if err := tt.Click("Settings"); err != nil {
 		t.Fatalf("open workspace settings: %v", err)
 	}
-	if !tt.HasText("Appearance") || !tt.HasText("Restore last opened project on startup") {
+	if !tt.HasText("Appearance") {
+		t.Fatalf("workspace settings missing expected controls; texts=%v", tt.Texts())
+	}
+	// The startup restore control lives under its own category in the new
+	// left-rail layout (FIX05).
+	if err := tt.Click("Startup"); err != nil {
+		t.Fatalf("open startup category: %v", err)
+	}
+	tt.Frame()
+	if !tt.HasText("Restore last opened project on startup") {
 		t.Fatalf("workspace settings missing expected controls; texts=%v", tt.Texts())
 	}
 	if err := tt.Click("Done"); err != nil {
