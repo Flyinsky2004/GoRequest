@@ -1,0 +1,127 @@
+diff --git a/internal/core/auth.go b/internal/core/auth.go
+index 630d9e0..dfe82cf 100644
+--- a/internal/core/auth.go
++++ b/internal/core/auth.go
+@@ -6,6 +6,11 @@ import (
+ 	"strings"
+ )
+ 
++func init() {
++	authSchemeGetOAuthHook = func(s *AuthScheme) *OAuthConfig { return s.OAuth }
++	authSchemeSetOAuthHook = func(s *AuthScheme, cfg *OAuthConfig) { s.OAuth = cfg }
++}
++
+ // APIKeyLocations lists the valid transport positions for API Key auth.
+ var APIKeyLocations = []string{"header", "query", "cookie"}
+ 
+@@ -36,6 +41,7 @@ func CloneAuthScheme(s *AuthScheme) *AuthScheme {
+ 		return nil
+ 	}
+ 	cp := *s
++	cp.OAuth = s.OAuth.Clone()
+ 	return &cp
+ }
+ 
+@@ -59,6 +65,9 @@ func applyAuth(scheme *AuthScheme, r *Resolver, headers *[][2]string, query *[][
+ 	switch strings.ToLower(strings.TrimSpace(scheme.Type)) {
+ 	case "", "none":
+ 		return nil
++	case "oauth2", "oidc":
++		// Runtime token is injected by OAuthService.ApplyOAuthToPlan (A04).
++		return nil
+ 	case "bearer":
+ 		tok, err := r.Resolve(scheme.Token)
+ 		if err != nil {
+@@ -152,6 +161,13 @@ func validateAuthScheme(s *AuthScheme) error {
+ 		return nil
+ 	case "basic":
+ 		return nil
++	case "oauth2", "oidc":
++		for _, is := range ValidateOAuthScheme("auth", s) {
++			if is.Level == "error" {
++				return fmt.Errorf("%s", is.Message)
++			}
++		}
++		return nil
+ 	case "apikey":
+ 		if strings.TrimSpace(s.Name) == "" {
+ 			return fmt.Errorf("api key auth requires a name")
+diff --git a/internal/core/model.go b/internal/core/model.go
+index 25644ab..5a48877 100644
+--- a/internal/core/model.go
++++ b/internal/core/model.go
+@@ -150,6 +150,7 @@ type AuthScheme struct {
+ 	In            string         `yaml:"in,omitempty"`    // header | query | cookie
+ 	Value         string         `yaml:"value,omitempty"` // api key value template
+ 	Extensions    map[string]any `yaml:"extensions,omitempty"`
++	OAuth         *OAuthConfig   `yaml:"oauth,omitempty"` // type oauth2 | oidc (A04)
+ }
+ 
+ // Request is one request stored as its own YAML file.
+diff --git a/internal/core/yaml_strict.go b/internal/core/yaml_strict.go
+index 26470a4..7c6611f 100644
+--- a/internal/core/yaml_strict.go
++++ b/internal/core/yaml_strict.go
+@@ -329,6 +329,7 @@ var allowedInlineAuthKeys = map[string]bool{
+ 	"name":          true,
+ 	"in":            true,
+ 	"value":         true,
++	"oauth":         true,
+ }
+ 
+ func auditRequestAST(root *yaml.Node) error {
+@@ -413,6 +414,12 @@ func auditAuthSchemeMapping(n *yaml.Node, allowTopExtensions bool) error {
+ 		if !allowedInlineAuthKeys[k.Value] {
+ 			return configErrorf("unknown auth field %q (line %d)", k.Value, k.Line)
+ 		}
++		if k.Value == "oauth" {
++			if v.Kind != yaml.MappingNode {
++				return configErrorf("oauth must be a mapping (line %d)", v.Line)
++			}
++			continue
++		}
+ 		if v.Kind != yaml.ScalarNode {
+ 			return configErrorf("auth field %q must be a scalar (line %d)", k.Value, v.Line)
+ 		}
+diff --git a/internal/desktop/body_http_ui.go b/internal/desktop/body_http_ui.go
+index 3cb435e..a9b3112 100644
+--- a/internal/desktop/body_http_ui.go
++++ b/internal/desktop/body_http_ui.go
+@@ -247,5 +247,12 @@ func (a *App) buildTrackedTabPlan(ctx context.Context, tab *Tab) (*core.Request,
+ 	if err != nil {
+ 		return req, nil, red, err
+ 	}
++	if auth != nil {
++		if t := strings.ToLower(strings.TrimSpace(auth.Type)); t == "oauth2" || t == "oidc" {
++			if _, err := a.ApplyTabOAuthIfConfigured(ctx, ps, tab, plan, red, true); err != nil {
++				return req, nil, red, err
++			}
++		}
++	}
+ 	return req, plan, red, nil
+ }
+diff --git a/internal/desktop/identity_ui.go b/internal/desktop/identity_ui.go
+index 63bb7a6..3416d21 100644
+--- a/internal/desktop/identity_ui.go
++++ b/internal/desktop/identity_ui.go
+@@ -294,6 +294,8 @@ func summarizeAuthScheme(s *core.AuthScheme) string {
+ 	case "apikey":
+ 		loc := core.NormalizeAPIKeyLocation(s.In)
+ 		return fmt.Sprintf("apikey (%s: %s = %s)", loc, strings.TrimSpace(s.Name), safeValuePreview(s.Value))
++	case "oauth2", "oidc":
++		return typ + " (token stored in system credential store)"
+ 	default:
+ 		return typ
+ 	}
+@@ -475,6 +477,11 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
+ 		ui.Text(c, translate(im.PreservedAuthHint, tab.AuthMode)).FontSize(12).TextColor(t.TextMuted)
+ 	}
+ 
++	if m := strings.ToLower(strings.TrimSpace(tab.AuthMode)); m == "oauth2" || m == "oidc" {
++		a.renderOAuthEditor(c, t, tab)
++	} else if sch, _ := a.resolveActiveOAuthScheme(nil, tab); sch != nil {
++		a.renderOAuthEditor(c, t, tab) // ref/inherit resolving to an oauth2/oidc scheme (A04)
++	}
+ 	a.renderAuthDiagnostics(c, t, pal, im, proj, tab)
+ }
+ 
