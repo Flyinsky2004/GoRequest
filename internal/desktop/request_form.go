@@ -276,6 +276,60 @@ func (t *Tab) ensureTrailingBlank(kind kvKind) {
 
 // --- view ----------------------------------------------------------------
 
+// KV table density (§6): the rows are a fixed 36 high, and the bordered panel
+// around them hugs the content between a floor that keeps a few rows usable
+// and a ceiling past which the panel scrolls instead of growing further. The
+// inset accounts for the panel's hairline border so a full row is never cut.
+const (
+	kvRowHeight  float32 = 36
+	kvPanelFloor float32 = 108
+	kvPanelCeil  float32 = 320
+	kvPanelInset float32 = 2
+)
+
+// kvPanelHeight is the height of the KV table showing rows rows: it follows the
+// content, clamped to [kvPanelFloor, kvPanelCeil], so a short table leaves no
+// large bordered blank below it and a long one scrolls inside the panel.
+func kvPanelHeight(rows int) float32 {
+	if rows < 0 {
+		rows = 0
+	}
+	h := float32(rows)*kvRowHeight + kvPanelInset
+	if h < kvPanelFloor {
+		return kvPanelFloor
+	}
+	if h > kvPanelCeil {
+		return kvPanelCeil
+	}
+	return h
+}
+
+// kvFocus asks the next frame to focus a cell of row rowID: its Key, or its
+// Value when val is set. Tab and Enter both drive the KV keyboard flow through
+// this one mechanism.
+func (t *Tab) kvFocus(rowID string, val bool) {
+	if rowID == "" {
+		return
+	}
+	t.kvFocusID, t.kvFocusVal = rowID, val
+}
+
+// kvFocusNextRowKey moves to the next row's Key, or stays put on the trailing
+// ghost row where there is no next row.
+func (t *Tab) kvFocusNextRowKey(nextID string) {
+	if nextID != "" {
+		t.kvFocus(nextID, false)
+	}
+}
+
+// kvFocusPrevRowValue moves to the previous row's Value, or stays put on the
+// first row.
+func (t *Tab) kvFocusPrevRowValue(prevID string) {
+	if prevID != "" {
+		t.kvFocus(prevID, true)
+	}
+}
+
 // kvForm draws a real per-row Key/Value table for Query or Headers: an Enabled
 // checkbox, an editable Key with clickable suggestions, an editable Value, and
 // a delete button, plus an "Add row" action and inline incomplete-row feedback.
@@ -442,16 +496,20 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 	}
 
 	// The table: rounded, hairline-edged, scrolling, hover-washed rows, and a
-	// trailing ghost row to type into.
-	ui.Box(c).Grow(1).FillWidth().Radius(10).BorderWidth(1).BorderColor(p.Hairline).Clip().Children(func() {
+	// trailing ghost row to type into. Its height follows the row count (§6)
+	// rather than filling the pane, so no bordered blank is left behind; past
+	// the ceiling the Scroll inside scrolls.
+	ui.Box(c).Height(kvPanelHeight(len(rows))).FillWidth().Radius(10).BorderWidth(1).BorderColor(p.Hairline).Clip().Children(func() {
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Children(func() {
+				prev := ""
 				for i, row := range rows {
 					next := ""
 					if i+1 < len(rows) {
 						next = rows[i+1].ID
 					}
-					a.kvRow(c, t, tab, kind, row, next)
+					a.kvRow(c, t, tab, kind, row, prev, next)
+					prev = row.ID
 				}
 			})
 		})
@@ -462,7 +520,7 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 	}
 }
 
-func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRow, nextID string) {
+func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRow, prevID, nextID string) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
 	blank := row.isBlank()
@@ -494,8 +552,13 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 			keyEl.Focus()
 			tab.kvFocusID = ""
 		}
-		keyEl.OnShortcut(ui.Alt, ui.KeyUp, func() { tab.moveBy(kind, row.ID, -1); tab.kvFocusID = row.ID; tab.kvFocusVal = false })
-		keyEl.OnShortcut(ui.Alt, ui.KeyDown, func() { tab.moveBy(kind, row.ID, 1); tab.kvFocusID = row.ID; tab.kvFocusVal = false })
+		keyEl.OnShortcut(ui.Alt, ui.KeyUp, func() { tab.moveBy(kind, row.ID, -1); tab.kvFocus(row.ID, false) })
+		keyEl.OnShortcut(ui.Alt, ui.KeyDown, func() { tab.moveBy(kind, row.ID, 1); tab.kvFocus(row.ID, false) })
+		// Tab walks key → value → next key; Shift+Tab walks back (§6). The
+		// autocomplete popup does not take Tab itself, so these always move
+		// the focus while the input holds it.
+		keyEl.OnShortcut(0, ui.KeyTab, func() { tab.kvFocus(row.ID, true) })
+		keyEl.OnShortcut(ui.Shift, ui.KeyTab, func() { tab.kvFocusPrevRowValue(prevID) })
 		if keyEl.Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
@@ -510,19 +573,18 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 			valEl.Focus()
 			tab.kvFocusID = ""
 		}
-		valEl.OnShortcut(ui.Alt, ui.KeyUp, func() { tab.moveBy(kind, row.ID, -1); tab.kvFocusID = row.ID; tab.kvFocusVal = false })
-		valEl.OnShortcut(ui.Alt, ui.KeyDown, func() { tab.moveBy(kind, row.ID, 1); tab.kvFocusID = row.ID; tab.kvFocusVal = false })
+		valEl.OnShortcut(ui.Alt, ui.KeyUp, func() { tab.moveBy(kind, row.ID, -1); tab.kvFocus(row.ID, false) })
+		valEl.OnShortcut(ui.Alt, ui.KeyDown, func() { tab.moveBy(kind, row.ID, 1); tab.kvFocus(row.ID, false) })
+		// Tab leaves the Value for the next row's Key; Shift+Tab goes back to
+		// this row's Key (§6).
+		valEl.OnShortcut(0, ui.KeyTab, func() { tab.kvFocusNextRowKey(nextID) })
+		valEl.OnShortcut(ui.Shift, ui.KeyTab, func() { tab.kvFocus(row.ID, false) })
 		if valEl.Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
 		}
 		// Enter in the value jumps to the next row's key (D8 keyboard flow).
-		valEl.OnShortcut(0, ui.KeyEnter, func() {
-			if nextID != "" {
-				tab.kvFocusID = nextID
-				tab.kvFocusVal = false
-			}
-		})
+		valEl.OnShortcut(0, ui.KeyEnter, func() { tab.kvFocusNextRowKey(nextID) })
 		if blank {
 			ui.Box(c).Width(28)
 		} else if ui.Button(c, "✕").Clicked() {
