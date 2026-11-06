@@ -279,12 +279,24 @@ UI02 如发现标签/响应文件存在直接按钮，交该两卡精确位置�
 
 | 子任务 | 分支 / worktree | 专属归属和边界 | 状态 |
 | --- | --- | --- | --- |
-| UI04-window-drag | `codex/UI04-window-drag` / `../GoRequest-UI04-window-drag` | 新增窗口拖拽适配/测试；公共 app/manager/workspace 顶部挂载交最小 patch。不直接修改 UI05 的 navHeader 几何；不拦截按钮/输入/标签点击 | 待启动核对 |
-| UI05-brand-position | `codex/UI05-brand-position` / `../GoRequest-UI05-brand-position` | 仅 `nav.go` 的 navHeader 几何与专属测试；保留系统三按钮安全区，按用户指定上下关系定位；顶部拖拽归 UI04 | 待启动核对 |
-| UI06-markdown-preview | `codex/UI06-markdown-preview` / `../GoRequest-UI06-markdown-preview` | `documentation.go` 预览样式、专属 Markdown 本机偏好模块；必要 `workspace_settings.go` 偏好结构/读取/保存增量。设置入口/公共翻译交 patch；Core parser 归 R01-parser，禁止修改 | 待启动核对 |
+| UI04-window-drag | `codex/UI04-window-drag` / `../GoRequest-UI04-window-drag` | 新增窗口拖拽适配/测试；公共 app/manager/workspace 顶部挂载交最小 patch。不直接修改 UI05 的 navHeader 几何；不拦截按钮/输入/标签点击 | 已领取 / Herdr working |
+| UI05-brand-position | `codex/UI05-brand-position` / `../GoRequest-UI05-brand-position` | 仅 `nav.go` 的 navHeader 几何与专属测试；保留系统三按钮安全区，按用户指定上下关系定位；顶部拖拽归 UI04 | 已领取 / Herdr working |
+| UI06-markdown-preview | `codex/UI06-markdown-preview` / `../GoRequest-UI06-markdown-preview` | `documentation.go` 预览样式、专属 Markdown 本机偏好模块；必要 `workspace_settings.go` 偏好结构/读取/保存增量。设置入口/公共翻译交 patch；Core parser 归 R01-parser，禁止修改 | 已领取 / Herdr working |
 
 - [ ] UI04 顶部空白拖拽移动窗口：待实现、集成和验证。
 - [ ] UI05 GoRequest 文字下移至系统按钮与分隔线之间：待实现、集成和验证。
 - [ ] UI06 Markdown 预览留白与默认渲染设置：待实现、集成和验证。
 
 UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 的最小 DragWindow 补丁（如需），最终由集成人组合；不各自重构顶部。UI02 的手型增量如涉及本批专属文件只交补丁。UI06 只改 Desktop 渲染及本机偏好，不替换 MyGo 或变更 Core Markdown 解析语义；不与 R01-parser、UI01/03 或 A04/B05 业务界面交叉。默认预览应有舒适内边距，可调字体比例及有本地 API 支持的阅读参数，设合理默认/边界/恢复默认，老配置兼容且不写共享项目。即时应用不得清空编辑/滚动/标签/环境状态。真实 macOS 拖窗与系统按钮几何需要人工证据，无窗口验证不得冒充已完成实机验收。
+
+### 第二批 UI 实际启动记录
+
+共同基线 `d45d8d144a0ff39d54f4d4a49e229aed7d78c356`。三条均通过新版 Herdr tab.new 交互启动 Codex，含 `--no-daemon`，会话级 danger-full-access / approval never，未覆盖全局模型/设置。已核对正确任务/目录、屏幕 GPT-6.1-Sol default、hc working；启动成功只代表正在实施，不代表功能完成。
+
+| 子任务 | Herdr 终端 | tab ID | 实际分支 / worktree |
+| --- | --- | --- | --- |
+| UI04 | `t2m` | `tba929cef77386f4d297c9924ca7c343d0` | `codex/UI04-window-drag` / `../GoRequest-UI04-window-drag` |
+| UI05 | `t2n` | `tbd59bfd0d42cbcc1f985205eb42d96e25` | `codex/UI05-brand-position` / `../GoRequest-UI05-brand-position` |
+| UI06 | `t2p` | `tbb334d79b5e3069136d41f33a19aeb9a1` | `codex/UI06-markdown-preview` / `../GoRequest-UI06-markdown-preview` |
+
+完整提示词/句柄存本机临时 `/private/tmp/gorequest-ui2-codex-20261106/`，不提交；长期交付记录为 docs/task-results/UI04.md、UI05.md、UI06.md。UI02 已发送新增文件归属提醒，documentation.go/workspace_settings.go/navHeader 的手型增量仅交 patch。旧任务会话不关闭，R01-parser 已显示 done 但本轮未审查/合并，不据此勾完成。
