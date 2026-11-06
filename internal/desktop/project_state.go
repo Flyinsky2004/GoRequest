@@ -31,15 +31,19 @@ type projectState struct {
 	// It is per project (like tabs and edits), so two open project windows never
 	// share an expansion state.
 	expanded map[string]bool
+	// collapsed records which sidebar sections ("requests"/"docs") are folded,
+	// per project so a fold never leaks between windows.
+	collapsed map[string]bool
 }
 
 func newProjectState(root string, p *core.Project) *projectState {
 	ps := &projectState{
-		root:     root,
-		project:  p,
-		envSel:   "(none)",
-		docSplit: 0.5,
-		expanded: map[string]bool{},
+		root:      root,
+		project:   p,
+		envSel:    "(none)",
+		docSplit:  0.5,
+		expanded:  map[string]bool{},
+		collapsed: map[string]bool{},
 	}
 	if len(p.EnvOrder) > 0 {
 		ps.envSel = p.EnvOrder[0]

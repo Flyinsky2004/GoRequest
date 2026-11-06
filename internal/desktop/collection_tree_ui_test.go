@@ -16,9 +16,12 @@ func TestFolderTreeCreateAndOpenThroughView(t *testing.T) {
 	tt := ui.NewTester(a.View, 1100, 820)
 	tt.Frame()
 
-	// Create a folder through the real "+ Folder" button and modal.
-	if err := tt.Click("+ Folder"); err != nil {
-		t.Fatalf("click + Folder: %v", err)
+	// Create a folder through the real "+" new menu and modal.
+	if err := tt.Click("+"); err != nil {
+		t.Fatalf("open new menu: %v", err)
+	}
+	if err := tt.ChooseMenuItem("New Folder"); err != nil {
+		t.Fatalf("choose New Folder: %v", err)
 	}
 	if !tt.HasText("New Folder") {
 		t.Fatalf("new folder dialog not shown; texts=%v", tt.Texts())
@@ -60,16 +63,16 @@ func TestFolderTreeCreateAndOpenThroughView(t *testing.T) {
 		t.Fatalf("request not shown under its folder; texts=%v", tt.Texts())
 	}
 
-	// Clicking the folder header collapses it (real widget interaction).
-	if err := tt.Click("▾ Alpha"); err != nil {
-		t.Fatalf("click folder header: %v", err)
+	// Clicking the folder row collapses it (real widget interaction).
+	if err := tt.Click("Alpha"); err != nil {
+		t.Fatalf("click folder row: %v", err)
 	}
 	if ps.expanded["collections/alpha"] {
-		t.Fatal("clocking the folder should collapse it")
+		t.Fatal("clicking the folder should collapse it")
 	}
 	tt.Frame()
-	if !tt.HasText("▸ Alpha") {
-		t.Fatalf("collapsed folder marker missing; texts=%v", tt.Texts())
+	if !tt.HasText("Alpha") {
+		t.Fatalf("collapsed folder row missing; texts=%v", tt.Texts())
 	}
 }
 
@@ -150,8 +153,11 @@ func TestMoveThroughView(t *testing.T) {
 	}
 	tt := ui.NewTester(a.View, 1100, 820)
 	tt.Frame()
-	if err := tt.Click("Move…"); err != nil {
-		t.Fatalf("click Move…: %v", err)
+	if err := tt.Click("Demo"); err != nil {
+		t.Fatalf("open project menu: %v", err)
+	}
+	if err := tt.ChooseMenuItem("Move…"); err != nil {
+		t.Fatalf("choose Move…: %v", err)
 	}
 	if !tt.HasText("Move Request") {
 		t.Fatalf("move dialog not shown; texts=%v", tt.Texts())
@@ -188,5 +194,60 @@ func TestDirtyCloseModalThroughView(t *testing.T) {
 	}
 	if ps.indexOfTab(tab) != -1 {
 		t.Fatal("Discard should close the dirty tab")
+	}
+}
+
+// TestSidebarFilterThroughView proves the filter box filters the tree by input,
+// hiding non-matching requests and reporting the hit count (§3).
+func TestSidebarFilterThroughView(t *testing.T) {
+	a, ps := openTestProject(t, "Demo")
+	if _, err := ps.project.NewRequest("", "Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ps.project.NewRequest("", "Beta"); err != nil {
+		t.Fatal(err)
+	}
+
+	a.filterQuery = "alp"
+	tt := ui.NewTester(a.View, 1100, 820)
+	tt.Frame()
+	if !tt.HasText("Alpha") {
+		t.Fatalf("matching request should remain; texts=%v", tt.Texts())
+	}
+	if tt.HasText("Beta") {
+		t.Fatalf("non-matching request should be hidden; texts=%v", tt.Texts())
+	}
+	if n := a.matchCount(); n != 1 {
+		t.Fatalf("match count = %d, want 1", n)
+	}
+
+	// Clearing the query restores the full tree.
+	a.filterQuery = ""
+	tt.Frame()
+	if !tt.HasText("Beta") {
+		t.Fatalf("cleared filter should show all requests; texts=%v", tt.Texts())
+	}
+}
+
+// TestSectionCollapseThroughView proves clicking a section header folds it (§3).
+func TestSectionCollapseThroughView(t *testing.T) {
+	a, ps := openTestProject(t, "Demo")
+	if _, err := ps.project.NewRequest("", "Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	tt := ui.NewTester(a.View, 1100, 820)
+	tt.Frame()
+	if !tt.HasText("Alpha") {
+		t.Fatalf("request should be visible before folding; texts=%v", tt.Texts())
+	}
+	if err := tt.Click("Requests"); err != nil {
+		t.Fatalf("click Requests header: %v", err)
+	}
+	tt.Frame()
+	if !ps.collapsed["requests"] {
+		t.Fatal("clicking the Requests header should fold the section")
+	}
+	if tt.HasText("Alpha") {
+		t.Fatalf("folded section should hide its requests; texts=%v", tt.Texts())
 	}
 }

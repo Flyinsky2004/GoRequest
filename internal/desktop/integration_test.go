@@ -17,9 +17,37 @@ func TestLastTabClosesThroughMergedWorkspace(t *testing.T) {
 	if len(ps.tabs) != 0 || !tt.HasText("Choose a request or document on the left.") {
 		t.Fatalf("closing the last tab should return to the workspace empty state: %v", tt.Texts())
 	}
-	if !tt.HasText("+ Folder") || !tt.HasText("New Env") {
-		t.Fatal("folder and environment actions must remain available without tabs")
+	if err := tt.Click("+"); err != nil {
+		t.Fatalf("open new menu: %v", err)
 	}
+	newItems := tt.Menu()
+	hasFolder := false
+	for _, it := range newItems {
+		if it == "New Folder" {
+			hasFolder = true
+		}
+	}
+	if !hasFolder {
+		t.Fatalf("new menu missing folder action: %v", newItems)
+	}
+	tt.CloseMenu()
+	if err := tt.Click("dev"); err != nil {
+		t.Fatalf("open env menu: %v", err)
+	}
+	envItems := tt.Menu()
+	hasNewEnv, hasEditEnv := false, false
+	for _, it := range envItems {
+		if it == "New Env" {
+			hasNewEnv = true
+		}
+		if it == "Edit Env" {
+			hasEditEnv = true
+		}
+	}
+	if !hasNewEnv || !hasEditEnv {
+		t.Fatalf("env menu missing entries: %v", envItems)
+	}
+	tt.CloseMenu()
 }
 
 func TestMergedProjectWindowsKeepFoldersTabsAndEnvironmentsSeparate(t *testing.T) {
@@ -51,11 +79,28 @@ func TestMergedProjectWindowsKeepFoldersTabsAndEnvironmentsSeparate(t *testing.T
 		t.Fatal("project one state leaked into project two")
 	}
 	tt := ui.NewTester(a.View, 1200, 820)
-	for _, want := range []string{"New Env", "Edit Env", "+ Folder", "Open Tabs (1)"} {
+	for _, want := range []string{"New Request", "Open Tabs (1)"} {
 		if !tt.HasText(want) {
 			t.Fatalf("merged workspace missing %q: %v", want, tt.Texts())
 		}
 	}
+	if err := tt.Click("integration"); err != nil {
+		t.Fatalf("open env menu: %v", err)
+	}
+	envItems := tt.Menu()
+	hasNewEnv, hasEditEnv := false, false
+	for _, it := range envItems {
+		if it == "New Env" {
+			hasNewEnv = true
+		}
+		if it == "Edit Env" {
+			hasEditEnv = true
+		}
+	}
+	if !hasNewEnv || !hasEditEnv {
+		t.Fatalf("env menu missing entries: %v", envItems)
+	}
+	tt.CloseMenu()
 	a.closeAll()
 	a.cancelClose()
 	if ps.activeTab() != tab || !tab.Dirty {

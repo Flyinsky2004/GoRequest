@@ -235,11 +235,29 @@ func TestChineseWelcomeAndWorkspaceView(t *testing.T) {
 	}
 	app := m.workspaces[0]
 	tt := ui.NewTester(app.View, 1200, 820)
-	for _, want := range []string{"请求", "文档", "设置", "关闭项目", "新建请求", "新建文档"} {
+	for _, want := range []string{"请求", "文档", "设置", "新建请求"} {
 		if !tt.HasText(want) {
 			t.Errorf("Chinese workspace missing %q; texts=%v", want, tt.Texts())
 		}
 	}
+	// Close Project and New Doc live in the project menu now.
+	if err := tt.Click("中文项目"); err != nil {
+		t.Fatalf("open project menu: %v", err)
+	}
+	menuItems := tt.Menu()
+	hasClose, hasNewDoc := false, false
+	for _, it := range menuItems {
+		if it == "关闭项目" {
+			hasClose = true
+		}
+		if it == "新建文档" {
+			hasNewDoc = true
+		}
+	}
+	if !hasClose || !hasNewDoc {
+		t.Errorf("Chinese project menu missing items: %v", menuItems)
+	}
+	tt.CloseMenu()
 	for _, unwanted := range []string{"Requests", "Documents", "Close Project", "New Request"} {
 		if hasExactLabel(tt, unwanted) {
 			t.Errorf("workspace should not show English %q; texts=%v", unwanted, tt.Texts())

@@ -213,26 +213,142 @@ func (t *Tab) ensureTrailingBlank(kind kvKind) {
 // kvForm draws a real per-row Key/Value table for Query or Headers: an Enabled
 // checkbox, an editable Key with clickable suggestions, an editable Value, and
 // a delete button, plus an "Add row" action and inline incomplete-row feedback.
+// --- KV batch text mode ------------------------------------------------
+
+// sepFor returns the key/value separator text mode uses: "=" for query pairs,
+// ":" for headers.
+func sepFor(kind kvKind) string {
+	if kind == kvHeader {
+		return ":"
+	}
+	return "="
+}
+
+func (t *Tab) textMode(kind kvKind) *bool {
+	if kind == kvHeader {
+		return &t.headerText
+	}
+	return &t.queryText
+}
+
+func (t *Tab) rawPtr(kind kvKind) *string {
+	if kind == kvHeader {
+		return &t.headerRaw
+	}
+	return &t.queryRaw
+}
+
+// rowsToText serializes rows to batch-edit text: one "key SEP value" per line,
+// disabled rows prefixed "# ". Blank rows are skipped.
+func rowsToText(rows []*KVRow, kind kvKind) string {
+	sep := sepFor(kind)
+	var lines []string
+	for _, r := range rows {
+		if r == nil || r.isBlank() {
+			continue
+		}
+		line := r.Name + " " + sep + " " + r.Value
+		if !r.Enabled {
+			line = "# " + line
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// textToRows parses batch-edit text back into rows, appending a trailing ghost row.
+// A line without its separator is a hard error (the caller keeps text mode and
+// reports it), so no pair is ever silently dropped.
+func textToRows(text string, kind kvKind) ([]*KVRow, error) {
+	sep := sepFor(kind)
+	var rows []*KVRow
+	for i, line := range strings.Split(text, "\n") {
+		raw := strings.TrimSpace(line)
+		if raw == "" {
+			continue
+		}
+		enabled := true
+		if strings.HasPrefix(raw, "#") {
+			enabled = false
+			raw = strings.TrimSpace(strings.TrimPrefix(raw, "#"))
+		}
+		idx := strings.Index(raw, sep)
+		if idx < 0 {
+			return nil, fmt.Errorf("line %d: missing separator %q", i+1, sep)
+		}
+		name := strings.TrimSpace(raw[:idx])
+		val := strings.TrimSpace(raw[idx+1:])
+		if name == "" {
+			return nil, fmt.Errorf("line %d: missing key", i+1)
+		}
+		e := enabled
+		rows = append(rows, &KVRow{ID: nextRowID(), Enabled: e, Name: name, Value: val})
+	}
+	rows = append(rows, newBlankRow())
+	return rows, nil
+}
+
 func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
 	rows := tab.rows(kind)
+	textMode := *tab.textMode(kind)
 
-	// Column headers.
+	// Column headers — shown once — plus the key:value / text switch.
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 8).Children(func() {
 		ui.Box(c).Width(28)
 		ui.Text(c, m.Key).FontSize(12).FontWeight(600).TextColor(p.Muted).Width(200)
 		ui.Text(c, m.Value).FontSize(12).FontWeight(600).TextColor(p.Muted).Grow(1)
 		ui.Box(c).Width(28)
+		idx := 0
+		if textMode {
+			idx = 1
+		}
+		if _, changed := uikit.Segmented(c, p, &idx, []string{m.KeyValueMode, m.TextMode}); changed {
+			if idx == 1 {
+				*tab.rawPtr(kind) = rowsToText(rows, kind)
+				tab.kvErr = ""
+				*tab.textMode(kind) = true
+			} else if parsed, err := textToRows(*tab.rawPtr(kind), kind); err != nil {
+				tab.kvErr = err.Error()
+			} else {
+				*tab.rowsPtr(kind) = parsed
+				tab.kvErr = ""
+				*tab.textMode(kind) = false
+			}
+		}
 	})
 
-	// The table: rounded, hairline-edged, scrolling, with a hover-washed row per
-	// entry and a trailing ghost row to type into.
+	if textMode {
+		ui.Box(c).Grow(1).FillWidth().Radius(10).BorderWidth(1).BorderColor(p.Hairline).Clip().Children(func() {
+			ta := ui.TextArea(c, tab.rawPtr(kind)).Grow(1).FillWidth().Font("monospace")
+			if ta.Changed() {
+				if parsed, err := textToRows(*tab.rawPtr(kind), kind); err != nil {
+					tab.kvErr = err.Error()
+				} else {
+					*tab.rowsPtr(kind) = parsed
+					tab.kvErr = ""
+					tab.Dirty = true
+				}
+			}
+		})
+		if tab.kvErr != "" {
+			ui.Text(c, tab.kvErr).FontSize(12).TextColor(uikit.MethodColor("DELETE", p)).Padding(2, 8)
+		}
+		return
+	}
+
+	// The table: rounded, hairline-edged, scrolling, hover-washed rows, and a
+	// trailing ghost row to type into.
 	ui.Box(c).Grow(1).FillWidth().Radius(10).BorderWidth(1).BorderColor(p.Hairline).Clip().Children(func() {
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Children(func() {
-				for _, row := range rows {
-					a.kvRow(c, t, tab, kind, row)
+				for i, row := range rows {
+					next := ""
+					if i+1 < len(rows) {
+						next = rows[i+1].ID
+					}
+					a.kvRow(c, t, tab, kind, row, next)
 				}
 			})
 		})
@@ -243,9 +359,10 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 	}
 }
 
-func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRow) {
+func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRow, nextID string) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
+	blank := row.isBlank()
 	r := ui.Row(c).Key(row.ID).Height(36).Gap(8).AlignItems(ui.Center).FillWidth().Padding(0, 8)
 	if r.Hovered() {
 		r.Background(p.Hover)
@@ -254,18 +371,39 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 		if ui.Checkbox(c, &row.Enabled, "").Changed() {
 			tab.Dirty = true
 		}
-		// Key: editable autocomplete; opening the suggestions does not change the
-		// key, so it does not mark the request dirty.
-		if ui.Autocomplete(c, &row.Name, suggestionsFor(kind)).Width(200).Placeholder(m.Key).Changed() {
+		// Placeholders belong to the ghost row only (D8-①); real rows rely on the
+		// single column header.
+		keyPh := ""
+		if blank {
+			keyPh = m.Key
+		}
+		keyEl := ui.Autocomplete(c, &row.Name, suggestionsFor(kind)).Width(200).Placeholder(keyPh)
+		if tab.kvFocusID == row.ID && !tab.kvFocusVal {
+			keyEl.Focus()
+			tab.kvFocusID = ""
+		}
+		if keyEl.Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
+		}
+		valPh := ""
+		if blank {
+			valPh = m.Value
 		}
 		vals := filterSuggestions(valueSuggestions(row.Name, kind), row.Value)
-		if ui.Autocomplete(c, &row.Value, vals).Grow(1).Placeholder(m.Value).Changed() {
+		valEl := ui.Autocomplete(c, &row.Value, vals).Grow(1).Placeholder(valPh)
+		if valEl.Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
 		}
-		if row.isBlank() {
+		// Enter in the value jumps to the next row's key (D8 keyboard flow).
+		valEl.OnShortcut(0, ui.KeyEnter, func() {
+			if nextID != "" {
+				tab.kvFocusID = nextID
+				tab.kvFocusVal = false
+			}
+		})
+		if blank {
 			ui.Box(c).Width(28)
 		} else if ui.Button(c, "✕").Clicked() {
 			tab.removeRow(kind, row.ID)

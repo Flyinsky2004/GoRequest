@@ -26,6 +26,15 @@ type Tab struct {
 	URL        string
 	QueryRows  []*KVRow
 	HeaderRows []*KVRow
+	// KV batch-edit state (key:value text mode) per section.
+	queryText  bool
+	queryRaw   string
+	headerText bool
+	headerRaw  string
+	kvErr      string
+	// kvFocusID/kvFocusVal ask the next frame to focus a KV cell (Enter flow).
+	kvFocusID  string
+	kvFocusVal bool
 	BodyIdx    int
 	BodyText   string
 	AuthMode   string
@@ -47,6 +56,9 @@ type Tab struct {
 	// shared
 	Dirty    bool
 	Baseline string
+	// focusURL asks the next frame to focus the URL input (after a send, so the
+	// user can tweak and resend without hunting for the field).
+	focusURL bool
 
 	// response
 	Resp         *core.ExecResult

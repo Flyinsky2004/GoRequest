@@ -47,8 +47,9 @@ func TestEnvEditorNewAvailableButEditDisabledWithoutEnvironments(t *testing.T) {
 
 	tt := ui.NewTester(a.View, 1200, 820)
 	tt.Frame()
-	if !tt.HasText("New Env") || !tt.HasText("Edit Env") {
-		t.Fatalf("environment entries missing from header: %v", tt.Texts())
+	// The env selector is present in the top bar; New/Edit Env live in its menu.
+	if !tt.HasText("(none)") {
+		t.Fatalf("env selector missing from header: %v", tt.Texts())
 	}
 	if !tt.HasText("Select an environment to edit") {
 		t.Fatalf("(none) reason not shown: %v", tt.Texts())

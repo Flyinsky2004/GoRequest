@@ -1,12 +1,15 @@
 package desktop
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/markdown"
 
+	"gorequest/internal/core"
 	"gorequest/internal/desktop/uikit"
 )
 
@@ -28,58 +31,130 @@ func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// workspaceHeader is the top bar (§2). It holds exactly three groups: the
+// project name with its switch dropdown on the left; the environment selector in
+// the middle-right; and the New Request pill plus the "+" new menu at the far
+// right. The project path line and the old flat row of six buttons are gone —
+// every secondary action now lives in a menu.
 func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
-	ui.Row(c).Padding(8, 12).Gap(8).AlignItems(ui.Center).Height(46).
+	ui.Row(c).Padding(8, 12).Gap(6).AlignItems(ui.Center).Height(46).
 		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
-		ui.Column(c).Gap(1).Shrink(1).MinWidth(0).Clip().Children(func() {
-			ui.Text(c, ps.name()).Bold().SingleLine().TextColor(p.Text)
-			ui.Text(c, displayPath(ps.root)).FontSize(11).TextColor(p.Muted).SingleLine()
-		})
+		// Left: project name + switch dropdown.
+		ui.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) })
 		ui.Box(c).Grow(1)
-		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(p.Muted)
-		opts := append([]string{"(none)"}, ps.project.EnvOrder...)
-		if ui.Select(c, &ps.envSel, opts).Width(150).Changed() {
-			a.status = translate(m.EnvironmentStatus, ps.envSel)
-		}
-		if ui.Button(c, m.NewEnv).Tooltip(m.CreateEnvTip).Clicked() {
-			a.openNewEnvironment()
-		}
-		edit := ui.Button(c, m.EditEnv)
-		if ps.canEditEnv() {
-			edit = edit.Tooltip(m.EditEnvTip)
-		} else {
-			edit = edit.Disabled(true).Tooltip(m.SelectEnvTip)
-		}
-		if edit.Clicked() {
-			a.openEditEnvironment()
-		}
+		// Environment area: a fixed single-line label (never wraps) + selector.
+		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(p.Muted).SingleLine().Width(32)
+		a.envMenu(c, ps)
 		if !ps.canEditEnv() {
-			ui.Text(c, m.SelectEnvHint).FontSize(11).TextColor(p.Muted)
+			ui.Text(c, m.SelectEnvHint).FontSize(11).TextColor(p.Faint).SingleLine()
 		}
-		if ui.Button(c, m.NewRequest).Clicked() {
+		// Far right: the New Request pill and the "+" new menu. Saving lives
+		// in the request's own header (§8), not here.
+		pill := ui.ButtonBase(c).Height(36).Radius(999).Padding(0, 18).Gap(6).AlignItems(ui.Center).Background(p.Hover)
+		pill.Children(func() {
+			ui.Icon(c, uikit.IconPlus).FontSize(14).TextColor(p.Text)
+			ui.Text(c, m.NewRequest).FontSize(14).FontWeight(600).TextColor(p.Text).SingleLine()
+		})
+		pill.Label(m.NewRequest).Tooltip(m.NewRequest + " ⌘T")
+		if pill.Clicked() {
 			a.openNewRequest()
 		}
-		if tab := ps.activeTab(); tab != nil && tab.Kind == "request" {
-			if ui.Button(c, m.MoveEllipsis).Tooltip(m.MoveTip).Clicked() {
-				a.openMove(tab)
+		ui.MenuButton(c, "+", func(mm *ui.Menu) { a.buildNewMenu(mm, ps) })
+	})
+}
+
+// buildProjectMenu fills the project switcher menu (§2).
+func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
+	m := a.msg()
+	if mm.Item(m.OpenProject).Chosen() {
+		a.openProjectPicker()
+	}
+	if mm.Item(m.NewDoc).Chosen() {
+		if de, err := ps.newDoc(); err != nil {
+			a.status = translate(m.NewDocFailed, err.Error())
+		} else {
+			a.status = translate(m.Created, de.RelPath)
+		}
+	}
+	tab := ps.activeTab()
+	canMove := tab != nil && tab.Kind == "request"
+	if mm.Item(m.MoveEllipsis).Disabled(!canMove).Chosen() {
+		a.openMove(tab)
+	}
+	mm.Separator()
+	if mm.Item(m.CopyProjectPath).Chosen() {
+		if c != nil {
+			c.WriteClipboard(ps.root)
+		}
+		a.status = m.Copied
+	}
+	mm.Separator()
+	if mm.Item(m.CloseProject).Chosen() {
+		a.closeWindow()
+	}
+}
+
+// buildNewMenu fills the "+" new menu (§2): request / folder / document /
+// environment.
+func (a *App) buildNewMenu(mm *ui.Menu, ps *projectState) {
+	m := a.msg()
+	if mm.Item(m.NewRequest).Chosen() {
+		a.openNewRequest()
+	}
+	if mm.Item(m.NewFolder).Chosen() {
+		a.openNewFolder()
+	}
+	if mm.Item(m.NewDoc).Chosen() {
+		if de, err := ps.newDoc(); err != nil {
+			a.status = translate(m.NewDocFailed, err.Error())
+		} else {
+			a.status = translate(m.Created, de.RelPath)
+		}
+	}
+	if mm.Item(m.NewEnv).Chosen() {
+		a.openNewEnvironment()
+	}
+}
+
+// envMenu draws the environment selector. Its menu previews the current
+// environment's variables and offers switching plus edit/new entries (§2).
+func (a *App) envMenu(c *ui.Context, ps *projectState) {
+	label := ps.envSel
+	if label == "" {
+		label = "(none)"
+	}
+	ui.MenuButton(c, label, func(mm *ui.Menu) {
+		m := a.msg()
+		if ps.currentEnv() != "" {
+			if env := ps.project.Environments[ps.currentEnv()]; env != nil {
+				keys := env.SortedVariableKeys()
+				for i, k := range keys {
+					if i >= 4 {
+						break
+					}
+					mm.Item(fmt.Sprintf("%s = %s", k, env.Variables[k])).Disabled(true)
+				}
+				if len(keys) > 4 {
+					mm.Item(fmt.Sprintf("… (%d)", len(keys))).Disabled(true)
+				}
+				mm.Separator()
 			}
 		}
-		if ui.Button(c, m.NewDoc).Clicked() {
-			if de, err := ps.newDoc(); err != nil {
-				a.status = translate(m.NewDocFailed, err.Error())
-			} else {
-				a.status = translate(m.Created, de.RelPath)
+		opts := append([]string{"(none)"}, ps.project.EnvOrder...)
+		for _, id := range opts {
+			if mm.Item(id).Checked(ps.envSel == id).Chosen() {
+				ps.envSel = id
+				a.status = translate(m.SwitchedTo, id)
 			}
 		}
-		if tab := ps.activeTab(); tab != nil && tab.Dirty {
-			if ui.PrimaryButton(c, m.Save).Clicked() {
-				a.saveActive()
-			}
+		mm.Separator()
+		if mm.Item(m.EditEnv).Disabled(!ps.canEditEnv()).Chosen() {
+			a.openEditEnvironment()
 		}
-		if ui.Button(c, m.CloseProject).Tooltip(m.CloseProjectTip).Clicked() {
-			a.closeWindow()
+		if mm.Item(m.NewEnv).Chosen() {
+			a.openNewEnvironment()
 		}
 	})
 }
@@ -114,6 +189,14 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
+	// §9 shortcuts: ⌘↩ sends the active request from anywhere in the request
+	// area; ⌘S saves it.
+	c.OnShortcut(ui.Cmd, ui.KeyEnter, func() {
+		if tb := tab.Owner.activeTab(); tb != nil && tb.Kind == "request" {
+			a.trySend(tb)
+		}
+	})
+	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.saveActive() })
 	ui.Column(c).Grow(1).FillHeight().Padding(12, 16).Gap(10).Children(func() {
 		a.urlGroup(c, t, tab)
 
@@ -160,32 +243,122 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		grp := ui.Row(c).Grow(1).Height(40).Radius(10).BorderWidth(1).BorderColor(p.Hairline).
-			Background(p.BG).AlignItems(ui.Center).Clip()
-		grp.Children(func() {
-			if ui.Select(c, &tab.Method, methods).Width(108).Changed() {
-				tab.Dirty = true
+	ui.Column(c).Gap(4).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			a.saveControl(c, p, tab)
+			grp := ui.Row(c).Grow(1).Height(40).Radius(10).BorderWidth(1).BorderColor(p.Hairline).
+				Background(p.BG).AlignItems(ui.Center).Clip()
+			grp.Children(func() {
+				a.methodPicker(c, p, tab)
+				ui.Box(c).Width(1).Height(22).Background(p.Hairline)
+				inp := ui.TextInput(c, &tab.URL).Grow(1).Font("monospace")
+				inp.OnShortcut(0, ui.KeyEnter, func() { a.trySend(tab) })
+				if inp.Changed() {
+					tab.Dirty = true
+				}
+				if tab.focusURL {
+					inp.Focus()
+					tab.focusURL = false
+				}
+				if b := uikit.IconButton(c, p, uikit.IconCopy, "Copy URL"); b.Clicked() {
+					c.WriteClipboard(tab.URL)
+					a.status = m.Copied
+				}
+			})
+			if n := len(a.undefinedFor(tab)); n > 0 && !tab.Sending {
+				ui.Text(c, translate(m.UndefinedVars, n)).FontSize(12).
+					TextColor(uikit.MethodColor("DELETE", p)).SingleLine()
 			}
-			ui.Box(c).Width(1).Height(22).Background(p.Hairline)
-			if ui.TextInput(c, &tab.URL).Grow(1).Font("monospace").Changed() {
-				tab.Dirty = true
-			}
-			if b := uikit.IconButton(c, p, uikit.IconCopy, "Copy URL"); b.Clicked() {
-				c.WriteClipboard(tab.URL)
-				a.status = m.Copied
+			if tab.Sending {
+				if _, clicked := uikit.SendButton(c, p, true, m.CancelRequest); clicked {
+					if tab.cancel != nil {
+						tab.cancel()
+					}
+				}
+			} else if _, clicked := uikit.SendButton(c, p, false, m.Send); clicked {
+				a.trySend(tab)
 			}
 		})
-		if tab.Sending {
-			if _, clicked := uikit.SendButton(c, p, true, m.CancelRequest); clicked {
-				if tab.cancel != nil {
-					tab.cancel()
-				}
+		a.urlVarLine(c, t, tab)
+	})
+}
+
+// methodPicker draws the colored HTTP-method selector (§5, D6): the method in
+// its functional color as a pop-up button whose menu lists every method with a
+// check on the current one.
+func (a *App) methodPicker(c *ui.Context, p uikit.Palette, tab *Tab) {
+	row := ui.Row(c).Width(108).Height(40).Padding(0, 10).Gap(4).AlignItems(ui.Center)
+	row.Children(func() {
+		ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(13).
+			TextColor(uikit.MethodColor(tab.Method, p)).SingleLine()
+		ui.Icon(c, uikit.IconChevron).FontSize(11).TextColor(p.Muted)
+	})
+	row.PopoverMenuButton(func(mm *ui.Menu) {
+		for _, meth := range methods {
+			if mm.Item(meth).Checked(meth == tab.Method).Chosen() {
+				tab.Method = meth
+				tab.Dirty = true
 			}
-		} else if _, clicked := uikit.SendButton(c, p, false, m.Send); clicked {
-			a.send(tab)
 		}
 	})
+}
+
+// saveControl is the request's manual save entry (§8): accent-outlined while
+// dirty, plain otherwise, with a ⌘S tooltip.
+func (a *App) saveControl(c *ui.Context, p uikit.Palette, tab *Tab) {
+	if tab.Kind != "request" {
+		return
+	}
+	m := a.msg()
+	btn := ui.Button(c, m.Save).Label(m.Save + " ⌘S").Tooltip(m.Save + " ⌘S")
+	if tab.Dirty {
+		btn = btn.TextColor(p.Accent)
+	}
+	if btn.Clicked() {
+		a.saveActive()
+	}
+}
+
+// urlVarLine is the variable resolution preview under the URL (§5, D7): each
+// {{name}} shows its value, and an undefined one is flagged in red. (The inline
+// highlight inside the editable field itself is a later increment.)
+func (a *App) urlVarLine(c *ui.Context, t *ui.Theme, tab *Tab) {
+	names := core.TemplateNames(tab.URL)
+	if len(names) == 0 {
+		return
+	}
+	p := uikit.PaletteFor(t)
+	m := a.msg()
+	vars, _, err := a.ps.project.ResolveVars(tab.Entry, a.ps.currentEnv())
+	if err != nil || vars == nil {
+		vars = map[string]string{}
+	}
+	danger := uikit.MethodColor("DELETE", p)
+	spans := []ui.Span{{Text: m.VarLabel + "  ", Size: 11, Weight: 600, Color: p.Muted}}
+	for _, name := range names {
+		if rest, ok := strings.CutPrefix(name, "secret."); ok {
+			defined := false
+			if a.mgr.secrets != nil {
+				if _, ok := a.mgr.secrets.Get(rest); ok {
+					defined = true
+				}
+			}
+			if defined {
+				spans = append(spans, ui.Span{Text: "{{" + name + "}} = (secret)   ", Size: 11, Color: p.Muted})
+			} else {
+				spans = append(spans, ui.Span{Text: "{{" + name + "}} ?   ", Size: 11, Color: danger,
+					Background: danger.Alpha(0.12), Radius: 3})
+			}
+			continue
+		}
+		if v, ok := vars[name]; ok {
+			spans = append(spans, ui.Span{Text: name + " = " + v + "   ", Size: 11, Color: p.Muted})
+		} else {
+			spans = append(spans, ui.Span{Text: "{{" + name + "}} ?   ", Size: 11, Color: danger,
+				Background: danger.Alpha(0.12), Radius: 3})
+		}
+	}
+	ui.RichText(c, spans...).FillWidth()
 }
 
 // emptyTabHint shows a centered faint line for a build tab with no content yet.

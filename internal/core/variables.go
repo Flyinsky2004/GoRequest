@@ -98,6 +98,46 @@ func (r *Resolver) resolveName(name string) (string, error) {
 	return val, nil
 }
 
+// TemplateNames returns the distinct {{name}} / {{secret.name}} names used in
+// s, in first-seen order. Names are trimmed of surrounding spaces.
+func TemplateNames(s string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range templatePattern.FindAllStringSubmatch(s, -1) {
+		name := strings.TrimSpace(m[1])
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	return out
+}
+
+// UndefinedTemplates returns the distinct template names in s that cannot be
+// resolved from vars or secrets, in first-seen order. It is the cheap, non-
+// recursive check the UI uses to warn before sending and to color unresolved
+// {{variables}}; the real build resolves recursively and errors on the first
+// miss.
+func UndefinedTemplates(s string, vars map[string]string, secrets SecretProvider) []string {
+	var out []string
+	for _, name := range TemplateNames(s) {
+		if _, ok := strings.CutPrefix(name, "secret."); ok {
+			rest := strings.TrimPrefix(name, "secret.")
+			if secrets == nil {
+				out = append(out, name)
+			} else if _, ok := secrets.Get(rest); !ok {
+				out = append(out, name)
+			}
+			continue
+		}
+		if _, ok := vars[name]; !ok {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 // MergeVars layers maps from lowest to highest precedence and returns a new
 // map. Later maps override earlier ones.
 func MergeVars(layers ...map[string]string) map[string]string {

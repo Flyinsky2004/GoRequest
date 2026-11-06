@@ -81,11 +81,26 @@ func TestWorkspaceViewSeparatedFromWelcome(t *testing.T) {
 	app := m.workspaces[0]
 	tt := ui.NewTester(app.View, 1200, 820)
 
-	for _, want := range []string{"GoRequest", "Requests", "Documents", "Settings", "Close Project", "New Request"} {
+	for _, want := range []string{"GoRequest", "Requests", "Documents", "Settings", "New Request"} {
 		if !tt.HasText(want) {
 			t.Fatalf("workspace missing %q; texts=%v", want, tt.Texts())
 		}
 	}
+	// Close Project now lives in the project menu, not as a flat button.
+	if err := tt.Click("Project X"); err != nil {
+		t.Fatalf("open project menu: %v", err)
+	}
+	items := tt.Menu()
+	hasClose := false
+	for _, it := range items {
+		if it == "Close Project" {
+			hasClose = true
+		}
+	}
+	if !hasClose {
+		t.Fatalf("project menu missing Close Project: %v", items)
+	}
+	tt.CloseMenu()
 	if tt.HasText("Recent Projects") {
 		t.Fatalf("workspace should not show the global recent list; texts=%v", tt.Texts())
 	}

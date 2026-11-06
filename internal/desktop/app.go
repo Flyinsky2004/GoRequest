@@ -46,6 +46,13 @@ type App struct {
 	showSettings bool
 	closeGuard   *closeGuard
 
+	// sendGuard holds a pending "send with undefined variables?" confirmation.
+	sendGuard *sendGuard
+
+	// filterQuery is the live text of the sidebar filter box. It is view state
+	// of this window, independent of any project's stored data.
+	filterQuery string
+
 	// closed and bypassGuard keep close handling honest: closed means the
 	// window is gone (no more UI updates), bypassGuard lets the second Close
 	// after a resolved guard actually destroy the window.
@@ -125,6 +132,7 @@ func (a *App) View(c *ui.Context) {
 	a.envEditorModal(c, t)
 	a.settingsModal(c, t)
 	a.closeGuardModal(c, t)
+	a.sendGuardModal(c, t)
 	a.formsModals(c, t)
 }
 
@@ -254,6 +262,8 @@ func (a *App) send(tab *Tab) {
 				tab.respVersion++
 				tab.respEditor = nil
 			}
+			// Put the caret back in the URL so the user can tweak and resend.
+			tab.focusURL = true
 		})
 	}()
 }

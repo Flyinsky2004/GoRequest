@@ -135,6 +135,7 @@ type messages struct {
 	NewDoc             string
 	CloseProject       string
 	CloseProjectTip    string
+	CopyProjectPath    string
 
 	// Request editor.
 	ParamsTab      string
@@ -157,6 +158,14 @@ type messages struct {
 	CancelRequest  string
 	AddRow         string
 	RowNoKey       string // %d, %q
+	VarLabel       string
+	UndefinedVars  string // %d
+	SendGuardTitle string
+	SendGuardHint  string // %s
+	SendAnyway     string
+	GoDefine       string
+	KeyValueMode   string
+	TextMode       string
 
 	// Document editor.
 	SplitView   string
@@ -244,13 +253,17 @@ type messages struct {
 	CloseTabTip  string // %s
 
 	// Left tree.
-	RequestsGroup  string
-	AddFolder      string
-	AddFolderTip   string
-	NoRequests     string
-	DocumentsGroup string
-	NoDocuments    string
-	FolderTip      string // %s
+	RequestsGroup     string
+	AddFolder         string
+	AddFolderTip      string
+	AddDocTip         string
+	NewFolder         string
+	NoRequests        string
+	DocumentsGroup    string
+	NoDocuments       string
+	FolderTip         string // %s
+	FilterPlaceholder string
+	NoMatch           string
 
 	// Settings sheet.
 	SettingsTitle       string
@@ -337,6 +350,7 @@ var messagesZh = messages{
 	NewDoc:             "新建文档",
 	CloseProject:       "关闭项目",
 	CloseProjectTip:    "关闭此项目窗口（会提示保存未保存的更改）",
+	CopyProjectPath:    "复制项目路径",
 
 	ParamsTab:      "参数",
 	HeadersTab:     "头部",
@@ -358,6 +372,14 @@ var messagesZh = messages{
 	CancelRequest:  "取消",
 	AddRow:         "添加行",
 	RowNoKey:       "第 %d 行：值 %q 没有键",
+	VarLabel:       "变量",
+	UndefinedVars:  "%d 个变量未定义",
+	SendGuardTitle: "存在未定义变量",
+	SendGuardHint:  "以下变量在当前环境未定义：%s。发送前请定义，或仍然发送。",
+	SendAnyway:     "仍然发送",
+	GoDefine:       "去定义",
+	KeyValueMode:   "键值对",
+	TextMode:       "文本",
 
 	SplitView:   "分栏",
 	EditView:    "编辑",
@@ -438,13 +460,17 @@ var messagesZh = messages{
 	CloseAll:     "关闭全部",
 	CloseTabTip:  "关闭 %s",
 
-	RequestsGroup:  "请求",
-	AddFolder:      "+ 文件夹",
-	AddFolderTip:   "创建新文件夹",
-	NoRequests:     "无请求",
-	DocumentsGroup: "文档",
-	NoDocuments:    "无文档",
-	FolderTip:      "文件夹：%s",
+	RequestsGroup:     "请求",
+	AddFolder:         "+ 文件夹",
+	AddFolderTip:      "创建新文件夹",
+	AddDocTip:         "新建文档",
+	NewFolder:         "新建文件夹",
+	NoRequests:        "无请求",
+	DocumentsGroup:    "文档",
+	NoDocuments:       "无文档",
+	FolderTip:         "文件夹：%s",
+	FilterPlaceholder: "过滤请求…",
+	NoMatch:           "没有匹配的请求",
 
 	SettingsTitle:       "设置",
 	AppearanceLabel:     "外观",
@@ -529,6 +555,7 @@ var messagesEn = messages{
 	NewDoc:             "New Doc",
 	CloseProject:       "Close Project",
 	CloseProjectTip:    "Close this project window (asks to save unsaved changes)",
+	CopyProjectPath:    "Copy Project Path",
 
 	ParamsTab:      "Params",
 	HeadersTab:     "Headers",
@@ -550,6 +577,14 @@ var messagesEn = messages{
 	CancelRequest:  "Cancel",
 	AddRow:         "Add row",
 	RowNoKey:       "row %d: value %q has no key",
+	VarLabel:       "Vars",
+	UndefinedVars:  "%d undefined variable(s)",
+	SendGuardTitle: "Undefined variables",
+	SendGuardHint:  "These variables are undefined in the current environment: %s. Define them, or send anyway.",
+	SendAnyway:     "Send anyway",
+	GoDefine:       "Define",
+	KeyValueMode:   "Key:Value",
+	TextMode:       "Text",
 
 	SplitView:   "Split",
 	EditView:    "Edit",
@@ -630,13 +665,17 @@ var messagesEn = messages{
 	CloseAll:     "Close All",
 	CloseTabTip:  "Close %s",
 
-	RequestsGroup:  "Requests",
-	AddFolder:      "+ Folder",
-	AddFolderTip:   "Create a new folder",
-	NoRequests:     "No requests",
-	DocumentsGroup: "Documents",
-	NoDocuments:    "No documents",
-	FolderTip:      "Folder: %s",
+	RequestsGroup:     "Requests",
+	AddFolder:         "+ Folder",
+	AddFolderTip:      "Create a new folder",
+	AddDocTip:         "New Doc",
+	NewFolder:         "New Folder",
+	NoRequests:        "No requests",
+	DocumentsGroup:    "Documents",
+	NoDocuments:       "No documents",
+	FolderTip:         "Folder: %s",
+	FilterPlaceholder: "Filter requests…",
+	NoMatch:           "No matching requests",
 
 	SettingsTitle:       "Settings",
 	AppearanceLabel:     "Appearance",
