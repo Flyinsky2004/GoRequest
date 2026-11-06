@@ -36,7 +36,7 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme, ps *projectState) {
 	p := uikit.PaletteFor(t)
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(6).Padding(0, 8).
 		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
-		ui.ScrollHorizontal(c).Grow(1).Height(40).Children(func() {
+		uikit.TabScroll(c, t, func() {
 			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
 				for _, tab := range ps.tabs {
 					a.tabItem(c, t, ps, tab)
@@ -62,7 +62,7 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 		return
 	}
 	active := ps.activeTab() == tab
-	outer := ui.Row(c).Key("tab:"+tabIdentity(tab)).Height(40).Radius(8).Padding(0, 6).Gap(4).
+	outer := ui.Row(c).Key("tab:"+tabIdentity(tab)).Height(uikit.TabHeight).Radius(8).Padding(0, 6).Gap(4).
 		AlignItems(ui.Center).MaxWidth(180).Clip()
 	hovered := outer.Hovered()
 	switch {
@@ -82,7 +82,10 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 
 	var clicked, closeClicked bool
 	outer.Children(func() {
-		act := ui.ButtonBase(c).Grow(1).Height(38).Gap(6).PaddingX(2)
+		act := ui.ButtonBase(c).Grow(1).Height(uikit.TabHeight - 2).Gap(6).PaddingX(2)
+		if !act.IsDisabled() {
+			act.Cursor(ui.CursorPointer)
+		}
 		act.Children(func() {
 			if tab.Kind == "request" && tab.Method != "" {
 				ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(11).
@@ -108,27 +111,9 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 			return false
 		})
 
-		// Fixed-width status slot: the amber unsaved dot over a × that shows on
-		// hover. The dot is pointer-transparent so the close button still gets
-		// the click.
-		slot := ui.Box(c).Width(16).Height(16).Center()
-		slot.Children(func() {
-			dot := ui.Box(c).Size(7, 7).Radius(999).Background(uikit.MethodColor("POST", p)).PassThrough()
-			var dotOpacity float32
-			if tab.Dirty && !hovered {
-				dotOpacity = 1
-			}
-			dot.Opacity(dotOpacity)
-			cb := ui.Button(c, "✕").Label(closeLabel)
-			var closeOpacity float32
-			if hovered {
-				closeOpacity = 1
-			}
-			cb.Opacity(closeOpacity)
-			if cb.Clicked() {
-				closeClicked = true
-			}
-		})
+		if uikit.TabClose(c, p, closeLabel, tab.Dirty, hovered).Clicked() {
+			closeClicked = true
+		}
 		if active {
 			ui.Box(c).Absolute().Bottom(0).Left(0).Right(0).Height(2).Background(p.Accent)
 		}
@@ -148,13 +133,13 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 // stays, the title becomes a text field bound to the tab's rename draft. Enter
 // commits and Esc cancels.
 func (a *App) tabRenameField(c *ui.Context, p uikit.Palette, tab *Tab) {
-	ui.Row(c).Key("tab:"+tabIdentity(tab)).Height(40).Radius(8).Padding(0, 6).Gap(4).
+	ui.Row(c).Key("tab:"+tabIdentity(tab)).Height(uikit.TabHeight).Radius(8).Padding(0, 6).Gap(4).
 		AlignItems(ui.Center).MaxWidth(180).Background(p.BG).Children(func() {
 		if tab.Kind == "request" && tab.Method != "" {
 			ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(11).
 				TextColor(uikit.MethodColor(tab.Method, p)).Width(38).SingleLine()
 		}
-		in := ui.TextInput(c, &tab.renameText).Grow(1).Height(28).FontSize(13).AutoFocus()
+		in := ui.TextInput(c, &tab.renameText).Grow(1).Height(24).FontSize(13).AutoFocus()
 		in.Label(a.msg().Rename)
 		in.OnShortcut(0, ui.KeyEscape, func() { cancelTabRename(tab) })
 		if in.Submitted() {
@@ -196,7 +181,7 @@ func (a *App) openedMenu(c *ui.Context, t *ui.Theme, ps *projectState) {
 		if m.Item(msgs.CloseAll).Chosen() {
 			a.closeAll()
 		}
-	})
+	}).Cursor(ui.CursorPointer)
 }
 
 // uniqueTabLabels returns one menu label per tab, disambiguating duplicate
