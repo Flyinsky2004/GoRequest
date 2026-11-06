@@ -1,0 +1,32 @@
+diff --git a/internal/desktop/app.go b/internal/desktop/app.go
+index 741d811..9260a37 100644
+--- a/internal/desktop/app.go
++++ b/internal/desktop/app.go
+@@ -170,6 +170,7 @@ func (a *App) View(c *ui.Context) {
+ 	a.historyClearModal(c, t)
+ 	a.formsModals(c, t)
+ 	a.b03CustomMethodModal(c, t)
++	a.InteropModals(c, t)
+ }
+ 
+ func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
+diff --git a/internal/desktop/workspace.go b/internal/desktop/workspace.go
+index ce4d25f..2296ca8 100644
+--- a/internal/desktop/workspace.go
++++ b/internal/desktop/workspace.go
+@@ -80,6 +80,7 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
+ 	if mm.Item(m.MoveEllipsis).Disabled(!canMove).Chosen() {
+ 		a.openMove(tab)
+ 	}
++	a.BuildInteropProjectMenuItems(c, mm)
+ 	mm.Separator()
+ 	if mm.Item(m.CopyProjectPath).Chosen() {
+ 		if c != nil {
+@@ -113,6 +114,7 @@ func (a *App) buildNewMenu(mm *ui.Menu, ps *projectState) {
+ 	if mm.Item(m.NewEnv).Chosen() {
+ 		a.openNewEnvironment()
+ 	}
++	a.BuildInteropNewMenuItems(mm)
+ }
+ 
+ // envMenu draws the environment selector. Its menu previews the current
