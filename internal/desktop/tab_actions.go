@@ -1,6 +1,8 @@
 package desktop
 
 import (
+	"strings"
+
 	"gorequest/internal/core"
 )
 
@@ -192,6 +194,68 @@ func (a *App) closeAll() {
 	targets := make([]*Tab, len(ps.tabs))
 	copy(targets, ps.tabs)
 	a.startClose(ps, targets)
+}
+
+// --- rename --------------------------------------------------------------
+
+// beginTabRename starts in-place renaming of a request tab (§4). The draft
+// begins at the current title so the user edits it rather than retyping, and
+// only one tab can be renaming at a time. Documents are left alone: their title
+// is the file name, and there is no Core operation that renames the file.
+func beginTabRename(ps *projectState, tab *Tab) {
+	if ps == nil || tab == nil || tab.Kind != "request" {
+		return
+	}
+	for _, other := range ps.tabs {
+		if other != tab {
+			other.renaming = false
+			other.renameText = ""
+		}
+	}
+	ps.activateTab(tab)
+	tab.renaming = true
+	tab.renameText = tab.Title
+}
+
+// cancelTabRename closes the editor without touching the title (Esc).
+func cancelTabRename(tab *Tab) {
+	if tab == nil {
+		return
+	}
+	tab.renaming = false
+	tab.renameText = ""
+}
+
+// commitTabRename applies the draft title (Enter). A blank draft, or one that
+// matches the current title, keeps the old title and leaves the tab clean.
+// Otherwise the tab is marked dirty so the rename goes through the normal
+// save/close protection.
+func commitTabRename(tab *Tab) {
+	if tab == nil {
+		return
+	}
+	tab.renaming = false
+	title := strings.TrimSpace(tab.renameText)
+	tab.renameText = ""
+	if title == "" || title == tab.Title {
+		return
+	}
+	tab.Title = title
+	syncTabTitleToRequest(tab)
+	tab.Dirty = true
+}
+
+// syncTabTitleToRequest copies a committed tab title into the request model.
+// requestFromTab (tab.go) rebuilds the request from the tab's fields but does
+// not copy Tab.Title into Request.Name, and SaveRequest persists whatever that
+// request holds, so without this the rename would vanish on save. This is the
+// smallest implementation that keeps the title on the save path; it lives here
+// because tab.go is outside this task's file scope.
+func syncTabTitleToRequest(tab *Tab) {
+	if tab == nil || tab.Kind != "request" || tab.Entry == nil || tab.Entry.Request == nil {
+		return
+	}
+	tab.Entry.Request.Name = tab.Title
 }
 
 // --- move ----------------------------------------------------------------

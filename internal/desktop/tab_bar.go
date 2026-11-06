@@ -47,24 +47,95 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme, ps *projectState) {
 	})
 }
 
-// tabItem draws one tab through the kit's TabItem: a method-colored tag, a
-// truncated title, an unsaved dot or a close × on hover, and the active
-// tab's accent underline. The full label and the close label are the
-// accessibility identities the strip's actions (and tests) use.
+// tabItem draws one tab: a method-colored tag, a truncated title, an unsaved
+// dot or a close × on hover, and the active tab's accent underline. The full
+// label and the close label are the accessibility identities the strip's
+// actions (and tests) use.
+//
+// The strip is built inline instead of through uikit.TabItem so the activation
+// area can answer DoubleClicked (in-place rename, §4) and middle clicks (close)
+// directly: the click target is the activation button, not the row around it.
 func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 	p := uikit.PaletteFor(t)
-	m := a.msg()
-	spec := uikit.TabSpec{
-		Title:  tab.Title,
-		Active: ps.activeTab() == tab,
-		Dirty:  tab.Dirty,
+	if tab.renaming {
+		a.tabRenameField(c, p, tab)
+		return
 	}
-	if tab.Kind == "request" {
-		spec.Method = tab.Method
+	active := ps.activeTab() == tab
+	outer := ui.Row(c).Key("tab:"+tabIdentity(tab)).Height(40).Radius(8).Padding(0, 6).Gap(4).
+		AlignItems(ui.Center).MaxWidth(180).Clip()
+	hovered := outer.Hovered()
+	switch {
+	case active:
+		outer.Background(p.BG)
+	case hovered:
+		outer.Background(p.Hover)
+	default:
+		outer.Background(ui.Transparent)
 	}
-	closeLabel := translate(m.CloseTabTip, tabIdentity(tab))
-	_, clicked, closeClicked := uikit.TabItem(c, p, "tab:"+tabIdentity(tab), spec, closeLabel)
+	titleColor := p.Muted
+	if active {
+		titleColor = p.Text
+	}
+	label := tabDisplayLabel(tab)
+	closeLabel := translate(a.msg().CloseTabTip, tabIdentity(tab))
+
+	var clicked, closeClicked bool
+	outer.Children(func() {
+		act := ui.ButtonBase(c).Grow(1).Height(38).Gap(6).PaddingX(2)
+		act.Children(func() {
+			if tab.Kind == "request" && tab.Method != "" {
+				ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(11).
+					TextColor(uikit.MethodColor(tab.Method, p)).Width(38).SingleLine()
+			}
+			ui.Text(c, tab.Title).FontSize(13).TextColor(titleColor).Grow(1).SingleLine()
+		})
+		act.Label(label)
+		if act.DoubleClicked() {
+			// Double-clicking the name edits it in place; the tab also becomes
+			// active so the edit visibly belongs to what is on screen.
+			beginTabRename(ps, tab)
+		} else if act.Clicked() {
+			clicked = true
+		}
+		// MyGo reports the pointer's button in InputEvent (2 = middle), which
+		// is how a middle click closes the tab like a browser.
+		act.HandleInput(func(ev ui.InputEvent) bool {
+			if ev.Kind == ui.InputPointerDown && ev.Button == 2 {
+				a.startClose(ps, []*Tab{tab})
+				return true
+			}
+			return false
+		})
+
+		// Fixed-width status slot: the amber unsaved dot over a × that shows on
+		// hover. The dot is pointer-transparent so the close button still gets
+		// the click.
+		slot := ui.Box(c).Width(16).Height(16).Center()
+		slot.Children(func() {
+			dot := ui.Box(c).Size(7, 7).Radius(999).Background(uikit.MethodColor("POST", p)).PassThrough()
+			var dotOpacity float32
+			if tab.Dirty && !hovered {
+				dotOpacity = 1
+			}
+			dot.Opacity(dotOpacity)
+			cb := ui.Button(c, "✕").Label(closeLabel)
+			var closeOpacity float32
+			if hovered {
+				closeOpacity = 1
+			}
+			cb.Opacity(closeOpacity)
+			if cb.Clicked() {
+				closeClicked = true
+			}
+		})
+		if active {
+			ui.Box(c).Absolute().Bottom(0).Left(0).Right(0).Height(2).Background(p.Accent)
+		}
+	})
+
 	if closeClicked {
+		clicked = false
 		a.startClose(ps, []*Tab{tab})
 		return
 	}
@@ -73,11 +144,31 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 	}
 }
 
+// tabRenameField draws the in-place rename editor over a tab: the method tag
+// stays, the title becomes a text field bound to the tab's rename draft. Enter
+// commits and Esc cancels.
+func (a *App) tabRenameField(c *ui.Context, p uikit.Palette, tab *Tab) {
+	ui.Row(c).Key("tab:"+tabIdentity(tab)).Height(40).Radius(8).Padding(0, 6).Gap(4).
+		AlignItems(ui.Center).MaxWidth(180).Background(p.BG).Children(func() {
+		if tab.Kind == "request" && tab.Method != "" {
+			ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(11).
+				TextColor(uikit.MethodColor(tab.Method, p)).Width(38).SingleLine()
+		}
+		in := ui.TextInput(c, &tab.renameText).Grow(1).Height(28).FontSize(13).AutoFocus()
+		in.Label(a.msg().Rename)
+		in.OnShortcut(0, ui.KeyEscape, func() { cancelTabRename(tab) })
+		if in.Submitted() {
+			commitTabRename(tab)
+		}
+	})
+}
+
 // openedMenu draws the "Open Tabs" menu button. It lists each open tab with
 // Switch/Close and the bulk close actions, and also provides a discoverable
-// home for closing when many tabs are open.
+// home for closing when many tabs are open. With only one or two tabs the strip
+// itself reaches everything, so the menu is not rendered at all.
 func (a *App) openedMenu(c *ui.Context, t *ui.Theme, ps *projectState) {
-	if len(ps.tabs) == 0 {
+	if len(ps.tabs) <= 2 {
 		return
 	}
 	labels := uniqueTabLabels(ps)
