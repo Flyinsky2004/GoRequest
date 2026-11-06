@@ -165,7 +165,7 @@ func (a *App) sectionHeader(c *ui.Context, p uikit.Palette, title, key string, a
 			chev.AnimatePose(ui.Pose{Rotate: rot}, ui.Snappy)
 			ui.Text(c, title).FontSize(11).FontWeight(600).TextColor(p.Muted).SingleLine()
 		})
-		b.Label(title)
+		b.Label("section:" + title)
 		if b.Clicked() {
 			ps.collapsed[key] = !folded
 		}

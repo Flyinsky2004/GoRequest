@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -112,5 +113,48 @@ func TestAutoHeadersShown(t *testing.T) {
 		if !tt.HasText(want) {
 			t.Fatalf("auto header %q missing; texts=%v", want, tt.Texts())
 		}
+	}
+}
+
+func TestHistoryStore(t *testing.T) {
+	s := &historyStore{dir: t.TempDir()}
+	key := "proj-abc"
+	if err := s.append(key, historyRecord{Ts: time.Now().Add(-time.Hour), Method: "GET", URL: "a", Status: 200}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.append(key, historyRecord{Ts: time.Now(), Method: "POST", URL: "b", Status: 201}); err != nil {
+		t.Fatal(err)
+	}
+	recs := s.load(key)
+	if len(recs) != 2 || recs[0].URL != "b" {
+		t.Fatalf("load order wrong: %+v", recs)
+	}
+	s.remove(key, recs[0].Ts)
+	if recs = s.load(key); len(recs) != 1 || recs[0].URL != "a" {
+		t.Fatalf("remove wrong: %+v", recs)
+	}
+	if err := s.clear(key); err != nil {
+		t.Fatal(err)
+	}
+	if recs = s.load(key); len(recs) != 0 {
+		t.Fatalf("clear failed: %+v", recs)
+	}
+}
+
+func TestRestoreHistory(t *testing.T) {
+	a, ps := openTestProject(t, "Hist")
+	e, err := ps.project.NewRequest("", "Alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps.openRequest(e)
+	tab := ps.activeTab()
+	a.historyView = true
+	a.restoreHistory(historyRecord{Method: "POST", URL: "http://x/y", RequestID: e.Request.ID})
+	if tab.URL != "http://x/y" || tab.Method != "POST" || !tab.Dirty {
+		t.Fatalf("restore did not fill tab: url=%q method=%q dirty=%v", tab.URL, tab.Method, tab.Dirty)
+	}
+	if a.historyView {
+		t.Fatal("restoring should switch back to the request view")
 	}
 }

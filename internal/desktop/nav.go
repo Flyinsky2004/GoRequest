@@ -25,14 +25,32 @@ func (a *App) nav(c *ui.Context, t *ui.Theme) {
 	rail.Children(func() {
 		a.navHeader(c, p)
 		ui.Box(c).Height(1).Background(p.Hairline)
-		a.filterBox(c, p, m)
 
-		ui.Box(c).Grow(1).FillWidth().Children(func() {
-			ui.Scroll(c).Grow(1).FillWidth().Label(m.ProjectContents).TrackScroll(&a.navScroll).Children(func() {
-				a.projectContents(c, t)
-			})
-			uikit.ScrollEdges(c, p, &a.navScroll)
+		// Requests / History switch (§3): a small segmented view toggle.
+		ui.Column(c).Padding(6, 10, 6, 10).Children(func() {
+			idx := 0
+			if a.historyView {
+				idx = 1
+			}
+			if _, changed := uikit.Segmented(c, p, &idx, []string{m.RequestsGroup, m.HistoryLabel}); changed {
+				a.historyView = idx == 1
+				if a.historyView {
+					a.reloadHistory()
+				}
+			}
 		})
+
+		if a.historyView {
+			a.historyPanel(c, t)
+		} else {
+			a.filterBox(c, p, m)
+			ui.Box(c).Grow(1).FillWidth().Children(func() {
+				ui.Scroll(c).Grow(1).FillWidth().Label(m.ProjectContents).TrackScroll(&a.navScroll).Children(func() {
+					a.projectContents(c, t)
+				})
+				uikit.ScrollEdges(c, p, &a.navScroll)
+			})
+		}
 
 		// Fixed Settings entry.
 		ui.Box(c).Height(1).Background(p.Hairline)

@@ -61,6 +61,7 @@ func planStartup(explicit string, cfg *configStore) startPlan {
 type Manager struct {
 	cfg       *configStore
 	secrets   core.SecretProvider
+	history   *historyStore
 	newWindow windowFactory
 	explicit  string // -project flag value, "" when none
 
@@ -89,6 +90,7 @@ func NewManager(explicitProject string) *Manager {
 	return &Manager{
 		cfg:       newConfigStore(configFilePath()),
 		secrets:   platform.NewEnvSecrets(),
+		history:   newHistoryStore(),
 		newWindow: newRealWindow,
 		explicit:  explicitProject,
 	}

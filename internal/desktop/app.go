@@ -49,6 +49,13 @@ type App struct {
 	// sendGuard holds a pending "send with undefined variables?" confirmation.
 	sendGuard *sendGuard
 
+	// History view (§3): whether the sidebar shows history, the loaded records
+	// for the current project, and the clear-confirmation state.
+	historyView      bool
+	historyRecords   []historyRecord
+	historyKey       string
+	historyClearOpen bool
+
 	// filterQuery is the live text of the sidebar filter box. It is view state
 	// of this window, independent of any project's stored data.
 	filterQuery string
@@ -133,6 +140,7 @@ func (a *App) View(c *ui.Context) {
 	a.settingsModal(c, t)
 	a.closeGuardModal(c, t)
 	a.sendGuardModal(c, t)
+	a.historyClearModal(c, t)
 	a.formsModals(c, t)
 }
 
@@ -261,6 +269,7 @@ func (a *App) send(tab *Tab) {
 				tab.RespErr = ""
 				tab.respVersion++
 				tab.respEditor = nil
+				a.recordHistory(tab, plan.URL, res)
 			}
 			// Put the caret back in the URL so the user can tweak and resend.
 			tab.focusURL = true

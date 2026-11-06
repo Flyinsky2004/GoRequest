@@ -256,17 +256,23 @@ type messages struct {
 	CloseTabTip  string // %s
 
 	// Left tree.
-	RequestsGroup     string
-	AddFolder         string
-	AddFolderTip      string
-	AddDocTip         string
-	NewFolder         string
-	NoRequests        string
-	DocumentsGroup    string
-	NoDocuments       string
-	FolderTip         string // %s
-	FilterPlaceholder string
-	NoMatch           string
+	RequestsGroup       string
+	AddFolder           string
+	AddFolderTip        string
+	AddDocTip           string
+	NewFolder           string
+	NoRequests          string
+	DocumentsGroup      string
+	NoDocuments         string
+	FolderTip           string // %s
+	FilterPlaceholder   string
+	NoMatch             string
+	HistoryLabel        string
+	HistoryEmpty        string
+	ClearHistory        string
+	ConfirmClearHistory string
+	Today               string
+	Yesterday           string
 
 	// Settings sheet.
 	SettingsTitle       string
@@ -466,17 +472,23 @@ var messagesZh = messages{
 	CloseAll:     "关闭全部",
 	CloseTabTip:  "关闭 %s",
 
-	RequestsGroup:     "请求",
-	AddFolder:         "+ 文件夹",
-	AddFolderTip:      "创建新文件夹",
-	AddDocTip:         "新建文档",
-	NewFolder:         "新建文件夹",
-	NoRequests:        "无请求",
-	DocumentsGroup:    "文档",
-	NoDocuments:       "无文档",
-	FolderTip:         "文件夹：%s",
-	FilterPlaceholder: "过滤请求…",
-	NoMatch:           "没有匹配的请求",
+	RequestsGroup:       "请求",
+	AddFolder:           "+ 文件夹",
+	AddFolderTip:        "创建新文件夹",
+	AddDocTip:           "新建文档",
+	NewFolder:           "新建文件夹",
+	NoRequests:          "无请求",
+	DocumentsGroup:      "文档",
+	NoDocuments:         "无文档",
+	FolderTip:           "文件夹：%s",
+	FilterPlaceholder:   "过滤请求…",
+	NoMatch:             "没有匹配的请求",
+	HistoryLabel:        "历史",
+	HistoryEmpty:        "暂无历史；发送请求后会记录在这里",
+	ClearHistory:        "清空历史",
+	ConfirmClearHistory: "确认清空本项目的全部请求历史？此操作不可恢复。",
+	Today:               "今天",
+	Yesterday:           "昨天",
 
 	SettingsTitle:       "设置",
 	AppearanceLabel:     "外观",
@@ -674,17 +686,23 @@ var messagesEn = messages{
 	CloseAll:     "Close All",
 	CloseTabTip:  "Close %s",
 
-	RequestsGroup:     "Requests",
-	AddFolder:         "+ Folder",
-	AddFolderTip:      "Create a new folder",
-	AddDocTip:         "New Doc",
-	NewFolder:         "New Folder",
-	NoRequests:        "No requests",
-	DocumentsGroup:    "Documents",
-	NoDocuments:       "No documents",
-	FolderTip:         "Folder: %s",
-	FilterPlaceholder: "Filter requests…",
-	NoMatch:           "No matching requests",
+	RequestsGroup:       "Requests",
+	AddFolder:           "+ Folder",
+	AddFolderTip:        "Create a new folder",
+	AddDocTip:           "New Doc",
+	NewFolder:           "New Folder",
+	NoRequests:          "No requests",
+	DocumentsGroup:      "Documents",
+	NoDocuments:         "No documents",
+	FolderTip:           "Folder: %s",
+	FilterPlaceholder:   "Filter requests…",
+	NoMatch:             "No matching requests",
+	HistoryLabel:        "History",
+	HistoryEmpty:        "No history yet — sends will be recorded here",
+	ClearHistory:        "Clear History",
+	ConfirmClearHistory: "Clear all request history for this project? This cannot be undone.",
+	Today:               "Today",
+	Yesterday:           "Yesterday",
 
 	SettingsTitle:       "Settings",
 	AppearanceLabel:     "Appearance",

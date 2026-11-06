@@ -240,7 +240,7 @@ func TestSectionCollapseThroughView(t *testing.T) {
 	if !tt.HasText("Alpha") {
 		t.Fatalf("request should be visible before folding; texts=%v", tt.Texts())
 	}
-	if err := tt.Click("Requests"); err != nil {
+	if err := tt.Click("section:Requests"); err != nil {
 		t.Fatalf("click Requests header: %v", err)
 	}
 	tt.Frame()
