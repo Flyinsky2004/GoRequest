@@ -393,32 +393,7 @@ func (a *App) bodyEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 }
 
 func (a *App) authEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
-	m := a.msg()
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, m.AuthTab).FontSize(12).TextColor(t.TextMuted)
-		if ui.Select(c, &tab.AuthMode, authModes).Changed() {
-			tab.AuthIdx = indexOf(authModes, tab.AuthMode)
-			tab.Dirty = true
-		}
-	})
-	switch tab.AuthMode {
-	case "bearer":
-		ui.Text(c, m.TokenHint).FontSize(12).TextColor(t.TextMuted)
-		if ui.TextInput(c, &tab.AuthToken).Changed() {
-			tab.Dirty = true
-		}
-	case "basic":
-		ui.Text(c, m.Username).FontSize(12).TextColor(t.TextMuted)
-		if ui.TextInput(c, &tab.AuthUser).Changed() {
-			tab.Dirty = true
-		}
-		ui.Text(c, m.Password).FontSize(12).TextColor(t.TextMuted)
-		if ui.TextInput(c, &tab.AuthPass).Changed() {
-			tab.Dirty = true
-		}
-	default:
-		ui.Text(c, m.NoAuth).TextColor(t.TextMuted)
-	}
+	a.renderAuthEditor(c, t, tab)
 }
 
 func (a *App) docView(c *ui.Context, t *ui.Theme, tab *Tab) {
