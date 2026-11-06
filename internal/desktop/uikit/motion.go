@@ -33,7 +33,14 @@ var (
 
 	// Content cross-fade (response arrival, tab content switch): 200ms + Y 4→0.
 	AnimContent = ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.EaseInOut}
+
+	// Tree/folder expand-collapse and content growth: a 300ms spring with a
+	// little bounce; per-row stagger 20ms.
+	SpringExpand = ui.Animation{Spring: ui.SpringOptions{Duration: 300 * time.Millisecond, Bounce: 0.15}}
 )
+
+// StaggerStep is the per-row delay when a group of rows enters (§6.3).
+const StaggerStep = 20 * time.Millisecond
 
 // Press scales (§5/§6.1). Send and the primary button are the 0.97 tier.
 const (

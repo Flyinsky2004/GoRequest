@@ -20,8 +20,8 @@ import (
 func rowTransition(order int) ui.ElementTransition {
 	return ui.ElementTransition{
 		Animation: &ui.Animation{
-			Spring: ui.SpringOptions{Duration: 300 * time.Millisecond, Bounce: 0.15},
-			Delay:  time.Duration(order) * 20 * time.Millisecond,
+			Spring: uikit.SpringExpand.Spring,
+			Delay:  time.Duration(order) * uikit.StaggerStep,
 		},
 		Enter: &ui.Motion{Y: 4, Opacity: 0},
 	}
@@ -31,7 +31,7 @@ func rowTransition(order int) ui.ElementTransition {
 // grows them back on open, following Snappy (§6.3).
 func childrenTransition() ui.ElementTransition {
 	return ui.ElementTransition{
-		Animation: &ui.Animation{Spring: ui.SpringOptions{Duration: 300 * time.Millisecond, Bounce: 0.15}},
+		Animation: &ui.Animation{Spring: uikit.SpringExpand.Spring},
 		Enter:     &ui.Motion{Opacity: 0, Collapse: true},
 		Exit:      &ui.Motion{Collapse: true},
 	}
