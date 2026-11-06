@@ -322,6 +322,445 @@ func (p *Project) MoveRequest(entry *RequestEntry, targetCollectionRel string) e
 	return nil
 }
 
+// --- rename ---------------------------------------------------------------
+
+// RenameRequest changes a request's display name in place, keeping its stable
+// ID and file path. It goes through SaveRequest so the write is conflict
+// checked against the entry's baseline.
+func (p *Project) RenameRequest(entry *RequestEntry, name string) error {
+	if entry == nil || entry.Request == nil {
+		return configErrorf("no request to rename")
+	}
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return configErrorf("request name is empty")
+	}
+	if trimmed == entry.Request.Name {
+		return nil
+	}
+	next := *entry.Request
+	next.Name = trimmed
+	_, err := p.SaveRequest(entry, &next, entry.BaselineDigest)
+	return err
+}
+
+// RenameFolder renames a folder in place: it moves the directory to the slug of
+// the new name (within the same parent), rewrites its collection.yaml display
+// name and updates every in-memory path beneath it. The collection ID is kept.
+func (p *Project) RenameFolder(node *CollectionEntry, name string) (*CollectionEntry, error) {
+	if node == nil {
+		return nil, configErrorf("no folder to rename")
+	}
+	rel := collectionRelOf(node.RelPath)
+	if rel == "" {
+		return nil, configErrorf("cannot rename the collections root")
+	}
+	slug, err := validateFolderName(name)
+	if err != nil {
+		return nil, err
+	}
+	parent := filepath.ToSlash(filepath.Dir(rel))
+	if parent == "." {
+		parent = ""
+	}
+	return p.moveFolderDir(rel, parent, slug, strings.TrimSpace(name))
+}
+
+// MoveFolder moves a folder under targetParentCollectionRel ("" for the root),
+// keeping its directory name and display name. A folder can never move inside
+// itself or one of its descendants.
+func (p *Project) MoveFolder(node *CollectionEntry, targetParentCollectionRel string) (*CollectionEntry, error) {
+	if node == nil {
+		return nil, configErrorf("no folder to move")
+	}
+	rel := collectionRelOf(node.RelPath)
+	if rel == "" {
+		return nil, configErrorf("cannot move the collections root")
+	}
+	parent, err := sanitizeCollectionRel(targetParentCollectionRel)
+	if err != nil {
+		return nil, err
+	}
+	if parent == rel || strings.HasPrefix(parent, rel+"/") {
+		return nil, configErrorf("cannot move a folder into itself")
+	}
+	display := node.Name
+	if strings.TrimSpace(display) == "" {
+		display = filepath.Base(rel)
+	}
+	return p.moveFolderDir(rel, parent, filepath.Base(rel), display)
+}
+
+// moveFolderDir moves the directory rel under parentRel as slug, rewrites the
+// folder's collection.yaml, and re-keys every path it holds in the in-memory
+// model. A move that lands on the same directory only rewrites the display name.
+func (p *Project) moveFolderDir(rel, parentRel, slug, displayName string) (*CollectionEntry, error) {
+	oldDir := collectionsDirOf(rel)
+	newDir := collectionsDirOf(filepath.ToSlash(filepath.Join(parentRel, slug)))
+	if oldDir == newDir {
+		return p.writeFolderCollection(newDir, slug, displayName)
+	}
+	if p.Store.Exists(newDir) {
+		return nil, configErrorf("a folder named %q already exists there", displayName)
+	}
+	oldAbs, err := p.Store.resolve(oldDir)
+	if err != nil {
+		return nil, err
+	}
+	if info, statErr := os.Stat(oldAbs); statErr != nil || !info.IsDir() {
+		return nil, configErrorf("folder %q does not exist", rel)
+	}
+	newAbs, err := p.Store.resolve(newDir)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(newAbs), 0o755); err != nil {
+		return nil, fmt.Errorf("creating parent folder: %w", err)
+	}
+	if err := os.Rename(oldAbs, newAbs); err != nil {
+		return nil, fmt.Errorf("moving folder: %w", err)
+	}
+
+	// Re-key collection.yaml entries and request paths under the moved dir.
+	if p.colByDir == nil {
+		p.colByDir = map[string]*Collection{}
+	}
+	var oldKeys []string
+	for d := range p.colByDir {
+		if d == oldDir || strings.HasPrefix(d, oldDir+"/") {
+			oldKeys = append(oldKeys, d)
+		}
+	}
+	for _, d := range oldKeys {
+		c := p.colByDir[d]
+		delete(p.colByDir, d)
+		p.colByDir[newDir+strings.TrimPrefix(d, oldDir)] = c
+	}
+	for _, e := range p.Requests {
+		if e.RelPath == oldDir || strings.HasPrefix(e.RelPath, oldDir+"/") {
+			e.RelPath = newDir + strings.TrimPrefix(e.RelPath, oldDir)
+			e.CollectionVars = p.collectionVarsFor(e.RelPath, p.colByDir)
+		}
+	}
+	return p.writeFolderCollection(newDir, slug, displayName)
+}
+
+// writeFolderCollection writes collection.yaml for dir with the given display
+// name, keeping the collection's existing ID when there is one, and rebuilds
+// the tree.
+func (p *Project) writeFolderCollection(dir, slug, displayName string) (*CollectionEntry, error) {
+	if p.colByDir == nil {
+		p.colByDir = map[string]*Collection{}
+	}
+	c := p.colByDir[dir]
+	if c == nil {
+		c = &Collection{SchemaVersion: SupportedSchemaVersion, ID: slug}
+	}
+	c.Name = displayName
+	if c.ID == "" {
+		c.ID = slug
+	}
+	if c.SchemaVersion == 0 {
+		c.SchemaVersion = SupportedSchemaVersion
+	}
+	data, err := encodeYAML(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.Store.WriteAtomic(dir+"/collection.yaml", data); err != nil {
+		return nil, err
+	}
+	p.colByDir[dir] = c
+	p.rebuildTree()
+	if node := findCollectionNode(p.Collections, dir); node != nil {
+		return node, nil
+	}
+	return &CollectionEntry{RelPath: dir, ID: c.ID, Name: c.Name, Vars: c.Variables}, nil
+}
+
+// --- delete and restore ---------------------------------------------------
+
+// FolderSnapshot is the content of a deleted folder, kept so the caller can
+// offer a short undo window. Files are project-relative paths to bytes.
+type FolderSnapshot struct {
+	Dir   string
+	Files map[string][]byte
+}
+
+// DeleteRequest removes a request's file and its in-memory registration. The
+// raw file content is returned so RestoreRequest can put it back, unchanged,
+// under the same ID.
+func (p *Project) DeleteRequest(entry *RequestEntry) ([]byte, error) {
+	if entry == nil || entry.Request == nil {
+		return nil, configErrorf("no request to delete")
+	}
+	content, diskDigest, err := p.Store.Read(entry.RelPath)
+	if err != nil {
+		return nil, err
+	}
+	if entry.BaselineDigest != "" && diskDigest != entry.BaselineDigest {
+		return nil, &ConflictError{Path: entry.RelPath, Baseline: entry.BaselineDigest, Disk: diskDigest}
+	}
+	abs, err := p.Store.resolve(entry.RelPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Remove(abs); err != nil {
+		return nil, fmt.Errorf("deleting request: %w", err)
+	}
+	p.forgetRequest(entry)
+	p.rebuildTree()
+	return content, nil
+}
+
+// RestoreRequest puts a deleted request back at its path and re-registers it,
+// keeping its stable ID.
+func (p *Project) RestoreRequest(entry *RequestEntry, content []byte) error {
+	if entry == nil || entry.Request == nil {
+		return configErrorf("no request to restore")
+	}
+	if err := p.Store.WriteAtomic(entry.RelPath, content); err != nil {
+		return err
+	}
+	entry.BaselineDigest = Digest(content)
+	if p.colByDir != nil {
+		entry.CollectionVars = p.collectionVarsFor(entry.RelPath, p.colByDir)
+	}
+	p.Requests[entry.Request.ID] = entry
+	p.Order = append(p.Order, entry.Request.ID)
+	p.rebuildTree()
+	return nil
+}
+
+// forgetRequest drops entry from the request index and order without touching
+// the filesystem.
+func (p *Project) forgetRequest(entry *RequestEntry) {
+	if entry == nil || entry.Request == nil {
+		return
+	}
+	delete(p.Requests, entry.Request.ID)
+	for i, id := range p.Order {
+		if id == entry.Request.ID {
+			p.Order = append(p.Order[:i], p.Order[i+1:]...)
+			break
+		}
+	}
+}
+
+// DeleteFolder removes a folder and everything beneath it, first snapshotting
+// every file so RestoreFolder can put it back. Requests inside are removed from
+// the in-memory index; collection.yaml entries under the folder are dropped.
+func (p *Project) DeleteFolder(node *CollectionEntry) (*FolderSnapshot, error) {
+	if node == nil {
+		return nil, configErrorf("no folder to delete")
+	}
+	rel := collectionRelOf(node.RelPath)
+	if rel == "" {
+		return nil, configErrorf("cannot delete the collections root")
+	}
+	dir, err := sanitizeCollectionRel(rel)
+	if err != nil {
+		return nil, err
+	}
+	projectDir := collectionsDirOf(dir)
+	abs, err := p.Store.resolve(projectDir)
+	if err != nil {
+		return nil, err
+	}
+	if info, statErr := os.Stat(abs); statErr != nil || !info.IsDir() {
+		return nil, configErrorf("folder %q does not exist", dir)
+	}
+	files := map[string][]byte{}
+	err = filepath.WalkDir(abs, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		relPath, relErr := filepath.Rel(p.Store.Root, path)
+		if relErr != nil {
+			return relErr
+		}
+		files[filepath.ToSlash(relPath)] = data
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("snapshotting folder: %w", err)
+	}
+
+	for _, e := range flattenCollectionRequests(node) {
+		p.forgetRequest(e)
+	}
+	if err := os.RemoveAll(abs); err != nil {
+		return nil, fmt.Errorf("deleting folder: %w", err)
+	}
+	for d := range p.colByDir {
+		if d == projectDir || strings.HasPrefix(d, projectDir+"/") {
+			delete(p.colByDir, d)
+		}
+	}
+	p.rebuildTree()
+	return &FolderSnapshot{Dir: projectDir, Files: files}, nil
+}
+
+// RestoreFolder writes a deleted folder's files back and reloads its
+// collections and requests into the in-memory model.
+func (p *Project) RestoreFolder(snap *FolderSnapshot) error {
+	if snap == nil {
+		return configErrorf("no folder to restore")
+	}
+	for rel, data := range snap.Files {
+		if err := p.Store.WriteAtomic(rel, data); err != nil {
+			return err
+		}
+	}
+	if p.colByDir == nil {
+		p.colByDir = map[string]*Collection{}
+	}
+	for rel, data := range snap.Files {
+		if filepath.Base(rel) != "collection.yaml" {
+			continue
+		}
+		var c Collection
+		if err := decodeStrict(data, &c); err != nil {
+			continue
+		}
+		p.colByDir[filepath.ToSlash(filepath.Dir(rel))] = &c
+	}
+	for rel, data := range snap.Files {
+		if !strings.HasSuffix(rel, ".request.yaml") {
+			continue
+		}
+		var req Request
+		if err := decodeStrict(data, &req); err != nil || req.ID == "" {
+			continue
+		}
+		entry := &RequestEntry{
+			Request:        &req,
+			RelPath:        rel,
+			BaselineDigest: Digest(data),
+			CollectionVars: p.collectionVarsFor(rel, p.colByDir),
+		}
+		p.Requests[req.ID] = entry
+		p.Order = append(p.Order, req.ID)
+	}
+	p.rebuildTree()
+	return nil
+}
+
+// flattenCollectionRequests returns every request in a folder subtree.
+func flattenCollectionRequests(n *CollectionEntry) []*RequestEntry {
+	if n == nil {
+		return nil
+	}
+	out := append([]*RequestEntry(nil), n.Requests...)
+	for _, ch := range n.Children {
+		out = append(out, flattenCollectionRequests(ch)...)
+	}
+	return out
+}
+
+// --- documents ------------------------------------------------------------
+
+// RenameDoc moves a document to the slug of a new name within docs/, keeping
+// its content and baseline digest.
+func (p *Project) RenameDoc(d *DocEntry, name string) error {
+	if d == nil {
+		return configErrorf("no document to rename")
+	}
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return configErrorf("document name is empty")
+	}
+	if filepath.IsAbs(trimmed) || strings.ContainsAny(trimmed, `/\`) || trimmed == "." || trimmed == ".." {
+		return configErrorf("invalid document name %q", name)
+	}
+	slug := Slug(trimmed)
+	if slug == "item" && strings.ToLower(trimmed) != "item" {
+		return configErrorf("document name %q must contain letters or digits", name)
+	}
+	newRel := filepath.ToSlash(filepath.Join("docs", slug+".md"))
+	if newRel == d.RelPath {
+		d.Name = filepath.Base(newRel)
+		return nil
+	}
+	if p.Store.Exists(newRel) {
+		return configErrorf("a document named %q already exists", trimmed)
+	}
+	data, digest, err := p.Store.Read(d.RelPath)
+	if err != nil {
+		return err
+	}
+	if err := p.Store.WriteAtomic(newRel, data); err != nil {
+		return fmt.Errorf("writing renamed document: %w", err)
+	}
+	oldAbs, err := p.Store.resolve(d.RelPath)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(oldAbs); err != nil {
+		if newAbs, e2 := p.Store.resolve(newRel); e2 == nil {
+			_ = os.Remove(newAbs)
+		}
+		return fmt.Errorf("removing old document: %w", err)
+	}
+	d.RelPath = newRel
+	d.Name = filepath.Base(newRel)
+	d.BaselineDigest = digest
+	return nil
+}
+
+// DeleteDoc removes a document file, returning its content for undo.
+func (p *Project) DeleteDoc(d *DocEntry) ([]byte, error) {
+	if d == nil {
+		return nil, configErrorf("no document to delete")
+	}
+	data, digest, err := p.Store.Read(d.RelPath)
+	if err != nil {
+		return nil, err
+	}
+	if d.BaselineDigest != "" && digest != d.BaselineDigest {
+		return nil, &ConflictError{Path: d.RelPath, Baseline: d.BaselineDigest, Disk: digest}
+	}
+	abs, err := p.Store.resolve(d.RelPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Remove(abs); err != nil {
+		return nil, fmt.Errorf("deleting document: %w", err)
+	}
+	for i, doc := range p.Docs {
+		if doc == d {
+			p.Docs = append(p.Docs[:i], p.Docs[i+1:]...)
+			break
+		}
+	}
+	return data, nil
+}
+
+// RestoreDoc writes a deleted document back and re-registers it.
+func (p *Project) RestoreDoc(d *DocEntry, content []byte) error {
+	if d == nil {
+		return configErrorf("no document to restore")
+	}
+	if err := p.Store.WriteAtomic(d.RelPath, content); err != nil {
+		return err
+	}
+	d.BaselineDigest = Digest(content)
+	for _, doc := range p.Docs {
+		if doc == d {
+			return nil
+		}
+	}
+	p.Docs = append(p.Docs, d)
+	return nil
+}
+
 // rebuildTree refreshes the in-memory collection tree and validation issues
 // after a successful on-disk mutation. It never re-reads request files.
 func (p *Project) rebuildTree() {
