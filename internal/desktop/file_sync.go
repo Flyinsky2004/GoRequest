@@ -220,7 +220,7 @@ func (c *fileSyncController) stopWatcher() {
 	}
 }
 
-func (c *fileSyncController) acknowledgeWatcher() {
+func (c *fileSyncController) acknowledgeWatcher(paths ...string) {
 	if c == nil {
 		return
 	}
@@ -228,7 +228,7 @@ func (c *fileSyncController) acknowledgeWatcher() {
 	w := c.watcher
 	c.watcherMu.Unlock()
 	if w != nil {
-		w.AcknowledgeCurrent()
+		w.AcknowledgeCurrent(paths...)
 	}
 }
 
@@ -237,7 +237,9 @@ func (c *fileSyncController) recordLocalSave(relPath string, data []byte) {
 		return
 	}
 	c.engine.RecordLocalSave(relPath, data)
-	c.acknowledgeWatcher()
+	// Acknowledge only the path we just wrote so an unrelated concurrent external
+	// change elsewhere in the tree is still detected on the next scan.
+	c.acknowledgeWatcher(relPath)
 }
 
 func (c *fileSyncController) bufferIDForTab(tab *Tab) string {
@@ -718,7 +720,7 @@ func (c *fileSyncController) captureTabSaveConflict(tab *Tab) (*core.SyncConflic
 	}
 	conflict, err := c.engine.CaptureSaveConflict(ob)
 	if err == nil {
-		c.acknowledgeWatcher()
+		c.acknowledgeWatcher(ob.RelPath)
 	}
 	return conflict, err
 }

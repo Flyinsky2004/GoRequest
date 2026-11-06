@@ -52,15 +52,21 @@ func (a *App) fileSyncTabBanner(c *ui.Context, t *ui.Theme, ps *projectState, ta
 					if uikit.ActionCursor(ui.PrimaryButton(c, fm.ResolveConflictBtn)).Clicked() {
 						a.OpenConflictModal(tab)
 					}
+					// Destructive resolutions must never run as a one-click silent
+					// shortcut from the banner while unsaved edits exist: route the
+					// user through the three-version modal so they can compare the
+					// reading baseline, disk version, and current edit before
+					// discarding anything. Only the non-destructive "Save As Copy"
+					// stays inline.
 					if conflict.DiskExists {
 						if conflict.ParseErr == "" && !conflict.HasGitConflict {
 							if uikit.ActionCursor(ui.Button(c, fm.ReloadDiskBtn)).Clicked() {
-								_ = a.ResolveTabConflict(tab, core.ResolutionReloadDisk)
+								a.OpenConflictModal(tab)
 							}
 						}
 					} else {
 						if uikit.ActionCursor(ui.Button(c, fm.AcceptDeleteBtn)).Clicked() {
-							_ = a.ResolveTabConflict(tab, core.ResolutionAcceptDelete)
+							a.OpenConflictModal(tab)
 						}
 					}
 					if uikit.ActionCursor(ui.Button(c, fm.SaveAsCopyBtn)).Clicked() {
