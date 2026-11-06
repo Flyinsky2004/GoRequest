@@ -1,8 +1,11 @@
 package desktop
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
@@ -106,6 +109,9 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 					c.WriteClipboard(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
 					a.status = m.Copied
 				}
+				if b := uikit.IconButton(c, p, uikit.IconFile, m.SaveResponse); b.Clicked() {
+					a.saveResponse(tab)
+				}
 			}
 		})
 
@@ -142,8 +148,88 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			a.responseHeaders(c, t, tab.Resp, p)
 			return
 		}
+		a.responseFindBar(c, t, tab)
 		a.responseBodyArea(c, t, tab, m, p)
 	})
+}
+
+// responseFindBar is the small in-panel find strip (§7): a query field, match
+// count, and previous/next buttons. It drives the read-only response editor's
+// native find instead of opening a system dialog.
+func (a *App) responseFindBar(c *ui.Context, t *ui.Theme, tab *Tab) {
+	if !tab.respFindOpen {
+		return
+	}
+	m := a.msg()
+	p := uikit.PaletteFor(t)
+	ui.Row(c).Gap(6).Padding(4, 10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+		ui.Icon(c, uikit.IconSearch).FontSize(13).TextColor(p.Muted)
+		in := ui.TextInput(c, &tab.respFindQuery).Width(220).Placeholder(m.FindPlaceholder)
+		// Focus only on the frame the bar opens, so the prev/next buttons stay
+		// clickable and typing does not fight a per-frame Focus.
+		if tab.respFindFocus {
+			in.Focus()
+			tab.respFindFocus = false
+		}
+		in.OnShortcut(0, ui.KeyEscape, func() { tab.respFindOpen = false })
+		in.OnShortcut(ui.Cmd, ui.KeyF, func() { tab.respFindOpen = false })
+		st := a.responseEditorFor(t, tab)
+		if in.Changed() {
+			st.Find(tab.respFindQuery)
+		}
+		count, current := st.FindMatches()
+		if count > 0 {
+			ui.Textf(c, m.FindCount, current+1, count).FontSize(11).FontFeatures("tnum").TextColor(p.Faint)
+		} else if tab.respFindQuery != "" {
+			ui.Text(c, m.FindNone).FontSize(11).TextColor(p.Faint)
+		}
+		ui.Box(c).Grow(1)
+		if ui.Button(c, "↑").Clicked() {
+			st.Run(editor.FindPrevious)
+		}
+		if ui.Button(c, "↓").Clicked() {
+			st.Run(editor.FindNext)
+		}
+		if b := uikit.IconButton(c, p, uikit.IconClose, m.Cancel); b.Clicked() {
+			tab.respFindOpen = false
+		}
+	})
+}
+
+// saveResponse writes the response body to a user-chosen local file. The native
+// save dialog runs off the UI thread; the result is posted back through the
+// owning window's Update, so no UI state is touched from a goroutine.
+func (a *App) saveResponse(tab *Tab) {
+	if tab == nil || tab.Resp == nil {
+		return
+	}
+	body := []byte(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
+	m := a.msg()
+	win := a.win
+	var parent *mygo.Window
+	if nw, ok := win.(nativeWindower); ok {
+		parent = nw.nativeWindow()
+	}
+	go func() {
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Parent:      parent,
+			Title:       m.SaveResponse,
+			DefaultPath: "response.txt",
+			ButtonLabel: m.Save,
+		})
+		if err != nil || path == "" {
+			return
+		}
+		if err := os.WriteFile(path, body, 0o644); err != nil {
+			if win != nil && !win.IsDestroyed() {
+				win.Update(func() { a.status = fmt.Sprintf("%s: %v", m.SaveResponse, err) })
+			}
+			return
+		}
+		if win != nil && !win.IsDestroyed() {
+			win.Update(func() { a.status = translate(m.SavedResponse, path) })
+		}
+	}()
 }
 
 // responseStatus draws the status line's left part.

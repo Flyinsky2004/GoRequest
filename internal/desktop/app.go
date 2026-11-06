@@ -59,6 +59,9 @@ type App struct {
 	// filterQuery is the live text of the sidebar filter box. It is view state
 	// of this window, independent of any project's stored data.
 	filterQuery string
+	// filterFocus asks the next frame to focus the sidebar filter (§9 ⌘F when
+	// no response is in view).
+	filterFocus bool
 
 	// closed and bypassGuard keep close handling honest: closed means the
 	// window is gone (no more UI updates), bypassGuard lets the second Close
@@ -128,6 +131,19 @@ func (a *App) View(c *ui.Context) {
 	} else if a.navWidth > 380 {
 		a.navWidth = 380
 	}
+	// §9: ⌘F searches the response when one is shown, else focuses the sidebar
+	// filter. (The response editor's own ⌘F covers the focused-editor case.)
+	c.OnShortcut(ui.Cmd, ui.KeyF, func() {
+		if ps := a.ps; ps != nil {
+			if tab := ps.activeTab(); tab != nil && tab.Kind == "request" &&
+				tab.Resp != nil && tab.RespSection == 0 {
+				tab.respFindOpen = true
+				tab.respFindFocus = true
+				return
+			}
+		}
+		a.filterFocus = true
+	})
 	ui.Column(c).Fill().Children(func() {
 		ui.Split(c, &a.navWidth, func() { a.nav(c, t) }, func() { a.workspace(c, t) }).Grow(1).FillWidth()
 		if a.status != "" {

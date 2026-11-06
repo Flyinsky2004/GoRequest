@@ -183,6 +183,11 @@ type messages struct {
 	NoResponseHint    string
 	SendShortcutHint  string
 	CopyResponse      string
+	SaveResponse      string
+	FindPlaceholder   string
+	FindCount         string // %d, %d
+	FindNone          string
+	SavedResponse     string // %s
 	BodySection       string
 	HeadersSection    string
 	Pretty            string
@@ -405,6 +410,11 @@ var messagesZh = messages{
 	NoResponseHint:    "发送请求以在此查看响应。",
 	SendShortcutHint:  "⌘↩ 发送 · ⌘L 聚焦地址栏",
 	CopyResponse:      "复制响应",
+	SaveResponse:      "保存响应到文件",
+	FindPlaceholder:   "查找响应…",
+	FindCount:         "%d / %d",
+	FindNone:          "无匹配",
+	SavedResponse:     "已保存响应：%s",
 	BodySection:       "正文",
 	HeadersSection:    "头部",
 	Pretty:            "美化",
@@ -620,6 +630,11 @@ var messagesEn = messages{
 	NoResponseHint:    "Send a request to see its response here.",
 	SendShortcutHint:  "⌘↩ send · ⌘L focus address",
 	CopyResponse:      "Copy response",
+	SaveResponse:      "Save Response to File",
+	FindPlaceholder:   "Find in response…",
+	FindCount:         "%d / %d",
+	FindNone:          "No matches",
+	SavedResponse:     "Saved response: %s",
 	BodySection:       "Body",
 	HeadersSection:    "Headers",
 	Pretty:            "Pretty",

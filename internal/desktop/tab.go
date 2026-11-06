@@ -75,6 +75,12 @@ type Tab struct {
 	// respBuiltDegraded records whether the cached response editor was built in
 	// the large-response plain-text mode, so a size change rebuilds it.
 	respBuiltDegraded bool
+
+	// Response find (§7): the small in-panel find bar. respFindQuery drives the
+	// editor's native find, and respFindOpen toggles the bar via ⌘F.
+	respFindOpen  bool
+	respFindQuery string
+	respFindFocus bool
 }
 
 // requestFromTab builds a core.Request from the tab's edited fields.

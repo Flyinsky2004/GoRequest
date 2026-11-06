@@ -89,6 +89,10 @@ func (a *App) filterBox(c *ui.Context, p uikit.Palette, m *messages) {
 		r.Children(func() {
 			ui.Icon(c, uikit.IconSearch).FontSize(14).TextColor(p.Muted)
 			in := ui.TextInput(c, &a.filterQuery).Grow(1).Placeholder(m.FilterPlaceholder)
+			if a.filterFocus {
+				in.Focus()
+				a.filterFocus = false
+			}
 			in.OnShortcut(0, ui.KeyEscape, func() { a.filterQuery = "" })
 			if a.filtering() {
 				ui.Text(c, strconv.Itoa(a.matchCount())).FontSize(11).TextColor(p.Faint).SingleLine()

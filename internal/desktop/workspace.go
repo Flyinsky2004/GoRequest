@@ -212,7 +212,7 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		}
 		uikit.UnderlineTabs(c, p, &tab.Section, labels, badges)
 
-		ui.SplitVerticalPercent(c, &tab.Owner.buildPct, func() {
+		split := ui.SplitVerticalPercent(c, &tab.Owner.buildPct, func() {
 			ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
 				switch tab.Section {
 				case 0:
@@ -234,6 +234,16 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		}, func() {
 			a.responseView(c, t, tab)
 		}).Grow(1).FillWidth()
+
+		// §7: double-click the splitter to restore the default 64:36, and
+		// persist the user's dragged ratio across launches.
+		if tab.Owner.buildPct != a.mgr.cfg.buildPct() {
+			a.mgr.cfg.setBuildPct(tab.Owner.buildPct)
+		}
+		if split.DoubleClicked() {
+			tab.Owner.buildPct = 64
+			a.mgr.cfg.setBuildPct(64)
+		}
 	})
 }
 

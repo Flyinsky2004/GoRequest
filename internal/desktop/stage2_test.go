@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -179,5 +180,48 @@ func TestKVRowsReorder(t *testing.T) {
 	tab.moveRowTo(kvQuery, "a", "b")
 	if tab.QueryRows[0].Name != "a" || tab.QueryRows[1].Name != "b" {
 		t.Fatalf("moveRowTo wrong: %s,%s", tab.QueryRows[0].Name, tab.QueryRows[1].Name)
+	}
+}
+
+func TestBuildPctPersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	s := newConfigStore(path)
+	if got := s.buildPct(); got != 64 {
+		t.Fatalf("default buildPct = %v, want 64", got)
+	}
+	s.setBuildPct(70)
+	if got := s.buildPct(); got != 70 {
+		t.Fatalf("buildPct = %v, want 70", got)
+	}
+	// Out-of-range values are ignored.
+	s.setBuildPct(5)
+	if got := s.buildPct(); got != 70 {
+		t.Fatalf("invalid buildPct changed the value: %v", got)
+	}
+	// A reopened store reads it back.
+	if got := newConfigStore(path).buildPct(); got != 70 {
+		t.Fatalf("persisted buildPct = %v, want 70", got)
+	}
+}
+
+func TestResponseFindBarOpens(t *testing.T) {
+	a, ps := openTestProject(t, "Find")
+	tab := openRequestTabs(t, ps, "Alpha")[0]
+	tab.Resp = &core.ExecResult{Status: 200, Body: []byte(`{"needle":1}`), Pretty: `{"needle":1}`, BodySize: 13}
+	tt := ui.NewTester(a.View, 1100, 820)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Frame()
+	if !tab.respFindOpen {
+		t.Fatal("⌘F should open the response find bar")
+	}
+	if !tt.HasText("↑") || !tt.HasText("↓") {
+		t.Fatalf("find bar prev/next buttons missing; texts=%v", tt.Texts())
+	}
+	// Escape closes it.
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if tab.respFindOpen {
+		t.Fatal("Escape should close the find bar")
 	}
 }
