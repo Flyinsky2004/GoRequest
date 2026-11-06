@@ -299,6 +299,8 @@ func (a *App) requestMenu(mm *ui.Menu, e *core.RequestEntry, sel string) {
 		}
 	})
 	mm.Separator()
+	a.appendTransferMenu(mm, e)
+	mm.Separator()
 	if mm.Item(m.Delete).Chosen() {
 		a.deleteTreeRow(sel)
 	}
@@ -352,6 +354,9 @@ func (a *App) docMenu(mm *ui.Menu, d *core.DocEntry, sel string) {
 	if mm.Item(m.Rename).Shortcut(0, ui.KeyF2).Chosen() {
 		a.beginRename(sel)
 	}
+	if mm.Item(m.DuplicateDoc).Chosen() {
+		a.duplicateDoc(d)
+	}
 	mm.Separator()
 	if mm.Item(m.Delete).Chosen() {
 		a.deleteTreeRow(sel)
@@ -398,6 +403,39 @@ func (a *App) duplicateRequest(e *core.RequestEntry) {
 	ps.sel = "req:" + entry.Request.ID
 	ps.openRequest(entry)
 	a.status = translate(m.Created, entry.RelPath)
+}
+
+// duplicateDoc copies a document next to the original under a new file name,
+// preserving its content. The new document gets its own path and baseline; the
+// source is untouched.
+func (a *App) duplicateDoc(d *core.DocEntry) {
+	ps := a.ps
+	if ps == nil || ps.project == nil || d == nil {
+		return
+	}
+	m := a.msg()
+	content, _, err := ps.project.Store.Read(d.RelPath)
+	if err != nil {
+		a.status = translate(m.NewDocFailed, err.Error())
+		return
+	}
+	base := strings.TrimSuffix(d.Name, filepath.Ext(d.Name)) + " copy"
+	de, err := ps.project.NewDoc(base)
+	if err != nil {
+		a.status = translate(m.NewDocFailed, err.Error())
+		return
+	}
+	if _, err := ps.project.SaveDoc(de.RelPath, content, de.BaselineDigest); err != nil {
+		_, _ = ps.project.DeleteDoc(de)
+		a.status = translate(m.NewDocFailed, err.Error())
+		return
+	}
+	ps.sel = "doc:" + de.RelPath
+	if err := ps.openDoc(de.RelPath); err != nil {
+		a.status = err.Error()
+		return
+	}
+	a.status = translate(m.Created, de.RelPath)
 }
 
 // moveRequestTo moves a request into targetRel (collections-relative, "" for

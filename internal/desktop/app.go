@@ -6,6 +6,7 @@ package desktop
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -96,6 +97,19 @@ type App struct {
 	moveProject *projectState
 	moveTarget  string
 	moveErr     string
+
+	// isGlobal marks the personal/scratch workspace window opened from the OS
+	// application-data directory. It is never written to the recent-project
+	// list and offers project transfers instead of being a project itself.
+	isGlobal bool
+
+	// transfer is the pending cross-workspace copy/move preview (B02).
+	transfer *transferDraft
+
+	// autoSaveStop stops the safe auto-save ticker when the window closes;
+	// autoSaveLast is the UI-thread clock of the last attempt.
+	autoSaveStop chan struct{}
+	autoSaveLast time.Time
 }
 
 // wire connects the project window's lifecycle to the manager and the close
@@ -111,7 +125,15 @@ func (a *App) wire() {
 			a.openCloseGuard(false)
 		}
 	})
-	a.win.OnClosed(func() { a.mgr.onWorkspaceClosed(a) })
+	a.win.OnClosed(func() {
+		a.stopAutoSaveTicker()
+		a.mgr.onWorkspaceClosed(a)
+	})
+	// Only a real native window owns a UI queue that can drive the timer; the
+	// headless fake windows used by tests never start a background goroutine.
+	if nw, ok := a.win.(nativeWindower); ok && nw.nativeWindow() != nil {
+		a.startAutoSaveTicker()
+	}
 }
 
 // saveGeometry remembers the window size and sidebar width so the workbench
@@ -169,11 +191,12 @@ func (a *App) View(c *ui.Context) {
 	a.sendGuardModal(c, t)
 	a.historyClearModal(c, t)
 	a.formsModals(c, t)
+	a.transferModal(c, t)
 	a.b03CustomMethodModal(c, t)
 }
 
 func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
-	renderSettings(c, t, a.mgr.cfg, &a.showSettings, func(s string) { a.status = s })
+	renderSettings(c, t, a.mgr.cfg, a.mgr.workspacePrefs(), &a.showSettings, func(s string) { a.status = s })
 }
 
 // --- actions -------------------------------------------------------------

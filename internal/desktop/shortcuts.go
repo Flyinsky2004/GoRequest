@@ -7,41 +7,64 @@ import "github.com/egoist/mygo/ui"
 // the tree in tree_actions.go, KV in request_form.go, undo in undo.go. This file
 // only binds keys to those entry points, so it stays a single writer and never
 // conflicts with feature work.
+//
+// Each binding checks the user's per-shortcut toggle (workspace settings). A
+// disabled shortcut is not registered at all, so it also does not swallow the
+// key from a focused editor.
 func (a *App) registerShortcuts(c *ui.Context) {
+	on := a.shortcutOn
 	// New request tab.
-	c.OnShortcut(ui.Cmd, ui.KeyT, func() { a.openNewRequest() })
+	if on(shortcutNewRequest) {
+		c.OnShortcut(ui.Cmd, ui.KeyT, func() { a.openNewRequest() })
+	}
 	// Close current tab (dirty tabs still go through the save/discard flow).
-	c.OnShortcut(ui.Cmd, ui.KeyW, func() { a.closeCurrent() })
+	if on(shortcutCloseTab) {
+		c.OnShortcut(ui.Cmd, ui.KeyW, func() { a.closeCurrent() })
+	}
 	// Switch tabs: ⌘1…⌘9 (⌘9 = last).
-	tabKeys := []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9}
-	for i, k := range tabKeys {
-		n := i + 1
-		c.OnShortcut(ui.Cmd, k, func() { a.selectTabIndex(n) })
+	if on(shortcutTabSwitch) {
+		tabKeys := []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9}
+		for i, k := range tabKeys {
+			n := i + 1
+			c.OnShortcut(ui.Cmd, k, func() { a.selectTabIndex(n) })
+		}
 	}
 	// Focus the URL input and select it.
-	c.OnShortcut(ui.Cmd, ui.KeyL, func() { a.focusActiveURL() })
+	if on(shortcutFocusURL) {
+		c.OnShortcut(ui.Cmd, ui.KeyL, func() { a.focusActiveURL() })
+	}
 	// Quick open: the sidebar filter is the searchable entry point today.
-	c.OnShortcut(ui.Cmd, ui.KeyK, func() {
-		a.historyView = false
-		a.filterFocus = true
-	})
+	if on(shortcutQuickSearch) {
+		c.OnShortcut(ui.Cmd, ui.KeyK, func() {
+			a.historyView = false
+			a.filterFocus = true
+		})
+	}
 	// Environment: edit the current one, else create.
-	c.OnShortcut(ui.Cmd, ui.KeyE, func() {
-		if a.ps == nil {
-			return
-		}
-		if a.ps.canEditEnv() {
-			a.openEditEnvironment()
-		} else {
-			a.openNewEnvironment()
-		}
-	})
+	if on(shortcutEditEnv) {
+		c.OnShortcut(ui.Cmd, ui.KeyE, func() {
+			if a.ps == nil {
+				return
+			}
+			if a.ps.canEditEnv() {
+				a.openEditEnvironment()
+			} else {
+				a.openNewEnvironment()
+			}
+		})
+	}
 	// Toggle the sidebar.
-	c.OnShortcut(ui.Cmd, ui.KeyBackslash, func() { a.sidebarHidden = !a.sidebarHidden })
+	if on(shortcutToggleSidebar) {
+		c.OnShortcut(ui.Cmd, ui.KeyBackslash, func() { a.sidebarHidden = !a.sidebarHidden })
+	}
 	// Undo the last delete.
-	c.OnShortcut(ui.Cmd, ui.KeyZ, func() { a.undoLast() })
+	if on(shortcutUndoDelete) {
+		c.OnShortcut(ui.Cmd, ui.KeyZ, func() { a.undoLast() })
+	}
 	// Rename the selected tree row in place.
-	c.OnShortcut(0, ui.KeyF2, func() { a.beginRenameTreeRow() })
+	if on(shortcutRename) {
+		c.OnShortcut(0, ui.KeyF2, func() { a.beginRenameTreeRow() })
+	}
 }
 
 // selectTabIndex activates the n-th tab (1-based), clamping ⌘9 to the last tab.

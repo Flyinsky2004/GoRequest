@@ -58,20 +58,13 @@ func (a *App) matchText(text string) bool {
 }
 
 func (a *App) reqMatch(e *core.RequestEntry) bool {
-	if e == nil || e.Request == nil {
-		return false
-	}
-	if a.matchText(e.Request.Name) {
-		return true
-	}
-	if e.Request.HTTP != nil && a.matchText(e.Request.HTTP.Method) {
-		return true
-	}
-	return false
+	// The shared Core matcher searches name, method, URL and body text, so the
+	// sidebar filter and any future result list agree on what "matches" means.
+	return core.MatchRequest(e, a.filterQuery)
 }
 
 func (a *App) docMatch(d *core.DocEntry) bool {
-	return d != nil && a.matchText(d.Name)
+	return core.MatchDoc(d, a.filterQuery)
 }
 
 // folderMatch reports whether a folder or any descendant request/document
