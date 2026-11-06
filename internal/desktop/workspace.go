@@ -3,13 +3,11 @@ package desktop
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/markdown"
 
-	"gorequest/internal/core"
 	"gorequest/internal/desktop/uikit"
 )
 
@@ -327,48 +325,6 @@ func (a *App) saveControl(c *ui.Context, p uikit.Palette, tab *Tab) {
 	if btn.Clicked() {
 		a.saveActive()
 	}
-}
-
-// urlVarLine is the variable resolution preview under the URL (§5, D7): each
-// {{name}} shows its value, and an undefined one is flagged in red. (The inline
-// highlight inside the editable field itself is a later increment.)
-func (a *App) urlVarLine(c *ui.Context, t *ui.Theme, tab *Tab) {
-	names := core.TemplateNames(tab.URL)
-	if len(names) == 0 {
-		return
-	}
-	p := uikit.PaletteFor(t)
-	m := a.msg()
-	vars, _, err := a.ps.project.ResolveVars(tab.Entry, a.ps.currentEnv())
-	if err != nil || vars == nil {
-		vars = map[string]string{}
-	}
-	danger := uikit.MethodColor("DELETE", p)
-	spans := []ui.Span{{Text: m.VarLabel + "  ", Size: 11, Weight: 600, Color: p.Muted}}
-	for _, name := range names {
-		if rest, ok := strings.CutPrefix(name, "secret."); ok {
-			defined := false
-			if a.mgr.secrets != nil {
-				if _, ok := a.mgr.secrets.Get(rest); ok {
-					defined = true
-				}
-			}
-			if defined {
-				spans = append(spans, ui.Span{Text: "{{" + name + "}} = (secret)   ", Size: 11, Color: p.Muted})
-			} else {
-				spans = append(spans, ui.Span{Text: "{{" + name + "}} ?   ", Size: 11, Color: danger,
-					Background: danger.Alpha(0.12), Radius: 3})
-			}
-			continue
-		}
-		if v, ok := vars[name]; ok {
-			spans = append(spans, ui.Span{Text: name + " = " + v + "   ", Size: 11, Color: p.Muted})
-		} else {
-			spans = append(spans, ui.Span{Text: "{{" + name + "}} ?   ", Size: 11, Color: danger,
-				Background: danger.Alpha(0.12), Radius: 3})
-		}
-	}
-	ui.RichText(c, spans...).FillWidth()
 }
 
 // emptyTabHint shows a centered faint line for a build tab with no content yet.
