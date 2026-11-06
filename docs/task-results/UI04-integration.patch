@@ -1,0 +1,44 @@
+diff --git a/internal/desktop/nav.go b/internal/desktop/nav.go
+index dc15f49..963c172 100644
+--- a/internal/desktop/nav.go
++++ b/internal/desktop/nav.go
+@@ -88,6 +88,7 @@ func (a *App) navHeader(c *ui.Context, p uikit.Palette) {
+ 	}
+ 	ui.Column(c).Padding(8, left, 6, 14).Gap(1).Height(52).Justify(ui.Center).Children(func() {
+ 		ui.Text(c, "GoRequest").Bold().FontSize(17).TextColor(p.Text).SingleLine()
++		windowDragBrand(c, left)
+ 	})
+ }
+ 
+diff --git a/internal/desktop/welcome.go b/internal/desktop/welcome.go
+index f70f3e1..3074984 100644
+--- a/internal/desktop/welcome.go
++++ b/internal/desktop/welcome.go
+@@ -54,7 +54,7 @@ func (w *welcomeState) view(c *ui.Context) {
+ 
+ 	ui.Column(c).Fill().Children(func() {
+ 		// Brand block.
+-		ui.Column(c).Padding(24, 24, 10, 24).Gap(6).Children(func() {
++		windowDragRegion(c).Padding(24, 24, 10, 24).Gap(6).Children(func() {
+ 			ui.Text(c, "GoRequest").FontSize(24).Bold().SingleLine()
+ 			ui.Text(c, m.WelcomeTagline).FontSize(12).TextColor(t.TextMuted).SingleLine()
+ 		})
+diff --git a/internal/desktop/workspace.go b/internal/desktop/workspace.go
+index ab400a6..0ecc5df 100644
+--- a/internal/desktop/workspace.go
++++ b/internal/desktop/workspace.go
+@@ -36,11 +36,12 @@ func (a *App) workspace(c *ui.Context, t *ui.Theme) {
+ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
+ 	m := a.msg()
+ 	p := uikit.PaletteFor(t)
+-	ui.Row(c).Padding(8, 12).Gap(6).AlignItems(ui.Center).Height(46).
++	left, right := windowDragInsets(c, a.sidebarHidden)
++	ui.Row(c).Padding(8, right, 8, left).Gap(6).AlignItems(ui.Center).Height(46).
+ 		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+ 		// Left: project name + switch dropdown.
+ 		ui.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) })
+-		ui.Box(c).Grow(1)
++		windowDragSpacer(c, 8)
+ 		// Environment area: a fixed single-line label (never wraps) + selector.
+ 		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(p.Muted).SingleLine().Width(32)
+ 		a.envMenu(c, ps)
