@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/egoist/mygo/ui/markdown/parser"
+	"gorequest/internal/markdown"
 )
 
 // This file resolves the destinations of document links and images and turns
@@ -299,8 +299,7 @@ const (
 // schemes, remote images (never downloaded), raw HTML (shown as text) and
 // Mermaid code (source kept, not rendered). Results are sorted by position.
 func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
-	d := parser.New(parser.Default)
-	d.Set(src)
+	d := markdown.Parse(src)
 	var out []DocDiagnostic
 	add := func(off int, sev DiagnosticSeverity, kind, dest, msg string) {
 		if len(out) >= 500 {
@@ -312,19 +311,18 @@ func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
 			Severity: sev, Kind: kind, Dest: dest, Message: msg,
 		})
 	}
-	for i := 1; i < d.Len(); i++ {
-		b := d.Block(i)
+	for i, b := range d.Blocks() {
 		switch b.Kind {
-		case parser.HTMLBlock:
+		case markdown.HTMLBlock:
 			add(b.Start, SeverityInfo, DiagHTMLNotExecuted, "", "raw HTML is shown as source text and is never executed")
-		case parser.CodeBlock:
+		case markdown.CodeBlock:
 			if strings.EqualFold(b.Language(), "mermaid") {
 				add(b.Start, SeverityInfo, DiagMermaid, "", "Mermaid rendering is not part of this build; the source is shown")
 			}
 		}
 		for _, in := range d.Inlines(i) {
 			switch in.Kind {
-			case parser.HTML:
+			case markdown.HTML:
 				lower := strings.ToLower(in.Text)
 				for _, tag := range []string{"<script", "<iframe", "<object", "<embed", "<style"} {
 					if strings.Contains(lower, tag) {
@@ -332,7 +330,7 @@ func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
 						break
 					}
 				}
-			case parser.Link, parser.Image:
+			case markdown.Link, markdown.Image:
 				if in.Dest == "" {
 					continue
 				}
@@ -343,7 +341,7 @@ func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
 					switch ProblemKind(err) {
 					case LinkProblemMissingAsset, LinkProblemMissingDocument:
 						kind = DiagMissingAsset
-						if in.Kind == parser.Link && strings.HasSuffix(strings.ToLower(strings.SplitN(in.Dest, "#", 2)[0]), ".md") {
+						if in.Kind == markdown.Link && strings.HasSuffix(strings.ToLower(strings.SplitN(in.Dest, "#", 2)[0]), ".md") {
 							kind = DiagMissingLink
 						}
 					case LinkProblemDangerousScheme:
@@ -354,7 +352,7 @@ func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
 					add(in.Start, sev, kind, in.Dest, err.Error())
 					continue
 				}
-				if in.Kind == parser.Image && t.Kind == LinkExternal {
+				if in.Kind == markdown.Image && t.Kind == LinkExternal {
 					add(in.Start, SeverityWarning, DiagRemoteImage, in.Dest, "remote images are not downloaded when a document opens")
 				}
 			}

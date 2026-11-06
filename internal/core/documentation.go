@@ -7,13 +7,13 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/egoist/mygo/ui/markdown/parser"
+	"gorequest/internal/markdown"
 )
 
 // This file holds the core of the Markdown document workspace: heading
 // extraction, GitHub-compatible heading slugs, full-text search, and the
-// verified Markdown compatibility matrix. Only the pure-Go markdown parser is
-// used; no GUI type is imported here.
+// verified Markdown compatibility matrix. Parsing goes through the neutral
+// internal/markdown package; no GUI or desktop package is imported here.
 
 // DefaultDocMaxBytes bounds the Markdown file size that outline, search and
 // diagnostics read at once. Larger files still open in the editor; the
@@ -53,15 +53,13 @@ type Heading struct {
 // and HTML never produce headings; headings inside block quotes and list items
 // do.
 func ExtractHeadings(src string) []Heading {
-	d := parser.New(parser.Default)
-	d.Set(src)
+	d := markdown.Parse(src)
 	out := make([]Heading, 0, 8)
-	for i := 1; i < d.Len(); i++ {
-		b := d.Block(i)
-		if b.Kind != parser.Heading {
+	for i, b := range d.Blocks() {
+		if b.Kind != markdown.Heading {
 			continue
 		}
-		text := strings.TrimSpace(parser.PlainText(d.Inlines(i)))
+		text := strings.TrimSpace(markdown.PlainText(d.Inlines(i)))
 		line, col, _ := lineColumnAt(src, b.Start)
 		out = append(out, Heading{
 			Level:     b.Level,
@@ -381,8 +379,10 @@ func lineSnippet(line string, col int) string {
 // --- verified compatibility matrix ---------------------------------------
 
 // MarkdownFeature is one row of the verified Markdown support matrix. The
-// matrix is computed by parsing a probe for every row with the same parser
-// the preview uses, so it reflects the build in use rather than a claim.
+// matrix is computed by parsing a probe for every row with the neutral Core
+// parser, so it reflects the document tools' build rather than a claim. The
+// desktop preview uses its own native renderer; see
+// docs/specs/markdown-core-evidence.md for the boundary and known differences.
 type MarkdownFeature struct {
 	// Group is "CommonMark", "GFM", "Extension" or "Unsupported".
 	Group string
@@ -436,32 +436,40 @@ func feature(group, name, syntax string, probe func() bool, note string) Markdow
 	return MarkdownFeature{Group: group, Name: name, Syntax: syntax, Supported: probe(), Note: note}
 }
 
-func parseDoc(src string) *parser.Document {
-	d := parser.New(parser.Default)
-	d.Set(src)
-	return d
+func parseDoc(src string) *markdown.Document {
+	return markdown.Parse(src)
 }
 
-func firstBlock(d *parser.Document, kind parser.Kind) *parser.Block {
-	for i := 1; i < d.Len(); i++ {
-		if b := d.Block(i); b.Kind == kind {
-			return b
+func firstBlock(d *markdown.Document, kind markdown.Kind) (markdown.Block, bool) {
+	for _, b := range d.Blocks() {
+		if b.Kind == kind {
+			return b, true
+		}
+	}
+	return markdown.Block{}, false
+}
+
+// firstBlockInlines returns the inline run of the first block of kind.
+func firstBlockInlines(d *markdown.Document, kind markdown.Kind) []markdown.Inline {
+	for i, b := range d.Blocks() {
+		if b.Kind == kind {
+			return d.Inlines(i)
 		}
 	}
 	return nil
 }
 
-func hasHeading(d *parser.Document, level int) bool {
-	for i := 1; i < d.Len(); i++ {
-		if b := d.Block(i); b.Kind == parser.Heading && b.Level == level {
+func hasHeading(d *markdown.Document, level int) bool {
+	for _, b := range d.Blocks() {
+		if b.Kind == markdown.Heading && b.Level == level {
 			return true
 		}
 	}
 	return false
 }
 
-func hasInline(d *parser.Document, kind parser.InlineKind) bool {
-	for i := 1; i < d.Len(); i++ {
+func hasInline(d *markdown.Document, kind markdown.InlineKind) bool {
+	for i := range d.Blocks() {
 		for _, in := range d.Inlines(i) {
 			if in.Kind == kind {
 				return true
@@ -477,52 +485,61 @@ func atxHeadings() bool {
 }
 
 func setextHeading() bool { return hasHeading(parseDoc("Title\n=====\n"), 1) }
-func softBreak() bool     { return hasInline(parseDoc("one\ntwo\n"), parser.SoftBreak) }
-func hardBreak() bool     { return hasInline(parseDoc("one  \ntwo\n"), parser.LineBreak) }
+func softBreak() bool     { return hasInline(parseDoc("one\ntwo\n"), markdown.SoftBreak) }
+func hardBreak() bool     { return hasInline(parseDoc("one  \ntwo\n"), markdown.LineBreak) }
 
 func emphasisStrong() bool {
 	d := parseDoc("*a* **b** _c_ __d__\n")
-	return hasInline(d, parser.Emphasis) && hasInline(d, parser.Strong)
+	return hasInline(d, markdown.Emphasis) && hasInline(d, markdown.Strong)
 }
 
-func inlineCode() bool { return hasInline(parseDoc("`code`\n"), parser.Code) }
+func inlineCode() bool { return hasInline(parseDoc("`code`\n"), markdown.Code) }
 
 func fencedCode() bool {
-	b := firstBlock(parseDoc("```go\nx\n```\n"), parser.CodeBlock)
-	return b != nil && b.Fenced && b.Language() == "go"
+	b, ok := firstBlock(parseDoc("```go\nx\n```\n"), markdown.CodeBlock)
+	return ok && b.Fenced && b.Language() == "go"
 }
 
 func indentedCode() bool {
-	b := firstBlock(parseDoc("    x\n"), parser.CodeBlock)
-	return b != nil && !b.Fenced
+	b, ok := firstBlock(parseDoc("    x\n"), markdown.CodeBlock)
+	return ok && !b.Fenced
 }
 
-func blockQuote() bool { return firstBlock(parseDoc("> quote\n"), parser.Quote) != nil }
+func blockQuote() bool {
+	_, ok := firstBlock(parseDoc("> quote\n"), markdown.Quote)
+	return ok
+}
+
 func orderedList() bool {
-	b := firstBlock(parseDoc("1. one\n2. two\n"), parser.List)
-	return b != nil && b.Ordered
+	b, ok := firstBlock(parseDoc("1. one\n2. two\n"), markdown.List)
+	return ok && b.Ordered
 }
+
 func unorderedList() bool {
-	b := firstBlock(parseDoc("- one\n- two\n"), parser.List)
-	return b != nil && !b.Ordered
+	b, ok := firstBlock(parseDoc("- one\n- two\n"), markdown.List)
+	return ok && !b.Ordered
 }
+
 func nestedList() bool {
 	d := parseDoc("- one\n  - two\n")
 	n := 0
-	for i := 1; i < d.Len(); i++ {
-		if d.Block(i).Kind == parser.List {
+	for _, b := range d.Blocks() {
+		if b.Kind == markdown.List {
 			n++
 		}
 	}
 	return n >= 2
 }
 
-func thematicBreak() bool { return firstBlock(parseDoc("---\n"), parser.ThematicBreak) != nil }
+func thematicBreak() bool {
+	_, ok := firstBlock(parseDoc("---\n"), markdown.ThematicBreak)
+	return ok
+}
 
 func inlineLink() bool {
 	d := parseDoc("[a](/u \"t\")\n")
-	for _, in := range d.Inlines(1) {
-		if in.Kind == parser.Link && in.Dest == "/u" && in.Title == "t" {
+	for _, in := range firstBlockInlines(d, markdown.Paragraph) {
+		if in.Kind == markdown.Link && in.Dest == "/u" && in.Title == "t" {
 			return true
 		}
 	}
@@ -531,8 +548,8 @@ func inlineLink() bool {
 
 func referenceLink() bool {
 	d := parseDoc("[a][r]\n\n[r]: /u\n")
-	for _, in := range d.Inlines(1) {
-		if in.Kind == parser.Link && in.Dest == "/u" {
+	for _, in := range firstBlockInlines(d, markdown.Paragraph) {
+		if in.Kind == markdown.Link && in.Dest == "/u" {
 			return true
 		}
 	}
@@ -541,8 +558,8 @@ func referenceLink() bool {
 
 func angleAutolink() bool {
 	d := parseDoc("<https://example.com>\n")
-	for _, in := range d.Inlines(1) {
-		if in.Kind == parser.Link && in.Auto && in.Dest == "https://example.com" {
+	for _, in := range firstBlockInlines(d, markdown.Paragraph) {
+		if in.Kind == markdown.Link && in.Auto && in.Dest == "https://example.com" {
 			return true
 		}
 	}
@@ -551,50 +568,53 @@ func angleAutolink() bool {
 
 func image() bool {
 	d := parseDoc("![alt](/i.png)\n")
-	for _, in := range d.Inlines(1) {
-		if in.Kind == parser.Image && in.Dest == "/i.png" {
+	for _, in := range firstBlockInlines(d, markdown.Paragraph) {
+		if in.Kind == markdown.Image && in.Dest == "/i.png" {
 			return true
 		}
 	}
 	return false
 }
 
-func htmlBlock() bool { return firstBlock(parseDoc("<div>x</div>\n"), parser.HTMLBlock) != nil }
-func inlineHTML() bool {
-	return hasInline(parseDoc("text <b>bold</b>\n"), parser.HTML)
+func htmlBlock() bool {
+	_, ok := firstBlock(parseDoc("<div>x</div>\n"), markdown.HTMLBlock)
+	return ok
 }
+
+func inlineHTML() bool {
+	return hasInline(parseDoc("text <b>bold</b>\n"), markdown.HTML)
+}
+
 func escapesEntities() bool {
 	d := parseDoc(`\* \&amp;` + "\n")
-	for _, in := range d.Inlines(1) {
-		if in.Kind == parser.Text && strings.Contains(in.Text, "*") && strings.Contains(in.Text, "&") {
-			return true
-		}
-	}
-	return false
+	in := firstBlockInlines(d, markdown.Paragraph)
+	// The parser may split one source run across several Text inlines; the
+	// feature under test is the resolved text, not the node boundaries.
+	text := markdown.PlainText(in)
+	return strings.Contains(text, "*") && strings.Contains(text, "&")
 }
 
 func table() bool {
-	d := parseDoc("| a | b |\n|:--|--:|\n| 1 | 2 |\n")
-	b := firstBlock(d, parser.Table)
-	return b != nil && len(b.Align) == 2
+	b, ok := firstBlock(parseDoc("| a | b |\n|:--|--:|\n| 1 | 2 |\n"), markdown.Table)
+	return ok && len(b.Align) == 2
 }
 
 func taskList() bool {
 	d := parseDoc("- [ ] todo\n- [x] done\n")
-	for i := 1; i < d.Len(); i++ {
-		if b := d.Block(i); b.Kind == parser.Item && b.Task == parser.Checked {
+	for _, b := range d.Blocks() {
+		if b.Kind == markdown.Item && b.Task == markdown.TaskChecked {
 			return true
 		}
 	}
 	return false
 }
 
-func strikethrough() bool { return hasInline(parseDoc("~~old~~\n"), parser.Strikethrough) }
+func strikethrough() bool { return hasInline(parseDoc("~~old~~\n"), markdown.Strikethrough) }
 
 func bareAutolink() bool {
 	d := parseDoc("https://example.com\n")
-	for _, in := range d.Inlines(1) {
-		if in.Kind == parser.Link && in.Auto && in.Dest == "https://example.com" {
+	for _, in := range firstBlockInlines(d, markdown.Paragraph) {
+		if in.Kind == markdown.Link && in.Auto && in.Dest == "https://example.com" {
 			return true
 		}
 	}
@@ -603,15 +623,17 @@ func bareAutolink() bool {
 
 func footnote() bool {
 	d := parseDoc("text[^1]\n\n[^1]: note\n")
-	return firstBlock(d, parser.FootnoteDefinition) != nil && hasInline(d, parser.FootnoteRef)
+	_, ok := firstBlock(d, markdown.FootnoteDefinition)
+	return ok && hasInline(d, markdown.FootnoteRef)
 }
 
 func math() bool {
 	d := parseDoc("$$\nx\n$$\n")
-	return firstBlock(d, parser.MathBlock) != nil || hasInline(d, parser.Math)
+	_, ok := firstBlock(d, markdown.MathBlock)
+	return ok || hasInline(d, markdown.Math)
 }
 
-func dollarMath() bool { return hasInline(parseDoc("$x$\n"), parser.Math) }
+func dollarMath() bool { return hasInline(parseDoc("$x$\n"), markdown.Math) }
 
 // frontMatter reports whether a YAML front matter fence becomes metadata. It
 // does not: the probe is supported only if the parser exposes metadata, which
@@ -628,11 +650,11 @@ func definitionList() bool {
 
 func mermaidRender() bool {
 	d := parseDoc("```mermaid\ngraph TD\nA-->B\n```\n")
-	b := firstBlock(d, parser.CodeBlock)
+	b, ok := firstBlock(d, markdown.CodeBlock)
 	// Parsing the fence is not rendering it; the native Mermaid renderer is
 	// explicitly out of this task (C03), so the row stays unsupported even
 	// though the source round-trips as a Mermaid-labelled code block.
-	_ = b != nil && b.Language() == "mermaid"
+	_ = ok && b.Language() == "mermaid"
 	return false
 }
 
