@@ -336,7 +336,13 @@ func (a *App) clearHistory() {
 }
 
 func (a *App) deleteHistory(r historyRecord) {
-	if _, err := a.store().removeRecord(historyKey(a.ps), r.ID, r.Ts); err != nil {
+	key := historyKey(a.ps)
+	if r.ProjectKey != "" {
+		// In the all-project view the row may belong to another project, and its
+		// record must be removed from that project's file, not the focused one.
+		key = r.ProjectKey
+	}
+	if _, err := a.store().removeRecord(key, r.ID, r.Ts); err != nil {
 		a.historyUI.diag = translate(a.msg().HistoryWriteFailed, err.Error())
 		return
 	}
@@ -349,8 +355,34 @@ func (a *App) deleteHistory(r historyRecord) {
 // restoreHistory reopens the recorded request (by id) and fills its URL/method
 // from the record, as an edit the user can then inspect or resend. URLs are
 // stored redacted, so restoring never puts a live secret back in the editor.
+// A row from another project is opened in that project's window when it is open;
+// it is never applied to the focused project.
 func (a *App) restoreHistory(r historyRecord) {
 	if a.ps == nil || a.ps.project == nil {
+		return
+	}
+	if r.ProjectKey != "" && r.ProjectKey != historyKey(a.ps) {
+		target := a.workspaceForKey(r.ProjectKey)
+		if target == nil {
+			a.status = a.msg().HistoryProjectNotOpen
+			return
+		}
+		if e, ok := target.ps.project.Requests[r.RequestID]; ok && e.Request != nil {
+			target.ps.openRequest(e)
+			if tab := target.ps.activeTab(); tab != nil {
+				tab.Method = r.Method
+				tab.URL = r.URL
+				tab.Dirty = true
+			}
+			target.historyView = false
+			target.historyUI.detailOpen = false
+			a.historyView = false
+			a.historyUI.detailOpen = false
+			target.win.Show()
+			target.win.Focus()
+			return
+		}
+		a.status = a.msg().HistoryRequestGone
 		return
 	}
 	if e, ok := a.ps.project.Requests[r.RequestID]; ok && e.Request != nil {
@@ -368,6 +400,24 @@ func (a *App) restoreHistory(r historyRecord) {
 	tab.Dirty = true
 	a.historyView = false
 	a.historyUI.detailOpen = false
+}
+
+// workspaceForKey finds an open project window by its history key. It does not
+// create or reopen a project, so a history row can never silently launch a
+// different workspace.
+func (a *App) workspaceForKey(key string) *App {
+	if a.mgr == nil || key == "" {
+		return nil
+	}
+	for _, app := range a.mgr.workspaces {
+		if app == nil || app.closed || app.win == nil || app.win.IsDestroyed() {
+			continue
+		}
+		if historyKey(app.ps) == key {
+			return app
+		}
+	}
+	return nil
 }
 
 // historyDiagnostics turns a load result into one short, user-facing line.
@@ -482,7 +532,10 @@ func (a *App) historyPanel(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Grow(1).FillWidth().Children(func() {
 		ui.Row(c).Padding(6, 10, 4, 10).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, m.HistoryLabel).FontSize(11).FontWeight(600).TextColor(p.Muted).Grow(1)
-			if len(a.historyRecords) > 0 {
+			// Clearing is scoped to this project, so it is only offered while the
+			// panel shows this project. The all-project view is read-only on
+			// purpose: one click must not erase other projects' history.
+			if len(a.historyRecords) > 0 && !a.historyUI.allProjects {
 				if b := ui.Button(c, m.ClearHistory).Clicked(); b {
 					a.historyClearOpen = true
 				}

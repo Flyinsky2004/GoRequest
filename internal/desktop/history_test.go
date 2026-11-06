@@ -310,6 +310,75 @@ func TestHistoryClearOnlyRemovesCurrentProject(t *testing.T) {
 	}
 }
 
+func TestHistoryAllProjectDeleteTargetsOwningProject(t *testing.T) {
+	a, ps, hs := newHistoryTestApp(t)
+	other := "other-abc12345"
+	now := time.Now()
+	mine, err := hs.appendRecord(historyKey(ps), localstate.Record{Ts: now, Method: "GET", URL: "http://mine", Status: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs, err := hs.appendRecord(other, localstate.Record{Ts: now, ProjectName: "Other", Method: "GET", URL: "http://other", Status: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.historyUI = historyUIState{allProjects: true}
+	a.reloadHistory()
+	if len(a.historyRecords) != 2 {
+		t.Fatalf("all records = %d", len(a.historyRecords))
+	}
+	a.deleteHistory(theirs.Record)
+
+	left, _ := hs.loadFiltered(historyKey(ps), localstate.Filter{})
+	if len(left.Records) != 1 || left.Records[0].ID != mine.Record.ID {
+		t.Fatalf("current project history changed: %+v", left.Records)
+	}
+	otherLeft, _ := hs.loadFiltered(other, localstate.Filter{})
+	if len(otherLeft.Records) != 0 {
+		t.Fatalf("other project record not deleted: %+v", otherLeft.Records)
+	}
+}
+
+func TestHistoryRestoreAnotherProjectWindow(t *testing.T) {
+	m, _ := newTestManager(t)
+	m.history = &historyStore{dir: t.TempDir()}
+	if err := m.openProject(writeProject(t, "One")); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.openProject(writeProject(t, "Two")); err != nil {
+		t.Fatal(err)
+	}
+	one, two := m.workspaces[0], m.workspaces[1]
+	entry, err := two.ps.project.NewRequest("", "Beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	one.historyView = true
+	one.restoreHistory(historyRecord{
+		ProjectKey: historyKey(two.ps),
+		RequestID:  entry.Request.ID,
+		Method:     "POST",
+		URL:        "http://two.test/restored",
+		Ts:         time.Now(),
+	})
+	tab := two.ps.activeTab()
+	if tab == nil || tab.URL != "http://two.test/restored" || tab.Method != "POST" || !tab.Dirty {
+		t.Fatalf("record was not restored into the owning project: %+v", tab)
+	}
+	if one.historyView {
+		t.Fatal("restoring should leave the history view")
+	}
+	if one.ps.activeTab() != nil {
+		t.Fatal("another project's history must not modify the focused project's tabs")
+	}
+
+	one.historyView = true
+	one.restoreHistory(historyRecord{ProjectKey: "closed-ffffffff", Method: "GET", URL: "http://x"})
+	if !strings.Contains(one.status, "Open that project first") {
+		t.Fatalf("closed-project restore should be refused with a clear status: %q", one.status)
+	}
+}
+
 func TestHistoryDiagnosticsReportCorruptLines(t *testing.T) {
 	a, ps, hs := newHistoryTestApp(t)
 	key := historyKey(ps)

@@ -318,6 +318,7 @@ type messages struct {
 	HistoryDetailDelete      string
 	HistoryRedactedNote      string
 	HistoryRequestGone       string
+	HistoryProjectNotOpen    string
 	HistoryBodyOmitted       string // %s
 	HistoryOmitPolicy        string
 	HistoryOmitLarge         string
@@ -602,6 +603,7 @@ var messagesZh = messages{
 	HistoryDetailDelete:      "删除此记录",
 	HistoryRedactedNote:      "已脱敏；恢复时将使用脱敏后的 URL。",
 	HistoryRequestGone:       "请求已不存在，无法打开",
+	HistoryProjectNotOpen:    "该项目未打开，请先打开项目再恢复此请求",
 	HistoryBodyOmitted:       "正文未保存：%s",
 	HistoryOmitPolicy:        "默认策略",
 	HistoryOmitLarge:         "超过大小上限",
@@ -883,6 +885,7 @@ var messagesEn = messages{
 	HistoryDetailDelete:      "Delete this record",
 	HistoryRedactedNote:      "Redacted. Opening the request uses the redacted URL.",
 	HistoryRequestGone:       "The request no longer exists, so it cannot be opened",
+	HistoryProjectNotOpen:    "Open that project first to reopen this request from history",
 	HistoryBodyOmitted:       "Body not stored: %s",
 	HistoryOmitPolicy:        "default policy",
 	HistoryOmitLarge:         "over the size limit",
