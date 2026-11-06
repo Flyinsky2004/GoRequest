@@ -240,3 +240,23 @@ B09 启动核对：已确认新 worktree 的目录信任；屏幕明确显示 `C
 提示词与精确 tab ID 仅存本机临时 `/private/tmp/gorequest-next-20261106/{sessions.json,<ID>.prompt.txt}`，不入 Git。后续查询以终端屏幕、分支提交与交付文档交叉核对；新任务未交付/未集成，暂不打勾。A02 仍未分派，等待 A01 稳定接口。B05-UI 和 R01-parser 为旧卡的独立剩余子任务，不能把它们算作新的正式版整卡。
 
 启动核对补充：五个终端均为 working，三个 CC 屏幕显示当前配置 DeepSeek-V4.1-Flash / accept edits；两个 agy 屏幕均显示 Gemini 4 Argon Medium，目录信任按用户既有授权解除。当前 agy 对 `--model gemini-4-argon-medium` 有未识别提示并忽略该 flag，但会话实际沿用用户已选中的 Argon Medium，未回落到 Opus；后续重启应先核对 CLI 支持的模型 ID 与实际屏幕，不能只凭启动参数断言模型。
+
+## 12. 用户反馈 UI 修复并行派工（Codex / Herdr）
+
+用户新要求：①标签栏滚动条遮住标签底部，参考 VS Code 放上方并更细；②关闭叉与图标/文字不在同一水平线；③发送及大部分功能按钮 hover 缺少手型；④响应区正文/头部/Cookie/网络应固定在最左侧，不被仅正文存在的美化/原始/树形切换挤动。
+
+前两项共用标签组件，合并给一个 Codex，另两项各一名 Codex，共三个独立 worktree。原 A01/A03/A04/B05-UI/R01-parser 五条开发继续，不中断。新任务只处理现有 UI，公共模型/业务引擎/依赖不改；涉及现有功能 agent 的共享壳层只提交精确接线 patch。
+
+| 修复子任务 | 用户问题 | 分支 / worktree | 文件归属 | 状态 |
+| --- | --- | --- | --- | --- |
+| UI01-tabs | 1、2 | `codex/UI01-tabs` / `../GoRequest-UI01-tabs` | `desktop/tab_bar.go`、`uikit/tab.go` 及独立测试；滚动条上移/变细和关闭按钮对齐，同步实际内联标签与组件示例 | 待启动核对 |
+| UI02-cursors | 3 | `codex/UI02-cursors` / `../GoRequest-UI02-cursors` | `uikit/components.go`、`uikit/response.go`、其他按钮组件及必要现有视图的 cursor 增量；不直接改 UI01/UI03 专属文件 | 待启动核对 |
+| UI03-response | 4 | `codex/UI03-response-toolbar` / `../GoRequest-UI03-response` | `desktop/response_view.go`、独立布局/交互测试；内容分类固定靠左，正文格式切换与上下文操作在其后，不改网络引擎 | 待启动核对 |
+
+UI02 如发现标签/响应文件存在直接按钮，交该两卡精确位置清单/patch，交集成人统一应用；不批量覆盖其他工作。UI01/UI03 在本卡修改区域同步设定启用按钮 CursorPointer，禁用状态/文本编辑/拖拽/滚动仍保留正确光标。视觉更细不等于缩小关闭按钮或滚动条拖拽命中范围。必须保留标签切换/中键/双击/脏关闭保护，以及响应树/二进制/下载/取消功能。
+
+- [ ] UI01 标签栏滚动条与关闭按钮：待实现、集成及验证。
+- [ ] UI02 功能按钮鼠标样式：待实现、集成及验证。
+- [ ] UI03 响应区固定切换顺序：待实现、集成及验证。
+
+先核对当前 MyGo v0.7.4 本地 API，再选择最小修复；不修改 Go module 缓存或升级依赖。验证应针对几何/hover/交互风险，无窗口自动化和真实窗口检查分别记录；不要宣称未做的人工验收通过。提交专属交付报告 docs/task-results/UI0x.md，功能集成后由集成人打勾。
