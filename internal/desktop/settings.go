@@ -51,10 +51,9 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 	p := uikit.PaletteFor(t)
 	ui.Column(c).Gap(10).MinWidth(520).Children(func() {
 		ui.Text(c, m.SettingsTitle).FontSize(17).FontWeight(700).TextColor(p.Text)
-		// The preference groups grew past a small welcome window, so they scroll
-		// while the Done action stays fixed and reachable.
-		ui.Scroll(c).MaxHeight(300).Children(func() {
-			ui.Column(c).Gap(10).Children(func() {
+
+		ui.Scroll(c).MaxHeight(300).FillWidth().Children(func() {
+			ui.Column(c).Gap(10).FillWidth().Children(func() {
 				settingsGroup(c, p, m.AppearanceLabel, func() {
 					choice := appearanceDisplay(m, cfg.appearance())
 					if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
@@ -93,6 +92,33 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 				if prefs != nil {
 					prefs.settingsGroups(c, p, m, setStatus)
 				}
+
+				settingsGroup(c, p, m.HistorySettingsLabel, func() {
+					ui.Column(c).Gap(8).Children(func() {
+						snap := cfg.historySaveSnapshots()
+						if ui.Checkbox(c, &snap, m.HistorySaveSnapshots).Changed() {
+							cfg.setHistorySaveSnapshots(snap)
+							if !snap {
+								// Bodies cannot be captured when snapshots are off.
+								cfg.setHistorySaveBodies(false)
+							}
+						}
+						bodies := cfg.historySaveBodies()
+						cb := ui.Checkbox(c, &bodies, m.HistorySaveBodies).Disabled(!snap)
+						if snap && cb.Changed() {
+							cfg.setHistorySaveBodies(bodies)
+						}
+						ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, m.HistoryRetentionLabel).Grow(1).FontSize(12).TextColor(p.Muted).SingleLine()
+							choices := historyRetentionChoices(m)
+							choice := historyRetentionLabel(m, cfg.historyRetentionDays())
+							if ui.Select(c, &choice, choices).Width(190).Changed() {
+								cfg.setHistoryRetentionDays(historyRetentionValue(choices, choice))
+							}
+						})
+						ui.Text(c, m.HistorySettingsNote).FontSize(11).TextColor(p.Faint)
+					})
+				})
 
 				ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
 					ui.Column(c).Gap(2).Children(func() {
@@ -169,4 +195,34 @@ func configLocation(m *messages, cfg *configStore) string {
 		return m.InMemoryConfig
 	}
 	return displayPath(cfg.path)
+}
+
+// historyRetentionChoices returns the localized retention options in display
+// order; historyRetentionValues is the parallel canonical value list.
+func historyRetentionChoices(m *messages) []string {
+	return []string{m.HistoryRetention30, m.HistoryRetention90, m.HistoryRetention365, m.HistoryRetentionForever}
+}
+
+func historyRetentionValues() []int { return []int{30, 90, 365, -1} }
+
+// historyRetentionLabel maps the stored days value to its localized label,
+// falling back to the 90-day label for an unknown value.
+func historyRetentionLabel(m *messages, days int) string {
+	for i, v := range historyRetentionValues() {
+		if v == days {
+			return historyRetentionChoices(m)[i]
+		}
+	}
+	return m.HistoryRetention90
+}
+
+// historyRetentionValue maps a chosen label back to its canonical days value.
+func historyRetentionValue(choices []string, choice string) int {
+	values := historyRetentionValues()
+	for i, label := range choices {
+		if label == choice {
+			return values[i]
+		}
+	}
+	return 90
 }

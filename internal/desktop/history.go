@@ -1,40 +1,42 @@
 package desktop
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
+	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"gorequest/internal/core"
 	"gorequest/internal/desktop/uikit"
+	"gorequest/internal/localstate"
 )
 
-// Request history (§3): one metadata record per send, stored locally (never in
-// the project dir or Git). Plan A: metadata only — no response bodies.
+// Request history (§3): local only, never in the project directory or Git.
+//
+// The on-disk engine and the record model live in internal/localstate so they
+// stay pure Go and reusable by a future Runner. This file adapts one project
+// window to that engine: it derives the per-clone key, turns a plan/result or
+// an execution error into a redacted record, and renders the panel.
 
-type historyRecord struct {
-	Ts         time.Time `json:"ts"`
-	Method     string    `json:"method"`
-	URL        string    `json:"url"`
-	Env        string    `json:"env,omitempty"`
-	Status     int       `json:"status"`
-	DurationMs int64     `json:"durationMs"`
-	SizeBytes  int64     `json:"size"`
-	RequestID  string    `json:"requestId,omitempty"`
-}
+// historyRecord is the local history model. Keeping this alias means existing
+// callers (and old JSONL files) keep working while the engine owns the format.
+type historyRecord = localstate.Record
 
-// historyStore reads and appends JSONL under a local data directory, one file per
-// project. An empty dir disables it (used in headless tests unless set up).
+// historyStore is the desktop-side adapter for one history directory. It owns a
+// single engine instance so concurrent appends from one process are serialized,
+// and it applies the limits configured by the application.
 type historyStore struct {
-	dir string
+	dir    string
+	mu     sync.Mutex
+	engine *localstate.Store
+	limits localstate.Limits
 }
 
 func defaultHistoryDir() string {
@@ -47,168 +49,347 @@ func defaultHistoryDir() string {
 
 func newHistoryStore() *historyStore { return &historyStore{dir: defaultHistoryDir()} }
 
-func (s *historyStore) path(key string) string {
-	if s == nil || s.dir == "" || key == "" {
-		return ""
+func (s *historyStore) get() *localstate.Store {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.engine == nil {
+		s.engine = localstate.NewStore(s.dir, s.limits)
 	}
-	return filepath.Join(s.dir, key+".jsonl")
+	return s.engine
 }
 
-// historyKey derives a per-project file key from the project id and a hash of
-// the normalized root, so two clones of the same repo never share history.
+// configure updates the retention/size limits used by later writes.
+func (s *historyStore) configure(l localstate.Limits) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.limits = l
+	if s.engine == nil {
+		s.engine = localstate.NewStore(s.dir, l)
+		return
+	}
+	s.engine.SetLimits(l)
+}
+
+// load returns records for key, newest first. It is kept for the existing
+// metadata-only callers; richer callers use loadFiltered.
+func (s *historyStore) load(key string) []historyRecord {
+	res, _ := s.get().Load(key)
+	return res.Records
+}
+
+func (s *historyStore) loadFiltered(key string, f localstate.Filter) (localstate.LoadResult, error) {
+	return s.get().LoadFiltered(key, f)
+}
+
+func (s *historyStore) loadAll(f localstate.Filter) (localstate.AllResult, error) {
+	return s.get().LoadAll(f)
+}
+
+func (s *historyStore) append(key string, r historyRecord) error {
+	_, err := s.get().Append(key, r)
+	return err
+}
+
+func (s *historyStore) appendRecord(key string, r historyRecord) (localstate.AppendResult, error) {
+	return s.get().Append(key, r)
+}
+
+func (s *historyStore) remove(key string, ts time.Time) {
+	_, _ = s.get().Remove(key, "", ts)
+}
+
+func (s *historyStore) removeRecord(key, id string, ts time.Time) (bool, error) {
+	return s.get().Remove(key, id, ts)
+}
+
+func (s *historyStore) clear(key string) error { return s.get().Clear(key) }
+
+func (s *historyStore) cleanup(key string) (localstate.CleanupResult, error) {
+	return s.get().Cleanup(key)
+}
+
+// historyKey derives a per-project file key from the stable project id and a
+// hash of the normalized root, so two clones of the same repo never share
+// history. The shape matches the previous metadata-only store.
 func historyKey(ps *projectState) string {
 	if ps == nil {
 		return ""
 	}
-	id := "proj"
-	if ps.project != nil && ps.project.File != nil && strings.TrimSpace(ps.project.File.ID) != "" {
-		id = core.Slug(ps.project.File.ID)
+	id := ""
+	if ps.project != nil && ps.project.File != nil {
+		id = ps.project.File.ID
 	}
-	sum := sha256.Sum256([]byte(ps.root))
-	return id + "-" + hex.EncodeToString(sum[:])[:8]
-}
-
-func (s *historyStore) load(key string) []historyRecord {
-	p := s.path(key)
-	if p == "" {
-		return nil
-	}
-	b, err := os.ReadFile(p)
-	if err != nil {
-		return nil
-	}
-	var out []historyRecord
-	for _, line := range strings.Split(string(b), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		var r historyRecord
-		if json.Unmarshal([]byte(line), &r) == nil {
-			out = append(out, r)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Ts.After(out[j].Ts) })
-	return out
-}
-
-func (s *historyStore) append(key string, r historyRecord) error {
-	p := s.path(key)
-	if p == "" {
-		return nil
-	}
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
-		return err
-	}
-	b, err := json.Marshal(r)
-	if err != nil {
-		return err
-	}
-	f, err := os.OpenFile(p, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.Write(append(b, '\n'))
-	return err
-}
-
-func (s *historyStore) writeAll(key string, recs []historyRecord) error {
-	p := s.path(key)
-	if p == "" {
-		return nil
-	}
-	if len(recs) == 0 {
-		return s.clear(key)
-	}
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
-		return err
-	}
-	var b strings.Builder
-	for _, r := range recs {
-		line, err := json.Marshal(r)
-		if err != nil {
-			return err
-		}
-		b.Write(line)
-		b.WriteByte('\n')
-	}
-	return os.WriteFile(p, []byte(b.String()), 0o600)
-}
-
-func (s *historyStore) remove(key string, ts time.Time) {
-	recs := s.load(key)
-	kept := recs[:0]
-	for _, r := range recs {
-		if !r.Ts.Equal(ts) {
-			kept = append(kept, r)
-		}
-	}
-	_ = s.writeAll(key, kept)
-}
-
-func (s *historyStore) clear(key string) error {
-	p := s.path(key)
-	if p == "" {
-		return nil
-	}
-	err := os.Remove(p)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	return err
+	return localstate.ProjectKey(id, ps.root)
 }
 
 // --- App integration -----------------------------------------------------
 
-func (a *App) store() *historyStore {
-	if a.mgr != nil && a.mgr.history != nil {
-		return a.mgr.history
+func (a *App) historyPolicy() localstate.Policy {
+	p := localstate.DefaultPolicy()
+	if a.mgr != nil && a.mgr.cfg != nil {
+		p.Snapshots = a.mgr.cfg.historySaveSnapshots()
+		p.Bodies = p.Snapshots && a.mgr.cfg.historySaveBodies()
 	}
-	return &historyStore{dir: ""} // disabled (tests without a configured store)
+	return p
 }
 
-func (a *App) recordHistory(tab *Tab, url string, res *core.ExecResult) {
-	if tab == nil || tab.Entry == nil || tab.Entry.Request == nil || res == nil {
+func (a *App) historyLimits() localstate.Limits {
+	l := localstate.DefaultLimits()
+	if a.mgr != nil && a.mgr.cfg != nil {
+		days := a.mgr.cfg.historyRetentionDays()
+		if days < 0 {
+			l.Retention = -1 // keep until the record/byte cap removes it
+		} else {
+			l.Retention = time.Duration(days) * 24 * time.Hour
+		}
+	}
+	return l
+}
+
+func (a *App) store() *historyStore {
+	if a.mgr != nil && a.mgr.history != nil {
+		a.mgr.history.configure(a.historyLimits())
+		return a.mgr.history
+	}
+	return &historyStore{dir: ""} // disabled (tests or no config directory)
+}
+
+// recordHistory stores a completed send. The URL/headers/bodies are redacted by
+// the shared B05 Redactor before they reach disk, and bodies are omitted unless
+// the user opted in.
+func (a *App) recordHistory(tab *Tab, plan *core.Plan, red *core.Redactor, res *core.ExecResult) {
+	if tab == nil || tab.Entry == nil || tab.Entry.Request == nil || plan == nil || res == nil {
 		return
 	}
-	rec := historyRecord{
-		Ts:         time.Now(),
-		Method:     tab.Method,
-		URL:        url,
-		Env:        a.ps.currentEnv(),
-		Status:     res.Status,
-		DurationMs: res.Duration.Microseconds() / 1000,
-		SizeBytes:  res.BodySize,
-		RequestID:  tab.Entry.Request.ID,
+	s := a.store()
+	if s.dir == "" {
+		return
 	}
-	_ = a.store().append(historyKey(a.ps), rec)
+	in := a.historyInput(tab, plan, red, localstate.OutcomeOK)
+	in.Status = res.Status
+	in.Proto = res.Proto
+	in.Duration = res.Duration
+	in.SizeBytes = res.BodySize
+	in.ResponseHeaders = res.Headers
+	in.ResponseBody = res.Body
+	in.ResponseTruncated = res.Truncated
+	rec := localstate.BuildRecord(in, a.historyPolicy())
+	ares, err := s.appendRecord(historyKey(a.ps), rec)
+	if err != nil {
+		a.historyUI.diag = translate(a.msg().HistoryWriteFailed, err.Error())
+		a.status = translate(a.msg().HistoryWriteFailed, err.Error())
+		return
+	}
 	if a.historyView {
 		a.reloadHistory()
 	}
+	if ares.CorruptLines > 0 {
+		a.appendHistoryDiag(translate(a.msg().HistoryDiagCorrupt, ares.CorruptLines))
+	}
+	if ares.Trimmed {
+		a.appendHistoryDiag(a.msg().HistorySnapshotTrimmed)
+	}
+}
+
+// recordHistoryFailure stores a send that produced no response. Canceled and
+// timed-out sends are distinguished from transport/config errors so the result
+// filter is truthful; the error text is redacted like every other string.
+func (a *App) recordHistoryFailure(tab *Tab, plan *core.Plan, red *core.Redactor, err, ctxErr error) {
+	if tab == nil || tab.Entry == nil || tab.Entry.Request == nil || plan == nil || err == nil {
+		return
+	}
+	s := a.store()
+	if s.dir == "" {
+		return
+	}
+	outcome := localstate.OutcomeError
+	switch {
+	case errors.Is(ctxErr, context.Canceled), errors.Is(err, context.Canceled):
+		outcome = localstate.OutcomeCanceled
+	case errors.Is(ctxErr, context.DeadlineExceeded), errors.Is(err, context.DeadlineExceeded):
+		outcome = localstate.OutcomeTimeout
+	case strings.Contains(strings.ToLower(err.Error()), "timed out after"):
+		// core.Execute wraps its own deadline into a RunError, so the outer ctx
+		// cannot reveal it; its stable message is the transport fact we have.
+		outcome = localstate.OutcomeTimeout
+	}
+	in := a.historyInput(tab, plan, red, outcome)
+	in.Error = err.Error()
+	rec := localstate.BuildRecord(in, a.historyPolicy())
+	ares, err := s.appendRecord(historyKey(a.ps), rec)
+	if err != nil {
+		a.historyUI.diag = translate(a.msg().HistoryWriteFailed, err.Error())
+		a.status = translate(a.msg().HistoryWriteFailed, err.Error())
+		return
+	}
+	if a.historyView {
+		a.reloadHistory()
+	}
+	if ares.CorruptLines > 0 {
+		a.appendHistoryDiag(translate(a.msg().HistoryDiagCorrupt, ares.CorruptLines))
+	}
+	if ares.Trimmed {
+		a.appendHistoryDiag(a.msg().HistorySnapshotTrimmed)
+	}
+}
+
+// historyInput is the reusable port the desktop fills from the current
+// plan/ExecResult shape. A future Runner can populate the same localstate.HistoryInput
+// fields without a second history model.
+func (a *App) historyInput(tab *Tab, plan *core.Plan, red *core.Redactor, outcome string) localstate.HistoryInput {
+	return localstate.HistoryInput{
+		Ts:                 time.Now(),
+		ProjectKey:         historyKey(a.ps),
+		ProjectName:        a.ps.name(),
+		RequestID:          tab.Entry.Request.ID,
+		RequestName:        tab.Title,
+		Environment:        a.ps.currentEnv(),
+		Method:             plan.Method,
+		URL:                effectivePlanURL(plan),
+		Outcome:            outcome,
+		RequestHeaders:     plan.Headers,
+		RequestBody:        plan.Body,
+		RequestContentType: headerValue(plan.Headers, "Content-Type"),
+		Redactor:           red,
+		Policy:             a.historyPolicy(),
+	}
+}
+
+// effectivePlanURL mirrors the URL Execute actually sends: plan.Query entries
+// are appended to plan.URL. Storing only plan.URL would drop the query string
+// from history.
+func effectivePlanURL(plan *core.Plan) string {
+	if plan == nil {
+		return ""
+	}
+	u, err := url.Parse(plan.URL)
+	if err != nil || len(plan.Query) == 0 {
+		return plan.URL
+	}
+	q := u.Query()
+	for _, kv := range plan.Query {
+		q.Add(kv[0], kv[1])
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func headerValue(headers [][2]string, name string) string {
+	for _, kv := range headers {
+		if strings.EqualFold(kv[0], name) {
+			return kv[1]
+		}
+	}
+	return ""
 }
 
 func (a *App) reloadHistory() {
+	s := a.store()
 	key := historyKey(a.ps)
-	a.historyRecords = a.store().load(key)
 	a.historyKey = key
+	a.historyUI.diag = ""
+	if s.dir == "" {
+		a.historyRecords = nil
+		a.historyUI.diag = a.msg().HistoryUnavailable
+		return
+	}
+	s.configure(a.historyLimits())
+	if a.historyUI.allProjects {
+		all, err := s.loadAll(localstate.Filter{})
+		a.historyRecords = all.Records
+		if a.historyUI.projectKey != "" && !historyHasProject(all.Records, a.historyUI.projectKey) {
+			a.historyUI.projectKey = ""
+		}
+		a.historyUI.diag = historyAllDiagnostics(all.Diagnostics, err, a.msg())
+		return
+	}
+	// Load first so corrupt-line and read diagnostics reflect what was actually
+	// on disk, then compact (retention/size/corrupt lines). A later refresh then
+	// reads the compacted file without losing the first pass's diagnostics.
+	res, err := s.loadFiltered(key, localstate.Filter{})
+	a.historyUI.diag = historyDiagnostics(res.Diagnostics, err, a.msg())
+	cleanupErr := error(nil)
+	if err == nil {
+		if _, cerr := s.cleanup(key); cerr != nil {
+			cleanupErr = cerr
+		} else if res2, err2 := s.loadFiltered(key, localstate.Filter{}); err2 == nil {
+			res = res2
+		}
+	}
+	a.historyRecords = res.Records
+	if cleanupErr != nil {
+		msg := translate(a.msg().HistoryReadFailed, cleanupErr.Error())
+		if a.historyUI.diag == "" {
+			a.historyUI.diag = msg
+		} else {
+			a.historyUI.diag += " · " + msg
+		}
+	}
 }
 
 func (a *App) clearHistory() {
-	_ = a.store().clear(historyKey(a.ps))
+	if err := a.store().clear(historyKey(a.ps)); err != nil {
+		a.historyUI.diag = translate(a.msg().HistoryWriteFailed, err.Error())
+		return
+	}
 	a.historyRecords = nil
+	a.reloadHistory()
+}
+
+func (a *App) deleteHistory(r historyRecord) {
+	key := historyKey(a.ps)
+	if r.ProjectKey != "" {
+		// In the all-project view the row may belong to another project, and its
+		// record must be removed from that project's file, not the focused one.
+		key = r.ProjectKey
+	}
+	if _, err := a.store().removeRecord(key, r.ID, r.Ts); err != nil {
+		a.historyUI.diag = translate(a.msg().HistoryWriteFailed, err.Error())
+		return
+	}
+	if a.historyUI.detailOpen && (a.historyUI.detail.ID == r.ID || a.historyUI.detail.Ts.Equal(r.Ts)) {
+		a.historyUI.detailOpen = false
+	}
+	a.reloadHistory()
 }
 
 // restoreHistory reopens the recorded request (by id) and fills its URL/method
-// from the record, as an edit the user can then inspect or resend.
+// from the record, as an edit the user can then inspect or resend. URLs are
+// stored redacted, so restoring never puts a live secret back in the editor.
+// A row from another project is opened in that project's window when it is open;
+// it is never applied to the focused project.
 func (a *App) restoreHistory(r historyRecord) {
 	if a.ps == nil || a.ps.project == nil {
+		return
+	}
+	if r.ProjectKey != "" && r.ProjectKey != historyKey(a.ps) {
+		target := a.workspaceForKey(r.ProjectKey)
+		if target == nil {
+			a.status = a.msg().HistoryProjectNotOpen
+			return
+		}
+		if e, ok := target.ps.project.Requests[r.RequestID]; ok && e.Request != nil {
+			target.ps.openRequest(e)
+			if tab := target.ps.activeTab(); tab != nil {
+				tab.Method = r.Method
+				tab.URL = r.URL
+				tab.Dirty = true
+			}
+			target.historyView = false
+			target.historyUI.detailOpen = false
+			a.historyView = false
+			a.historyUI.detailOpen = false
+			target.win.Show()
+			target.win.Focus()
+			return
+		}
+		a.status = a.msg().HistoryRequestGone
 		return
 	}
 	if e, ok := a.ps.project.Requests[r.RequestID]; ok && e.Request != nil {
 		a.ps.openRequest(e)
 	} else if a.ps.activeTab() == nil {
-		a.status = "request no longer exists"
+		a.status = a.msg().HistoryRequestGone
 		return
 	}
 	tab := a.ps.activeTab()
@@ -219,6 +400,126 @@ func (a *App) restoreHistory(r historyRecord) {
 	tab.URL = r.URL
 	tab.Dirty = true
 	a.historyView = false
+	a.historyUI.detailOpen = false
+}
+
+// workspaceForKey finds an open project window by its history key. It does not
+// create or reopen a project, so a history row can never silently launch a
+// different workspace.
+func (a *App) workspaceForKey(key string) *App {
+	if a.mgr == nil || key == "" {
+		return nil
+	}
+	for _, app := range a.mgr.workspaces {
+		if app == nil || app.closed || app.win == nil || app.win.IsDestroyed() {
+			continue
+		}
+		if historyKey(app.ps) == key {
+			return app
+		}
+	}
+	return nil
+}
+
+// historyDiagnostics turns a load result into one short, user-facing line.
+func historyDiagnostics(d localstate.Diagnostics, err error, m *messages) string {
+	var parts []string
+	if err != nil {
+		parts = append(parts, translate(m.HistoryReadFailed, err.Error()))
+	} else if d.ReadError != "" {
+		parts = append(parts, translate(m.HistoryReadFailed, d.ReadError))
+	}
+	if d.CorruptLines > 0 {
+		parts = append(parts, translate(m.HistoryDiagCorrupt, d.CorruptLines))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// appendHistoryDiag adds one line to the panel's diagnostics without hiding a
+// problem reported earlier in the same interaction.
+func (a *App) appendHistoryDiag(msg string) {
+	if strings.TrimSpace(msg) == "" {
+		return
+	}
+	if a.historyUI.diag == "" {
+		a.historyUI.diag = msg
+		return
+	}
+	a.historyUI.diag += " · " + msg
+}
+
+func historyAllDiagnostics(diags []localstate.Diagnostics, err error, m *messages) string {
+	if err != nil {
+		return translate(m.HistoryReadFailed, err.Error())
+	}
+	var corrupt int
+	var readErr string
+	for _, d := range diags {
+		corrupt += d.CorruptLines
+		if readErr == "" && d.ReadError != "" {
+			readErr = d.ReadError
+		}
+	}
+	var parts []string
+	if readErr != "" {
+		parts = append(parts, translate(m.HistoryReadFailed, readErr))
+	}
+	if corrupt > 0 {
+		parts = append(parts, translate(m.HistoryDiagCorrupt, corrupt))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// historyUIState is this window's history view state: project scope, filters,
+// diagnostics and the open detail preview. It lives on App as one field so no
+// package-level map owns per-window state.
+type historyUIState struct {
+	allProjects bool
+	// projectKey narrows the all-project view to one project; "" means all.
+	projectKey string
+	timeRange  int // 0 all, 1 today, 2 last 7 days, 3 last 30 days
+	result     int // 0 all, 1 success, 2 client, 3 server, 4 network, 5 canceled
+	query      string
+
+	diag string
+
+	detailOpen bool
+	detail     historyRecord
+}
+
+func (h historyUIState) filter(now time.Time) localstate.Filter {
+	f := localstate.Filter{Query: h.query}
+	if h.allProjects {
+		f.ProjectKey = h.projectKey
+	}
+	switch h.timeRange {
+	case 1:
+		f.Since = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	case 2:
+		f.Since = now.AddDate(0, 0, -7)
+	case 3:
+		f.Since = now.AddDate(0, 0, -30)
+	}
+	switch h.result {
+	case 1:
+		f.Result = "success"
+	case 2:
+		f.Result = "client"
+	case 3:
+		f.Result = "server"
+	case 4:
+		f.Result = "network"
+	case 5:
+		f.Result = "canceled"
+	}
+	return f
+}
+
+// visibleHistory applies the live filters to the already loaded scope. Disk is
+// touched only when the scope or data changes, so typing in the filter box does
+// not re-read history on every frame.
+func (a *App) visibleHistory() []historyRecord {
+	return localstate.FilterRecords(a.historyRecords, a.historyUI.filter(time.Now()))
 }
 
 // --- view -----------------------------------------------------------------
@@ -232,34 +533,100 @@ func (a *App) historyPanel(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Grow(1).FillWidth().Children(func() {
 		ui.Row(c).Padding(6, 10, 4, 10).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, m.HistoryLabel).FontSize(11).FontWeight(600).TextColor(p.Muted).Grow(1)
-			if len(a.historyRecords) > 0 {
+			// Clearing is scoped to this project, so it is only offered while the
+			// panel shows this project. The all-project view is read-only on
+			// purpose: one click must not erase other projects' history.
+			if len(a.historyRecords) > 0 && !a.historyUI.allProjects {
 				if b := ui.Button(c, m.ClearHistory).Clicked(); b {
 					a.historyClearOpen = true
 				}
 			}
 		})
-		if len(a.historyRecords) == 0 {
-			ui.Text(c, m.HistoryEmpty).FontSize(12).TextColor(p.Faint).Padding(4, 10)
-			return
+		a.historyFilters(c, p, m)
+		if a.historyUI.diag != "" {
+			ui.Text(c, a.historyUI.diag).FontSize(11).TextColor(p.Accent).Padding(2, 10)
 		}
-		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-			ui.Column(c).FillWidth().Children(func() {
-				lastDay := ""
-				for _, r := range a.historyRecords {
-					r := r
-					if d := dayKey(r.Ts); d != lastDay {
-						lastDay = d
-						ui.Text(c, dayLabel(r.Ts, m)).FontSize(11).FontWeight(600).TextColor(p.Faint).Padding(6, 10)
+		records := a.visibleHistory()
+		if len(records) == 0 {
+			text := m.HistoryEmpty
+			if len(a.historyRecords) > 0 {
+				text = m.HistoryNoMatch
+			}
+			ui.Text(c, text).FontSize(12).TextColor(p.Faint).Padding(4, 10)
+		} else {
+			ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+				ui.Column(c).FillWidth().Children(func() {
+					lastDay := ""
+					for _, r := range records {
+						r := r
+						if d := dayKey(r.Ts); d != lastDay {
+							lastDay = d
+							ui.Text(c, dayLabel(r.Ts, m)).FontSize(11).FontWeight(600).TextColor(p.Faint).Padding(6, 10)
+						}
+						a.historyRow(c, p, m, r)
 					}
-					a.historyRow(c, p, r)
-				}
+				})
 			})
-		})
+		}
+		ui.Text(c, m.HistoryPrivacyNote).FontSize(10).TextColor(p.Faint).Padding(4, 10, 8, 10)
 	})
 }
 
-func (a *App) historyRow(c *ui.Context, p uikit.Palette, r historyRecord) {
-	row := ui.Row(c).Height(30).FillWidth().AlignItems(ui.Center).Padding(0, 8).Gap(6).Clip()
+func (a *App) historyFilters(c *ui.Context, p uikit.Palette, m *messages) {
+	ui.Column(c).Padding(0, 10, 4, 10).Gap(4).Children(func() {
+		scope := 0
+		if a.historyUI.allProjects {
+			scope = 1
+		}
+		seg, changed := uikit.SimpleSegmented(c, p, &scope, []string{m.HistoryThisProject, m.HistoryAllProjects})
+		seg.FillWidth()
+		if changed {
+			a.historyUI.allProjects = scope == 1
+			a.historyUI.projectKey = ""
+			a.reloadHistory()
+		}
+
+		if a.historyUI.allProjects {
+			labels, keys := historyProjectOptions(a.historyRecords, m.HistoryAllProjects)
+			if len(keys) > 1 {
+				idx := 0
+				for i, k := range keys {
+					if k == a.historyUI.projectKey {
+						idx = i
+					}
+				}
+				choice := labels[idx]
+				if ui.Select(c, &choice, labels).FillWidth().Changed() {
+					a.historyUI.projectKey = keys[stringIndex(labels, choice)]
+				}
+			}
+		}
+
+		ui.Row(c).Gap(4).Children(func() {
+			timeChoices := []string{m.HistoryTimeAll, m.HistoryTimeToday, m.HistoryTimeWeek, m.HistoryTimeMonth}
+			timeIdx := clampIndex(a.historyUI.timeRange, len(timeChoices))
+			timeChoice := timeChoices[timeIdx]
+			if ui.Select(c, &timeChoice, timeChoices).Grow(1).Changed() {
+				a.historyUI.timeRange = stringIndex(timeChoices, timeChoice)
+			}
+
+			resultChoices := []string{
+				m.HistoryResultAll, m.HistoryResultSuccess, m.HistoryResultClient,
+				m.HistoryResultServer, m.HistoryResultNetwork, m.HistoryResultCanceled,
+			}
+			resultIdx := clampIndex(a.historyUI.result, len(resultChoices))
+			resultChoice := resultChoices[resultIdx]
+			if ui.Select(c, &resultChoice, resultChoices).Grow(1).Changed() {
+				a.historyUI.result = stringIndex(resultChoices, resultChoice)
+			}
+		})
+
+		ui.TextInput(c, &a.historyUI.query).Placeholder(m.HistoryFilterPlaceholder).FillWidth()
+	})
+}
+
+func (a *App) historyRow(c *ui.Context, p uikit.Palette, m *messages, r historyRecord) {
+	row := ui.Row(c).Height(32).FillWidth().AlignItems(ui.Center).Padding(0, 8).Gap(6).Clip()
 	if row.Hovered() {
 		row.Background(p.Hover)
 	}
@@ -270,20 +637,232 @@ func (a *App) historyRow(c *ui.Context, p uikit.Palette, r historyRecord) {
 		ui.Text(c, r.Ts.Format("15:04")).FontSize(11).FontFeatures("tnum").TextColor(p.Faint).Width(38).SingleLine()
 		ui.Text(c, r.Method).Font("monospace").FontWeight(700).FontSize(11).
 			TextColor(uikit.MethodColor(r.Method, p)).Width(40).SingleLine()
+		if a.historyUI.allProjects && r.ProjectName != "" {
+			ui.Text(c, r.ProjectName).FontSize(10).TextColor(p.Faint).Width(58).SingleLine()
+		}
 		ui.Text(c, r.URL).FontSize(12).TextColor(p.Muted).Grow(1).SingleLine()
 		if r.Status > 0 {
 			uikit.StatusPill(c, p, r.Status)
+		} else {
+			ui.Text(c, historyOutcomeLabel(m, r.OutcomeValue())).FontSize(10).
+				TextColor(historyOutcomeColor(p, r.OutcomeValue())).Width(52).SingleLine()
 		}
 		ui.Text(c, fmt.Sprintf("%d ms", r.DurationMs)).FontSize(11).FontFeatures("tnum").TextColor(p.Faint).SingleLine()
 		if row.Hovered() {
-			del := ui.Button(c, "✕")
-			del.Absolute().Right(2).Top(-2)
+			info := ui.Button(c, "i").Absolute().Right(26).Top(-2)
+			if info.Clicked() {
+				a.historyUI.detail = r
+				a.historyUI.detailOpen = true
+			}
+			del := ui.Button(c, "✕").Absolute().Right(2).Top(-2)
 			if del.Clicked() {
-				a.store().remove(historyKey(a.ps), r.Ts)
-				a.reloadHistory()
+				a.deleteHistory(r)
 			}
 		}
 	})
+}
+
+// historyProjectOptions builds the project filter for the all-project view.
+// The first entry is "all projects"; duplicate display names get a short key
+// suffix so the selector cannot point at the wrong project.
+func historyProjectOptions(recs []historyRecord, allLabel string) ([]string, []string) {
+	labels := []string{allLabel}
+	keys := []string{""}
+	names := map[string]string{}
+	nameCount := map[string]int{}
+	for _, r := range recs {
+		if r.ProjectKey == "" {
+			continue
+		}
+		if _, ok := names[r.ProjectKey]; ok {
+			continue
+		}
+		name := r.ProjectName
+		if name == "" {
+			name = r.ProjectKey
+		}
+		names[r.ProjectKey] = name
+		nameCount[name]++
+	}
+	seen := map[string]bool{}
+	for _, r := range recs {
+		if r.ProjectKey == "" || seen[r.ProjectKey] {
+			continue
+		}
+		seen[r.ProjectKey] = true
+		name := names[r.ProjectKey]
+		if nameCount[name] > 1 {
+			name += " · " + shortKey(r.ProjectKey)
+		}
+		labels = append(labels, name)
+		keys = append(keys, r.ProjectKey)
+	}
+	return labels, keys
+}
+
+func shortKey(key string) string {
+	if i := strings.LastIndexByte(key, '-'); i >= 0 && i+1 < len(key) {
+		key = key[i+1:]
+	}
+	if len(key) > 6 {
+		key = key[len(key)-6:]
+	}
+	return key
+}
+
+func historyHasProject(recs []historyRecord, key string) bool {
+	for _, r := range recs {
+		if r.ProjectKey == key {
+			return true
+		}
+	}
+	return false
+}
+
+func historyOutcomeLabel(m *messages, outcome string) string {
+	switch outcome {
+	case localstate.OutcomeCanceled:
+		return m.HistoryOutcomeCanceled
+	case localstate.OutcomeTimeout:
+		return m.HistoryOutcomeTimeout
+	default:
+		return m.HistoryOutcomeError
+	}
+}
+
+func historyOutcomeColor(p uikit.Palette, outcome string) ui.Color {
+	switch outcome {
+	case localstate.OutcomeCanceled:
+		return p.Muted
+	case localstate.OutcomeTimeout:
+		return p.Faint
+	default:
+		return p.Accent
+	}
+}
+
+func (a *App) historyDetailModal(c *ui.Context, t *ui.Theme) {
+	if !a.historyUI.detailOpen {
+		return
+	}
+	m := a.msg()
+	p := uikit.PaletteFor(t)
+	r := a.historyUI.detail
+	open := true
+	ui.Modal(c, &open, func() {
+		ui.Column(c).Gap(10).MinWidth(560).Children(func() {
+			title := r.RequestName
+			if strings.TrimSpace(title) == "" {
+				title = r.Method + " " + r.URL
+			}
+			ui.Text(c, m.HistoryDetailTitle).FontSize(16).Bold().TextColor(p.Text)
+			ui.Text(c, title).FontSize(13).TextColor(p.Muted).SingleLine()
+
+			detailRow := func(k, v string) {
+				if v == "" {
+					return
+				}
+				ui.Row(c).Gap(10).Children(func() {
+					ui.Text(c, k).Width(92).FontSize(11).TextColor(p.Faint).SingleLine()
+					ui.Text(c, v).FontSize(12).TextColor(p.Text).Grow(1).SingleLine()
+				})
+			}
+			ui.Text(c, m.HistoryDetailSummary).FontSize(12).FontWeight(600).TextColor(p.Muted)
+			detailRow(m.HistoryLabel, r.Ts.Format("2006-01-02 15:04:05"))
+			detailRow(m.Projects, r.ProjectName)
+			detailRow(m.EnvLabel, r.Env)
+			detailRow(m.HistoryDetailResult, resultSummary(m, r))
+			detailRow("URL", r.URL)
+			detailRow(m.Error, r.Error)
+
+			ui.Scroll(c).MaxHeight(320).FillWidth().Children(func() {
+				ui.Column(c).Gap(10).FillWidth().Children(func() {
+					a.historySnapshot(c, p, m, m.HistoryDetailRequest, r.Request)
+					a.historySnapshot(c, p, m, m.HistoryDetailResponse, r.Response)
+				})
+			})
+			ui.Text(c, m.HistoryRedactedNote).FontSize(11).TextColor(p.Faint)
+
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, m.HistoryDetailDelete).Clicked() {
+					a.deleteHistory(r)
+					open = false
+				}
+				if ui.Button(c, m.Close).Clicked() {
+					open = false
+				}
+				if ui.PrimaryButton(c, m.HistoryDetailOpen).Clicked() {
+					a.restoreHistory(r)
+					open = false
+				}
+			})
+		})
+	})
+	if !open {
+		a.historyUI.detailOpen = false
+	}
+}
+
+func (a *App) historySnapshot(c *ui.Context, p uikit.Palette, m *messages, title string, s *localstate.Snapshot) {
+	if s == nil {
+		return
+	}
+	ui.Column(c).Gap(3).FillWidth().Children(func() {
+		ui.Text(c, title).FontSize(12).FontWeight(600).TextColor(p.Muted)
+		for _, line := range snapshotLines(s, m) {
+			ui.Text(c, line).Font("monospace").FontSize(11).TextColor(p.Faint)
+		}
+	})
+}
+
+func snapshotLines(s *localstate.Snapshot, m *messages) []string {
+	var lines []string
+	for _, kv := range s.Headers {
+		lines = append(lines, kv[0]+": "+kv[1])
+	}
+	if s.Body != "" {
+		lines = append(lines, "")
+		lines = append(lines, strings.Split(s.Body, "\n")...)
+	} else if s.Omitted != "" {
+		lines = append(lines, translate(m.HistoryBodyOmitted, historyOmitReason(m, s.Omitted)))
+	}
+	if len(lines) > 400 {
+		lines = lines[:400]
+	}
+	return lines
+}
+
+func historyOmitReason(m *messages, reason string) string {
+	switch reason {
+	case localstate.OmitPolicy:
+		return m.HistoryOmitPolicy
+	case localstate.OmitLarge:
+		return m.HistoryOmitLarge
+	case localstate.OmitBinary:
+		return m.HistoryOmitBinary
+	case localstate.OmitTruncated:
+		return m.HistoryOmitTruncated
+	default:
+		return reason
+	}
+}
+
+func resultSummary(m *messages, r historyRecord) string {
+	switch r.OutcomeValue() {
+	case localstate.OutcomeCanceled:
+		return m.HistoryOutcomeCanceled
+	case localstate.OutcomeTimeout:
+		return m.HistoryOutcomeTimeout
+	case localstate.OutcomeError:
+		return m.HistoryOutcomeError
+	}
+	if r.Status > 0 {
+		if r.Proto != "" {
+			return fmt.Sprintf("%s %d", r.Proto, r.Status)
+		}
+		return fmt.Sprintf("%d", r.Status)
+	}
+	return m.HistoryOutcomeError
 }
 
 func (a *App) historyClearModal(c *ui.Context, t *ui.Theme) {
@@ -329,4 +908,23 @@ func dayLabel(ts time.Time, m *messages) string {
 	default:
 		return dayKey(ts)
 	}
+}
+
+func clampIndex(v, n int) int {
+	if n <= 0 || v < 0 {
+		return 0
+	}
+	if v >= n {
+		return n - 1
+	}
+	return v
+}
+
+func stringIndex(list []string, v string) int {
+	for i, s := range list {
+		if s == v {
+			return i
+		}
+	}
+	return 0
 }

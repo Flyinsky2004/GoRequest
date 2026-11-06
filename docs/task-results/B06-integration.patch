@@ -1,0 +1,495 @@
+diff --git a/internal/desktop/app.go b/internal/desktop/app.go
+index 741d811..e91b0ec 100644
+--- a/internal/desktop/app.go
++++ b/internal/desktop/app.go
+@@ -60,6 +60,9 @@ type App struct {
+ 	historyRecords   []historyRecord
+ 	historyKey       string
+ 	historyClearOpen bool
++	// historyUI holds this window's filters, diagnostics and snapshot preview.
++	// It is one owned field so no package-level map carries window state.
++	historyUI historyUIState
+ 
+ 	// filterQuery is the live text of the sidebar filter box. It is view state
+ 	// of this window, independent of any project's stored data.
+@@ -168,6 +171,7 @@ func (a *App) View(c *ui.Context) {
+ 	a.closeGuardModal(c, t)
+ 	a.sendGuardModal(c, t)
+ 	a.historyClearModal(c, t)
++	a.historyDetailModal(c, t)
+ 	a.formsModals(c, t)
+ 	a.b03CustomMethodModal(c, t)
+ }
+@@ -271,12 +275,13 @@ func (a *App) send(tab *Tab) {
+ 			if err != nil {
+ 				tab.Resp = nil
+ 				tab.RespErr = red.RedactError(err).Error()
++				a.recordHistoryFailure(tab, plan, red, err, ctx.Err())
+ 			} else {
+ 				tab.Resp = res
+ 				tab.RespErr = ""
+ 				tab.respVersion++
+ 				tab.respEditor = nil
+-				a.recordHistory(tab, red.SanitizePlan(plan).URL, res)
++				a.recordHistory(tab, plan, red, res)
+ 			}
+ 			// Put the caret back in the URL so the user can tweak and resend.
+ 			tab.focusURL = true
+diff --git a/internal/desktop/config.go b/internal/desktop/config.go
+index 7fa426b..022c0b9 100644
+--- a/internal/desktop/config.go
++++ b/internal/desktop/config.go
+@@ -58,6 +58,21 @@ type appConfig struct {
+ 	// (§7). A value outside 20–86 means "no recorded preference", so the
+ 	// default 64 applies.
+ 	BuildPct float32 `json:"buildPct,omitempty"`
++
++	// History holds local request-history preferences. History itself always
++	// lives outside the project; this block only controls how much is captured
++	// and how long one project's file is kept.
++	History historyPrefs `json:"history,omitempty"`
++}
++
++// historyPrefs are optional; an absent block keeps the safe defaults (redacted
++// metadata snapshots on, bodies off, 90-day retention).
++type historyPrefs struct {
++	Snapshots *bool `json:"snapshots,omitempty"`
++	Bodies    *bool `json:"bodies,omitempty"`
++	// RetentionDays is 30, 90 or 365, or -1 for "keep until the record/byte
++	// cap removes it". An absent or invalid value means 90 days.
++	RetentionDays int `json:"retentionDays,omitempty"`
+ }
+ 
+ // configStore reads and writes appConfig atomically. A store with an empty path
+@@ -189,6 +204,56 @@ func (s *configStore) setBuildPct(v float32) {
+ 	_ = s.save()
+ }
+ 
++// historySaveSnapshots reports whether redacted request/response metadata is
++// captured. An absent preference defaults to on; only an explicit false turns
++// it off.
++func (s *configStore) historySaveSnapshots() bool {
++	return s.cfg.History.Snapshots == nil || *s.cfg.History.Snapshots
++}
++
++func (s *configStore) setHistorySaveSnapshots(v bool) {
++	b := v
++	s.cfg.History.Snapshots = &b
++	_ = s.save()
++}
++
++// historySaveBodies reports whether redacted, size-limited bodies are included
++// in snapshots. The default is off: history stores metadata, not payloads.
++func (s *configStore) historySaveBodies() bool {
++	return s.cfg.History.Bodies != nil && *s.cfg.History.Bodies
++}
++
++func (s *configStore) setHistorySaveBodies(v bool) {
++	b := v
++	s.cfg.History.Bodies = &b
++	_ = s.save()
++}
++
++// historyRetentionDays returns the configured retention in days (-1 forever).
++// Unknown values fall back to 90 days rather than silently keeping data
++// forever.
++func (s *configStore) historyRetentionDays() int {
++	switch s.cfg.History.RetentionDays {
++	case -1, 30, 90, 365:
++		return s.cfg.History.RetentionDays
++	default:
++		return 90
++	}
++}
++
++func (s *configStore) setHistoryRetentionDays(days int) {
++	switch days {
++	case -1, 30, 90, 365:
++	default:
++		days = 90
++	}
++	if s.cfg.History.RetentionDays == days {
++		return
++	}
++	s.cfg.History.RetentionDays = days
++	_ = s.save()
++}
++
+ // navWidth returns the last saved sidebar width, or the 260 default.
+ func (s *configStore) navWidth() float32 {
+ 	if s.cfg.NavWidth < 220 || s.cfg.NavWidth > 380 {
+diff --git a/internal/desktop/i18n.go b/internal/desktop/i18n.go
+index 4ba8496..edfb087 100644
+--- a/internal/desktop/i18n.go
++++ b/internal/desktop/i18n.go
+@@ -293,6 +293,47 @@ type messages struct {
+ 	Today               string
+ 	Yesterday           string
+ 
++	// History filters, preview and diagnostics (§3).
++	HistoryThisProject       string
++	HistoryAllProjects       string
++	HistoryFilterPlaceholder string
++	HistoryTimeAll           string
++	HistoryTimeToday         string
++	HistoryTimeWeek          string
++	HistoryTimeMonth         string
++	HistoryResultAll         string
++	HistoryResultSuccess     string
++	HistoryResultClient      string
++	HistoryResultServer      string
++	HistoryResultNetwork     string
++	HistoryResultCanceled    string
++	HistoryNoMatch           string
++	HistoryUnavailable       string
++	HistoryPrivacyNote       string
++	HistoryDetailTitle       string
++	HistoryDetailSummary     string
++	HistoryDetailResult      string
++	HistoryDetailRequest     string
++	HistoryDetailResponse    string
++	HistoryDetailOpen        string
++	HistoryDetailDelete      string
++	HistoryRedactedNote      string
++	HistoryRequestGone       string
++	HistoryProjectNotOpen    string
++	HistoryBodyOmitted       string // %s
++	HistoryOmitPolicy        string
++	HistoryOmitLarge         string
++	HistoryOmitBinary        string
++	HistoryOmitTruncated     string
++	HistorySnapshotTrimmed   string
++	HistoryDiagCorrupt       string // %d
++	HistoryDiagRead          string // %s
++	HistoryWriteFailed       string // %s
++	HistoryReadFailed        string // %s
++	HistoryOutcomeError      string
++	HistoryOutcomeCanceled   string
++	HistoryOutcomeTimeout    string
++
+ 	// Settings sheet.
+ 	SettingsTitle       string
+ 	AppearanceLabel     string
+@@ -310,6 +351,17 @@ type messages struct {
+ 	SecretNote          string
+ 	InMemoryConfig      string
+ 
++	// History settings.
++	HistorySettingsLabel    string
++	HistorySaveSnapshots    string
++	HistorySaveBodies       string
++	HistoryRetentionLabel   string
++	HistoryRetention30      string
++	HistoryRetention90      string
++	HistoryRetention365     string
++	HistoryRetentionForever string
++	HistorySettingsNote     string
++
+ 	// Native dialog titles/messages.
+ 	OpenDialogTitle   string
+ 	OpenDialogMessage string
+@@ -528,6 +580,46 @@ var messagesZh = messages{
+ 	Today:               "今天",
+ 	Yesterday:           "昨天",
+ 
++	HistoryThisProject:       "本项目",
++	HistoryAllProjects:       "全部项目",
++	HistoryFilterPlaceholder: "筛选接口 / URL",
++	HistoryTimeAll:           "全部时间",
++	HistoryTimeToday:         "今天",
++	HistoryTimeWeek:          "最近 7 天",
++	HistoryTimeMonth:         "最近 30 天",
++	HistoryResultAll:         "全部结果",
++	HistoryResultSuccess:     "成功",
++	HistoryResultClient:      "客户端错误",
++	HistoryResultServer:      "服务端错误",
++	HistoryResultNetwork:     "网络/配置错误",
++	HistoryResultCanceled:    "已取消",
++	HistoryNoMatch:           "没有符合筛选条件的历史",
++	HistoryUnavailable:       "本机没有可用的配置目录，历史已禁用",
++	HistoryPrivacyNote:       "历史只保存在本机；默认仅保存脱敏元数据，正文需在设置中显式开启。",
++	HistoryDetailTitle:       "历史详情",
++	HistoryDetailSummary:     "概要",
++	HistoryDetailResult:      "结果",
++	HistoryDetailRequest:     "请求快照",
++	HistoryDetailResponse:    "响应快照",
++	HistoryDetailOpen:        "打开请求",
++	HistoryDetailDelete:      "删除此记录",
++	HistoryRedactedNote:      "已脱敏；恢复时将使用脱敏后的 URL。",
++	HistoryRequestGone:       "请求已不存在，无法打开",
++	HistoryProjectNotOpen:    "该项目未打开，请先打开项目再恢复此请求",
++	HistoryBodyOmitted:       "正文未保存：%s",
++	HistoryOmitPolicy:        "默认策略",
++	HistoryOmitLarge:         "超过大小上限",
++	HistoryOmitBinary:        "非文本内容",
++	HistoryOmitTruncated:     "响应已被截断",
++	HistorySnapshotTrimmed:   "快照超出单条记录上限，仅保留元数据",
++	HistoryDiagCorrupt:       "%d 行历史记录已损坏并被跳过",
++	HistoryDiagRead:          "读取历史失败：%s",
++	HistoryWriteFailed:       "无法写入历史：%s",
++	HistoryReadFailed:        "无法读取历史：%s",
++	HistoryOutcomeError:      "错误",
++	HistoryOutcomeCanceled:   "已取消",
++	HistoryOutcomeTimeout:    "超时",
++
+ 	SettingsTitle:       "设置",
+ 	AppearanceLabel:     "外观",
+ 	AppearanceSystem:    "跟随系统",
+@@ -544,6 +636,16 @@ var messagesZh = messages{
+ 	SecretNote:          "密钥值来自名为 GOREQUEST_SECRET_<NAME> 的环境变量；项目文件只保留 {{secret.name}} 引用。",
+ 	InMemoryConfig:      "内存中（无配置目录）",
+ 
++	HistorySettingsLabel:    "本地历史",
++	HistorySaveSnapshots:    "保存脱敏的请求/响应快照",
++	HistorySaveBodies:       "快照包含正文（已脱敏、有大小上限）",
++	HistoryRetentionLabel:   "保留期限",
++	HistoryRetention30:      "30 天",
++	HistoryRetention90:      "90 天",
++	HistoryRetention365:     "365 天",
++	HistoryRetentionForever: "不按期限删除",
++	HistorySettingsNote:     "历史保存在本机配置目录，不进入项目或 Git；数量与总字节上限始终生效。",
++
+ 	OpenDialogTitle:   "打开 GoRequest 项目",
+ 	OpenDialogMessage: "选择包含 .gorequest/ 目录的文件夹。",
+ }
+@@ -761,6 +863,46 @@ var messagesEn = messages{
+ 	Today:               "Today",
+ 	Yesterday:           "Yesterday",
+ 
++	HistoryThisProject:       "This project",
++	HistoryAllProjects:       "All projects",
++	HistoryFilterPlaceholder: "Filter by request or URL",
++	HistoryTimeAll:           "All time",
++	HistoryTimeToday:         "Today",
++	HistoryTimeWeek:          "Last 7 days",
++	HistoryTimeMonth:         "Last 30 days",
++	HistoryResultAll:         "All results",
++	HistoryResultSuccess:     "Success",
++	HistoryResultClient:      "Client error",
++	HistoryResultServer:      "Server error",
++	HistoryResultNetwork:     "Network/config error",
++	HistoryResultCanceled:    "Canceled",
++	HistoryNoMatch:           "No history matches these filters",
++	HistoryUnavailable:       "No local config directory is available, so history is disabled",
++	HistoryPrivacyNote:       "History stays on this device. Only redacted metadata is saved by default; bodies require an explicit opt-in.",
++	HistoryDetailTitle:       "History Detail",
++	HistoryDetailSummary:     "Summary",
++	HistoryDetailResult:      "Result",
++	HistoryDetailRequest:     "Request snapshot",
++	HistoryDetailResponse:    "Response snapshot",
++	HistoryDetailOpen:        "Open request",
++	HistoryDetailDelete:      "Delete this record",
++	HistoryRedactedNote:      "Redacted. Opening the request uses the redacted URL.",
++	HistoryRequestGone:       "The request no longer exists, so it cannot be opened",
++	HistoryProjectNotOpen:    "Open that project first to reopen this request from history",
++	HistoryBodyOmitted:       "Body not stored: %s",
++	HistoryOmitPolicy:        "default policy",
++	HistoryOmitLarge:         "over the size limit",
++	HistoryOmitBinary:        "non-text content",
++	HistoryOmitTruncated:     "the response was truncated",
++	HistorySnapshotTrimmed:   "The snapshot exceeded the per-record limit, so only metadata was kept",
++	HistoryDiagCorrupt:       "%d history line(s) were corrupt and skipped",
++	HistoryDiagRead:          "Could not read history: %s",
++	HistoryWriteFailed:       "Could not write history: %s",
++	HistoryReadFailed:        "Could not read history: %s",
++	HistoryOutcomeError:      "Error",
++	HistoryOutcomeCanceled:   "Canceled",
++	HistoryOutcomeTimeout:    "Timed out",
++
+ 	SettingsTitle:       "Settings",
+ 	AppearanceLabel:     "Appearance",
+ 	AppearanceSystem:    "System",
+@@ -777,6 +919,16 @@ var messagesEn = messages{
+ 	SecretNote:          "Secret values come from environment variables named GOREQUEST_SECRET_<NAME>; project files keep only {{secret.name}} references.",
+ 	InMemoryConfig:      "in-memory (no config directory)",
+ 
++	HistorySettingsLabel:    "Local history",
++	HistorySaveSnapshots:    "Save redacted request/response snapshots",
++	HistorySaveBodies:       "Include bodies in snapshots (redacted, size-limited)",
++	HistoryRetentionLabel:   "Keep history",
++	HistoryRetention30:      "30 days",
++	HistoryRetention90:      "90 days",
++	HistoryRetention365:     "365 days",
++	HistoryRetentionForever: "Until the record/byte limit removes it",
++	HistorySettingsNote:     "History is stored in the local config directory, never in the project or Git. Record and byte caps always apply.",
++
+ 	OpenDialogTitle:   "Open GoRequest Project",
+ 	OpenDialogMessage: "Choose a folder that contains a .gorequest/ directory.",
+ }
+diff --git a/internal/desktop/settings.go b/internal/desktop/settings.go
+index 1814458..fe225d6 100644
+--- a/internal/desktop/settings.go
++++ b/internal/desktop/settings.go
+@@ -52,59 +52,90 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, open *bool, setS
+ 	ui.Column(c).Gap(10).MinWidth(520).Children(func() {
+ 		ui.Text(c, m.SettingsTitle).FontSize(17).FontWeight(700).TextColor(p.Text)
+ 
+-		settingsGroup(c, p, m.AppearanceLabel, func() {
+-			choice := appearanceDisplay(m, cfg.appearance())
+-			if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
+-				cfg.setAppearance(appearanceCanonical(m, choice))
+-				if setStatus != nil {
+-					setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
+-				}
+-			}
+-		})
+-
+-		settingsGroup(c, p, m.LanguageLabel, func() {
+-			choice := languageLabel(cfg.language())
+-			if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
+-				cfg.setLanguage(languageFromLabel(choice))
+-				if setStatus != nil {
+-					langMsgs := messagesFor(cfg.language())
+-					setStatus(translate(langMsgs.LanguageStatus, languageLabel(cfg.language())))
+-				}
+-			}
+-		})
+-
+-		settingsGroup(c, p, m.StartupLabel, func() {
+-			restore := cfg.restoreLastEnabled()
+-			if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
+-				cfg.setRestoreLast(restore)
+-				if setStatus != nil {
+-					if restore {
+-						setStatus(m.StartupOn)
+-					} else {
+-						setStatus(m.StartupOff)
++		ui.Scroll(c).MaxHeight(300).FillWidth().Children(func() {
++			ui.Column(c).Gap(10).FillWidth().Children(func() {
++				settingsGroup(c, p, m.AppearanceLabel, func() {
++					choice := appearanceDisplay(m, cfg.appearance())
++					if ui.Select(c, &choice, appearanceChoices(m)).Width(180).Changed() {
++						cfg.setAppearance(appearanceCanonical(m, choice))
++						if setStatus != nil {
++							setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
++						}
+ 					}
+-				}
+-			}
+-		})
+-
+-		ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
+-			ui.Column(c).Gap(2).Children(func() {
+-				infoRow := func(k, v string) {
+-					ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+-						ui.Text(c, k).Width(120).FontSize(12).TextColor(p.Muted).SingleLine()
+-						ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
++				})
++
++				settingsGroup(c, p, m.LanguageLabel, func() {
++					choice := languageLabel(cfg.language())
++					if ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}).Width(180).Changed() {
++						cfg.setLanguage(languageFromLabel(choice))
++						if setStatus != nil {
++							langMsgs := messagesFor(cfg.language())
++							setStatus(translate(langMsgs.LanguageStatus, languageLabel(cfg.language())))
++						}
++					}
++				})
++
++				settingsGroup(c, p, m.StartupLabel, func() {
++					restore := cfg.restoreLastEnabled()
++					if ui.Checkbox(c, &restore, m.RestoreLast).Changed() {
++						cfg.setRestoreLast(restore)
++						if setStatus != nil {
++							if restore {
++								setStatus(m.StartupOn)
++							} else {
++								setStatus(m.StartupOff)
++							}
++						}
++					}
++				})
++
++				settingsGroup(c, p, m.HistorySettingsLabel, func() {
++					ui.Column(c).Gap(8).Children(func() {
++						snap := cfg.historySaveSnapshots()
++						if ui.Checkbox(c, &snap, m.HistorySaveSnapshots).Changed() {
++							cfg.setHistorySaveSnapshots(snap)
++							if !snap {
++								// Bodies cannot be captured when snapshots are off.
++								cfg.setHistorySaveBodies(false)
++							}
++						}
++						bodies := cfg.historySaveBodies()
++						cb := ui.Checkbox(c, &bodies, m.HistorySaveBodies).Disabled(!snap)
++						if snap && cb.Changed() {
++							cfg.setHistorySaveBodies(bodies)
++						}
++						ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
++							ui.Text(c, m.HistoryRetentionLabel).Grow(1).FontSize(12).TextColor(p.Muted).SingleLine()
++							choices := historyRetentionChoices(m)
++							choice := historyRetentionLabel(m, cfg.historyRetentionDays())
++							if ui.Select(c, &choice, choices).Width(190).Changed() {
++								cfg.setHistoryRetentionDays(historyRetentionValue(choices, choice))
++							}
++						})
++						ui.Text(c, m.HistorySettingsNote).FontSize(11).TextColor(p.Faint)
++					})
++				})
++
++				ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
++					ui.Column(c).Gap(2).Children(func() {
++						infoRow := func(k, v string) {
++							ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
++								ui.Text(c, k).Width(120).FontSize(12).TextColor(p.Muted).SingleLine()
++								ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
++							})
++						}
++						infoRow(m.VersionLabel, appVersion)
++						infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
++						infoRow(m.GoLabel, runtime.Version())
++						infoRow(m.ConfigFileLabel, configLocation(m, cfg))
++						infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
+ 					})
+-				}
+-				infoRow(m.VersionLabel, appVersion)
+-				infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
+-				infoRow(m.GoLabel, runtime.Version())
+-				infoRow(m.ConfigFileLabel, configLocation(m, cfg))
+-				infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
++				})
++
++				ui.Text(c, m.SecretNote).FontSize(12).TextColor(p.Muted)
+ 			})
+ 		})
+ 
+-		ui.Text(c, m.SecretNote).FontSize(12).TextColor(p.Muted)
+-
+ 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+ 			if ui.PrimaryButton(c, m.Done).Clicked() {
+ 				*open = false
+@@ -161,3 +192,33 @@ func configLocation(m *messages, cfg *configStore) string {
+ 	}
+ 	return displayPath(cfg.path)
+ }
++
++// historyRetentionChoices returns the localized retention options in display
++// order; historyRetentionValues is the parallel canonical value list.
++func historyRetentionChoices(m *messages) []string {
++	return []string{m.HistoryRetention30, m.HistoryRetention90, m.HistoryRetention365, m.HistoryRetentionForever}
++}
++
++func historyRetentionValues() []int { return []int{30, 90, 365, -1} }
++
++// historyRetentionLabel maps the stored days value to its localized label,
++// falling back to the 90-day label for an unknown value.
++func historyRetentionLabel(m *messages, days int) string {
++	for i, v := range historyRetentionValues() {
++		if v == days {
++			return historyRetentionChoices(m)[i]
++		}
++	}
++	return m.HistoryRetention90
++}
++
++// historyRetentionValue maps a chosen label back to its canonical days value.
++func historyRetentionValue(choices []string, choice string) int {
++	values := historyRetentionValues()
++	for i, label := range choices {
++		if label == choice {
++			return values[i]
++		}
++	}
++	return 90
++}

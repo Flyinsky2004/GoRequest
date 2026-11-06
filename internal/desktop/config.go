@@ -58,6 +58,21 @@ type appConfig struct {
 	// (§7). A value outside 20–86 means "no recorded preference", so the
 	// default 64 applies.
 	BuildPct float32 `json:"buildPct,omitempty"`
+
+	// History holds local request-history preferences. History itself always
+	// lives outside the project; this block only controls how much is captured
+	// and how long one project's file is kept.
+	History historyPrefs `json:"history,omitempty"`
+}
+
+// historyPrefs are optional; an absent block keeps the safe defaults (redacted
+// metadata snapshots on, bodies off, 90-day retention).
+type historyPrefs struct {
+	Snapshots *bool `json:"snapshots,omitempty"`
+	Bodies    *bool `json:"bodies,omitempty"`
+	// RetentionDays is 30, 90 or 365, or -1 for "keep until the record/byte
+	// cap removes it". An absent or invalid value means 90 days.
+	RetentionDays int `json:"retentionDays,omitempty"`
 }
 
 // configStore reads and writes appConfig atomically. A store with an empty path
@@ -186,6 +201,56 @@ func (s *configStore) setBuildPct(v float32) {
 		return
 	}
 	s.cfg.BuildPct = v
+	_ = s.save()
+}
+
+// historySaveSnapshots reports whether redacted request/response metadata is
+// captured. An absent preference defaults to on; only an explicit false turns
+// it off.
+func (s *configStore) historySaveSnapshots() bool {
+	return s.cfg.History.Snapshots == nil || *s.cfg.History.Snapshots
+}
+
+func (s *configStore) setHistorySaveSnapshots(v bool) {
+	b := v
+	s.cfg.History.Snapshots = &b
+	_ = s.save()
+}
+
+// historySaveBodies reports whether redacted, size-limited bodies are included
+// in snapshots. The default is off: history stores metadata, not payloads.
+func (s *configStore) historySaveBodies() bool {
+	return s.cfg.History.Bodies != nil && *s.cfg.History.Bodies
+}
+
+func (s *configStore) setHistorySaveBodies(v bool) {
+	b := v
+	s.cfg.History.Bodies = &b
+	_ = s.save()
+}
+
+// historyRetentionDays returns the configured retention in days (-1 forever).
+// Unknown values fall back to 90 days rather than silently keeping data
+// forever.
+func (s *configStore) historyRetentionDays() int {
+	switch s.cfg.History.RetentionDays {
+	case -1, 30, 90, 365:
+		return s.cfg.History.RetentionDays
+	default:
+		return 90
+	}
+}
+
+func (s *configStore) setHistoryRetentionDays(days int) {
+	switch days {
+	case -1, 30, 90, 365:
+	default:
+		days = 90
+	}
+	if s.cfg.History.RetentionDays == days {
+		return
+	}
+	s.cfg.History.RetentionDays = days
 	_ = s.save()
 }
 
