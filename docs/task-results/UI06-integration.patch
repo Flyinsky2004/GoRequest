@@ -1,0 +1,23 @@
+diff --git a/internal/desktop/settings.go b/internal/desktop/settings.go
+index a523b60..a0b9f2b 100644
+--- a/internal/desktop/settings.go
++++ b/internal/desktop/settings.go
+@@ -91,6 +91,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
+ 
+ 				if prefs != nil {
+ 					prefs.settingsGroups(c, p, m, setStatus)
++					prefs.markdownSettingsGroup(c, p, cfg.language(), setStatus)
+ 				}
+ 
+ 				settingsGroup(c, p, m.HistorySettingsLabel, func() {
+diff --git a/internal/desktop/workspace_settings.go b/internal/desktop/workspace_settings.go
+--- a/internal/desktop/workspace_settings.go
++++ b/internal/desktop/workspace_settings.go
+@@ -389,6 +389,7 @@ func (m *Manager) workspacePrefs() *workspacePrefsStore {
+ 			path = workspacePrefsPathFor(m.cfg.path)
+ 		}
+ 		m.prefs = newWorkspacePrefsStore(path)
++		m.prefs.markdownChanged = m.invalidateMarkdownPreviews
+ 	}
+ 	return m.prefs
+ }
