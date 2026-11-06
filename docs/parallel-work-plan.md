@@ -126,6 +126,7 @@
 | B01 | agy-B01 | `../GoRequest-B01` / `agy/B01-file-sync` | 已交付，待审查集成 | 分支 HEAD `19f005c` / 未集成 | 基线 `be92379`；Herdr 终端 `t1j`，标签 `B01 文件保护 · agy`；优先文件刷新/冲突模型，公共壳层交接线 patch |
 | B05 | agy-B05 | `../GoRequest-B05` / `agy/B05-identity` | 已交付，待审查集成 | 分支 HEAD `bdca843` / 未集成 | 基线 `be92379`；Herdr 终端 `t1k`，标签 `B05 鉴权凭据 · agy`；优先 ref/继承/API Key 保真，公共壳层交接线 patch |
 | B03 | agy-B03 | `../GoRequest-B03` / `agy/B03-http-body` | 实施中（Full Access） | 无 / 未集成 | 基线 `666ed61`；终端 `t1q`，标签 `B03 HTTP Body · agy`；复杂 Body/文件映射/编码优先，公共入口交最小接线 patch |
+| B09 | agy-B09（Opus 5.5 High） | `../GoRequest-B09` / `agy/B09-docs-basic` | 实施中（Full Access） | 无 / 未集成 | 基线 `23662f3`；终端 `t1r`，标签 `B09 文档工作台 · Opus 5.5`；模型 `claude-opus-5-5-high`；大纲/搜索/图片附件/离线导航，公共入口交接线 patch |
 | 其余未勾选任务 | 未分配 | 尚未创建 | 未分配 | 无 | 等后续派工逐项登记 |
 
 本轮启动记录：`/private/tmp/gorequest-agy-20261106/sessions.json`；每项同目录有 `<ID>.prompt.txt`、`<ID>.retry.log`、`<ID>.retry.output.json`。这些是本机临时运行资料，不提交 Git，后续可能清理；长期交付证据由各 agent 写入各自分支 `docs/task-results/<ID>.md`。首次 auto 启动因账号不支持及后台命令无法交互授权而退出；accept-edits + 会话命令 allow 规则重试同样被拒绝，均已退出，未产出功能改动。不修改用户全局设置。随后按用户指定的新版说明，用 Herdr app 在 GoRequest space 新建 B01/B05 两个标签页并交互启动 agy。首次启动分别为 `t1j`、`t1k`，当时状态 blocked，屏幕为 “Do you trust the contents of this project?”；当时依 hc 手册等待用户确认；后续已获明确 Full Access 授权并解除。最新启动句柄另记本机 `herdr-sessions.json`。PID 仅表示历史启动进程，后续查询应结合进程、日志和分支提交确认状态。启动前确认另有 `ui-stage3` worktree，两个 agy 均被要求不触碰它或 main；主目录的示例环境和 `.claude/` 保持原状。
@@ -139,3 +140,7 @@
 2026-11-06 权限更新：用户明确要求两个 agy 进入 Full Access；已在原 Herdr 终端 `t1j`/`t1k` 中恢复各自原会话，启动参数含 `--dangerously-skip-permissions`，未改全局设置。目录信任等待为历史状态，现已解除；功能仍未集成验收，不打勾。
 
 2026-11-06 第三条派工：经用户要求通过新版 Herdr 新建 B03 标签页和独立 worktree，沿用会话级 Full Access、默认 agent/model。B01/B05 已有交付文档及分支提交，尚未审查/集成/验收；不以 Herdr done 状态认定整卡完成。现有用户终端 t1m/t1p 未操作。
+
+2026-11-06 第四条派工：用户要求再开一条 agy 并指定 Opus 5.5；`agy models` 确认 `claude-opus-5-5-high` 可用后，以该模型在 Herdr 新标签交互启动 B09，沿用会话级 Full Access。不改其他 agent 的模型，不重复 B03 的 Body/B05 的鉴权范围。
+
+B09 启动核对：已确认新 worktree 的目录信任；屏幕明确显示 `Claude Opus 5.5 · high`，进程参数包含 `--model claude-opus-5-5-high` 和 `--dangerously-skip-permissions`，hc 状态为 working，已读取资料并执行初始命令。
