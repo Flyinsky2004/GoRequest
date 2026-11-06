@@ -289,8 +289,17 @@ func TestSwitchLanguageViaSettingsPersistsAndUpdatesImmediately(t *testing.T) {
 
 	tt := ui.NewTester(app.View, 1200, 820)
 	tt.Frame()
-	if !tt.HasText("Settings") || !tt.HasText("Language") || !tt.HasText("English") {
+	if !tt.HasText("Settings") || !tt.HasText("Language") {
 		t.Fatalf("English settings missing controls; texts=%v", tt.Texts())
+	}
+	// The language control lives under its own category in the left-rail
+	// settings layout (FIX05).
+	if err := tt.Click("Language"); err != nil {
+		t.Fatalf("open language category: %v", err)
+	}
+	tt.Frame()
+	if !tt.HasText("English") {
+		t.Fatalf("English settings missing language control; texts=%v", tt.Texts())
 	}
 
 	// Open the language select and choose the Chinese option.
