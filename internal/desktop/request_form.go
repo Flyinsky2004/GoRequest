@@ -288,42 +288,130 @@ func textToRows(text string, kind kvKind) ([]*KVRow, error) {
 	return rows, nil
 }
 
+// rowsToRawQuery serializes query rows into raw URL-encoded query syntax
+// ("a=1&b=hello+world&a=2&empty="), keeping {{templates}} intact and disabled
+// rows prefixed with "# ".
+func rowsToRawQuery(rows []*KVRow) string {
+	var kvs []core.KV
+	for _, r := range rows {
+		if r == nil || r.isBlank() {
+			continue
+		}
+		enabled := r.Enabled
+		kvs = append(kvs, core.KV{Name: r.Name, Value: r.Value, Enabled: &enabled})
+	}
+	return core.FormatRawQueryKV(kvs)
+}
+
+// rawQueryToRows parses a raw URL query string (with optional leading "?" and
+// "# " disabled lines) into rows, unescaping percent-encoding once so sending
+// never double-encodes.
+func rawQueryToRows(raw string) ([]*KVRow, error) {
+	kvs, err := core.ParseRawQueryKV(raw)
+	if err != nil {
+		return nil, err
+	}
+	return rowsFromKV(kvs), nil
+}
+
+func (t *Tab) kvViewMode(kind kvKind) int {
+	if kind == kvHeader {
+		if t.headerText {
+			return 1
+		}
+		return 0
+	}
+	if t.queryRawEncoded {
+		return 2
+	}
+	if t.queryText {
+		return 1
+	}
+	return 0
+}
+
+func (t *Tab) setKVViewMode(kind kvKind, mode int) {
+	if kind == kvHeader {
+		t.headerText = mode == 1
+		return
+	}
+	t.queryText = mode == 1
+	t.queryRawEncoded = mode == 2
+}
+
 func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 	m := a.msg()
+	bm := a.bodyMsg()
 	p := uikit.PaletteFor(t)
 	rows := tab.rows(kind)
-	textMode := *tab.textMode(kind)
+	curMode := tab.kvViewMode(kind)
 
-	// Column headers — shown once — plus the key:value / text switch.
+	// Column headers — shown once — plus the key:value / text / raw-encoded switch.
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 8).Children(func() {
-		ui.Box(c).Width(28)
-		ui.Text(c, m.Key).FontSize(12).FontWeight(600).TextColor(p.Muted).Width(200)
-		ui.Text(c, m.Value).FontSize(12).FontWeight(600).TextColor(p.Muted).Grow(1)
-		ui.Box(c).Width(28)
-		idx := 0
-		if textMode {
-			idx = 1
+		if curMode == 0 {
+			ui.Box(c).Width(28)
+			ui.Text(c, m.Key).FontSize(12).FontWeight(600).TextColor(p.Muted).Width(200)
+			ui.Text(c, m.Value).FontSize(12).FontWeight(600).TextColor(p.Muted).Grow(1)
+			ui.Box(c).Width(28)
+		} else {
+			ui.Box(c).Grow(1)
 		}
-		if _, changed := uikit.Segmented(c, p, &idx, []string{m.KeyValueMode, m.TextMode}); changed {
-			if idx == 1 {
+		idx := curMode
+		labels := []string{m.KeyValueMode, m.TextMode}
+		if kind == kvQuery {
+			labels = append(labels, bm.RawEncodedMode)
+		}
+		if ui.Segmented(c, &idx, labels...).Changed() {
+			// Parse out of the previous raw/text buffer before switching so edits are validated.
+			if curMode == 1 {
+				parsed, err := textToRows(*tab.rawPtr(kind), kind)
+				if err != nil {
+					tab.kvErr = err.Error()
+					return
+				}
+				*tab.rowsPtr(kind) = parsed
+				rows = parsed
+			} else if curMode == 2 && kind == kvQuery {
+				parsed, err := rawQueryToRows(*tab.rawPtr(kind))
+				if err != nil {
+					tab.kvErr = err.Error()
+					return
+				}
+				*tab.rowsPtr(kind) = parsed
+				rows = parsed
+			}
+
+			switch idx {
+			case 1:
 				*tab.rawPtr(kind) = rowsToText(rows, kind)
 				tab.kvErr = ""
-				*tab.textMode(kind) = true
-			} else if parsed, err := textToRows(*tab.rawPtr(kind), kind); err != nil {
-				tab.kvErr = err.Error()
-			} else {
-				*tab.rowsPtr(kind) = parsed
+				tab.setKVViewMode(kind, 1)
+			case 2:
+				*tab.rawPtr(kind) = rowsToRawQuery(rows)
 				tab.kvErr = ""
-				*tab.textMode(kind) = false
+				tab.setKVViewMode(kind, 2)
+			default:
+				tab.kvErr = ""
+				tab.setKVViewMode(kind, 0)
 			}
 		}
 	})
 
-	if textMode {
+	curMode = tab.kvViewMode(kind)
+	if curMode != 0 {
 		ui.Box(c).Grow(1).FillWidth().Radius(10).BorderWidth(1).BorderColor(p.Hairline).Clip().Children(func() {
 			ta := ui.TextArea(c, tab.rawPtr(kind)).Grow(1).FillWidth().Font("monospace")
 			if ta.Changed() {
-				if parsed, err := textToRows(*tab.rawPtr(kind), kind); err != nil {
+				var (
+					parsed []*KVRow
+					err    error
+				)
+				if curMode == 2 && kind == kvQuery {
+					parsed, err = rawQueryToRows(*tab.rawPtr(kind))
+				} else {
+					parsed, err = textToRows(*tab.rawPtr(kind), kind)
+				}
+				if err != nil {
 					tab.kvErr = err.Error()
 				} else {
 					*tab.rowsPtr(kind) = parsed
@@ -334,6 +422,9 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 		})
 		if tab.kvErr != "" {
 			ui.Text(c, tab.kvErr).FontSize(12).TextColor(uikit.MethodColor("DELETE", p)).Padding(2, 8)
+		}
+		if kind == kvQuery {
+			a.renderQueryURLPreview(c, t, tab)
 		}
 		return
 	}
@@ -356,6 +447,9 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 
 	if err := validateRowsFor(m, rows); err != nil {
 		ui.Text(c, err.Error()).FontSize(12).TextColor(uikit.MethodColor("DELETE", p)).Padding(2, 8)
+	}
+	if kind == kvQuery {
+		a.renderQueryURLPreview(c, t, tab)
 	}
 }
 

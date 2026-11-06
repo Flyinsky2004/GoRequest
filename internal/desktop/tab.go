@@ -26,12 +26,13 @@ type Tab struct {
 	URL        string
 	QueryRows  []*KVRow
 	HeaderRows []*KVRow
-	// KV batch-edit state (key:value text mode) per section.
-	queryText  bool
-	queryRaw   string
-	headerText bool
-	headerRaw  string
-	kvErr      string
+	// KV batch-edit state (key:value text mode & raw query mode) per section.
+	queryText       bool
+	queryRawEncoded bool
+	queryRaw        string
+	headerText      bool
+	headerRaw       string
+	kvErr           string
 	// kvFocusID/kvFocusVal ask the next frame to focus a KV cell (Enter flow).
 	kvFocusID  string
 	kvFocusVal bool
@@ -49,9 +50,10 @@ type Tab struct {
 	DocRel    string
 	DocEditor *editor.State
 
-	// body codeView editor (built lazily; rebuilt when the body type changes)
+	// body codeView editor and rich B03 body state (built lazily per request)
 	bodyEditor   *editor.State
 	bodyBuiltIdx int
+	bodyState    *tabBodyState
 
 	// shared
 	Dirty    bool
@@ -97,13 +99,11 @@ func requestFromTab(tab *Tab) (*core.Request, error) {
 		Query:   query,
 		Headers: headers,
 	}
-	if strings.TrimSpace(tab.BodyText) != "" {
-		body, err := core.ParseBodyText(bodyTypes[tab.BodyIdx], tab.BodyText)
-		if err != nil {
-			return nil, err
-		}
-		httpDef.Body = body
+	body, err := bodyFromTab(tab)
+	if err != nil {
+		return nil, err
 	}
+	httpDef.Body = body
 	base.HTTP = httpDef
 	base.Timeout = strings.TrimSpace(tab.Timeout)
 	switch tab.AuthMode {

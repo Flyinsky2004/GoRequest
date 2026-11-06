@@ -1,8 +1,14 @@
 package desktop
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 
 	"gorequest/internal/core"
 )
@@ -192,3 +198,112 @@ func contains(list []string, v string) bool {
 	}
 	return false
 }
+
+func TestQueryRawEncodedPasteAndPreviewNoDoubleEncoding(t *testing.T) {
+	rawInput := "?q=hello%20world&expr=a%2Bb&dup=1&dup=2&empty=&apiKey={{secret.api}}\n# debug=true"
+	rows, err := rawQueryToRows(rawInput)
+	if err != nil {
+		t.Fatalf("rawQueryToRows: %v", err)
+	}
+	// 7 data rows (6 enabled + 1 disabled) + 1 trailing blank row
+	if len(rows) != 8 {
+		t.Fatalf("rows len = %d, want 8", len(rows))
+	}
+	if rows[0].Name != "q" || rows[0].Value != "hello world" {
+		t.Fatalf("row[0] = %+v, want decoded 'hello world'", rows[0])
+	}
+	if rows[1].Name != "expr" || rows[1].Value != "a+b" {
+		t.Fatalf("row[1] = %+v, want decoded 'a+b'", rows[1])
+	}
+	if rows[4].Name != "empty" || rows[4].Value != "" {
+		t.Fatalf("row[4] = %+v, want empty value preserved", rows[4])
+	}
+	if rows[5].Name != "apiKey" || rows[5].Value != "{{secret.api}}" {
+		t.Fatalf("row[5] = %+v, want template preserved", rows[5])
+	}
+	if rows[6].Name != "debug" || rows[6].Enabled {
+		t.Fatalf("row[6] = %+v, want disabled debug row", rows[6])
+	}
+	if !rows[7].isBlank() {
+		t.Fatalf("expected trailing blank row")
+	}
+
+	// Re-serializing back to Raw Encoded must NOT double-encode "%20" or "%2B"!
+	reformatted := rowsToRawQuery(rows)
+	wantRaw := "q=hello+world&expr=a%2Bb&dup=1&dup=2&empty=&apiKey={{secret.api}}\n# debug=true"
+	if reformatted != wantRaw {
+		t.Fatalf("rowsToRawQuery = %q, want %q", reformatted, wantRaw)
+	}
+}
+
+func TestKVFormQueryRawEncodedUIAndWireExecution(t *testing.T) {
+	var gotQuery url.Values
+	var gotRawQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRawQuery = r.URL.RawQuery
+		gotQuery = r.URL.Query()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	a, ps := openTestProject(t, "Query Raw UI")
+	a.mgr.secrets = staticSecrets{"api": "TOP_SECRET_QUERY_KEY"}
+
+	tab := openRequestTabs(t, ps, "Search")[0]
+	tab.URL = srv.URL + "/items"
+	tab.Section = 0 // Params
+	tab.QueryRows = rowsFromKV([]core.KV{
+		{Name: "q", Value: "hello world"},
+		{Name: "tag", Value: "a+b"},
+		{Name: "tag", Value: "2"},
+		{Name: "empty", Value: ""},
+		{Name: "key", Value: "{{secret.api}}"},
+	})
+
+	tt := ui.NewTester(a.View, 1240, 820)
+	tt.Frame()
+
+	// Secret must never appear in cleartext in Resolved URL preview
+	for _, txt := range tt.Texts() {
+		if strings.Contains(txt, "TOP_SECRET_QUERY_KEY") {
+			t.Fatalf("secret leaked in Params URL preview: %q", txt)
+		}
+	}
+	if !tt.HasText("Resolved URL:") {
+		t.Fatalf("expected Resolved URL preview in Params view; texts=%v", tt.Texts())
+	}
+
+	// Switch Key:Value -> Raw Encoded -> Key:Value through UI controls
+	if err := tt.Click("Raw Encoded"); err != nil {
+		t.Fatalf("click Raw Encoded: %v", err)
+	}
+	if tab.queryRaw != "q=hello+world&tag=a%2Bb&tag=2&empty=&key={{secret.api}}" {
+		t.Fatalf("unexpected queryRaw in Raw Encoded mode: %q", tab.queryRaw)
+	}
+	if err := tt.Click("Key:Value"); err != nil {
+		t.Fatalf("click Key:Value: %v", err)
+	}
+
+	// Execute against httptest.Server and verify single encoding on the wire
+	_, plan, err := a.buildTabPlan(context.Background(), tab)
+	if err != nil {
+		t.Fatalf("buildTabPlan: %v", err)
+	}
+	if _, err := core.Execute(context.Background(), plan, nil); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if strings.Contains(gotRawQuery, "%25") {
+		t.Fatalf("double encoding detected on wire: %q", gotRawQuery)
+	}
+	if gotQuery.Get("q") != "hello world" || gotQuery["tag"][0] != "a+b" || gotQuery["tag"][1] != "2" {
+		t.Fatalf("decoded server query mismatch: %v", gotQuery)
+	}
+	if vals, ok := gotQuery["empty"]; !ok || len(vals) != 1 || vals[0] != "" {
+		t.Fatalf("empty query param lost: %v", gotQuery)
+	}
+	if gotQuery.Get("key") != "TOP_SECRET_QUERY_KEY" {
+		t.Fatalf("secret query param mismatch: %v", gotQuery)
+	}
+}
+
+
