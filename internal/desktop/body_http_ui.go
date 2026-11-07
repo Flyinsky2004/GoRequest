@@ -162,11 +162,12 @@ func previewQueryKVs(tab *Tab) []core.KV {
 }
 
 // b03URLPreview renders the secret-masked variable chips and the single
-// "resolved preview" line under the URL bar. It previews the URL field alone
-// (its own inline query included) and deliberately not the Params table: the
-// full URL with the Params query is shown once, at the bottom of Params, and
-// only when the query actually changes the final URL. That keeps the two lines
-// from repeating the same text.
+// "resolved preview" on one line under the URL bar, so the two no longer take
+// two rows of height. It previews the URL field alone (its own inline query
+// included) and deliberately not the Params table: the full URL with the
+// Params query is shown once, at the bottom of Params, and only when the query
+// actually changes the final URL. That keeps the two lines from repeating the
+// same text.
 func (a *App) b03URLPreview(c *ui.Context, t *ui.Theme, tab *Tab) {
 	if tab == nil {
 		return
@@ -176,17 +177,7 @@ func (a *App) b03URLPreview(c *ui.Context, t *ui.Theme, tab *Tab) {
 		return
 	}
 
-	p := uikit.PaletteFor(t)
-	bm := a.bodyMsg()
-
-	a.urlVarLine(c, t, tab)
-
-	if prev.ResolvedURL != "" {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).FillWidth().Children(func() {
-			ui.Text(c, bm.ResolvedURLPreviewLabel+":").FontSize(11).FontWeight(600).TextColor(p.Muted)
-			ui.Text(c, prev.ResolvedURL).Font("monospace").FontSize(11).TextColor(p.Muted).SingleLine().Grow(1)
-		})
-	}
+	a.urlVarLine(c, t, tab, prev.ResolvedURL)
 }
 
 // renderQueryURLPreview shows the full context-encoded & secret-masked URL at
