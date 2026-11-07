@@ -1,0 +1,14 @@
+{
+  "name": "GoRequest",
+  "slug": "gorequest",
+  "identifier": "local.gorequest.desktop",
+  "version": "0.1.0",
+  "main": "./cmd/gorequest-desktop",
+  "icon": "assets/brand/gorequest-logo.png",
+  "out": "bin/release",
+  "resources": ["LICENSE"],
+  "macos": {
+    "icon": "assets/brand/gorequest.icns",
+    "minimumSystemVersion": "12.0"
+  }
+}
