@@ -84,7 +84,7 @@ func (a *App) MockModals(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, mockT(a, "mock.field.listen_port")).FontSize(12).TextColor(p.Muted)
 					ui.TextInput(c, &s.listenPort).Width(72).Disabled(s.running)
 
-					lanToggle := ui.Checkbox(c, mockT(a, "mock.field.allow_lan"), &s.allowLAN).Disabled(s.running)
+					lanToggle := ui.Checkbox(c, &s.allowLAN, mockT(a, "mock.field.allow_lan")).Disabled(s.running)
 					uikit.ActionCursor(lanToggle)
 
 					ui.Box(c).Grow(1)

@@ -122,7 +122,7 @@ func (a *App) OpenPerformance() {
 		return
 	}
 	defaultRef := ""
-	if tab := a.activeTab(); tab != nil && tab.Entry != nil {
+	if tab := a.ps.activeTab(); tab != nil && tab.Entry != nil {
 		defaultRef = tab.Entry.RelPath
 	}
 	a.OpenPerformanceForRequest(defaultRef)
