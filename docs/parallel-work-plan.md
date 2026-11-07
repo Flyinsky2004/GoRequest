@@ -485,3 +485,7 @@ Herdr终端 `t39`，tab `tb993c3427183e97acc2755d07dd250f5d`（FIX10 Mock 编译
 分支 `cc/BRAND01-logo-integration`，worktree `../GoRequest-BRAND01`；将原图无损复制为 `assets/brand/gorequest-logo.png` 供agent读取/纳入本卡提交，Downloads原文件不修改。先查MyGo运行时icon能力与现有打包方式，有支持的入口实际接线，macOS icns按原图确定性导出；缺打包基础则给最小可复现资源生成/使用说明，不宣称Dock已生效或已签名发布。源图和合理最终图标可提交，iconset/tmp/app/debug等中间产物不提交；不擅自新增重型工具/下载依赖。
 
 FIX10 agy仍独占mock_ui.go及同批编译修复，BRAND01不碰相关文件/分支。公共window/manager/welcome/nav/README可作本Logo必要最小增量，保持现有布局/文字与操作入口，不把位图替换全站功能图标。按先不执行测试约束跳过测试，做资源尺寸/透明度/引用/格式等静态检查；编译受FIX10未合入影响时如实说明，不修其他任务。交付docs/task-results/BRAND01.md记录资源来源、生成步骤、实际生效范围/未验证项、提交；不自勾总账本，不merge/push/改共享git config/操作用户窗口或其他agent，不启子agent。
+
+### 22.1 实际启动
+
+Herdr终端 `t3b`，tab `tb3d3591a57162fc0ea36db75749afe846`（BRAND01 Logo 接入 · CC），worktree `../GoRequest-BRAND01` / `cc/BRAND01-logo-integration`，共同基线 `6046a34d4af37b21c8bba7d5e54b85803ff6f7f5`。新版tab.new交互启动Claude Code，沿用当前默认Hy4 (hy4std)与会话Full Access；已确认任务/目录/模型和hc working。原始PNG已无损复制到本卡assets/brand/gorequest-logo.png，等待agent随交付提交，Downloads不变。FIX10 t39仍继续。完整提示词/句柄仅存本机 `/private/tmp/gorequest-brand01-20261107/`，不提交。尚未交付/合入main，不勾选。
