@@ -567,3 +567,9 @@ Herdr终端 `t3b`，tab `tb3d3591a57162fc0ea36db75749afe846`（BRAND01 Logo 接�
 - [ ] P01-phase1：共享有界流与WebSocket手工会话已合并，组合验证/网络/UI验收待补；完整Runner流式调度、CookieJar/文件发送等仍后续。
 
 来源报告及限制保持：docs/task-results/A02-phase2.md、C01-phase2.md、C03-phase1.md、C04-phase1.md、P01-phase1.md。合并后将只清理main已包含且干净的五条本批分支/worktree，以及此前已合入的FIX10/BRAND01旧分支/worktree与本轮临时集成目录；按精确tab关闭本批t3m/t3n/t3p/t3q/t3v，保留当前对话、用户shell与oct项目agent。不push，不改共享Git配置，不提交或删除用户示例环境/debug产物。实际清理完成后补记。
+
+### 25.1 main 与清理完成
+
+main已从 `3122e44` 快进至 `f15f528`（五条no-ff合并 + 公共接线/静态修正/状态说明提交）。已按精确tab关闭t3m/t3n/t3p/t3q/t3v，五次均ok:true，随后hc ls确认均不再live。核对每个worktree干净、无live终端占用、分支头为main祖先后，不带force删除本批五条vibe分支/worktree、旧 `agy/FIX10-mock-checkbox` / `../GoRequest-FIX10`、旧 `cc/BRAND01-logo-integration` / `../GoRequest-BRAND01`，以及本轮临时 `integrate/vibe-five` / `../GoRequest-integration`。
+
+最终仅剩本地main和主worktree。用户示例dev.yaml改动与两个debug二进制保持原状；当前会话t1h、用户shell t2s及oct项目t31/t3s保留。没有push，没有运行构建/vet/测试或真实应用/网络验证。代码已集成和清理，不代表编译或正式验收通过，§25 checkbox继续未勾。
