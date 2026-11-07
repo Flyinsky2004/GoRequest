@@ -287,7 +287,6 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 	p := uikit.PaletteFor(t)
 	ui.Column(c).Gap(4).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			a.saveControl(c, p, tab)
 			// The group owns the single border, colored by the last send's
 			// outcome. MyGo's TextInput paints its own border with the theme
 			// Accent (a red-orange) whenever it has focus, so after a send the

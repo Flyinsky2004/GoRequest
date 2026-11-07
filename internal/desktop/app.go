@@ -164,6 +164,15 @@ func (a *App) saveGeometry() {
 
 // View builds one frame of the project window.
 func (a *App) View(c *ui.Context) {
+	// Input may land after the last document frame, then switch to a request.
+	// Commit it before building any tab so the header, save and sync see it.
+	if a.ps != nil {
+		for _, tab := range a.ps.tabs {
+			if tab.flushDocEdit != nil {
+				tab.flushDocEdit()
+			}
+		}
+	}
 	a.applyTheme(c)
 	t := c.Theme()
 	a.registerShortcuts(c)

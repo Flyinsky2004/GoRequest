@@ -12,6 +12,7 @@ import (
 	"gorequest/internal/desktop/uikit"
 	"gorequest/internal/docedit"
 	"gorequest/internal/docgen"
+	"gorequest/internal/docmention"
 	docmd "gorequest/internal/markdown"
 )
 
@@ -122,6 +123,8 @@ func (a *App) docCanvasView(c *ui.Context, t *ui.Theme, root ui.Element, tab *Ta
 	a.refreshDocSlash(tab, st, blocks)
 
 	opts := a.docCanvasMarkdownOptions(c, root, tab, st)
+	// Diagnose the whole document even when no block editor is active.
+	a.renderDocMentionTools(c, t, root, tab, tab.DocEditor)
 
 	if lv.scrollPending {
 		th := a.docMarkdownTheme(t)
@@ -131,13 +134,23 @@ func (a *App) docCanvasView(c *ui.Context, t *ui.Theme, root ui.Element, tab *Ta
 	}
 	ui.Scroll(c).Grow(1).FillWidth().TrackScroll(&lv.canvasScroll).Children(func() {
 		canvas := ui.Column(c).FillWidth().Padding(18, 40).Gap(2)
-		// The app's global Cmd+Z undoes the last destructive toast; while a
-		// block is being edited the document's own history must win. With no
-		// active block the app's shortcut stays in charge.
-		if lv.block != nil {
-			canvas.OnShortcut(ui.Cmd, ui.KeyZ, func() { a.docBlockUndo(tab, st, false) })
-			canvas.OnShortcut(ui.Cmd|ui.Shift, ui.KeyZ, func() { a.docBlockUndo(tab, st, true) })
-		}
+		// Canvas blocks and table cells share the canonical document history.
+		canvas.OnShortcut(ui.Cmd, ui.KeyZ, func() {
+			if lv.block != nil {
+				a.docBlockUndo(tab, st, false)
+			} else {
+				tab.DocEditor.Buffer.Undo()
+				tab.Dirty = tab.DocEditor.Buffer.Modified()
+			}
+		})
+		canvas.OnShortcut(ui.Cmd|ui.Shift, ui.KeyZ, func() {
+			if lv.block != nil {
+				a.docBlockUndo(tab, st, true)
+			} else {
+				tab.DocEditor.Buffer.Redo()
+				tab.Dirty = tab.DocEditor.Buffer.Modified()
+			}
+		})
 		if canvas.Clicked() {
 			a.commitDocBlock(tab, st)
 			lv.block = nil
@@ -235,6 +248,14 @@ func (a *App) docCanvasRenderedBlock(c *ui.Context, t *ui.Theme, p uikit.Palette
 				return
 			}
 		}
+		if b.Kind == docmd.Paragraph {
+			refs := docmention.ScanRequestLinks(tabProject(tab), b.Source)
+			if len(refs) == 1 && strings.TrimSpace(b.Source[:refs[0].Start]) == "" && strings.TrimSpace(b.Source[refs[0].End:]) == "" {
+				a.docMentionChip(c, t, tab, refs[0].Label, refs[0].Dest)
+				handled = true
+				return
+			}
+		}
 		markdown.View(c, b.Source, opts).FillWidth()
 	})
 	row.Label(docBlockLabel(b))
@@ -310,9 +331,6 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 	view.Label("doc-canvas-editor")
 	if st.live.slashOpen {
 		a.docSlashMenu(c, t, tab, st, dm)
-	}
-	if renderDocMentionTools != nil {
-		renderDocMentionTools(a, c, t, view, tab, be.ed)
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"gorequest/internal/doctable"
 	"gorequest/internal/markdown"
 )
 
@@ -68,6 +69,21 @@ func Parse(src string) []Block {
 	var containers []Block
 	for _, b := range raw {
 		start, end := expandRange(src, b.Start, b.End)
+		if b.Kind == markdown.Table {
+			// A table converted from a paragraph may inherit the paragraph's
+			// start. Find its header and delimiter within the reported range.
+			for pos := start; pos < end; {
+				next := LineEnd(src, pos)
+				if next >= end {
+					break
+				}
+				if _, err := doctable.Parse(src[pos:LineEnd(src, next)]); err == nil {
+					start = pos
+					break
+				}
+				pos = next
+			}
+		}
 		if b.Kind == markdown.CodeBlock {
 			end = fencedCodeEnd(src, start, end)
 		}

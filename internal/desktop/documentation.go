@@ -239,6 +239,10 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	// the same root and prunes with the B09 state.
 	pruneDerivedDocStates(root, tab.Owner)
 	st := docStateFor(root, tab)
+	tab.flushDocEdit = func() {
+		a.flushDocCanvas(tab, st)
+		tab.Dirty = tab.DocEditor.Buffer.Modified()
+	}
 	lv := docLiveFor(st)
 	// New document views open on the rendered canvas. A mode the user chose
 	// in this session is kept; Sections 0/1/2 keep their old meanings.
@@ -377,13 +381,6 @@ func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, root ui.Ele
 			st.diagnostics = docgen.MergeDocDiagnostics(tab.Owner.project.DiagnoseDoc(tab.DocRel, src), docgen.DiagnoseRefs(tab.Owner.project, tab.DocRel, src, nil))
 		}
 		ui.Box(c).Grow(1)
-		if tab.Dirty {
-			if uikit.ActionCursor(ui.PrimaryButton(c, m.SaveDoc)).Clicked() {
-				a.closeDocSlash(st)
-				a.flushDocCanvas(tab, st)
-				a.saveActive()
-			}
-		}
 		a.docgenExportButton(c, p, root, tab)
 		uikit.ActionCursor(ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) {
 			a.closeDocSlash(st)
@@ -627,16 +624,16 @@ func (a *App) docBody(c *ui.Context, t *ui.Theme, root ui.Element, tab *Tab, src
 	// The doc editor is cached on the tab; restyle it in place so an
 	// appearance switch repaints it without losing the caret or undo history.
 	a.syncEditorTheme(tab.DocEditor, &tab.docBuiltGen, t)
-	switch tab.Section {
-	case 1:
-		tab.DocEditor.OnDefinition = func(offset int) { a.docDefinitionAt(tab, offset) }
-		view := editor.View(c, tab.DocEditor).Grow(1).FillWidth()
-		st := docStateFor(root, tab)
-		lv := docLiveFor(st)
+	if tab.Section == 0 || tab.Section == 1 {
+		lv := docLiveFor(docStateFor(root, tab))
 		if !lv.mentionHooks && installDocMentionHooks != nil {
 			installDocMentionHooks(a, tab, tab.DocEditor)
 			lv.mentionHooks = true
 		}
+	}
+	switch tab.Section {
+	case 1:
+		view := editor.View(c, tab.DocEditor).Grow(1).FillWidth()
 		if renderDocMentionTools != nil {
 			renderDocMentionTools(a, c, t, view, tab, tab.DocEditor)
 		}
@@ -650,7 +647,10 @@ func (a *App) docBody(c *ui.Context, t *ui.Theme, root ui.Element, tab *Tab, src
 	default:
 		docSplit := &tab.Owner.docSplit
 		ui.Split(c, docSplit, func() {
-			editor.View(c, tab.DocEditor).Grow(1).FillWidth()
+			view := editor.View(c, tab.DocEditor).Grow(1).FillWidth()
+			if renderDocMentionTools != nil {
+				renderDocMentionTools(a, c, t, view, tab, tab.DocEditor)
+			}
 		}, func() {
 			ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 				a.markdownPreview(c, src, opts)

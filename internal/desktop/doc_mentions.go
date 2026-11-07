@@ -2,10 +2,12 @@ package desktop
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"unicode"
 	"unicode/utf8"
+	"weak"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -120,16 +122,18 @@ type docMentionSession struct {
 }
 
 // docMentionSessions is the per-editor registry that makes installation
-// idempotent. It is private to this plugin; no shared UI map is touched.
+// idempotent. Both keys and values are weak: closed tabs and transient block
+// editors must not keep an App, project, or document alive. Editor callbacks
+// own their session for exactly the lifetime of the editor.
 var docMentionSessions = struct {
 	sync.Mutex
-	m map[*editor.State]*docMentionSession
-}{m: map[*editor.State]*docMentionSession{}}
+	m map[weak.Pointer[editor.State]]weak.Pointer[docMentionSession]
+}{m: map[weak.Pointer[editor.State]]weak.Pointer[docMentionSession]{}}
 
 func docMentionSessionFor(ed *editor.State) *docMentionSession {
 	docMentionSessions.Lock()
 	defer docMentionSessions.Unlock()
-	return docMentionSessions.m[ed]
+	return docMentionSessions.m[weak.Make(ed)].Value()
 }
 
 // installDocMentionHooks installs the @ completion on ed, composing with the
@@ -142,7 +146,8 @@ func (a *App) installDocMentionHooks(tab *Tab, ed *editor.State) {
 		return
 	}
 	docMentionSessions.Lock()
-	if s, ok := docMentionSessions.m[ed]; ok {
+	key := weak.Make(ed)
+	if s := docMentionSessions.m[key].Value(); s != nil {
 		s.app, s.tab = a, tab
 		docMentionSessions.Unlock()
 		return
@@ -154,7 +159,12 @@ func (a *App) installDocMentionHooks(tab *Tab, ed *editor.State) {
 		prevRender:     ed.RenderCompletions,
 		prevDefinition: ed.OnDefinition,
 	}
-	docMentionSessions.m[ed] = s
+	docMentionSessions.m[key] = weak.Make(s)
+	runtime.AddCleanup(ed, func(key weak.Pointer[editor.State]) {
+		docMentionSessions.Lock()
+		delete(docMentionSessions.m, key)
+		docMentionSessions.Unlock()
+	}, key)
 	docMentionSessions.Unlock()
 
 	ed.OnInput = s.onInput
@@ -489,6 +499,12 @@ func (s *docMentionSession) links() []docmention.LinkRef {
 		return nil
 	}
 	if version := s.ed.Buffer.Version(); s.refs != nil && s.refsVersion == version {
+		// The project may change without editing the document (delete/restore).
+		project := s.project()
+		for i := range s.refs {
+			ref := &s.refs[i]
+			ref.Found = !ref.Malformed && project != nil && project.Requests[ref.ID] != nil
+		}
 		return s.refs
 	}
 	s.refs = docmention.ScanRequestLinks(s.project(), s.ed.Buffer.String())

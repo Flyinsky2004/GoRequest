@@ -13,23 +13,23 @@ import (
 )
 
 // Integration hooks for the parallel U07 (tables) and U08 (mentions) modules.
-// They are variables so this file compiles and ships without those modules;
-// the integrator wires them in a serial commit. See docs/task-results/U06.md.
+// All modules are now wired. Variables let the renderer contract be exercised
+// independently in tests; the defaults are the production implementations.
 var (
 	// docTableRenderer, when set by desktop/doc_table*.go (U07), renders an
 	// editable GFM table for one complete table block. source is exactly the
 	// block's Markdown; replace receives the block's new Markdown and the
 	// canvas applies it as one minimal source-range transaction (undoable).
-	docTableRenderer func(c *ui.Context, t *ui.Theme, root ui.Element, source string, replace func(string)) bool
+	docTableRenderer = renderDocTable
 
 	// installDocMentionHooks, when set by desktop/doc_mentions*.go (U08),
 	// composes completion/hover callbacks onto the active editor. It must
 	// wrap the editor's existing OnInput instead of replacing it.
-	installDocMentionHooks func(a *App, tab *Tab, ed *editor.State)
+	installDocMentionHooks = (*App).installDocMentionHooks
 
 	// renderDocMentionTools, when set by U08, draws optional mention tools
 	// beside the active editor.
-	renderDocMentionTools func(a *App, c *ui.Context, t *ui.Theme, root ui.Element, tab *Tab, ed *editor.State)
+	renderDocMentionTools = (*App).renderDocMentionTools
 )
 
 // --- block lifecycle ------------------------------------------------------

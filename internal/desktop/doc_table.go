@@ -31,17 +31,15 @@ type docTableCell struct {
 
 // docTableState is what one table block keeps between frames.
 type docTableState struct {
-	// src is the source last handed to replace; parsedFrom is the source
-	// last parsed. A frame whose source matches either one keeps the
-	// model, so a caller that applies the replacement a frame later does
-	// not lose the edit.
-	src        string
-	parsedFrom string
-	table      *doctable.Table
-	values     [][]string
-	widths     []float32
-	focus      docTableCell
-	notice     string
+	// src is the source last parsed or handed to the synchronous replace
+	// callback. Any other source is an external edit or undo and must be
+	// reparsed, even when it equals the original text.
+	src    string
+	table  *doctable.Table
+	values [][]string
+	widths []float32
+	focus  docTableCell
+	notice string
 }
 
 // renderDocTable renders a complete GFM table block as an editable table
@@ -66,14 +64,13 @@ func renderDocTable(c *ui.Context, t *ui.Theme, root ui.Element, source string, 
 	if st == nil {
 		return false
 	}
-	if st.table == nil || (source != st.src && source != st.parsedFrom) {
+	if st.table == nil || source != st.src {
 		tb, err := doctable.Parse(source)
 		if err != nil {
 			return false
 		}
 		st.table = tb
 		st.src = source
-		st.parsedFrom = source
 		st.focus = docTableCell{}
 		st.notice = ""
 		st.rebuild()

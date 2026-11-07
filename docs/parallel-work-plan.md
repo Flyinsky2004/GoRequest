@@ -737,3 +737,53 @@ U10须检查CheckboxBase真实绘制API，复用已有16DIP本地绘制模式（
 | U10 | t4n | tb22336c7c4482f880ecdf5133ca3e97e8 |
 
 完整提示词和原始启动响应仅存本机 `/private/tmp/gorequest-u09-u10-20261107/` 不入Git。两组开发中，尚未交付/合并/验收；本轮仅完成派工和静态账本检查，未运行功能构建/测试。既有U01–U08和用户/其他项目终端均保留，用户示例环境与debug产物不纳入提交。
+
+
+## 31. U01–U10 集成与清理（2026-11-08）
+
+用户明确要求所有已完成agent任务合并到main，并删除分支和agent。集成人核对10个来源工作区全部干净、均有本地交付提交与U01–U10报告、对应Herdr会话idle。从main `7bc923d` 创建独立 `integrate/U01-U10` / `/private/tmp/gorequest-u-integration-20261108/worktree`，依次no-ff合并，全部无冲突。此前各表“待启动”是历史登记状态，本节更新为代码已集成、实机验收待补。
+
+| 来源分支 | 交付头 | 合并提交 |
+| --- | --- | --- |
+| cc/U01-response-right | b33838f | 07fcc88 |
+| cc/U02-url-status | 9501ec3 | d69a3fa |
+| cc/U03-preview-row | 678d624 | c2c49b4 |
+| cc/U04-header-menus-save | e04336c | 3d1cb02 |
+| cc/U05-folder-ime | 2992503 | 8608770 |
+| cc/U06-doc-canvas | 69a8594 | 4a67bb7 |
+| cc/U07-doc-table | 9273dc1 | 73252c7 |
+| cc/U08-doc-mentions | 061203f | 79403d0 |
+| cc/U09-history-display | 2fe54b3 | 7fbc65d |
+| cc/U10-git-checkbox | 1f64c63 | a5e7b34 |
+
+### 31.1 公共接线与集成修正
+
+- U04保存统一到环境右侧，删除urlGroup旧调用和文档工具条重复入口；保存只在有未保存修改时显示。
+- U05应用交付的Core补丁：ASCII目录名规则不变，非ASCII名称保留可读中文并处理非法字符；仍拒绝路径分隔/穿越，不全局修改Slug。新增Core用例覆盖中文新建/重命名/重载、保留子请求ID、非法路径与冲突。
+- U06/U07/U08接通画布表格、活动块/源码/分栏@补全、失效引用修复与独立引用chip（混合正文里的引用仍为可点击Markdown链接）；复用稳定ID导航，不自动发送。
+- 统一画布与表格的正文撤销/重做；修正表格撤销到原文时未刷新单元格缓存，以及紧跟普通段落的表格源范围错误，避免编辑表格吞前文。
+- 文档临时块增加Tab生命周期flush回调，在App帧入口与saveTabSynced保存前同步正文，覆盖文档→请求切tab和新顶栏保存的最后输入；不再依赖文档视图仍在绘制。
+- @注册表改用弱key/弱value与cleanup，避免全局强引用持有已关闭编辑器/项目；回调只组合安装一次，源码逐帧不再覆盖OnDefinition。引用缓存重新核对项目内目标存在性，删除接口无需改正文也会显示失效。
+- 新增authoring_integration_test.go验证真实App入口的表格编辑/撤销/重做、前后文保留、@接受与保存最后输入、切请求tab保留输入、源码/分栏精确定位同一行第二个引用，以及不改正文时删除目标后的缓存刷新。
+
+### 31.2 验证与边界
+
+- 最终 `go build ./...`、`go vet ./...` 通过。
+- `go test ./... -count=1` 执行完成：除下列4项合并前已存在的失败外，其余包/用例通过：
+  - desktop TestMockEditorSuggestionsAreProjectUnique（copy suggestion x）
+  - desktop TestRunnerEditorDescribeAssertions（want 6 specs, got 7）
+  - desktop TestRunnerEditorPatchSuiteExtract（comments lost）
+  - diagnostics TestEngine_PolicyBlockedAndMissingSecretPreflight（unconfirmed prod policy error）
+- 在尚未合入的主worktree main `7bc923d` 分别实际复跑上述desktop三项和diagnostics一项，均以相同原因失败；未修改这些实现/断言来掩盖基线失败。
+- 集成专项TestAuthoring及中文文件夹Core测试通过；历史/Git/响应/变量/顶栏/命名/文档受影响测试通过。一次筛选运行的纯模型包出现“no tests to run”，不以此冒充模型验证；最终全仓运行已实际执行并通过docedit/doctable/docmention/Core模块。
+- `git diff --check -- internal` 通过；全变更检查仅有U04报告中diff代码块与U05原始patch上下文的“空格+tab”格式提示，属于补丁文本，不改合法patch上下文或共享Git配置。go.mod/go.sum未改。
+- race结果及最终main/清理句柄在下节补记。完整日志/原始merge映射保留本机 `/private/tmp/gorequest-u-integration-20261108/`，不入Git。
+
+所有U01–U10是代码集成，不表示完整产品验收：未启动真实桌面窗口、未提供两尺寸实机截图、未验证真实macOS中文输入法/跨平台。Markdown画布是原生首版，复杂嵌套/未知块保真源码回退；点击块光标近似行尾，活动块内行内Markdown标记仍可见，右键Undo与键盘统一历史存在报告中的边界；混合段落链接hover仍为URI，独立引用chip可显示最新接口信息。U09在220DIP极窄侧栏URL可能压至0宽，依赖整行tooltip。详细首版限制保留U01–U10原报告，已完成接线/最后输入修复等以本节覆盖旧报告“未接线”说明；总功能卡不因合并而勾选实机验收通过。
+
+清理范围仅本批10个CC及其来源分支/worktree与临时集成分支/worktree。保留当前t1h、既有t3w、用户shell t2s、其他项目t31/t48/t4k。不push，不修改用户示例环境或debug产物，不清理其他会话。
+
+
+### 31.3 最终race门禁
+
+`go test -race ./internal/core ./internal/docedit ./internal/doctable ./internal/docmention ./internal/desktop/... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunnerEditorDescribeAssertions|TestRunnerEditorPatchSuiteExtract)$' -count=1` 全部通过（desktop 89.420s）。该命令仅显式跳过三项已复现的desktop基线失败；没有跳过新功能测试，不是全仓race。诊断基线失败由前述全仓普通测试保留证据。验证后的集成代码/报告统一提交，随后main快进、按精确句柄清理，实际结果下节补记。

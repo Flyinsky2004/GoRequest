@@ -60,6 +60,42 @@ func collectionRelOf(entryRel string) string {
 	return rel
 }
 
+// folderSlug returns the directory name for a folder display name and whether
+// the name has one. ASCII names use the portable Slug; names with non-ASCII
+// characters (for example Chinese) keep a readable directory name instead of
+// collapsing to "item", with the characters illegal on common filesystems
+// replaced. It mirrors projectFolderName, which does the same for project
+// directories.
+func folderSlug(name string) (string, bool) {
+	ascii := true
+	for _, r := range name {
+		if r > 127 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		slug := Slug(name)
+		if slug == "item" && strings.ToLower(name) != "item" {
+			return "", false
+		}
+		return slug, true
+	}
+	var b strings.Builder
+	for _, r := range name {
+		if r < 0x20 || strings.ContainsRune(`:*?"<>|`, r) {
+			b.WriteByte('-')
+			continue
+		}
+		b.WriteRune(r)
+	}
+	folder := strings.Trim(b.String(), " .-")
+	if folder == "" {
+		return "", false
+	}
+	return folder, true
+}
+
 // validateFolderName turns a user-supplied folder name into a safe directory
 // slug, rejecting names that would inject path separators or traversal.
 func validateFolderName(name string) (string, error) {
@@ -70,8 +106,8 @@ func validateFolderName(name string) (string, error) {
 	if filepath.IsAbs(trimmed) || strings.ContainsAny(trimmed, `/\`) || trimmed == "." || trimmed == ".." {
 		return "", configErrorf("invalid folder name %q", name)
 	}
-	slug := Slug(trimmed)
-	if slug == "item" && strings.ToLower(trimmed) != "item" {
+	slug, ok := folderSlug(trimmed)
+	if !ok {
 		return "", configErrorf("folder name %q must contain letters or digits", name)
 	}
 	return slug, nil

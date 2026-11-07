@@ -62,6 +62,8 @@ type Tab struct {
 	// doc editing state
 	DocRel    string
 	DocEditor *editor.State
+	// flushDocEdit commits pending canvas input before save or tab navigation.
+	flushDocEdit func()
 	// docBuiltGen is the theme generation the doc editor was themed with, so
 	// an appearance switch restyles it without rebuilding the buffer.
 	docBuiltGen int

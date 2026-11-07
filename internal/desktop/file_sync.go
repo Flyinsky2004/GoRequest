@@ -656,6 +656,9 @@ func (a *App) saveTabSynced(tab *Tab) error {
 	if a == nil || a.ps == nil || tab == nil {
 		return fmt.Errorf("no tab to save")
 	}
+	if tab.flushDocEdit != nil {
+		tab.flushDocEdit()
+	}
 	ctrl, err := a.ensureFileSync()
 	if err != nil {
 		return err
