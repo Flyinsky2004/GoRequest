@@ -583,11 +583,24 @@ main已从 `3122e44` 快进至 `f15f528`（五条no-ff合并 + 公共接线/静�
 
 | CC任务 | 分支 / 实际worktree | 独占范围与依赖 | 状态 |
 | --- | --- | --- | --- |
-| R1/R2/R4 | `cc/R-request-chrome` / `/private/tmp/gorequest-r1-r9-20261107/request-chrome` | workspace.urlGroup、timeout快捷入口、b03URLPreview/方法段；request_form仅底部差异预览 | 待启动 |
-| R3/R6 | `cc/R-kv` / `/private/tmp/gorequest-r1-r9-20261107/kv` | request_form的KV绘制；Body表单KV必要调用；本地16DIP checkbox；不碰解析预览/方法段 | 待启动 |
-| R5/R9 | `cc/R-layout-status` / `/private/tmp/gorequest-r1-r9-20261107/layout-status` | config/project_state比例、workspace.requestView分栏、app.send状态生命周期；不碰urlGroup | 待启动 |
-| R7/R8 | `cc/R-response` / `/private/tmp/gorequest-r1-r9-20261107/response` | response_view、响应Cookie/Network内部入口、只读响应编辑器样式与主题缓存 | 待启动 |
+| R1/R2/R4 | `cc/R-request-chrome` / `/private/tmp/gorequest-r1-r9-20261107/request-chrome` | workspace.urlGroup、timeout快捷入口、b03URLPreview/方法段；request_form仅底部差异预览 | 实现中 |
+| R3/R6 | `cc/R-kv` / `/private/tmp/gorequest-r1-r9-20261107/kv` | request_form的KV绘制；Body表单KV必要调用；本地16DIP checkbox；不碰解析预览/方法段 | 实现中 |
+| R5/R9 | `cc/R-layout-status` / `/private/tmp/gorequest-r1-r9-20261107/layout-status` | config/project_state比例、workspace.requestView分栏、app.send状态生命周期；不碰urlGroup | 实现中 |
+| R7/R8 | `cc/R-response` / `/private/tmp/gorequest-r1-r9-20261107/response` | response_view、响应Cookie/Network内部入口、只读响应编辑器样式与主题缓存 | 实现中 |
 
 公共文件按上述函数区域归属，禁止整文件重构；i18n新增键用独立模块或最小接线patch。总账本由集成人更新，agent只写docs/task-results/R1.md…R9.md并提交。R4已有Hairline分隔先定位，R9先排查不预设缺陷。四组从共同已提交HEAD建独立worktree，不带入用户dirty文件。不得自行merge/push/清理其他分支/操作其他终端或再派子agent。
 
 每项报告需文件、选择理由、验收真实结果、未做到部分与提交。各自go build ./...与受影响包go test，基线既有错误只报告位置，不越界修；集成后再做最终go build ./...和受影响包go test。R9连续发送5次终态验证；R7/R8组准备截图流程，最终整合版本需1200×820、1024×640各一张示例服务/用户登录已发送截图，供R1/R5/R6/R7/R8人工检查。未生成不得称通过。各R项当前均未完成、未集成、未验收，不勾选。
+
+### 26.1 实际启动与基线验证
+
+四组实际共同基线 `7874b0b8cb8392d6b15b35448038f216835c538a`（代码等同d576d60，仅加派工账本），均已从此建立独立worktree并通过Herdr tab.new交互启动Claude Code。四屏确认正确目录/任务/分支，hc均working，沿用当前默认DeepSeek V4.1 Fla…与会话Full Access，未指定或修改模型/全局配置。应用Claude Code不等于Claude模型。无目录信任阻塞。
+
+| 负责人 | Herdr终端 | tab ID | 实际分支 |
+| --- | --- | --- | --- |
+| CC request-chrome | `t44` | `tb5dea8941db88a73272b2f5d43d220122` | `cc/R-request-chrome` |
+| CC kv | `t45` | `tbce88b7f79f7a5334dd50f8362ecbd585` | `cc/R-kv` |
+| CC layout-status | `t46` | `tb4e3c37d707edcb0bc561eb4af4a55e04` | `cc/R-layout-status` |
+| CC response | `t47` | `tb59bbfb9e26246f9140fefe6d3371402c` | `cc/R-response` |
+
+本轮派工前在main代码基线实际执行 `go build ./...`，exit 0（首轮沙箱缓存访问被拒后，获准在沙箱外重跑通过）。尚未跑本轮最终组合测试，尚无实现交付/合入/两尺寸截图，不能宣称R1–R9验收通过。完整提示词/launch脚本/句柄仅存本机 `/private/tmp/gorequest-r1-r9-20261107/` 不入Git；后续据精确分支/终端与各R报告收集交付并集成验证。
