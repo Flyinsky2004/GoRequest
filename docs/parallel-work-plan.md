@@ -377,3 +377,17 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 | FIX09 | `t35` | `tb0b17915347082d0862d3effb432f8c06` | `../GoRequest-FIX09` / `cc/FIX09-secret-value-entry` |
 
 本机提示词/句柄 `/private/tmp/gorequest-fix06-09-20261107/` 不入Git。新任务只完成领取，未交付/未集成，不打勾。现有超时入口为请求编辑区设置→请求总超时；密钥真实值入口为顶部项目菜单→系统凭据，声明名本身不等于绑定值。本批需改善上述发现与操作闭环，不能只重述旧入口即交差。
+
+## 17. A02 首个闭环：Runner/Schema 联合接线与桌面运行（2026-11-07）
+
+用户要求建议优先步骤并开一个 Codex 实施。选择先完成自动化可用闭环，不同时启动多协议；按顺序由同一个 agent 执行：①A01/A03 Schema 适配和发网前预检；②最小桌面集合/Suite Runner，运行/进度/取消/结果/JSON与JUnit导出；③使用本地认证→提取→查询→更新及至少两行数据完成联合回归。此为 A02 第一阶段，不能声称完整 A02 或正式版验收完成。
+
+- [ ] A02-phase1：Schema 适配与最小桌面 Runner，待交付和集成验证。
+
+分支 `codex/A02-runner-first-loop`，worktree `../GoRequest-A02`。开工参考 main `a9fa5b0`，实际共同基线以领取记录为准；基线已包含 A01/A03/A04/B05/UI01-06，FIX06-09 四条worktree仍独立开发（其中FIX07已有提交但未合入），不得依赖或改它们目录。
+
+专属实现 `internal/runner` 的新增 Schema adapter（必要接口最小增量）、`desktop/runner*.go` 与专属双语词条/测试、独立本地 fixtures 和 A02 专属证据/交付文档。复用现有 Core/网络/凭据/报告，不另建自动化引擎。app/project_state/manager/nav/workspace/tab/i18n/config公共状态/菜单/生命周期接线交最小patch，临时套自己patch联调后只撤回自己的临时更改；不得碰FIX06的settings.go、FIX07的uikit/response.go、FIX08的network_ui.go、FIX09的environment_editor/identity_management*。
+
+先核对现有 runner.SchemaValidator 与 A03 SchemaValidatorPort 的真实差异，再做明确引用规则/错误分类/预检；不得把不可解析或没有schema误当通过，不让未知格式/坏引用在发网后才失败。运行固定保存快照，脏编辑清楚标识；UI更新只投递发起窗口，取消/关窗回收，结果数量/事件列表有界，不写共享项目历史/令牌/报告，不放宽生产策略。桌面选择集合/已有Suite文件、显示步骤/逐次尝试/错误与skipped，报告显式导出本地；未实现的可视化断言/提取编辑器、完整Suite编排/数据编辑界面如实列后续，不用大段源码输入假冒可视化闭环。
+
+必要成功/失败/取消/隔离/Schema错误路径/脱敏/导出失败回归与build/vet/race。真实窗口/平台未验证如实标注，契约首次联合验证后记录兼容与待冻结点，不宣称全面冻结。仅本卡可交付代码完成验证后自行commit；最终集成与勾选由集成人执行，不push/merge/删分支/操作其他agent，不启子agent。
