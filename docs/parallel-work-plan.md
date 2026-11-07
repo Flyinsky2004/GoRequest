@@ -417,3 +417,17 @@ A02公共两行接线已实际应用：App.View渲染RunnerModals，项目菜单
 main 已从 `0695700` 快进到 `dcc7858`（本轮公共接线/验证边界提交；三个合并提交 `6bb7fd1` / `00348a2` / `aad72cc` 均在其历史）。逐个确认分支头已进入main、对应worktree无已修改或未跟踪文件后，不带force删除 `codex/A02-runner-first-loop` / `../GoRequest-A02`、`cc/FIX06-settings-height` / `../GoRequest-FIX06`、`cc/FIX07-send-feedback` / `../GoRequest-FIX07`，以及 `integrate/a02-fix06-fix07` / `../GoRequest-integration`。
 
 清理后按精确tab ID关闭Herdr `t36`（A02）、`t32`（FIX06）、`t33`（FIX07），均返回ok:true，随后hc ls确认三者不再live。保留正在开发的FIX08 `t34`、FIX09 `t35`及它们的分支/worktree；用户t1h/t2s和其他space终端未操作。主目录示例环境改动、两个debug产物全程保留。本轮未执行build/vet/测试，也未push。当前checkbox保留待验收，不把合并当测试通过。
+
+## 19. 可并行开发：本地 Mock 与性能诊断（2 agy，2026-11-07）
+
+用户要求再开两个agy，选择已具备基础依赖且互不阻塞的C01/C02。参考main `7931bcf`，实际基线见启动登记；A01/A03/B04/B05及A02首阶段已合入，FIX08/09仍并行不碰。上轮合并按用户要求未运行组合测试，不以基线未经组合验证为由伪称通过。
+
+| 子任务 | 分支 / worktree | 专属范围 | 状态 |
+| --- | --- | --- | --- |
+| C01-phase1 | `agy/C01-local-mock` / `../GoRequest-C01` | 新增internal/mockserver/**、desktop/mock*.go、独立规则格式/本机记录及证据；确定性HTTP Mock、场景、显式启停、受限脱敏访问记录；Runner生命周期仅明确注入端口/最小patch | 待启动 |
+| C02-phase1 | `agy/C02-performance` / `../GoRequest-C02` | 新增internal/diagnostics/**、desktop/performance*.go与专属统计/报告；复用B04 Trace，受限采样/取消/nearest-rank/比较与JSON/CSV；底层逐跳trace缺口交最小公共patch | 待启动 |
+
+- [ ] C01-phase1 本地Mock闭环：待交付、集成和验证。
+- [ ] C02-phase1 性能诊断闭环：待交付、集成和验证。
+
+两卡不修改对方模块，公共core/model/project/plan/network、runner生命周期、desktop/app/manager/workspace/nav/response_view等只交最小接线patch，集成人统一应用。不得改FIX08的network_ui.go或FIX09的environment_editor/identity_management模块，不新增产品CLI，不因打开项目自动监听或发网。按用户最新“先不执行测试”的约束，本轮先实现/提交与提供验证用例，暂不执行测试/构建/vet；交付必须明确本轮未验证，不能用旧报告冒充通过。正式验收与主卡勾选待后续恢复验证。
