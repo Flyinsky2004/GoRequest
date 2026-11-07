@@ -479,14 +479,10 @@ func (a *App) renderFormBodyRow(c *ui.Context, p uikit.Palette, m *messages, bm 
 		r.Background(p.Hover)
 	}
 	r.Children(func() {
-		if uikit.ActionCursor(ui.Checkbox(c, &row.Enabled, "")).Changed() {
+		if uikit.ActionCursor(kvCheckbox(c, p, &row.Enabled)).Changed() {
 			bs.markMutated(tab)
 		}
-		keyPh, valPh := "", ""
-		if blank {
-			keyPh = m.Key
-			valPh = m.Value
-		}
+		keyPh, valPh := kvCellPlaceholders(m, blank)
 		if ui.TextInput(c, &row.Name).Width(180).Placeholder(keyPh).Changed() {
 			bs.ensureTrailingFormBlank()
 			bs.markMutated(tab)
