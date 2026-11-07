@@ -12,6 +12,46 @@ import (
 // value that actually takes effect. It replaces the old standalone row, so at
 // most the variable chips and the resolved preview sit between the URL and the
 // section tabs. Assertions use ui.NewTester geometry/text, not screenshots.
+// The same-row badge was chosen over a Settings-tab corner badge only if it
+// fits at the two target window sizes. This pins that it does not push into
+// the Send button at the compact width.
+func TestTimeoutBadgeFitsAtTargetWidths(t *testing.T) {
+	for _, width := range []int{1024, 1200} {
+		t.Run(fmt.Sprintf("w%d", width), func(t *testing.T) {
+			a, ps := openTestProject(t, fmt.Sprintf("TimeoutBadgeW%d", width))
+			tab := openRequestTabs(t, ps, "Req")[0]
+			tab.Method = "GET"
+			tab.URL = "https://example.com/api"
+
+			tt := ui.NewTester(a.View, width, 640)
+			tt.Frame()
+
+			urlRect, ok := tt.Find("request URL")
+			if !ok {
+				t.Fatalf("URL input not found; texts=%v", tt.Texts())
+			}
+			badge, ok := tt.Find(fmt.Sprintf(networkMessagesEn.TimeoutBadgeFmt, "10s"))
+			if !ok {
+				t.Fatalf("timeout badge missing; texts=%v", tt.Texts())
+			}
+			send, ok := tt.Find("Send")
+			if !ok {
+				t.Fatalf("Send button not found; texts=%v", tt.Texts())
+			}
+			if badge.X < urlRect.X+urlRect.W-1 {
+				t.Fatalf("badge is not to the right of the URL: badge=%+v url=%+v", badge, urlRect)
+			}
+			if badge.X+badge.W > send.X+1 {
+				t.Fatalf("badge overlaps the Send button: badge=%+v send=%+v", badge, send)
+			}
+			centerY := badge.Y + badge.H/2
+			if centerY < urlRect.Y || centerY > urlRect.Y+urlRect.H {
+				t.Fatalf("badge left the URL row: badge=%+v url=%+v", badge, urlRect)
+			}
+		})
+	}
+}
+
 func TestTimeoutBadgeLivesInURLRowAndTracksResolution(t *testing.T) {
 	a, ps := openTestProject(t, "TimeoutBadgeLayout")
 	tab := openRequestTabs(t, ps, "Req")[0]
