@@ -659,6 +659,11 @@ func (a *App) saveCredential(ps *projectState, st *identityManagementState) {
 	st.credValue = ""
 	st.notice = a.identityManagementMsg().CredSaved
 	st.errMsg = ""
+	// FIX09: the environment editor caches non-sensitive binding status per
+	// declared name. Bump the shared generation so its "Set / Update local
+	// value" badges refresh after a value written through this page too (both
+	// surfaces use the same project-scoped ManagedCredentials store).
+	secretEntryFor(ps).generation++
 	a.refreshCredentialEntries(ps, st, true)
 	a.invalidateIdentityDiagnostics(ps)
 }
@@ -685,6 +690,8 @@ func (a *App) confirmDeleteCredential(ps *projectState, st *identityManagementSt
 	st.credConfirmName = ""
 	st.notice = a.identityManagementMsg().CredDeleted
 	st.errMsg = ""
+	// FIX09: see saveCredential — keep the env editor's status cache in sync.
+	secretEntryFor(ps).generation++
 	a.refreshCredentialEntries(ps, st, true)
 	a.invalidateIdentityDiagnostics(ps)
 }

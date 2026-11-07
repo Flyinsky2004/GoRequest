@@ -271,3 +271,118 @@ func (a *App) identityManagementMsg() *identityManagementMessages {
 	}
 	return &identityManagementMessagesZh
 }
+
+// secretEntryMessages holds the bilingual labels for the "declare a name ->
+// set the local value" dialog. FIX09 keeps them here (a card-owned file) so
+// i18n.go, owned by the integrator, does not need a merge. Every string is a
+// label or a non-sensitive status; none of them can carry a secret value.
+type secretEntryMessages struct {
+	Title            string
+	ProjectFmt       string
+	RefFmt           string
+	SourceHint       string
+	ADRHint          string
+	NameLabel        string
+	NamePlaceholder  string
+	ValueLabel       string
+	ValuePlaceholder string
+	ValueHint        string
+	StatusLabel      string
+	StatusBoundFmt   string
+	StatusUnavailFmt string
+	StatusMissing    string
+	SetValue         string
+	UpdateValue      string
+	Delete           string
+	DeleteConfirmFmt string
+	SavedFmt         string
+	DeletedFmt       string
+	BackendFailed    string
+	InvalidName      string
+	Empty            string
+	Cancel           string
+	// Env-row entry points.
+	EnvSetValue      string
+	EnvUpdateValue   string
+	EnvStatusBound   string
+	EnvStatusMissing string
+	EnvStatusUnavail string
+	EnvHint          string
+	// Credentials-page entry point.
+	CredSetValue string
+}
+
+func secretEntryMessagesFor(lang string) *secretEntryMessages {
+	if lang == "en" {
+		return &secretEntryMessagesEn
+	}
+	return &secretEntryMessagesZh
+}
+
+var secretEntryMessagesZh = secretEntryMessages{
+	Title:            "设置本机密钥值",
+	ProjectFmt:       "项目：%s（值仅保存到此项目隔离的本机系统凭据存储）",
+	RefFmt:           "引用：{{secret.%s}}",
+	SourceHint:       "项目文件只保存名称与 {{secret.名称}} 引用；真实值不会写入项目 yaml、普通变量或导出内容。",
+	ADRHint:          "请求发送时从本机系统凭据读取；凭据后端不可用或锁定时会明确报错，不会降级为明文。",
+	NameLabel:        "密钥名称",
+	NamePlaceholder:  "密钥名称（例如 apiToken）",
+	ValueLabel:       "真实值（仅写入系统凭据）",
+	ValuePlaceholder: "粘贴或输入真实值",
+	ValueHint:        "密码输入，不会回显；保存后立即清空临时输入。",
+	StatusLabel:      "绑定状态：",
+	StatusBoundFmt:   "已绑定（%s）",
+	StatusUnavailFmt: "后端不可用（%s）",
+	StatusMissing:    "未设置",
+	SetValue:         "设置值",
+	UpdateValue:      "更新本机值",
+	Delete:           "删除本机值",
+	DeleteConfirmFmt: "确认删除本机值 %q？项目中的名称声明不会被删除。",
+	SavedFmt:         "已把 %q 的值写入本机系统凭据。",
+	DeletedFmt:       "已删除 %q 的本机值。",
+	BackendFailed:    "无法访问系统凭据存储：%s",
+	InvalidName:      "密钥名称无效：%s",
+	Empty:            "请输入密钥名称和值。",
+	Cancel:           "取消",
+	EnvSetValue:      "设置值",
+	EnvUpdateValue:   "更新本机值",
+	EnvStatusBound:   "已绑定",
+	EnvStatusMissing: "未设置",
+	EnvStatusUnavail: "后端不可用",
+	EnvHint:          "每个名称旁点“设置值/更新本机值”填写真实值；只写本机系统凭据，不写入项目文件。",
+	CredSetValue:     "设置/更新值",
+}
+
+var secretEntryMessagesEn = secretEntryMessages{
+	Title:            "Set local secret value",
+	ProjectFmt:       "Project: %s (the value is stored only in this project's isolated system credential store)",
+	RefFmt:           "Reference: {{secret.%s}}",
+	SourceHint:       "Project files keep only names and {{secret.name}} references; real values never go into project YAML, ordinary variables or exports.",
+	ADRHint:          "Requests read the value from the local system credential store at send time; an unavailable or locked backend reports an error instead of falling back to plaintext.",
+	NameLabel:        "Secret name",
+	NamePlaceholder:  "Secret name (e.g. apiToken)",
+	ValueLabel:       "Real value (written only to the system credential store)",
+	ValuePlaceholder: "Paste or type the real value",
+	ValueHint:        "Password input is never echoed; the temporary value is cleared immediately after saving.",
+	StatusLabel:      "Binding status:",
+	StatusBoundFmt:   "Bound (%s)",
+	StatusUnavailFmt: "Backend unavailable (%s)",
+	StatusMissing:    "Not set",
+	SetValue:         "Set value",
+	UpdateValue:      "Update local value",
+	Delete:           "Delete local value",
+	DeleteConfirmFmt: "Delete the local value of %q? The declared name in the project is not removed.",
+	SavedFmt:         "Saved the value of %q to the local system credential store.",
+	DeletedFmt:       "Deleted the local value of %q.",
+	BackendFailed:    "Cannot access the system credential store: %s",
+	InvalidName:      "Invalid secret name: %s",
+	Empty:            "Enter a secret name and value.",
+	Cancel:           "Cancel",
+	EnvSetValue:      "Set value",
+	EnvUpdateValue:   "Update local value",
+	EnvStatusBound:   "Bound",
+	EnvStatusMissing: "Not set",
+	EnvStatusUnavail: "Backend unavailable",
+	EnvHint:          "Use “Set value / Update local value” beside each declared name to enter the real value; only the local system store is written, never a project file.",
+	CredSetValue:     "Set / update value",
+}
