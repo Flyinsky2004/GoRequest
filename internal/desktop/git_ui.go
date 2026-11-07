@@ -212,7 +212,7 @@ func (g *gitController) entryRow(c *ui.Context, t *ui.Theme, p uikit.Palette, m 
 		row.Background(p.Hover)
 	}
 	row.Children(func() {
-		uikit.ActionCursor(ui.CheckboxBase(c, &checked).Label(e.Path).Disabled(e.Unmerged))
+		uikit.ActionCursor(gitCheckbox(c, p, &checked, e.Unmerged)).Label(e.Path)
 		badge := e.Marker()
 		col := p.Muted
 		switch badge {

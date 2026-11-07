@@ -261,7 +261,11 @@ func (g *gitController) pruneSelection() {
 	live := map[string]bool{}
 	if g.status != nil {
 		for _, e := range g.status.Entries {
-			live[e.Path] = true
+			// A conflicted path cannot be committed from this panel, so a
+			// selection made before it became conflicted is dropped too.
+			if !e.Unmerged {
+				live[e.Path] = true
+			}
 		}
 	}
 	for p := range g.selection {
