@@ -573,3 +573,21 @@ Herdr终端 `t3b`，tab `tb3d3591a57162fc0ea36db75749afe846`（BRAND01 Logo 接�
 main已从 `3122e44` 快进至 `f15f528`（五条no-ff合并 + 公共接线/静态修正/状态说明提交）。已按精确tab关闭t3m/t3n/t3p/t3q/t3v，五次均ok:true，随后hc ls确认均不再live。核对每个worktree干净、无live终端占用、分支头为main祖先后，不带force删除本批五条vibe分支/worktree、旧 `agy/FIX10-mock-checkbox` / `../GoRequest-FIX10`、旧 `cc/BRAND01-logo-integration` / `../GoRequest-BRAND01`，以及本轮临时 `integrate/vibe-five` / `../GoRequest-integration`。
 
 最终仅剩本地main和主worktree。用户示例dev.yaml改动与两个debug二进制保持原状；当前会话t1h、用户shell t2s及oct项目t31/t3s保留。没有push，没有运行构建/vet/测试或真实应用/网络验证。代码已集成和清理，不代表编译或正式验收通过，§25 checkbox继续未勾。
+
+
+## 26. R1–R9 请求/响应 UI 精简（4 CC，2026-11-07）
+
+用户要求读取本机 Herdr AGENTS 并派几个 CC 并行完成。已核对当前 main 代码基线 `d576d60`，仅用户示例 dev.yaml dirty 与两个debug产物未跟踪，全部保留、不入派工基线。当前主会话 t1h、已有CC t3w、用户shell t2s、oct t31不操作。新版 Herdr tab.new 启动交互 Claude Code，沿用其当前默认模型，不改全局设置；实际终端/tab在启动后补记。
+
+本轮用户明确要求执行验证，取代此前各节的“暂不测试”。红线：不修改 internal/core（数据模型/格式/解析/发送语义）；必须改Core的项停下单独报告；不新增颜色token、不改框架/依赖，复用现有色；布局断言沿用brand_chrome_layout_test.go常量与位置风格，不做截图比对；每R项单独提交、独立可回滚。
+
+| CC任务 | 分支 / 实际worktree | 独占范围与依赖 | 状态 |
+| --- | --- | --- | --- |
+| R1/R2/R4 | `cc/R-request-chrome` / `/private/tmp/gorequest-r1-r9-20261107/request-chrome` | workspace.urlGroup、timeout快捷入口、b03URLPreview/方法段；request_form仅底部差异预览 | 待启动 |
+| R3/R6 | `cc/R-kv` / `/private/tmp/gorequest-r1-r9-20261107/kv` | request_form的KV绘制；Body表单KV必要调用；本地16DIP checkbox；不碰解析预览/方法段 | 待启动 |
+| R5/R9 | `cc/R-layout-status` / `/private/tmp/gorequest-r1-r9-20261107/layout-status` | config/project_state比例、workspace.requestView分栏、app.send状态生命周期；不碰urlGroup | 待启动 |
+| R7/R8 | `cc/R-response` / `/private/tmp/gorequest-r1-r9-20261107/response` | response_view、响应Cookie/Network内部入口、只读响应编辑器样式与主题缓存 | 待启动 |
+
+公共文件按上述函数区域归属，禁止整文件重构；i18n新增键用独立模块或最小接线patch。总账本由集成人更新，agent只写docs/task-results/R1.md…R9.md并提交。R4已有Hairline分隔先定位，R9先排查不预设缺陷。四组从共同已提交HEAD建独立worktree，不带入用户dirty文件。不得自行merge/push/清理其他分支/操作其他终端或再派子agent。
+
+每项报告需文件、选择理由、验收真实结果、未做到部分与提交。各自go build ./...与受影响包go test，基线既有错误只报告位置，不越界修；集成后再做最终go build ./...和受影响包go test。R9连续发送5次终态验证；R7/R8组准备截图流程，最终整合版本需1200×820、1024×640各一张示例服务/用户登录已发送截图，供R1/R5/R6/R7/R8人工检查。未生成不得称通过。各R项当前均未完成、未集成、未验收，不勾选。
