@@ -56,7 +56,7 @@ func (s *workspacePrefsStore) markdownSettingsGroup(c *ui.Context, p uikit.Palet
 					if !found {
 						choices = append(choices, text)
 					}
-					if ui.Select(c, &text, choices).Width(110).Label(label).Cursor(ui.CursorPointer).Changed() {
+					if uikit.Select(c, &text, choices, uikit.SameIcon(uikit.IconType)).Width(110).Label(label).Cursor(ui.CursorPointer).Changed() {
 						if v, err := strconv.Atoi(strings.TrimSuffix(text, suffix)); err == nil {
 							update(v)
 						}

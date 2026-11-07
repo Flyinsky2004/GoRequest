@@ -207,7 +207,11 @@ func settingsCategoryContent(c *ui.Context, p uikit.Palette, m *messages, cat se
 	case settingsCategoryAppearance:
 		settingsGroup(c, p, m.AppearanceLabel, func() {
 			choice := appearanceDisplay(m, cfg.appearance())
-			if uikit.ActionCursor(ui.Select(c, &choice, appearanceChoices(m))).Width(150).Changed() {
+			if uikit.ActionCursor(uikit.Select(c, &choice, appearanceChoices(m), uikit.IconMap(map[string]*ui.SVG{
+				m.AppearanceSystem: uikit.IconMonitor,
+				m.AppearanceLight:  uikit.IconSun,
+				m.AppearanceDark:   uikit.IconMoon,
+			}))).Width(150).Changed() {
 				cfg.setAppearance(appearanceCanonical(m, choice))
 				if setStatus != nil {
 					setStatus(translate(m.AppearanceStatus, appearanceDisplay(m, cfg.appearance())))
@@ -218,7 +222,7 @@ func settingsCategoryContent(c *ui.Context, p uikit.Palette, m *messages, cat se
 	case settingsCategoryLanguage:
 		settingsGroup(c, p, m.LanguageLabel, func() {
 			choice := languageLabel(cfg.language())
-			if uikit.ActionCursor(ui.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish})).Width(150).Changed() {
+			if uikit.ActionCursor(uikit.Select(c, &choice, []string{languageLabelChinese, languageLabelEnglish}, uikit.SameIcon(uikit.IconGlobe))).Width(150).Changed() {
 				cfg.setLanguage(languageFromLabel(choice))
 				if setStatus != nil {
 					langMsgs := messagesFor(cfg.language())
@@ -272,7 +276,7 @@ func settingsCategoryContent(c *ui.Context, p uikit.Palette, m *messages, cat se
 					ui.Text(c, m.HistoryRetentionLabel).Grow(1).FontSize(12).TextColor(p.Muted).SingleLine()
 					choices := historyRetentionChoices(m)
 					choice := historyRetentionLabel(m, cfg.historyRetentionDays())
-					if uikit.ActionCursor(ui.Select(c, &choice, choices)).Width(150).Changed() {
+					if uikit.ActionCursor(uikit.Select(c, &choice, choices, uikit.SameIcon(uikit.IconClock))).Width(150).Changed() {
 						cfg.setHistoryRetentionDays(historyRetentionValue(choices, choice))
 					}
 				})

@@ -596,7 +596,7 @@ func (a *App) historyFilters(c *ui.Context, p uikit.Palette, m *messages) {
 					}
 				}
 				choice := labels[idx]
-				if uikit.ActionCursor(ui.Select(c, &choice, labels)).FillWidth().Changed() {
+				if uikit.ActionCursor(uikit.Select(c, &choice, labels, uikit.SameIcon(uikit.IconFolder))).FillWidth().Changed() {
 					a.historyUI.projectKey = keys[stringIndex(labels, choice)]
 				}
 			}
@@ -606,7 +606,7 @@ func (a *App) historyFilters(c *ui.Context, p uikit.Palette, m *messages) {
 			timeChoices := []string{m.HistoryTimeAll, m.HistoryTimeToday, m.HistoryTimeWeek, m.HistoryTimeMonth}
 			timeIdx := clampIndex(a.historyUI.timeRange, len(timeChoices))
 			timeChoice := timeChoices[timeIdx]
-			if uikit.ActionCursor(ui.Select(c, &timeChoice, timeChoices)).Grow(1).Changed() {
+			if uikit.ActionCursor(uikit.Select(c, &timeChoice, timeChoices, uikit.SameIcon(uikit.IconClock))).Grow(1).Changed() {
 				a.historyUI.timeRange = stringIndex(timeChoices, timeChoice)
 			}
 
@@ -616,7 +616,14 @@ func (a *App) historyFilters(c *ui.Context, p uikit.Palette, m *messages) {
 			}
 			resultIdx := clampIndex(a.historyUI.result, len(resultChoices))
 			resultChoice := resultChoices[resultIdx]
-			if uikit.ActionCursor(ui.Select(c, &resultChoice, resultChoices)).Grow(1).Changed() {
+			if uikit.ActionCursor(uikit.Select(c, &resultChoice, resultChoices, uikit.IconMap(map[string]*ui.SVG{
+				m.HistoryResultAll:      uikit.IconList,
+				m.HistoryResultSuccess:  uikit.IconCheck,
+				m.HistoryResultClient:   uikit.IconShield,
+				m.HistoryResultServer:   uikit.IconServer,
+				m.HistoryResultNetwork:  uikit.IconGlobe,
+				m.HistoryResultCanceled: uikit.IconClose,
+			}))).Grow(1).Changed() {
 				a.historyUI.result = stringIndex(resultChoices, resultChoice)
 			}
 		})

@@ -855,14 +855,17 @@ func (a *App) renderOAuthEditorMode(c *ui.Context, t *ui.Theme, tab *Tab, readOn
 		// 2. Scheme Type & Grant Type
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, om.SchemeTypeOAuth2+" / OIDC").FontSize(12).TextColor(pal.Muted)
-			if ui.Select(c, &schemeType, oauthSchemeTypeOptions).Changed() {
+			if uikit.Select(c, &schemeType, oauthSchemeTypeOptions, uikit.IconMap(map[string]*ui.SVG{
+				"oauth2": uikit.IconShield,
+				"oidc":   uikit.IconGlobe,
+			})).Changed() {
 				if schemeType == "oidc" && !strings.Contains(scopesText, "openid") {
 					scopesText = strings.TrimSpace("openid " + scopesText)
 				}
 				changed = true
 			}
 			ui.Text(c, om.GrantTypeLabel).FontSize(12).TextColor(pal.Muted)
-			if ui.Select(c, &grantType, oauthGrantTypeOptions).Changed() {
+			if uikit.Select(c, &grantType, oauthGrantTypeOptions, uikit.SameIcon(uikit.IconKey)).Changed() {
 				changed = true
 			}
 		})
@@ -935,7 +938,11 @@ func (a *App) renderOAuthEditorMode(c *ui.Context, t *ui.Theme, tab *Tab, readOn
 				changed = true
 			}
 			ui.Text(c, om.ClientAuthMethodLabel).FontSize(11).TextColor(pal.Muted)
-			if ui.Select(c, &clientAuthMethod, oauthClientAuthOptions).Changed() {
+			if uikit.Select(c, &clientAuthMethod, oauthClientAuthOptions, uikit.IconMap(map[string]*ui.SVG{
+				core.OAuthClientAuthBasic: uikit.IconLock,
+				core.OAuthClientAuthPost:  uikit.IconKey,
+				core.OAuthClientAuthNone:  uikit.IconClose,
+			})).Changed() {
 				changed = true
 			}
 		})
@@ -958,7 +965,7 @@ func (a *App) renderOAuthEditorMode(c *ui.Context, t *ui.Theme, tab *Tab, readOn
 				changed = true
 			}
 			ui.Text(c, om.UseTokenLabel).FontSize(11).TextColor(pal.Muted)
-			if ui.Select(c, &useToken, oauthUseTokenOptions).Changed() {
+			if uikit.Select(c, &useToken, oauthUseTokenOptions, uikit.SameIcon(uikit.IconKey)).Changed() {
 				changed = true
 			}
 		})

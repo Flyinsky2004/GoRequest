@@ -525,7 +525,7 @@ func (s *workspacePrefsStore) settingsGroups(c *ui.Context, p uikit.Palette, m *
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, m.FontSizeLabel).FontSize(12).TextColor(p.Muted).Width(150)
 				cur := strconv.Itoa(s.fontSize())
-				if uikit.ActionCursor(ui.Select(c, &cur, fontSizeChoices())).Width(90).Changed() {
+				if uikit.ActionCursor(uikit.Select(c, &cur, fontSizeChoices(), uikit.SameIcon(uikit.IconType))).Width(90).Changed() {
 					if n, err := strconv.Atoi(cur); err == nil {
 						s.setFontSize(n)
 						if setStatus != nil {
@@ -537,7 +537,7 @@ func (s *workspacePrefsStore) settingsGroups(c *ui.Context, p uikit.Palette, m *
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, m.TabSizeLabel).FontSize(12).TextColor(p.Muted).Width(150)
 				cur := strconv.Itoa(s.tabSize())
-				if uikit.ActionCursor(ui.Select(c, &cur, tabSizeChoices())).Width(90).Changed() {
+				if uikit.ActionCursor(uikit.Select(c, &cur, tabSizeChoices(), uikit.SameIcon(uikit.IconList))).Width(90).Changed() {
 					if n, err := strconv.Atoi(cur); err == nil {
 						s.setTabSize(n)
 					}
@@ -570,7 +570,7 @@ func (s *workspacePrefsStore) settingsGroups(c *ui.Context, p uikit.Palette, m *
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, m.AutoSaveDelayLabel).FontSize(12).TextColor(p.Muted).Width(150)
 				cur := delaySecondsLabel(s.autoSaveDelay())
-				if uikit.ActionCursor(ui.Select(c, &cur, delayChoices())).Width(90).Changed() {
+				if uikit.ActionCursor(uikit.Select(c, &cur, delayChoices(), uikit.SameIcon(uikit.IconClock))).Width(90).Changed() {
 					if n, err := strconv.Atoi(cur); err == nil {
 						s.setAutoSaveDelaySeconds(n)
 					}

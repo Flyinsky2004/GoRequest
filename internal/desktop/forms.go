@@ -187,7 +187,7 @@ func (a *App) moveModal(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Width(400).Gap(10).Padding(16).Children(func() {
 			ui.Text(c, m.MoveTitle).Bold().FontSize(16)
 			ui.Text(c, m.MoveHint).FontSize(12).TextColor(t.TextMuted)
-			uikit.ActionCursor(ui.Select(c, &a.moveTarget, folderChoices(ps.project))).FillWidth()
+			uikit.ActionCursor(uikit.Select(c, &a.moveTarget, folderChoices(ps.project), uikit.SameIcon(uikit.IconFolder))).FillWidth()
 			if a.moveErr != "" {
 				ui.Text(c, a.moveErr).FontSize(12).TextColor(t.Danger)
 			}

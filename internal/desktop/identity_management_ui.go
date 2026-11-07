@@ -205,7 +205,7 @@ func (a *App) renderSchemeSection(c *ui.Context, t *ui.Theme, ps *projectState, 
 			ui.Text(c, schemeReadOnlyNotice(a.identityLangCode())).FontSize(11).TextColor(p.Muted)
 		} else {
 			types := []string{"bearer", "basic", "apikey"}
-			if ui.Select(c, &st.draft.Type, types).Changed() {
+			if uikit.Select(c, &st.draft.Type, types, uikit.SameIcon(uikit.IconKey)).Changed() {
 				if st.draft.Type == "apikey" && strings.TrimSpace(st.draft.In) == "" {
 					st.draft.In = "header"
 				}
@@ -220,7 +220,11 @@ func (a *App) renderSchemeSection(c *ui.Context, t *ui.Theme, ps *projectState, 
 				ui.TextInput(c, &st.draft.Password).Grow(1).Placeholder("{{secret.password}}")
 			case "apikey":
 				ui.Text(c, m.SchemeKeyLocation).FontSize(12).TextColor(p.Muted)
-				ui.Select(c, &st.draft.In, core.APIKeyLocations)
+				uikit.Select(c, &st.draft.In, core.APIKeyLocations, uikit.IconMap(map[string]*ui.SVG{
+					"header": uikit.IconList,
+					"query":  uikit.IconGlobe,
+					"cookie": uikit.IconCookie,
+				}))
 				ui.Text(c, m.SchemeKeyName).FontSize(12).TextColor(p.Muted)
 				ui.TextInput(c, &st.draft.Name).Grow(1).Placeholder("X-API-Key")
 				ui.Text(c, m.SchemeKeyValue).FontSize(12).TextColor(p.Muted)
@@ -312,7 +316,7 @@ func (a *App) renderFolderSection(c *ui.Context, t *ui.Theme, ps *projectState, 
 	}
 
 	ui.Text(c, m.FolderPick).FontSize(12).FontWeight(600).TextColor(p.Muted)
-	if ui.Select(c, &st.folderRel, folders).Changed() {
+	if uikit.Select(c, &st.folderRel, folders, uikit.SameIcon(uikit.IconFolder)).Changed() {
 		a.openFolderAuthEditor(ps, st, nil)
 	}
 
@@ -340,7 +344,7 @@ func (a *App) renderFolderSection(c *ui.Context, t *ui.Theme, ps *projectState, 
 			if len(ids) == 0 {
 				ui.Text(c, m.SchemeListEmpty).FontSize(11).TextColor(p.Muted)
 			}
-			if ui.Select(c, &st.folderRef, ids).Changed() {
+			if uikit.Select(c, &st.folderRef, ids, uikit.SameIcon(uikit.IconFolder)).Changed() {
 				st.folderConfirm = false
 			}
 		case "inline-bearer":
@@ -353,7 +357,11 @@ func (a *App) renderFolderSection(c *ui.Context, t *ui.Theme, ps *projectState, 
 			ui.TextInput(c, &st.folderPass).Grow(1).Placeholder("{{secret.password}}")
 		case "inline-apikey":
 			ui.Text(c, m.SchemeKeyLocation).FontSize(12).TextColor(p.Muted)
-			ui.Select(c, &st.folderKeyIn, core.APIKeyLocations)
+			uikit.Select(c, &st.folderKeyIn, core.APIKeyLocations, uikit.IconMap(map[string]*ui.SVG{
+				"header": uikit.IconList,
+				"query":  uikit.IconGlobe,
+				"cookie": uikit.IconCookie,
+			}))
 			ui.Text(c, m.SchemeKeyName).FontSize(12).TextColor(p.Muted)
 			ui.TextInput(c, &st.folderKeyName).Grow(1)
 			ui.Text(c, m.SchemeKeyValue).FontSize(12).TextColor(p.Muted)

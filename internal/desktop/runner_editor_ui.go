@@ -212,17 +212,17 @@ func (a *App) runnerEditorAssertionForm(c *ui.Context, t *ui.Theme, m runnerEdit
 					ui.Text(c, m.MatcherLabel(d.kind)).FontSize(11).TextColor(p.Text).Width(84)
 					switch d.kind {
 					case runner.MatcherExists:
-						if uikit.ActionCursor(ui.Select(c, &d.exists, runnerEditorExistsOptions)).Width(120).Changed() {
+						if uikit.ActionCursor(uikit.Select(c, &d.exists, runnerEditorExistsOptions, uikit.SameIcon(uikit.IconCheck))).Width(120).Changed() {
 						}
 					case runner.MatcherEquals, runner.MatcherNotEquals:
-						if uikit.ActionCursor(ui.Select(c, &d.litKind, runnerEditorLiteralKinds)).Width(110).Changed() {
+						if uikit.ActionCursor(uikit.Select(c, &d.litKind, runnerEditorLiteralKinds, uikit.SameIcon(uikit.IconCode))).Width(110).Changed() {
 						}
 						ui.TextInput(c, &d.litText).Grow(1).Changed()
 					case runner.MatcherIn:
 						ui.TextInput(c, &d.inText).Grow(1).Changed()
 						ui.Text(c, m.InHint).FontSize(10).TextColor(p.Faint).Grow(1)
 					case runner.MatcherType:
-						if uikit.ActionCursor(ui.Select(c, &d.typeSel, runnerEditorTypeOptions)).Width(120).Changed() {
+						if uikit.ActionCursor(uikit.Select(c, &d.typeSel, runnerEditorTypeOptions, uikit.SameIcon(uikit.IconCode))).Width(120).Changed() {
 						}
 					default:
 						ui.TextInput(c, &d.text).Grow(1).Changed()
@@ -331,7 +331,12 @@ func (a *App) runnerEditorExtractForm(c *ui.Context, t *ui.Theme, m runnerEditor
 		})
 		ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, m.ExtractFromLabel).FontSize(11).TextColor(p.Muted)
-			if uikit.ActionCursor(ui.Select(c, &f.fromSel, runnerEditorExtractionFroms)).Width(120).Changed() {
+			if uikit.ActionCursor(uikit.Select(c, &f.fromSel, runnerEditorExtractionFroms, uikit.IconMap(map[string]*ui.SVG{
+				"jsonpath": uikit.IconCode,
+				"header":   uikit.IconList,
+				"cookie":   uikit.IconCookie,
+				"body":     uikit.IconFile,
+			}))).Width(120).Changed() {
 			}
 		})
 		switch f.fromSel {
@@ -362,12 +367,20 @@ func (a *App) runnerEditorExtractForm(c *ui.Context, t *ui.Theme, m runnerEditor
 		}
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, m.ExtractRequiredLabel).FontSize(11).TextColor(p.Muted)
-			if uikit.ActionCursor(ui.Select(c, &f.requiredSel, runnerEditorTriStates)).Width(120).Changed() {
+			if uikit.ActionCursor(uikit.Select(c, &f.requiredSel, runnerEditorTriStates, uikit.IconMap(map[string]*ui.SVG{
+				"default": uikit.IconList,
+				"yes":     uikit.IconCheck,
+				"no":      uikit.IconClose,
+			}))).Width(120).Changed() {
 			}
 		})
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, m.ExtractSensitiveLabel).FontSize(11).TextColor(p.Muted)
-			if uikit.ActionCursor(ui.Select(c, &f.sensitiveSel, runnerEditorTriStates)).Width(120).Changed() {
+			if uikit.ActionCursor(uikit.Select(c, &f.sensitiveSel, runnerEditorTriStates, uikit.IconMap(map[string]*ui.SVG{
+				"default": uikit.IconList,
+				"yes":     uikit.IconCheck,
+				"no":      uikit.IconClose,
+			}))).Width(120).Changed() {
 			}
 		})
 		if s.extractErr != "" {

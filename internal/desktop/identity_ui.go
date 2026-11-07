@@ -389,7 +389,16 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, m.AuthTab).FontSize(12).TextColor(t.TextMuted)
-		if uikit.ActionCursor(ui.Select(c, &tab.AuthMode, modes)).Changed() {
+		if uikit.ActionCursor(uikit.Select(c, &tab.AuthMode, modes, uikit.IconMap(map[string]*ui.SVG{
+			"inherit": uikit.IconLayers,
+			"none":    uikit.IconClose,
+			"ref":     uikit.IconLink,
+			"bearer":  uikit.IconKey,
+			"basic":   uikit.IconLock,
+			"apikey":  uikit.IconKey,
+			"oauth2":  uikit.IconShield,
+			"oidc":    uikit.IconGlobe,
+		}))).Changed() {
 			tab.AuthIdx = indexOf(requestAuthModes, tab.AuthMode)
 			tab.authPassthrough = nil
 			tab.authKeyInOmitted = false
