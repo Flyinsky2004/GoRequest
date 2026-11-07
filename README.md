@@ -31,7 +31,22 @@ sh scripts/make-macos-app.sh
 
 运行时图标由 `internal/brand` 内嵌的同一 PNG 提供：`Manager.WireApp` 在就绪后调用 `mygo.App.Dock.SetIcon`（macOS Dock、Windows/Linux 应用图标），每个真实窗口在 `newRealWindow` 里调用 `*mygo.Window.SetIcon`（Linux/Windows 标题栏与任务栏；macOS 窗口自身无图标）。欢迎/项目选择窗口在现有文字旁显示同一 Logo 的小图，既有文字、操作、标题安全区与功能 SVG 图标不变。
 
-当前仓库**没有**已提交的 `.app` 包或签名/发布流程；直接 `go build` 出的裸二进制由上述运行时 API 设置图标，而 Finder/Dock 读取的 `.app` 图标需通过 `make-macos-app.sh` 生成的 bundle。真实 Dock/Finder 显示、小尺寸观感与各平台人工验收未在本卡做实机核验。
+直接 `go build` 出的裸二进制由上述运行时 API 设置图标；开发用 `.app` 可通过 `make-macos-app.sh` 生成，发布包则由下述 MyGo 构建流程生成。真实 Dock/Finder 显示、小尺寸观感与各平台人工验收仍需实机核验。
+
+## 自动发布构建
+
+[Release workflow](.github/workflows/release.yml) 在 GitHub Release **发布**时触发，正式版和预发布版均支持；仅保存草稿或推送 tag 不触发。先将本流程合并到待发布版本，再创建对应 tag / Release。tag 使用 `v1.2.3`、`1.2.3` 或 `v1.2.3-beta.1` 等版本格式，应用版本自动取自 tag。
+
+| 平台 | 架构 | Release 附件 |
+| --- | --- | --- |
+| Windows | x64 / amd64 | 安装器 `.exe`、便携版 `.zip` |
+| Windows | ARM64 | 安装器 `.exe`、便携版 `.zip` |
+| macOS | Intel / amd64 | 含 `GoRequest.app` 的 `.dmg` |
+| macOS | Apple Silicon / ARM64 | 含 `GoRequest.app` 的 `.dmg` |
+
+四个目标均成功后，产物及 `SHA256SUMS` 自动上传到对应 Release。使用仓库自带的 `GITHUB_TOKEN`，无需添加发布凭据。Actions → Release → Run workflow 可输入已有 Release 的 tag 重新构建并替换同名附件；构建始终检出该 tag 的源码。修改发布配置的 PR 也会构建四个目标验证打包，但不会上传到 Release。
+
+Go 版本跟随 `go.mod`，MyGo CLI 版本与应用的 MyGo 依赖一致；[mygo.json](mygo.json) 指定原生应用入口、名称、图标和 bundle identifier。macOS 使用 ad-hoc 签名，尚未配置 Apple Developer ID 和公证；Windows 产物也未配置代码签名，系统可能提示来源验证或阻止直接打开。
 
 ## 已确定的方向
 
