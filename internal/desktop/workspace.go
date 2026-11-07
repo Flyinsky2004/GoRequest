@@ -83,6 +83,7 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
 	}
 	a.BuildInteropProjectMenuItems(c, mm)
 	a.BuildOpenAPIProjectMenuItems(c, mm)
+	a.BuildRunnerProjectMenuItems(mm)
 	mm.Separator()
 	a.BuildIdentityManagementMenuItems(mm, tab)
 	mm.Separator()

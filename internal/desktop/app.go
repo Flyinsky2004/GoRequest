@@ -202,6 +202,7 @@ func (a *App) View(c *ui.Context) {
 	a.b03CustomMethodModal(c, t)
 	a.InteropModals(c, t)
 	a.OpenAPIModals(c, t)
+	a.RunnerModals(c, t)
 	a.IdentityManagementModals(c, t)
 	if a.git != nil {
 		a.git.modals(c, t)

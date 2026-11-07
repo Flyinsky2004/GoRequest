@@ -122,9 +122,15 @@ B02/B04/B06/B07/B08 已进入本轮集成分支，公共入口与组合回归已
 - **UI 组合**：UI04 拖拽与 UI05 品牌安全带、UI06 设置组/跨窗口刷新、UI02 手型与各分支新布局已组合；带 `ui04_integration` 标签的组合门禁通过。
 - **验证边界**：`go build ./...`、`go vet ./...`、`go test -race ./...`、`-tags ui04_integration` 组合专项及跨卡回归均通过。**A01 Runner Core 与 A03 Schema 端口未做跨包 adapter 联合接线**，不宣称 Runner/Schema 联合验收或完整 Runner 桌面 UI（A02 未开发）；真实窗口/macOS 拖动、系统钥匙串/浏览器真实 OAuth、原生文件对话框及 Windows/Linux 三平台实机未人工验收。
 
+## 4.3 A02-phase1 / FIX06 / FIX07 代码合并（2026-11-07）
+
+A02第一阶段已合并并接入项目菜单/模态：离线Schema adapter/预检、保存快照集合/Suite Runner、取消/结果及JSON/JUnit导出。FIX06紧凑设置高度与FIX07发送按钮hover/pressed反馈同时合并。详见任务账本§18及各自交付报告。
+
+**验证边界**：按用户本轮明确要求，没有运行构建、vet或测试；分支交付者已有验证记录不等于合并后组合通过，当前状态为代码集成、组合与人工验收待补。完整A02的可视化断言/提取编辑、Suite/数据编辑等仍缺；Schema支持范围、OAuth/上传限制以A02-phase1报告为准。
+
 ## 5. 尚未实现（保持设计计划，未宣称完成）
 
-- 断言/JSONPath/提取执行、Collection Runner 的**桌面 UI**（A02）、跨集合 Suite UI、数据驱动界面、JUnit/JSON 报告对话框与固定重试策略的界面接入（A01 纯 Go 引擎已实现，A03 Schema 与 A01 Runner 的跨包 adapter 联合接线尚未做，见 §4.2）。
+- A02完整可视化断言/提取编辑、Suite编排/数据编辑、完整结果分页等；最小桌面Runner、报告导出和Runner/Schema adapter已合并，组合验收待补，见§4.3。
 - GraphQL / WebSocket / gRPC 协议；Mock；性能分析；Mermaid；代码生成。
 - 文件夹拖拽排序及相关真实窗口验收待补。全局工作区、本地历史、最近项目管理已见 §4.1。
 - 真实窗口/三平台实机验收：macOS 顶部拖动、系统钥匙串录入与浏览器 OAuth 真实流程、系统证书/代理与原生文件保存对话框；凭据后端与高级网络设置已接入，见 §4/4.1/4.2。

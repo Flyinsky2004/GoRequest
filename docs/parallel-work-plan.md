@@ -353,13 +353,13 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 
 | 任务 | 分支 / worktree | 独占范围与目标 | 状态 |
 | --- | --- | --- | --- |
-| FIX06 | `cc/FIX06-settings-height` / `../GoRequest-FIX06` | `desktop/settings.go` 面板高度：保留左分类/右内容，把当前接近整窗高改为约现有一半的紧凑默认，内容滚动/Done可达，兼容小窗口 | 已领取 / working |
-| FIX07 | `cc/FIX07-send-feedback` / `../GoRequest-FIX07` | `desktop/uikit/response.go` SendButton：启用hover/pressed可见颜色差异，保留手型/发送取消图标/点击/尺寸，深浅主题都可辨 | 已领取 / working |
+| FIX06 | `cc/FIX06-settings-height` / `../GoRequest-FIX06` | `desktop/settings.go` 面板高度：保留左分类/右内容，把当前接近整窗高改为约现有一半的紧凑默认，内容滚动/Done可达，兼容小窗口 | 已合并 / 本轮跳过验证 |
+| FIX07 | `cc/FIX07-send-feedback` / `../GoRequest-FIX07` | `desktop/uikit/response.go` SendButton：启用hover/pressed可见颜色差异，保留手型/发送取消图标/点击/尺寸，深浅主题都可辨 | 已合并 / 本轮跳过验证 |
 | FIX08 | `cc/FIX08-timeout-entry` / `../GoRequest-FIX08` | `desktop/network_ui.go` 超时段与专属双语提示/测试：明确总超时入口/单位/继承后实际值与阶段超时归属，不再隐藏在技术设置中；顶层快捷入口若需公共文件交patch | 已领取 / working |
 | FIX09 | `cc/FIX09-secret-value-entry` / `../GoRequest-FIX09` | `desktop/environment_editor.go` 密钥声明入口、`identity_management*.go` 凭据录入：从本地密钥名称直接设置/更新同名本机秘密值、绑定状态与不可用错误，复用原系统凭据管理，不能写明文项目 | 已领取 / working |
 
-- [ ] FIX06 紧凑设置面板：待集成验证。
-- [ ] FIX07 发送按钮 hover/pressed 颜色：待集成验证。
+- [ ] FIX06 紧凑设置面板：代码已合并，用户要求本轮不跑测试，组合/人工验收待补。
+- [ ] FIX07 发送按钮 hover/pressed 颜色：代码已合并，用户要求本轮不跑测试，组合/人工验收待补。
 - [ ] FIX08 请求超时的可发现入口与准确说明：待集成验证。
 - [ ] FIX09 声明密钥后的实际值录入与请求闭环：待集成验证。
 
@@ -382,7 +382,7 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 
 用户要求建议优先步骤并开一个 Codex 实施。选择先完成自动化可用闭环，不同时启动多协议；按顺序由同一个 agent 执行：①A01/A03 Schema 适配和发网前预检；②最小桌面集合/Suite Runner，运行/进度/取消/结果/JSON与JUnit导出；③使用本地认证→提取→查询→更新及至少两行数据完成联合回归。此为 A02 第一阶段，不能声称完整 A02 或正式版验收完成。
 
-- [ ] A02-phase1：Schema 适配与最小桌面 Runner，待交付和集成验证。
+- [ ] A02-phase1：代码已合并并接入项目菜单/模态；用户要求本轮不跑测试，组合/人工验收待补，完整A02仍未完成。
 
 分支 `codex/A02-runner-first-loop`，worktree `../GoRequest-A02`。开工参考 main `a9fa5b0`，实际共同基线以领取记录为准；基线已包含 A01/A03/A04/B05/UI01-06，FIX06-09 四条worktree仍独立开发（其中FIX07已有提交但未合入），不得依赖或改它们目录。
 
@@ -397,3 +397,17 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 负责人 Codex / 当前默认 GPT-6.1-Sol，Herdr终端 `t36`，tab `tba6a08517f98dd3bea9c1ac3a00c6dfc8`（A02 自动化首个闭环 · Codex）。实际worktree `../GoRequest-A02` / `codex/A02-runner-first-loop`，共同基线 `3d51b99c29d9f583fcec8339e3ab77dc7f121643`。新版tab.new交互启动含 `--no-daemon`，会话 danger-full-access / approval never，未改全局模型/配置；已核对屏幕任务、目录和模型，hc working。其余四个FIX任务未中断。
 
 完整提示词/句柄存本机临时 `/private/tmp/gorequest-a02-20261107/`，不入Git；长期范围见§17，后续交付 `docs/task-results/A02-phase1.md`。当前只领取，未交付/未集成，不勾整张A02。
+
+## 18. A02-phase1 / FIX06 / FIX07 合并（2026-11-07）
+
+用户明确要求只合并这三项到main、清理对应旧分支/worktree并关闭Herdr agent，**先不执行测试**。从main `0695700` 在独立 `integrate/a02-fix06-fix07` / `../GoRequest-integration` 合并三分支，无冲突；FIX08/FIX09仍在开发，完全保留。
+
+| 交付 | 分支头 | 本轮合并提交 |
+| --- | --- | --- |
+| `codex/A02-runner-first-loop` | `df7dc63` | `6bb7fd1` |
+| `cc/FIX06-settings-height` | `746097a` | `00348a2` |
+| `cc/FIX07-send-feedback` | `22d28f0` | `aad72cc` |
+
+A02公共两行接线已实际应用：App.View渲染RunnerModals，项目菜单BuildRunnerProjectMenuItems；FIX06/07无需额外接线。新增Schema adapter与预检、保存快照Runner/导出、设置紧凑高度、发送hover/pressed反馈进入本轮代码。A02仍为第一阶段：可视化断言/提取编辑、完整Suite/数据编排界面、结果分页等未完成；OAuth/本机上传槽/部分Schema方言按交付限制明确拒绝。
+
+本轮仅检查交付说明、diff、补丁适用性和Git祖先/干净状态，不运行build/vet/go test。各agent交付文档内的独立验证是历史证据，不冒充本轮组合门禁通过；真实窗口/跨平台未验收，故主验收checkbox继续未勾。未push、不改共享Git配置，不提交用户示例环境或调试产物。清理结果在操作完成后补记。
