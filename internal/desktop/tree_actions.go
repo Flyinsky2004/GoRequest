@@ -157,7 +157,8 @@ func (a *App) cancelRename() {
 }
 
 // commitRename applies the in-place edit to the request, folder or document it
-// was started on.
+// was started on. A rejected name leaves the field open with the user's text,
+// so a validation error never discards what they typed.
 func (a *App) commitRename() {
 	ps := a.ps
 	if ps == nil || ps.project == nil || ps.renaming == "" {
@@ -165,13 +166,16 @@ func (a *App) commitRename() {
 	}
 	sel := ps.renaming
 	name := ps.renameText
-	ps.renaming = ""
-	ps.renameText = ""
+	done := func() {
+		ps.renaming = ""
+		ps.renameText = ""
+	}
 
 	switch {
 	case strings.HasPrefix(sel, "req:"):
 		e := ps.project.Requests[strings.TrimPrefix(sel, "req:")]
 		if e == nil || e.Request == nil {
+			done()
 			return
 		}
 		if err := ps.project.RenameRequest(e, name); err != nil {
@@ -187,10 +191,12 @@ func (a *App) commitRename() {
 		}
 		ps.sel = sel
 		a.status = ""
+		done()
 	case strings.HasPrefix(sel, "folder:"):
 		oldRel := strings.TrimPrefix(sel, "folder:")
 		node := findFolderInTree(ps, oldRel)
 		if node == nil {
+			done()
 			return
 		}
 		renamed, err := ps.project.RenameFolder(node, name)
@@ -201,10 +207,12 @@ func (a *App) commitRename() {
 		a.rekeyExpanded(ps, oldRel, renamed.RelPath)
 		ps.sel = "folder:" + renamed.RelPath
 		a.status = ""
+		done()
 	case strings.HasPrefix(sel, "doc:"):
 		oldRel := strings.TrimPrefix(sel, "doc:")
 		d := findDocInProject(ps, oldRel)
 		if d == nil {
+			done()
 			return
 		}
 		if err := ps.project.RenameDoc(d, name); err != nil {
@@ -219,6 +227,9 @@ func (a *App) commitRename() {
 		}
 		ps.sel = "doc:" + d.RelPath
 		a.status = ""
+		done()
+	default:
+		done()
 	}
 }
 
@@ -251,16 +262,8 @@ func (a *App) treeRowLabel(c *ui.Context, sel string, spans []ui.Span) {
 		ui.RichText(c, spans...).Grow(1)
 		return
 	}
-	in := ui.TextInput(c, &ps.renameText).Grow(1).SingleLine().AutoFocus().
-		Label(a.msg().Rename)
-	in.OnTextKey(func(k ui.TextKey) bool {
-		if k.Key == ui.KeyEscape {
-			a.cancelRename()
-			return true
-		}
-		return false
-	})
-	if in.Submitted() {
+	in := folderNameInput(c, &ps.renameText, a.msg().Rename, "").Grow(1).AutoFocus()
+	if folderNameSubmit(in, a.cancelRename) {
 		a.commitRename()
 	}
 }

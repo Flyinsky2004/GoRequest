@@ -155,7 +155,9 @@ func (a *App) newFolderModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, m.NewFolderTitle).Bold().FontSize(16)
 			ui.Text(c, translate(m.ParentFolder, folderLabel(a.newFolderParent))).FontSize(12).TextColor(t.TextMuted)
 			ui.Text(c, m.NameLabel).FontSize(12).TextColor(t.TextMuted)
-			if ui.TextInput(c, &a.newFolderName).FillWidth().Placeholder(m.FolderNamePlaceholder).Submitted() {
+			in := folderNameInput(c, &a.newFolderName, m.FolderNamePlaceholder, m.FolderNamePlaceholder)
+			in.FillWidth().AutoFocus()
+			if folderNameSubmit(in, func() { a.newFolderOpen = false }) {
 				a.submitNewFolder()
 			}
 			if a.formErr != "" {
