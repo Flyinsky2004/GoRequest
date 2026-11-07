@@ -310,6 +310,7 @@ func Connect(ctx context.Context, opts Options) (*Session, error) {
 	conn.SetPongHandler(s.pongHandler)
 
 	s.mu.mu.Lock()
+	s.mu.state = StateOpen
 	s.mu.conn = conn
 	s.mu.httpStatus = resp.StatusCode
 	s.mu.subproto = conn.Subprotocol()
