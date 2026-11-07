@@ -646,3 +646,16 @@ R1/R2/R4：预览去重与差异行、同行超时徽标、方法段分隔。R3/
 | U03 / CC preview | cc/U03-preview-row / /private/tmp/gorequest-u01-u03-20261107/preview | body_http_ui.go的b03URLPreview及request_form.go的urlVarLine与专属测试；变量与解析预览同行，长URL不溢出，保留遮密与去重 | 待启动 |
 
 每CC提交本任务文件和docs/task-results/U0N.md，报告真实验证和未完成内容；不得改总账本、merge/push、清理分支或其他终端。集成且验收满足前不勾完成。
+
+
+### 27.1 实际启动句柄
+
+三组均从共同登记基线 `daaaf65` 建立独立worktree，通过Herdr tab.new交互启动Claude Code；已读取三屏确认任务/目录/分支正确、bypass permissions，无信任阻塞。沿用当前CC默认DeepSeek V4.1 Flash 1017 (Mistral)，未指定或修改全局模型；Claude Code应用名不代表Claude模型。三组均在开发中，未交付、未集成、未验收。
+
+| ID | Herdr终端 | tab ID |
+| --- | --- | --- |
+| U01 | t49 | tbc2fccf7ef56c0c5a49f401cd3b25966a |
+| U02 | t4b | tb22df6ed36312532f66771b6850ac4974 |
+| U03 | t4c | tb4ec7fd572fdcb285751e5daa1c722953 |
+
+完整派工提示词与原始启动响应保存在本机 `/private/tmp/gorequest-u01-u03-20261107/`，不入Git。保留既有t1h/t3w/t2s及其他项目t31/t48，本次未操作这些终端。本轮已要求agent执行build与受影响测试；启动成功不能代替实现/验证成功。
