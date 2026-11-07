@@ -20,34 +20,23 @@ func TestLastTabClosesThroughMergedWorkspace(t *testing.T) {
 	if err := tt.Click("+"); err != nil {
 		t.Fatalf("open new menu: %v", err)
 	}
-	newItems := tt.Menu()
-	hasFolder := false
-	for _, it := range newItems {
-		if it == "New Folder" {
-			hasFolder = true
-		}
+	tt.Frame()
+	// The new menu is drawn in the window, so its items are visible texts
+	// rather than system menu entries.
+	if !tt.HasText("New Folder") {
+		t.Fatalf("new menu missing folder action; texts=%v", tt.Texts())
 	}
-	if !hasFolder {
-		t.Fatalf("new menu missing folder action: %v", newItems)
-	}
-	tt.CloseMenu()
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
 	if err := tt.Click("dev"); err != nil {
 		t.Fatalf("open env menu: %v", err)
 	}
-	envItems := tt.Menu()
-	hasNewEnv, hasEditEnv := false, false
-	for _, it := range envItems {
-		if it == "New Env" {
-			hasNewEnv = true
-		}
-		if it == "Edit Env" {
-			hasEditEnv = true
-		}
+	tt.Frame()
+	if !tt.HasText("New Env") || !tt.HasText("Edit Env") {
+		t.Fatalf("env menu missing entries; texts=%v", tt.Texts())
 	}
-	if !hasNewEnv || !hasEditEnv {
-		t.Fatalf("env menu missing entries: %v", envItems)
-	}
-	tt.CloseMenu()
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
 }
 
 func TestMergedProjectWindowsKeepFoldersTabsAndEnvironmentsSeparate(t *testing.T) {
@@ -89,20 +78,12 @@ func TestMergedProjectWindowsKeepFoldersTabsAndEnvironmentsSeparate(t *testing.T
 	if err := tt.Click("integration"); err != nil {
 		t.Fatalf("open env menu: %v", err)
 	}
-	envItems := tt.Menu()
-	hasNewEnv, hasEditEnv := false, false
-	for _, it := range envItems {
-		if it == "New Env" {
-			hasNewEnv = true
-		}
-		if it == "Edit Env" {
-			hasEditEnv = true
-		}
+	tt.Frame()
+	if !tt.HasText("New Env") || !tt.HasText("Edit Env") {
+		t.Fatalf("env menu missing entries; texts=%v", tt.Texts())
 	}
-	if !hasNewEnv || !hasEditEnv {
-		t.Fatalf("env menu missing entries: %v", envItems)
-	}
-	tt.CloseMenu()
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
 	a.closeAll()
 	a.cancelClose()
 	if ps.activeTab() != tab || !tab.Dirty {

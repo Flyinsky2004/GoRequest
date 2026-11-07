@@ -42,14 +42,17 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 		// Left: project name + switch dropdown.
 		uikit.ActionCursor(ui.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) }))
 		windowDragSpacer(c, 8)
-		// Environment area: a fixed single-line label (never wraps) + selector.
+		// Environment area: a fixed single-line label (never wraps) + selector,
+		// then the active tab's save control. The save control is drawn only
+		// while the active tab has unsaved changes, so it sits right of the
+		// environment selector and disappears once the save succeeds.
 		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(p.Muted).SingleLine().Width(32)
 		a.envMenu(c, ps)
+		a.saveControl(c, p, ps.activeTab())
 		if !ps.canEditEnv() {
 			ui.Text(c, m.SelectEnvHint).FontSize(11).TextColor(p.Faint).SingleLine()
 		}
-		// Far right: the New Request pill and the "+" new menu. Saving lives
-		// in the request's own header (§8), not here.
+		// Far right: the New Request pill and the "+" new menu.
 		pill := uikit.ActionCursor(ui.ButtonBase(c)).Height(36).Radius(999).Padding(0, 18).Gap(6).AlignItems(ui.Center).Background(p.Hover)
 		pill.Children(func() {
 			ui.Icon(c, uikit.IconPlus).FontSize(14).TextColor(p.Text)
@@ -59,7 +62,7 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 		if pill.Clicked() {
 			a.openNewRequest()
 		}
-		uikit.ActionCursor(ui.MenuButton(c, "+", func(mm *ui.Menu) { a.buildNewMenu(mm, ps) }))
+		headerMenuButton(c, p, "+", func(mm *ui.Menu) { a.buildNewMenu(mm, ps) })
 	})
 }
 
@@ -127,13 +130,15 @@ func (a *App) buildNewMenu(mm *ui.Menu, ps *projectState) {
 }
 
 // envMenu draws the environment selector. Its menu previews the current
-// environment's variables and offers switching plus edit/new entries (§2).
+// environment's variables and offers switching plus edit/new entries (§2). The
+// menu is drawn inside the window by headerMenuButton, not by the system.
 func (a *App) envMenu(c *ui.Context, ps *projectState) {
+	p := uikit.PaletteFor(c.Theme())
 	label := ps.envSel
 	if label == "" {
 		label = "(none)"
 	}
-	uikit.ActionCursor(ui.MenuButton(c, label, func(mm *ui.Menu) {
+	headerMenuButton(c, p, label, func(mm *ui.Menu) {
 		m := a.msg()
 		if ps.currentEnv() != "" {
 			if env := ps.project.Environments[ps.currentEnv()]; env != nil {
@@ -164,7 +169,7 @@ func (a *App) envMenu(c *ui.Context, ps *projectState) {
 		if mm.Item(m.NewEnv).Chosen() {
 			a.openNewEnvironment()
 		}
-	}))
+	})
 }
 
 func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
@@ -384,17 +389,19 @@ func (a *App) methodPicker(c *ui.Context, p uikit.Palette, tab *Tab) {
 	})
 }
 
-// saveControl is the request's manual save entry (§8): accent-outlined while
-// dirty, plain otherwise, with a ⌘S tooltip.
+// saveControl is the active tab's manual save entry in the workspace header
+// (§8). It appears only while the active tab has unsaved changes — request tabs
+// mark Dirty on edits, document tabs mirror their editor buffer's Modified
+// state — and disappears once the save succeeds. It saves through
+// saveActiveSynced, the same path as ⌘S, so the file-sync engine and the
+// three-version conflict modal stay intact.
 func (a *App) saveControl(c *ui.Context, p uikit.Palette, tab *Tab) {
-	if tab.Kind != "request" {
+	if tab == nil || !tab.Dirty {
 		return
 	}
 	m := a.msg()
-	btn := uikit.ActionCursor(ui.Button(c, m.Save)).Label(m.Save + " ⌘S").Tooltip(m.Save + " ⌘S")
-	if tab.Dirty {
-		btn = btn.TextColor(p.Accent)
-	}
+	btn := uikit.ActionCursor(ui.Button(c, m.Save)).TextColor(p.Accent).
+		Label(m.Save + " ⌘S").Tooltip(m.Save + " ⌘S")
 	if btn.Clicked() {
 		a.saveActiveSynced()
 	}

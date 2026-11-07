@@ -16,11 +16,13 @@ func TestFolderTreeCreateAndOpenThroughView(t *testing.T) {
 	tt := ui.NewTester(a.View, 1100, 820)
 	tt.Frame()
 
-	// Create a folder through the real "+" new menu and modal.
+	// Create a folder through the real "+" new menu and modal. The menu is
+	// drawn in the window (not a system menu), so its items are clicked by
+	// their visible text.
 	if err := tt.Click("+"); err != nil {
 		t.Fatalf("open new menu: %v", err)
 	}
-	if err := tt.ChooseMenuItem("New Folder"); err != nil {
+	if err := tt.Click("New Folder"); err != nil {
 		t.Fatalf("choose New Folder: %v", err)
 	}
 	if !tt.HasText("New Folder") {
