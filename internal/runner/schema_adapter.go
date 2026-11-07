@@ -409,3 +409,24 @@ func schemaNumber(v any) (float64, bool) {
 	}
 	return 0, false
 }
+
+// SchemaSnapshotDigest binds the report snapshot to the prepared schema bytes,
+// including the selected Operation responses; no schema metadata is exposed.
+func (a *ProjectSchemaAdapter) SchemaSnapshotDigest() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	targets := map[string]any{}
+	for key, t := range a.targets {
+		if t.schema != nil {
+			targets[key] = t.schema.node
+		} else {
+			responses := map[string]any{}
+			for status, s := range t.responses {
+				responses[status] = s.node
+			}
+			targets[key] = responses
+		}
+	}
+	b, _ := json.Marshal(targets)
+	return digestBytes(b)
+}

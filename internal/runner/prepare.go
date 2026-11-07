@@ -148,6 +148,13 @@ func (r *Runner) Prepare(ctx context.Context) error {
 		return r.prepareErr
 	}
 	r.prepared = true
+	if enumerable, ok := r.opts.Secrets.(secretEnumerator); ok {
+		for _, name := range enumerable.SecretNames() {
+			if value, found := r.opts.Secrets.Get(name); found && value != "" {
+				r.red.RegisterSecret(value)
+			}
+		}
+	}
 	if err := r.prepare(ctx); err != nil {
 		if pe, ok := err.(*preflightError); ok {
 			r.prepareErr = pe
@@ -288,6 +295,9 @@ func (r *Runner) prepare(ctx context.Context) error {
 		if eff != nil {
 			auth = eff.Scheme
 		}
+		if auth != nil && (strings.EqualFold(auth.Type, "oauth2") || strings.EqualFold(auth.Type, "oidc")) {
+			return preflightf(KindDefinition, "runner OAuth/OIDC token integration is unavailable; no requests sent")
+		}
 		strs := requestTemplateStrings(sp.Entry.Request, auth)
 		for _, a := range sp.Assertions {
 			strs = append(strs, assertionTemplateStrings(a)...)
@@ -328,8 +338,9 @@ func (r *Runner) prepare(ctx context.Context) error {
 		// Dry-build with placeholders: catches bad URLs, missing attachments,
 		// unbound secrets, auth errors and body encoding problems before any row
 		// runs.
-		if _, _, err := core.BuildTrackedPlanWithOptions(ctx, sp.Entry.Request, vars, r.opts.Secrets,
-			auth, resolveOpts, r.opts.PlanOptions); err != nil {
+		plan, _, buildErr := core.BuildTrackedPlanWithOptions(ctx, sp.Entry.Request, vars, r.opts.Secrets,
+			auth, resolveOpts, r.opts.PlanOptions)
+		if err := buildErr; err != nil {
 			kind := KindDefinition
 			if core.IsConfig(err) {
 				kind = KindDefinition
@@ -338,6 +349,22 @@ func (r *Runner) prepare(ctx context.Context) error {
 				}
 			}
 			return preflightf(kind, "step %q: %v", sp.Step.ID, err)
+		}
+		// A suite must not send earlier steps before discovering a static target
+		// requires confirmation. Real row/output URLs are checked again by Core.
+		if r.opts.ExecuteOptions.HasTargetPolicy {
+			hasCredentials := auth != nil && !strings.EqualFold(auth.Type, "none")
+			for _, h := range plan.Headers {
+				if strings.EqualFold(h[0], "Authorization") || strings.EqualFold(h[0], "Cookie") || strings.EqualFold(h[0], "Proxy-Authorization") {
+					hasCredentials = true
+				}
+			}
+			if _, err := core.EvaluateTarget(r.opts.ExecuteOptions.EffectiveTargetPolicy(), core.TargetCheckInput{
+				URL: plan.URL, Method: plan.Method, EnvID: r.opts.Environment, HasCredentials: hasCredentials,
+				Interactive: false, Confirmed: false,
+			}); err != nil {
+				return preflightf(KindTargetPolicy, "target policy preflight: %v", err)
+			}
 		}
 	}
 	if env := r.envEntry(); env != nil {
@@ -498,6 +525,9 @@ func (r *Runner) snapshotDigest() string {
 	for _, rel := range rels {
 		e := r.byRel[rel]
 		fmt.Fprintf(h, "request:%s:%s\n", rel, e.BaselineDigest)
+	}
+	if schema, ok := r.opts.Schema.(interface{ SchemaSnapshotDigest() string }); ok {
+		fmt.Fprintf(h, "schemas:%s\n", schema.SchemaSnapshotDigest())
 	}
 	fmt.Fprintf(h, "environment:%s\n", r.opts.Environment)
 	if env := r.envEntry(); env != nil {

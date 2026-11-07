@@ -18,3 +18,17 @@ A01 端口最小兼容增量：`SchemaRef.Headers [][2]string`，现有实现不
 验证：`go test -race ./internal/runner` 通过；新增测试覆盖离线多文件 fragment、冻结后文件变化、精确 `$.data.id`、未知/缺失/循环/远程/越界引用、未触及分支坏 pattern、坏类型、零 Executor 调用、Operation 状态不匹配与无 Schema 拒绝。
 
 第二步桌面 Runner、第三步联合回归尚在实施，后续提交补齐记录。
+
+## 第二步：最小原生桌面 Runner
+
+新增 `desktop/runner*.go`，双语原生项目菜单入口和 Modal；菜单接线只需随附 `A02-phase1-integration.patch` 两处调用，不添加公共状态字段。状态由 weak App key 关联，不强引用 App/Window/Tab/projectState；关闭窗口取消，后台只通过发起窗口 Update 投递，同窗口 generation 拒绝旧结果。项目菜单→集合/Suite Runner→选择集合或现有 `*.suite.yaml/yml`→明确环境→运行保存快照→逐次尝试事件/最终行步骤/分类汇总→显式导出 JSON/JUnit。根集合选项 `collections` 代表全部保存请求，私有合成 CollectionEntry 后仍交 `CollectionSuite` 构建确定顺序。现有 Suite 通过 `LoadSuite` 解析，无源码编辑冒充可视化。
+
+开始时在 UI 线程 `OpenProject` 获取独占保存对象，复制 B04 ExecuteOptions，获取 B05 SecretProvider 内容，Prepare 冻结数据集、Schema、固定项目附件和 TLS PEM，然后密封 provider 再进入后台。后台不读取任何 UI 对象；本次环境、Cookie 行隔离、step outputs、并发各 1；不会随项目切换、编辑或环境变化重读。脏编辑提示明确。事件队列和可见列表各最多 256，最多一个待处理 Update；完整 Core 结果仍在内存并用于报告。关闭/Escape/点击外部取消运行，无空闲 ticker 或持续刷新。
+
+补齐实际发现的 A01 闭环缺口：Prepare 拒绝尚未联合的 OAuth/OIDC（含有效继承方案），不会无鉴权发送；已知静态目标在 dry-build 后调用现有 EvaluateTarget，非交互/未确认，仍由执行 Core 对每个实际目标和重定向重新检查。预检开始即注册可枚举 Secret，Schema 内容摘要加入快照（可选 `SchemaSnapshotDigest()`，原 Schema 接口保持兼容）。没有更改 Core 安全语义。
+
+JSON/JUnit 导出支持输入绝对本地路径及原生 Save 路径选择；实际导出按钮明确写文件，0600 临时文件原子替换，失败显示 `internal_error / report`；拒绝项目目录内及经父级 symlink 指向项目的路径，不写共享历史/运行状态。报告沿用 Runner 编码器和脱敏结果。
+
+阶段限制：本地槽位上传和动态附件路径在发网前明确拒绝；固定项目附件最多合计 64 MiB，TLS 每项最多 8 MiB。OAuth/OIDC 不在此阶段适配。快照准备有界但在 UI 线程同步进行，大附件可能短暂阻塞，后续可将纯文件读取移出 UI。可视化断言/提取编辑器、完整 Suite 编排、数据编辑 UI、最终完整结果分页/搜索均后续；当前实时/最终列表有界，完整结果看显式导出。保存 Suite 的发现规则为 `.suite.yaml/.suite.yml`。
+
+本步验证：已临时应用自己的两行公共 patch；`go test -race ./internal/desktop ./internal/runner -run 'TestRunner|TestSchemaAdapter|Test.*Production'` 通过，覆盖原生控件 headless 渲染、脏编辑提示、10000 事件仅一个待处理回调/256 事件、文件快照密封、导出失败可见及项目路径/symlink 拒绝。此处 headless 不是人工窗口验收。第三步继续补充实际本地 HTTP 联合回归及全仓门禁。
