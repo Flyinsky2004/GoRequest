@@ -78,6 +78,12 @@ func (a *App) b03MethodPicker(c *ui.Context, p uikit.Palette, tab *Tab) {
 		width = 128
 	}
 	row := ui.Row(c).Width(width).Height(40).Padding(0, 10).Gap(4).AlignItems(ui.Center)
+	// R4: a hovered method segment gets the existing Press wash (a stronger
+	// neutral than Hover, which would blend into the URL input's surface), so
+	// the segment stays distinct from the URL on hover as well as at rest.
+	if row.Hovered() {
+		row = row.Background(p.Press)
+	}
 	row.Children(func() {
 		ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(13).
 			TextColor(uikit.MethodColor(tab.Method, p)).SingleLine()

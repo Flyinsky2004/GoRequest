@@ -271,7 +271,13 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 				Background(p.BG).AlignItems(ui.Center).Clip()
 			grp.Children(func() {
 				a.b03MethodPicker(c, p, tab)
-				ui.Box(c).Width(1).Height(22).Background(p.Hairline)
+				// R4: the old 22-high Hairline (7% alpha) was nearly invisible
+				// against the URL input's surface, so the method segment and the
+				// URL read as one field. A full-height step of the existing Faint
+				// neutral from the same palette makes the boundary clear without
+				// adding a color token.
+				ui.Box(c).Width(1).Height(40).Background(methodURLDividerColor(p)).
+					Label("method separator")
 				inp := ui.TextInput(c, &tab.URL).Grow(1).Font("monospace").Label("request URL")
 				inp.OnShortcut(0, ui.KeyEnter, func() { a.trySend(tab) })
 				if inp.Changed() {
@@ -307,6 +313,11 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 		a.b03URLPreview(c, t, tab)
 	})
 }
+
+// methodURLDividerColor is the method/URL boundary color. It reuses the
+// palette's Faint neutral step: the Hairline token (7% alpha) is too close to
+// the URL input's surface to read as a boundary on a real display.
+func methodURLDividerColor(p uikit.Palette) ui.Color { return p.Faint }
 
 // methodPicker draws the colored HTTP-method selector (§5, D6): the method in
 // its functional color as a pop-up button whose menu lists every method with a
