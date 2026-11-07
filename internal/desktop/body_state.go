@@ -516,9 +516,7 @@ func (bs *tabBodyState) syncLegacyFields(tab *Tab) {
 }
 
 func (bs *tabBodyState) ensureTrailingFormBlank() {
-	if len(bs.formRows) == 0 || !bs.formRows[len(bs.formRows)-1].isBlank() {
-		bs.formRows = append(bs.formRows, newBlankFormRow())
-	}
+	bs.formRows = keepSingleTrailingBlank(bs.formRows, isBlankFormRow, newBlankFormRow)
 }
 
 func (bs *tabBodyState) removeFormRow(id string) {

@@ -264,14 +264,12 @@ func (t *Tab) moveRowTo(kind kvKind, movingID, targetID string) {
 	*p = out
 }
 
-// ensureTrailingBlank appends a blank row when the last row holds data, so
-// there is always an empty line to type into.
+// ensureTrailingBlank keeps exactly one blank ghost row at the end, so there is
+// always an empty line to type into and clearing a row never stacks a second
+// ghost row below it.
 func (t *Tab) ensureTrailingBlank(kind kvKind) {
 	p := t.rowsPtr(kind)
-	rows := *p
-	if len(rows) == 0 || !rows[len(rows)-1].isBlank() {
-		*p = append(rows, newBlankRow())
-	}
+	*p = keepSingleTrailingBlank(*p, isBlankKVRow, newBlankRow)
 }
 
 // --- view ----------------------------------------------------------------
@@ -479,7 +477,10 @@ func (a *App) kvForm(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind) {
 	m := a.msg()
 	bm := a.bodyMsg()
 	p := uikit.PaletteFor(t)
-	rows := tab.rows(kind)
+	// One ghost row, whichever table is open: the same normalisation the
+	// mutation helpers apply, so a frame never renders a stack of blank rows.
+	rows := keepSingleTrailingBlank(tab.rows(kind), isBlankKVRow, newBlankRow)
+	*tab.rowsPtr(kind) = rows
 	curMode := tab.kvViewMode(kind)
 
 	// Keep the view switch separate from the table headings.
@@ -632,10 +633,7 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 		if uikit.ActionCursor(ui.Checkbox(c, &row.Enabled, "")).Changed() {
 			tab.Dirty = true
 		}
-		keyPh := ""
-		if blank {
-			keyPh = m.Key
-		}
+		keyPh, valPh := kvCellPlaceholders(m, blank)
 		keyEl := ui.Autocomplete(c, &row.Name, suggestionsFor(kind)).Width(200).Placeholder(keyPh)
 		if tab.kvFocusID == row.ID && !tab.kvFocusVal {
 			keyEl.Focus()
@@ -651,10 +649,6 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 		if keyEl.Changed() {
 			tab.Dirty = true
 			tab.ensureTrailingBlank(kind)
-		}
-		valPh := ""
-		if blank {
-			valPh = m.Value
 		}
 		vals := filterSuggestions(valueSuggestions(row.Name, kind), row.Value)
 		valEl := ui.Autocomplete(c, &row.Value, vals).Grow(1).Placeholder(valPh)
