@@ -14,6 +14,12 @@
 </p>
 
 <p align="center">
+  <a href="#下载">下载</a> ·
+  <a href="#核心功能">功能</a> ·
+  <a href="#反馈与贡献">反馈</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/Flyinsky2004/GoRequest"><img src="https://img.shields.io/github/stars/Flyinsky2004/GoRequest?style=flat-square&logo=github" alt="GitHub stars" /></a>
   <img src="https://img.shields.io/badge/Go-1.27.3-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.27.3" />
   <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey?style=flat-square" alt="macOS and Windows" />
@@ -27,66 +33,50 @@
 
 - **本地优先**：无需登录账号，编辑、调试、文档和 Mock 都在本机完成。
 - **Git 原生**：每个请求是独立 YAML 文件，项目资料放在 `.gorequest/`，可以随业务代码一起审阅、提交和合并。
-- **原生桌面**：Go + MyGo Native UI 直接绘制界面，不使用 WebView；唯一产品入口是桌面应用，不提供独立 CLI。
-- **密钥不落库**：项目文件只保存 `{{secret.name}}` 引用，真实值来自系统凭据或环境变量。
+- **原生桌面**：Go + MyGo Native UI 直接绘制界面，不使用 WebView。
+- **密钥更安全**：支持 `{{secret.name}}` 引用，真实密钥保留在本机系统凭据或环境变量中，避免随项目提交。
 - **多项目并行**：每个项目独立窗口，标签、未保存编辑、环境和响应互不干扰。
 
 ## 核心功能
 
 ### 请求调试
 
-- 常用与自定义 HTTP 方法，有序 Query / Headers（保留重复键）
+- 常用与自定义 HTTP 方法，有序 Query / Headers，结构化编辑与自动补全
 - JSON、Text、XML、form-urlencoded、multipart、Binary 与项目内文件
-- 变量分层解析、URL 预览、发送与取消、请求级超时
-- Params / Headers 结构化编辑与自动补全
+- 变量解析、URL 预览、发送与取消、请求级超时，以及 WebSocket 手工会话
 
-### 环境、变量与鉴权
+### 环境、鉴权与密钥
 
 - 项目 → 环境 → 集合 → 请求的分层变量
 - None / Bearer / Basic / API Key，以及 OAuth 2.0 与 OIDC
-- Secret 只保存引用，真实值由系统凭据或 `GOREQUEST_SECRET_<NAME>` 注入
-- 生产环境变更的显式确认
+- 支持 `{{secret.name}}` 引用，真实密钥保留在本机系统凭据或环境变量中，避免随项目提交；生产环境变更需显式确认
 
 ### 网络与响应
 
 - HTTP / SOCKS5 代理、重定向策略、阶段超时
 - 自定义 CA、mTLS、隔离的 Cookie Jar
-- Pretty / Raw / JSON 树，Headers、Cookie 与网络阶段信息
-- 二进制响应检视与保存
+- Pretty / Raw / JSON 树，Headers、Cookie、网络阶段信息与二进制保存
 
 ### 接口文档
 
 - Markdown 源码、原生预览与分栏
 - 原生画布编辑、GFM 表格、`@` 接口引用
-- 大纲、项目内全文搜索、本地图片与附件
-- 离线 Markdown / HTML 导出
+- 大纲、项目内全文搜索、本地图片与附件，离线 Markdown / HTML 导出
 
-### 测试与 Mock
+### 测试、Mock 与性能
 
-- 集合 / Suite Runner，断言与提取
-- 运行进度、取消，JSON / JUnit 报告导出
+- 集合 / Suite Runner，断言与提取，JSON / JUnit 报告导出
 - 本地 Mock 规则、场景与访问记录
 - 性能诊断：阶段耗时、分位数与 JSON / CSV 导出
 
-### 互操作
+### 互操作与 Git
 
 - OpenAPI 3.1 / 3.2 导入导出与 JSON Schema 校验
-- cURL、Postman Collection / Environment 导入导出
-- 原生便携包
-- cURL / Go / Python / JavaScript / TypeScript Snippet
-
-### Git 与本地历史
-
-- 状态、Diff、选择性提交、Pull / Push
-- 外部修改自动刷新与冲突保护
+- cURL、Postman Collection / Environment 导入导出，原生便携包与五种语言 Snippet
+- Git 状态、Diff、选择性提交、Pull / Push；外部修改刷新与冲突保护
 - 脱敏的本地请求历史与恢复
 
-### 桌面体验
-
-- 多项目窗口、标签页与关闭保护
-- 简体中文 / English，浅色 / 深色主题
-- 自动保存、快捷键与可配置编辑器
-- WebSocket 手工会话
+原生桌面体验：多项目窗口、标签页、简体中文 / English、浅色 / 深色主题、自动保存与快捷键。
 
 > **开发状态**：GoRequest 仍在持续开发中。以上是当前代码中已具备的能力；完整范围与未完成项见 [实现状态](docs/implementation-status.md) 与 [开发路线图](docs/roadmap.md)。
 
@@ -101,7 +91,8 @@
 
 macOS 使用 ad-hoc 签名，Windows 未配置代码签名，首次打开时系统可能提示来源验证。实际可用版本与附件以 Releases 页面为准；如果尚无可用附件，可以按下面的方式从源码运行。目前不提供 Linux 发行包。
 
-## 从源码体验
+<details>
+<summary>从源码体验</summary>
 
 需要 **Go 1.27.3 或更高版本**。
 
@@ -126,23 +117,18 @@ go build -o bin/gorequest-desktop ./cmd/gorequest-desktop
 ./bin/gorequest-desktop -project examples/sample-project
 ```
 
+</details>
+
 ## 反馈与贡献
 
 - 问题与建议：提交 [GitHub Issue](https://github.com/Flyinsky2004/GoRequest/issues)
-- 代码与文档改进：欢迎 Pull Request；开始前请阅读 [AGENTS.md](AGENTS.md) 与 [实现状态](docs/implementation-status.md)
+- 代码与文档改进：欢迎 Pull Request
 - 请勿在 Issue、PR 或示例项目中粘贴真实密钥或凭据
 
 ## 许可证
 
 GoRequest 以 [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）发布。
 
-## 开发文档
+## 开发资料
 
-| 文档 | 内容 |
-| --- | --- |
-| [实现状态](docs/implementation-status.md) | 当前可用能力、构建运行与验证边界 |
-| [产品需求](docs/product-requirements.md) | 产品定位、用户场景与能力范围 |
-| [技术架构](docs/architecture.md) | Native UI、纯 Go Core 与模块边界 |
-| [存储格式](docs/storage-format.md) | 项目目录、YAML 结构与版本 |
-| [开发路线图](docs/roadmap.md) | 从 MVP 到后续里程碑 |
-| [设计决策](docs/decisions.md) | 已确定方向与关键取舍 |
+[实现状态](docs/implementation-status.md) · [产品需求](docs/product-requirements.md) · [技术架构](docs/architecture.md) · [存储格式](docs/storage-format.md) · [开发路线图](docs/roadmap.md) · [设计决策](docs/decisions.md)
