@@ -517,3 +517,17 @@ Herdr终端 `t3b`，tab `tb3d3591a57162fc0ea36db75749afe846`（BRAND01 Logo 接�
 仅 P01 可按必要性修改 go.mod/go.sum，为选定且固定版本的成熟 WebSocket 库添加依赖；其他四条只用现有依赖。P01不得自制不完整握手/帧协议，不允许削弱TLS/目标策略；与HTTP网络配置无法安全复用的选项发网前明确拒绝。不恢复产品 CLI / WebView，不自动发网/监听/下载工具，不写本机秘密/运行结果到共享项目。
 
 沿用用户此前“先不执行测试”：本批暂不执行 go test/go build/go vet，不启动真实应用或访问生产服务；完成 gofmt、diff检查与静态API核对，并给出待执行的有意义用例，明确未经编译/运行验证。不得把未运行的检查标成通过。仅提交本任务文件及 docs/task-results/<子任务ID>.md，不改总账本、不merge/push/删分支/改共享Git配置/操作其他终端或启动子agent。用户 main 的示例环境改动与debug二进制不纳入基线。现有用户 t1h/t2s/t3h/t3j 与其他项目t31均保留。此前FIX10/BRAND01的t39/t3b/t3d已按用户要求关闭，原worktree和分支仍保留。
+
+### 24.1 实际启动与恢复句柄
+
+共同基线 `b91ba32fdb7b6c5c039bd74701da75f83bab27d7`。五个worktree均从此已提交main创建，未带入用户dirty文件。使用本机 `/Users/flyinsky/.local/bin/vibe --workdir <各自目录> --trust --auto-approve <任务>` 经 Herdr `tab.new` 交互启动；不改全局配置或模型。五屏均确认正确任务/目录、当前默认 `GLM-5.3 (Mistral Hosted)[max]` 和 auto-approve，hc状态均working。只表示启动成功，不代表功能完成。
+
+| 任务 | Herdr终端 | tab ID | 实际分支 / worktree |
+| --- | --- | --- | --- |
+| A02-phase2 | `t3m` | `tb7d46c222c1b8d0e2dc90ec5338f04f16` | `vibe/A02-assertion-editor` / `../GoRequest-A02-editor` |
+| C01-phase2 | `t3n` | `tbdeb020ec8d25fa9c00fca655c8fe9855` | `vibe/C01-rule-editor` / `../GoRequest-C01-editor` |
+| C03-phase1 | `t3p` | `tbe58f231d2e8e6b6ac088f4b20f7ec04a` | `vibe/C03-derived-docs` / `../GoRequest-C03-docs` |
+| C04-phase1 | `t3q` | `tb50d69c8346b320624a6d9c473c708443` | `vibe/C04-request-snippets` / `../GoRequest-C04-snippets` |
+| P01-phase1 | `t3r` | `tb4694a11299e72c66ce48b630e5800cf0` | `vibe/P01-websocket` / `../GoRequest-P01-ws` |
+
+完整派工提示词和原始启动响应保存在本机 `/private/tmp/gorequest-vibe-five-20261107/`，不入Git；长期范围见§24。各agent只交专属报告与公共接线patch，完成后等待用户安排集成，集成与验收满足后再由集成人打勾。本轮只做派工与静态账本检查，未运行构建/测试，未触碰现有用户会话或旧worktree。
