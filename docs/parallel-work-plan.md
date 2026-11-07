@@ -696,3 +696,16 @@ R1/R2/R4：预览去重与差异行、同行超时徽标、方法段分隔。R3/
 | U08 / CC mentions | cc/U08-doc-mentions / /private/tmp/gorequest-u06-u08-20261107/mentions | internal/docmention、desktop/doc_mentions*.go及测试；@补全/稳定ID/失效引用，复用docgen打开请求；公共接线patch交报告 | 待启动 |
 
 三者共同从设计登记提交创建worktree，先读设计按固定契约实现；不新增依赖、不改Core/框架/go.mod/go.sum、不改workspace/app/tab/settings等共享壳层（必要以最小patch交集成人），不覆盖彼此回调或全局UI map。报告docs/task-results/U06.md–U08.md，记录真实build/测试/实机限制、接线状态、本地commit；不得只写设计代替实现，也不得把首版说成完整Notion。允许本轮build和受影响测试，本地commit授权继续；禁止子agent、merge/push、操作其他终端/全局模型或清理分支。未集成验收前不勾完成。
+
+
+### 29.1 实际启动句柄
+
+三组从设计登记共同基线 `1beb145` 建独立worktree，通过Herdr tab.new交互启动Claude Code。已读取三屏确认正确任务/分支/目录与bypass permissions、无信任阻塞，hc均working；沿用当前默认DeepSeek V4.1 Flash 1017 (Mistral)，未指定或修改全局模型。
+
+| ID | Herdr终端 | tab ID |
+| --- | --- | --- |
+| U06 | t4g | tb091ea8a3235febabdf3d753fe95bc6e1 |
+| U07 | t4h | tb7b605eb9a8cb23c0748509768d7e891a |
+| U08 | t4j | tbe6434340b58edc3da5c68d83e92851f6 |
+
+提示词/原始启动响应在本机 `/private/tmp/gorequest-u06-u08-20261107/` 不入Git。设计已经交付并静态核对，代码开发中，未交付、未合并、未编译/实机验收本批功能，不勾完成；U07/U08公共接线待收集交付后串行接入U06。本轮未操作或清理既有U01–U05和用户/其他项目会话，用户dirty文件保持。
