@@ -471,3 +471,7 @@ main从 `7d47e6f` 快进至 `6c4d2b7`（公共接线/静态导入修正与状态
 - [ ] FIX10 Mock Checkbox参数顺序与相关编译错误：待交付/集成。
 
 计划分支 `agy/FIX10-mock-checkbox`，worktree `../GoRequest-FIX10`；参考main `27207fa`，实际基线/终端见启动记录。拥有desktop/mock_ui.go必要API增量，发现performance或其他新模块阻塞编译时只最小修复并报告；不以编译失败为由清理其他代码。不改公共模型/依赖/用户环境与debug文件，不merge/push/操作其他agent/启子agent，提交本卡交付docs/task-results/FIX10.md，总账本由集成人更新。
+
+### 21.1 实际领取
+
+Herdr终端 `t39`，tab `tb993c3427183e97acc2755d07dd250f5d`（FIX10 Mock 编译修复 · agy），独立worktree `../GoRequest-FIX10` / `agy/FIX10-mock-checkbox`，共同基线 `957ea339967e41e7e774374068007c6f6e5e5e0b`。新版tab.new交互启动，指定Gemini 4 Argon Medium，会话Full Access；目录信任按用户既有授权确认。任务提示词/句柄存本机临时 `/private/tmp/gorequest-fix10-20261107/` 不提交。允许本轮必要编译验证，测试套件仍跳过。代码未合入main，待交付后集成。
