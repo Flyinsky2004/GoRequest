@@ -107,6 +107,75 @@ func TestUI03ResponseToolRowOrderAndAnchors(t *testing.T) {
 	}
 }
 
+// Preserve the old payload-state coverage: text, large, binary and long-status
+// responses must all keep the status group leading, the view switch in order
+// and every control inside the panel, while the body-only format group follows
+// the response kind.
+func TestUI03ResponseToolRowPayloadStates(t *testing.T) {
+	for _, width := range []int{320, 900} {
+		for _, payload := range []string{"text", "large", "binary", "long-status"} {
+			t.Run(fmt.Sprintf("%d/%s", width, payload), func(t *testing.T) {
+				_, a, tab := ui03Fixture(t)
+				statusText := "200"
+				switch payload {
+				case "text":
+					tab.Resp.Pretty = ""
+					tab.Resp.Body = []byte("plain text")
+				case "large":
+					tab.Resp.BodySize = largeResponseThreshold + 1
+					tab.RespRawIdx = 2
+				case "binary":
+					tab.Resp.IsBinary = true
+					tab.Resp.ContentType = "application/octet-stream"
+				case "long-status":
+					statusText = "503"
+					tab.Resp.Status = 503
+					tab.Resp.Duration = 999999 * time.Millisecond
+					tab.Resp.BodySize = 999999999
+					tab.Resp.TransferSize = 999999
+					tab.Resp.Decompressed = true
+					tab.Resp.ContentEncoding = "gzip"
+					tab.Resp.Redirects = make([]core.RedirectHop, 12)
+					tab.Resp.Truncated = true
+					tab.Resp.Trace = &core.NetworkTrace{TLSInsecureSkipVerify: true}
+				}
+				tab.respVersion++
+				tt := ui.NewTester(func(c *ui.Context) { a.responseView(c, c.Theme(), tab) }, width, 600)
+				msg, nm := a.msg(), a.networkMsg()
+
+				status := ui03Rect(t, tt, statusText, width)
+				cookies := ui03Rect(t, tt, nm.CookiesSection, width)
+				network := ui03Rect(t, tt, nm.NetworkSection, width)
+				if !ui03Before(status, cookies) || status.X > cookies.X {
+					t.Fatalf("status not leading: status=%+v cookies=%+v", status, cookies)
+				}
+				if !ui03Before(cookies, network) {
+					t.Fatalf("view switch out of order: cookies=%+v network=%+v", cookies, network)
+				}
+				copyRect := ui03Rect(t, tt, msg.CopyResponse, width)
+				saveRect := ui03Rect(t, tt, msg.SaveResponse, width)
+				if !ui03Before(network, copyRect) || !ui03Before(copyRect, saveRect) {
+					t.Fatalf("actions out of order: network=%+v copy=%+v save=%+v", network, copyRect, saveRect)
+				}
+				_, hasTree := tt.Find(nm.TreeMode)
+				if payload == "binary" {
+					if _, hasPretty := tt.Find(msg.Pretty); hasPretty {
+						t.Fatal("binary response exposes a body format group")
+					}
+				} else {
+					pretty := ui03Rect(t, tt, msg.Pretty, width)
+					if !ui03Before(network, pretty) {
+						t.Fatalf("format group not after the view switch: network=%+v pretty=%+v", network, pretty)
+					}
+					if (payload == "text" || payload == "large") && hasTree {
+						t.Fatal("non-JSON/large response exposes Tree mode")
+					}
+				}
+			})
+		}
+	}
+}
+
 // The Cookie view label carries the project Cookie Jar count only when it is
 // non-zero, so an empty jar reads as the plain view name.
 func TestUI03CookieCountSuffix(t *testing.T) {
