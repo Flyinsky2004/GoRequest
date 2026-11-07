@@ -9,12 +9,15 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 
 	"gorequest/internal/core"
+	"gorequest/internal/docgen"
 )
 
 // This file continues documentation.go with link navigation, caret helpers
 // and the validated attachment import flow.
 
 func (a *App) handleDocLink(c *ui.Context, root ui.Element, tab *Tab, st *docViewState, dest string) {
+	a.flushDocCanvas(tab, st)
+	a.closeDocSlash(st)
 	ps := tab.Owner
 	if ps == nil || ps.project == nil {
 		return
@@ -73,6 +76,28 @@ func (a *App) handleDocLink(c *ui.Context, root ui.Element, tab *Tab, st *docVie
 	}
 }
 
+// docDefinitionAt opens the request reference on the line of a Cmd/Ctrl+click
+// in the source editor, so the source mode can follow a reference without
+// leaving it.
+func (a *App) docDefinitionAt(tab *Tab, offset int) {
+	if tab == nil || tab.DocEditor == nil {
+		return
+	}
+	pos := tab.DocEditor.Buffer.Pos(offset)
+	line := tab.DocEditor.Buffer.Line(pos.Line)
+	const prefix = docgen.RefLinkPrefix
+	i := strings.Index(line, prefix)
+	if i < 0 {
+		return
+	}
+	rest := line[i:]
+	end := strings.IndexAny(rest, ") \t")
+	if end < 0 {
+		end = len(rest)
+	}
+	a.docgenOpenRequestLink(tab, rest[:end])
+}
+
 func (a *App) docLinkProblem(err error) string {
 	dm := a.docMsg()
 	dest := err.Error()
@@ -116,6 +141,8 @@ func (a *App) docGoToLine(tab *Tab, st *docViewState, line, col int) {
 	if tab == nil || tab.DocEditor == nil {
 		return
 	}
+	a.flushDocCanvas(tab, st)
+	a.closeDocSlash(st)
 	if line < 1 {
 		line = 1
 	}
@@ -132,10 +159,15 @@ func (a *App) docGoToLine(tab *Tab, st *docViewState, line, col int) {
 		st.anchor = h.Slug
 		st.anchorVersion++
 	}
+	if tab.Section == docSectionCanvas && st.live != nil {
+		st.live.scrollLine = line - 1
+		st.live.scrollPending = true
+	}
 }
 
 func (a *App) openDocSearchMatch(root ui.Element, tab *Tab, match core.DocMatch) {
 	ps := tab.Owner
+	a.flushDocCanvas(tab, docStateFor(root, tab))
 	if ps == nil {
 		return
 	}
@@ -166,6 +198,10 @@ func (a *App) openDocSearchMatch(root ui.Element, tab *Tab, match core.DocMatch)
 	} else if anchor != "" {
 		st.anchor = anchor
 		st.anchorVersion++
+	}
+	if target.Section == docSectionCanvas && st.live != nil {
+		st.live.scrollLine = line - 1
+		st.live.scrollPending = true
 	}
 }
 
@@ -215,6 +251,19 @@ func insertDocTemplate(tab *Tab, before, after string) {
 // the project picker does, then imports on the UI thread through the window's
 // Update.
 func (a *App) chooseDocAsset(tab *Tab, targetDir string) {
+	a.chooseDocAssetWith(tab, targetDir, func(md string) {
+		if tab == nil || tab.DocEditor == nil {
+			return
+		}
+		cur := tab.DocEditor.Cursor()
+		tab.DocEditor.Select(cur, cur)
+		tab.DocEditor.Insert(md)
+	})
+}
+
+// chooseDocAssetWith is chooseDocAsset with an explicit insertion target, so
+// the canvas can insert into the active block instead of the document caret.
+func (a *App) chooseDocAssetWith(tab *Tab, targetDir string, insert func(string)) {
 	dm := a.docMsg()
 	var pw *mygo.Window
 	if nw, ok := a.win.(nativeWindower); ok {
@@ -240,11 +289,23 @@ func (a *App) chooseDocAsset(tab *Tab, targetDir string) {
 		if len(paths) == 0 {
 			return
 		}
-		a.win.Update(func() { a.importDocAsset(tab, paths[0], targetDir) })
+		a.win.Update(func() { a.importDocAssetWith(tab, paths[0], targetDir, insert) })
 	}()
 }
 
 func (a *App) importDocAsset(tab *Tab, srcPath, targetDir string) {
+	a.importDocAssetWith(tab, srcPath, targetDir, func(md string) {
+		if tab == nil || tab.DocEditor == nil {
+			return
+		}
+		cur := tab.DocEditor.Cursor()
+		tab.DocEditor.Select(cur, cur)
+		tab.DocEditor.Insert(md)
+	})
+}
+
+// importDocAssetWith imports the asset and hands its Markdown to insert.
+func (a *App) importDocAssetWith(tab *Tab, srcPath, targetDir string, insert func(string)) {
 	if tab == nil || tab.Owner == nil || tab.DocEditor == nil {
 		return
 	}
@@ -253,8 +314,6 @@ func (a *App) importDocAsset(tab *Tab, srcPath, targetDir string) {
 		a.status = a.docAssetProblem(err)
 		return
 	}
-	cur := tab.DocEditor.Cursor()
-	tab.DocEditor.Select(cur, cur)
-	tab.DocEditor.Insert(imp.Markdown)
+	insert(imp.Markdown)
 	a.status = fmt.Sprintf(a.docMsg().Imported, imp.RelPath)
 }
