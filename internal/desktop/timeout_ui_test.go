@@ -375,11 +375,17 @@ func TestStageTimeoutInvalidDraftReportsAndKeepsLastValid(t *testing.T) {
 
 func TestNetworkModalSaveRejectsInvalidStageDraftAndKeepsOpen(t *testing.T) {
 	a, ps := openTestProject(t, "ModalInvalid")
-	openRequestTabs(t, ps, "Req")
+	tab := openRequestTabs(t, ps, "Req")[0]
+	tab.Resp = &core.ExecResult{Status: 200, Proto: "HTTP/1.1", Body: []byte(`{}`), BodySize: 2}
+	tab.respVersion = 1
 	st := projectNetStateFor(ps, a)
 
 	tt := ui.NewTester(a.View, 1200, 820)
 	tt.Frame()
+	// The Network/TLS settings entry lives inside the Network view.
+	if err := tt.Click(networkMessagesEn.NetworkSection); err != nil {
+		t.Fatalf("open network view: %v; texts=%v", err, tt.Texts())
+	}
 	if err := tt.Click(networkMessagesEn.NetworkBtn); err != nil {
 		t.Fatalf("open network modal: %v; texts=%v", err, tt.Texts())
 	}
@@ -407,12 +413,17 @@ func TestNetworkModalSaveRejectsInvalidStageDraftAndKeepsOpen(t *testing.T) {
 
 func TestNetworkModalCancelPreservesDraftAndSettings(t *testing.T) {
 	a, ps := openTestProject(t, "ModalCancel")
-	openRequestTabs(t, ps, "Req")
+	tab := openRequestTabs(t, ps, "Req")[0]
+	tab.Resp = &core.ExecResult{Status: 200, Proto: "HTTP/1.1", Body: []byte(`{}`), BodySize: 2}
+	tab.respVersion = 1
 	st := projectNetStateFor(ps, a)
 	before := st.netStore.DeviceSettings().Timeouts
 
 	tt := ui.NewTester(a.View, 1200, 820)
 	tt.Frame()
+	if err := tt.Click(networkMessagesEn.NetworkSection); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.Click(networkMessagesEn.NetworkBtn); err != nil {
 		t.Fatal(err)
 	}
