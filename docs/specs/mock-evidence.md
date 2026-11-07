@@ -123,3 +123,67 @@ rules:
 - **Suite Controlled Lifecycle (`RunSuiteWithControlledMock`)**:
   - Compiles rules into a frozen `*CompiledSnapshot` -> binds `127.0.0.1:0` -> verifies readiness -> injects `mockUrl`, `mockBaseUrl`, `mockHost`, `mockPort`, and optional `EndpointVar` (e.g. `baseUrl`) into a private clone of `Suite.Variables` -> runs `runner.Runner` -> guarantees `Server.Stop` on pass, fail, preflight error, or context cancellation.
   - Switching the active scenario in the desktop panel swaps only the panel server's snapshot pointer (`SwapSnapshot`), never mutating the frozen snapshot used by an in-flight Suite run.
+
+---
+
+## 6. C01 Phase 2 — Structure Rule & Scenario Editor (this worktree)
+
+Status: implemented on `vibe/C01-rule-editor`, **not yet compiled/tested** (per the
+"no go test/build/vet" batch constraint below); the engine contract from §1–5 is
+unchanged and strictly reused.
+
+Editor surface (all inside the Local Mock Server modal's Rules tab):
+- **File/rule selection**: rules are listed grouped by `.mock.yaml` file with
+  per-file "add rule" buttons; the toolbar "New Rule" menu creates a draft in an
+  explicitly chosen file (or drafts the default `workspace-mocks.mock.yaml` when
+  the project has none — refusing to overwrite an existing unparsable file at
+  that path).
+- **Rule create / copy / delete**: copy drafts a clone with a project-unique
+  `id` (`-copy`, `-copy-2`, …) and requires explicit Save. Delete uses a
+  two-step inline confirmation, refuses to delete the last rule of a file
+  (offer disabling instead), refuses to delete the rule currently under edit,
+  and saves through `mockserver.LoadMockFile` + `SaveMockFile` with the digest
+  of a fresh load as baseline — so an external edit racing the delete fails
+  checked-save instead of overwriting.
+- **Structured fields** (engine-supported subset only): rule id/name/description/
+  enabled/priority/scenarios; match method (free text + common-methods menu)
+  and path template; path-param / query / header condition rows with the
+  single-predicate operators (`equals`, `notEquals`, `in`, `contains`,
+  `prefix`, `regex`, `exists`, plus `ignoreCase` for query/header); body
+  condition with text operators; response status (100–599, empty → engine
+  default 200), Content-Type, header rows (enabled/禁用 per row), body, fixed
+  delay or seeded range delay (mutually exclusive, ≤ DefaultMaxDelayMs); and
+  scenario variants (status/Content-Type/body/delay per variant).
+- **Nothing dropped**: matchers combining several predicates, `jsonEquals` /
+  `jsonFields` body matchers, and per-variant headers/`delayRangeMs` render as
+  locked read-only rows (or preserved-in-place variant data) and survive save
+  byte-identically at the struct level (pinned by `mockserver` clone tests).
+- **Validation & deterministic preview**: field-level localized errors (id
+  charset/uniqueness, method token, path template shape, status/delay ranges,
+  row predicate presence, credential-header guard hints) render next to their
+  fields, and the candidate catalog is compiled **in memory** with
+  `CompileMockFiles` for cross-file id collisions plus same-priority ambiguity
+  preview (conflicts listed verbatim from `RuleConflict`). Preview runs against
+  the panel's current scenario/seed, never touches a listener, and is skipped
+  while field errors exist.
+- **Explicit save / cancel**: Save revalidates and persists only the edited
+  file via `SaveMockFile` with the baseline digest captured when the draft
+  opened. External on-disk changes surface an explicit conflict banner
+  (`*core.ConflictError` from `Store.SaveChecked`); the draft stays open and
+  the user chooses keep-editing (baseline stays stale, save re-conflicts) or
+  an explicit discard + reload from disk. Cancel/modal dismissal of a dirty
+  draft requires the same explicit discard confirmation; nothing is silently
+  dropped.
+- **Listener safety**: editing/previewing/saving never starts, stops, or
+  implicitly swaps a listener. After a save the catalog reloads like the
+  existing Reload action (swap only when the fresh compile is conflict-free);
+  the save notice states whether the running server now serves the new
+  snapshot or keeps the previous one, and a digests-mismatch banner offers an
+  explicit Apply button (`ApplyMockSnapshotToServer`). In-flight controlled
+  Suite runs keep their frozen snapshot (unchanged phase 1 rule).
+
+Test debt (authored, not executed here): `internal/mockserver/rule_model_test.go`
+(clone independence), `internal/desktop/mock_rule_editor_test.go` (round-trip
+preservation, localized validation, conflict preview + resolution, external
+change protection, delete safety). The §4 verification plan now also runs
+`go test -race ./internal/desktop -run 'TestMockRuleEditor|TestMockDeleteRule'`.

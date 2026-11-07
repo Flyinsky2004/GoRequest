@@ -24,7 +24,8 @@ const defaultWorkspaceMockFileID = "workspace-mocks"
 // any global UI map leak.
 type mockState struct {
 	open        bool
-	tab         int // 0 = Rules & Conflicts, 1 = Access Log, 2 = Suite Controlled Run
+	visible     bool // bound to ui.Modal; ui sets it false on dismissal
+	tab         int  // 0 = Rules & Conflicts, 1 = Access Log, 2 = Suite Controlled Run
 	projectRoot string
 
 	listenHost string
@@ -46,6 +47,13 @@ type mockState struct {
 	isLAN       bool
 	accessLog   []mockserver.AccessRecord
 	logCapacity int
+
+	// editor is the phase 2 rule/scenario editor draft for this window; it is
+	// cleared on project switch so one project's draft can never be saved into
+	// another. deletingRuleKey is the pending "confirm delete" row
+	// ("<fileRel>#<ruleID>"); empty means no row is awaiting confirmation.
+	editor          *mockRuleEditor
+	deletingRuleKey string
 
 	suites        []string
 	selectedSuite string
@@ -174,6 +182,8 @@ func (a *App) ensureMockProjectBound(s *mockState) {
 	if s.projectRoot != curRoot {
 		s.stopAllBackground()
 		s.projectRoot = curRoot
+		s.editor = nil
+		s.deletingRuleKey = ""
 		s.files = nil
 		s.snapshot = nil
 		s.conflicts = nil
@@ -200,6 +210,7 @@ func (a *App) OpenMockServer() {
 	s := a.mockState(true)
 	a.ensureMockProjectBound(s)
 	s.open = true
+	s.visible = true
 	a.reloadMockCatalogLocked(s)
 }
 
@@ -416,6 +427,33 @@ func (a *App) SetMockScenario(scenario string) {
 		a.reloadMockCatalogLocked(s)
 	}
 	s.notice = mockTf(a, "mock.msg.scenario_updated", scenario)
+}
+
+// ApplyMockSnapshotToServer re-reads the mock catalog from disk and swaps the
+// freshly compiled snapshot into the running server only when it is
+// conflict-free. It is the explicit way to reconcile a running snapshot after a
+// save could not be applied (e.g. conflicts) or after out-of-app edits. It
+// never starts or stops the listener.
+func (a *App) ApplyMockSnapshotToServer() {
+	if a == nil {
+		return
+	}
+	s := a.mockState(false)
+	if s == nil || s.server == nil {
+		return
+	}
+	a.reloadMockCatalogLocked(s)
+	if s.errMsg != "" {
+		// Reload already explains why the compiled snapshot is not servable;
+		// the running server keeps its current snapshot.
+		return
+	}
+	if s.snapshot != nil && s.server.CurrentSnapshot() != nil &&
+		s.server.CurrentSnapshot().SnapshotDigest == s.snapshot.SnapshotDigest {
+		s.notice = mockTf(a, "mock.msg.snapshot_applied", s.baseURL, s.scenario)
+		s.errMsg = ""
+		a.status = s.notice
+	}
 }
 
 // ClearMockAccessLog clears the bounded in-memory access log.
