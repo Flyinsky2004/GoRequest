@@ -468,7 +468,7 @@ main从 `7d47e6f` 快进至 `6c4d2b7`（公共接线/静态导入修正与状态
 
 用户提供mock_ui.go:87两条IncompatibleAssign并要求派agy修复。已读本机MyGo v0.7.4签名 `Checkbox(c *Context, checked *bool, label string)`，现调用把label与布尔指针颠倒。任务只修复此编译错误及新合入Mock/性能模块内同类API调用错误，不重构业务/布局/依赖，不执行测试套件；针对本轮编译错误允许必要go build编译验证，真实交互仍未验收。
 
-- [ ] FIX10 Mock Checkbox参数顺序与相关编译错误：待交付/集成。
+- [x] FIX10 Mock Checkbox参数顺序与相关编译错误：已合并，组合go build ./...通过；未运行测试套件/未做窗口验收。
 
 计划分支 `agy/FIX10-mock-checkbox`，worktree `../GoRequest-FIX10`；参考main `27207fa`，实际基线/终端见启动记录。拥有desktop/mock_ui.go必要API增量，发现performance或其他新模块阻塞编译时只最小修复并报告；不以编译失败为由清理其他代码。不改公共模型/依赖/用户环境与debug文件，不merge/push/操作其他agent/启子agent，提交本卡交付docs/task-results/FIX10.md，总账本由集成人更新。
 
@@ -480,7 +480,7 @@ Herdr终端 `t39`，tab `tb993c3427183e97acc2755d07dd250f5d`（FIX10 Mock 编译
 
 用户提供 `/Users/flyinsky/Downloads/GoRequest macOS 容器无阴影版.png` 并要求开Claude Code处理。任务把该现成设计作为GoRequest官方Logo接入原生应用/应用图标资源与必要项目展示；不重绘、不调用生成模型改设计。原图1600×1600、带alpha通道，保持透明度、颜色和已有macOS圆角容器，不叠加第二层底板/圆角/阴影。
 
-- [ ] BRAND01 原图入仓、原生Logo/应用图标与必要资源接线：待交付/集成。
+- [ ] BRAND01 原图入仓、原生Logo/应用图标与必要资源接线：代码及资源已合并、构建通过；真实Dock/Finder/窗口与跨平台验收待补。
 
 分支 `cc/BRAND01-logo-integration`，worktree `../GoRequest-BRAND01`；将原图无损复制为 `assets/brand/gorequest-logo.png` 供agent读取/纳入本卡提交，Downloads原文件不修改。先查MyGo运行时icon能力与现有打包方式，有支持的入口实际接线，macOS icns按原图确定性导出；缺打包基础则给最小可复现资源生成/使用说明，不宣称Dock已生效或已签名发布。源图和合理最终图标可提交，iconset/tmp/app/debug等中间产物不提交；不擅自新增重型工具/下载依赖。
 
@@ -489,3 +489,12 @@ FIX10 agy仍独占mock_ui.go及同批编译修复，BRAND01不碰相关文件/�
 ### 22.1 实际启动
 
 Herdr终端 `t3b`，tab `tb3d3591a57162fc0ea36db75749afe846`（BRAND01 Logo 接入 · CC），worktree `../GoRequest-BRAND01` / `cc/BRAND01-logo-integration`，共同基线 `6046a34d4af37b21c8bba7d5e54b85803ff6f7f5`。新版tab.new交互启动Claude Code，沿用当前默认Hy4 (hy4std)与会话Full Access；已确认任务/目录/模型和hc working。原始PNG已无损复制到本卡assets/brand/gorequest-logo.png，等待agent随交付提交，Downloads不变。FIX10 t39仍继续。完整提示词/句柄仅存本机 `/private/tmp/gorequest-brand01-20261107/`，不提交。尚未交付/合入main，不勾选。
+
+## 23. FIX10 与 BRAND01 合并（2026-11-07）
+
+用户要求合并两个已完成agent。main起点 `f20686c`，独立 `integrate/fix10-brand01` / `../GoRequest-integration` 串行no-ff合并：FIX10分支头 `a8c1d15`（代码 `b7de884`）→合并 `1268f66`；BRAND01分支头 `59ac714` →合并 `db60846`。两个交付worktree均干净、无冲突；Logo已直接包含所有公共接线，无额外patch。
+
+- FIX10修复Mock Checkbox参数顺序、性能面板的活动Tab访问、未使用context导入，并对齐诊断测试夹具字段；未删测试或放宽LAN策略。
+- BRAND01原PNG与嵌入副本、512PNG/icns、运行时应用/窗口图标、欢迎页/README展示、最小未签名macOS.app脚本入仓。Downloads原文件不动，无重绘/裁剪/重复底板。
+- 合并后实际 `go build ./...` exit 0；shell脚本 `sh -n` 通过，源/嵌入PNG SHA256一致，代码diff whitespace检查通过。未运行go test或启动真实应用，不能把构建通过当交互验收。BRAND01分支报告里的旧基线编译阻塞已由本轮FIX10消除；真实Dock/Finder图标、打包运行、其他平台仍待验收。
+- 本次仅合并。原两分支/worktree及对应agent保留，尤其BRAND01 worktree另有用户Codex会话t3d使用，不删除目录或关闭该会话；用户t31/oct等其他会话未动。只清理本轮自建临时集成worktree/分支（main快进并确认干净后）。用户主目录示例环境与debug产物保留，不push。
