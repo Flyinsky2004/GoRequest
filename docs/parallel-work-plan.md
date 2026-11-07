@@ -659,3 +659,15 @@ R1/R2/R4：预览去重与差异行、同行超时徽标、方法段分隔。R3/
 | U03 | t4c | tb4ec7fd572fdcb285751e5daa1c722953 |
 
 完整派工提示词与原始启动响应保存在本机 `/private/tmp/gorequest-u01-u03-20261107/`，不入Git。保留既有t1h/t3w/t2s及其他项目t31/t48，本次未操作这些终端。本轮已要求agent执行build与受影响测试；启动成功不能代替实现/验证成功。
+
+
+## 28. U04–U05 顶栏主题菜单、保存位置与中文命名（2026-11-07）
+
+用户继续要求通过Herdr创建CC处理三项新问题。核对main `483f4a2`，上一批t49/t4b/t4c均working且尚未集成；用户dev.yaml与两个debug产物保留。菜单与保存迁移共用workspaceHeader，合为U04单一负责人，U05处理中文命名；独立worktree，从本节登记提交起步。沿用本轮允许build/受影响测试，禁止子agent、merge/push、操作其他终端及全局配置。
+
+| ID / 负责人 | 分支 / 实际worktree | 归属与验收 | 状态 |
+| --- | --- | --- | --- |
+| U04 / CC header | cc/U04-header-menus-save / /private/tmp/gorequest-u04-u05-20261107/header | workspace.go的workspaceHeader/envMenu/buildNewMenu/saveControl与专属主题菜单模块/测试；环境及新建弹出应用内主题列表；保存放环境右侧、仅当前有未保存修改显示。U02拥有urlGroup，旧保存入口的单行删除以报告patch交集成人串行应用，不直接编辑urlGroup | 待启动 |
+| U05 / CC folder-ime | cc/U05-folder-ime / /private/tmp/gorequest-u04-u05-20261107/folder-ime | tree_actions.go的重命名输入与forms.go新建文件夹输入及专属模块/测试；检查中文组合输入/确认键/焦点/持久化；优先应用层最小修复，不改Core/依赖或共享框架 | 待启动 |
+
+两组写docs/task-results/U04.md或U05.md，真实验证后本地提交，只纳入本任务相关文件，不改总账本。若定位框架限制则必须提供具体源码证据与最小可应用修复方案，不通过脆弱输入替换假装IME已修复；需额外修改Core/依赖/框架时先报告集成人。未验证不得声称中文输入法实机验收通过。上一批和本批均未合入，交付后再集成验收，不勾完成。
