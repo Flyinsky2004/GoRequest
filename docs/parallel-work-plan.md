@@ -411,3 +411,9 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 A02公共两行接线已实际应用：App.View渲染RunnerModals，项目菜单BuildRunnerProjectMenuItems；FIX06/07无需额外接线。新增Schema adapter与预检、保存快照Runner/导出、设置紧凑高度、发送hover/pressed反馈进入本轮代码。A02仍为第一阶段：可视化断言/提取编辑、完整Suite/数据编排界面、结果分页等未完成；OAuth/本机上传槽/部分Schema方言按交付限制明确拒绝。
 
 本轮仅检查交付说明、diff、补丁适用性和Git祖先/干净状态，不运行build/vet/go test。各agent交付文档内的独立验证是历史证据，不冒充本轮组合门禁通过；真实窗口/跨平台未验收，故主验收checkbox继续未勾。未push、不改共享Git配置，不提交用户示例环境或调试产物。清理结果在操作完成后补记。
+
+### 18.1 main 与清理结果
+
+main 已从 `0695700` 快进到 `dcc7858`（本轮公共接线/验证边界提交；三个合并提交 `6bb7fd1` / `00348a2` / `aad72cc` 均在其历史）。逐个确认分支头已进入main、对应worktree无已修改或未跟踪文件后，不带force删除 `codex/A02-runner-first-loop` / `../GoRequest-A02`、`cc/FIX06-settings-height` / `../GoRequest-FIX06`、`cc/FIX07-send-feedback` / `../GoRequest-FIX07`，以及 `integrate/a02-fix06-fix07` / `../GoRequest-integration`。
+
+清理后按精确tab ID关闭Herdr `t36`（A02）、`t32`（FIX06）、`t33`（FIX07），均返回ok:true，随后hc ls确认三者不再live。保留正在开发的FIX08 `t34`、FIX09 `t35`及它们的分支/worktree；用户t1h/t2s和其他space终端未操作。主目录示例环境改动、两个debug产物全程保留。本轮未执行build/vet/测试，也未push。当前checkbox保留待验收，不把合并当测试通过。
