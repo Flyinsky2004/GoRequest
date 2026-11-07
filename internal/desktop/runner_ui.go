@@ -2,9 +2,12 @@ package desktop
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"gorequest/internal/desktop/uikit"
+	"gorequest/internal/runner"
 	"weak"
 )
 
@@ -14,6 +17,10 @@ func (a *App) BuildRunnerProjectMenuItems(mm *ui.Menu) {
 	}
 }
 func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
+	// The assertion/extraction editor renders independently of the runner modal
+	// itself; it opens from the runner modal's entry button and survives the
+	// runner modal being closed.
+	a.RunnerEditorModals(c, t)
 	s := a.runnerState(false)
 	if s == nil || !s.open {
 		return
@@ -57,6 +64,9 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
 						if ui.Button(c, m.Start).Disabled(s.running).Clicked() {
 							a.StartRunner()
 						}
+						if ui.Button(c, m.EditorEntry).Clicked() {
+							a.OpenRunnerEditor()
+						}
 					})
 					if s.notice != "" {
 						ui.Text(c, s.notice).FontSize(13).TextColor(p.Text)
@@ -98,6 +108,20 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
 											if attempt.Failure != nil {
 												ui.Text(c, string(attempt.Failure.Category)+" / "+string(attempt.Failure.Kind)+": "+attempt.Failure.Message).FontSize(11).TextColor(t.Danger)
 											}
+										}
+										for _, ar := range step.Assertions {
+											if count >= runnerEventLimit {
+												break
+											}
+											count++
+											ui.Text(c, runnerAssertionDetailText(ar)).FontSize(11).SingleLine().TextColor(runnerResultDetailColor(p, t, ar.Passed)).Tooltip(runnerAssertionDetailText(ar))
+										}
+										for _, er := range step.Extractions {
+											if count >= runnerEventLimit {
+												break
+											}
+											count++
+											ui.Text(c, runnerExtractionDetailText(er)).FontSize(11).SingleLine().TextColor(runnerResultDetailColor(p, t, er.Published)).Tooltip(runnerExtractionDetailText(er))
 										}
 										if step.Failure != nil {
 											ui.Text(c, string(step.Failure.Category)+" / "+string(step.Failure.Kind)+": "+step.Failure.Message).FontSize(11).TextColor(t.Danger)
@@ -199,4 +223,58 @@ func (a *App) chooseRunnerReportPath() {
 			}
 		})
 	}()
+}
+
+// runnerResultDetail helpers render the per-step assertion/extraction verdicts
+// already redacted by the engine; failed rule evaluations draw attention in
+// Danger while passed facts stay quiet.
+func runnerResultDetailColor(p uikit.Palette, t *ui.Theme, ok bool) ui.Color {
+	if ok {
+		return p.Muted
+	}
+	return t.Danger
+}
+
+func runnerAssertionDetailText(ar runner.AssertionResult) string {
+	verdict := "PASS"
+	if !ar.Passed {
+		verdict = "FAIL"
+	}
+	target := ar.Target
+	if target == "" {
+		target = ar.Kind
+	}
+	parts := []string{fmt.Sprintf("  assert %s: %s", target, verdict)}
+	if ar.Expected != "" {
+		parts = append(parts, "expected "+ar.Expected)
+	}
+	if ar.Actual != "" {
+		parts = append(parts, "actual "+ar.Actual)
+	}
+	if ar.Message != "" {
+		parts = append(parts, ar.Message)
+	}
+	return strings.Join(parts, " · ")
+}
+
+func runnerExtractionDetailText(er runner.ExtractionResult) string {
+	verdict := "published"
+	if !er.Published {
+		verdict = "NOT published"
+	}
+	target := er.Target
+	if target == "" {
+		target = er.From
+	}
+	parts := []string{fmt.Sprintf("  extract %s (%s): %s", er.Name, target, verdict)}
+	if er.Required {
+		parts = append(parts, "required")
+	}
+	if er.Sensitive {
+		parts = append(parts, "sensitive")
+	}
+	if er.Message != "" {
+		parts = append(parts, er.Message)
+	}
+	return strings.Join(parts, " · ")
 }
