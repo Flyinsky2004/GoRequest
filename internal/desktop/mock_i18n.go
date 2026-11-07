@@ -1,0 +1,133 @@
+package desktop
+
+import "fmt"
+
+var mockEN = map[string]string{
+	"menu.project.mock_server":          "Local Mock Server...",
+	"mock.modal.title":                  "Local Mock Server",
+	"mock.action.reload":                "Reload Rules",
+	"mock.action.start":                 "Start Server",
+	"mock.action.stop":                  "Stop Server",
+	"mock.action.close":                 "Close",
+	"mock.action.clear_log":             "Clear Access Log",
+	"mock.action.from_current_req":      "Rule from Current Request",
+	"mock.action.from_openapi_schema":   "Rule from OpenAPI Schema (A03)",
+	"mock.action.run_controlled_suite":  "Run Suite with Controlled Mock",
+	"mock.action.stop_controlled_suite": "Cancel Suite Run",
+	"mock.tab.rules":                    "Rules & Conflicts",
+	"mock.tab.access_log":               "Access Log",
+	"mock.tab.suite_control":            "Suite Controlled Run",
+	"mock.field.listen_host":            "Listen Host",
+	"mock.field.listen_port":            "Port (0 = Ephemeral)",
+	"mock.field.allow_lan":              "Allow LAN Bind",
+	"mock.field.scenario":               "Active Scenario",
+	"mock.field.seed":                   "Deterministic Seed",
+	"mock.field.target_var":             "Target Suite Variable",
+	"mock.status.stopped":               "STOPPED",
+	"mock.status.running":               "RUNNING",
+	"mock.status.conflict":              "RULE CONFLICT",
+	"mock.status.error":                 "ERROR",
+	"mock.status.bound_url":             "Bound URL: %s",
+	"mock.status.loopback_only":         "Loopback Only (127.0.0.1 / ::1)",
+	"mock.status.lan_warning":           "LAN WARNING: Bound to non-loopback address (%s). Local mock endpoints are reachable on your local network.",
+	"mock.status.digest":                "Snapshot Digest: %s",
+	"mock.status.rule_count":            "%d Rules (%d Files)",
+	"mock.status.log_count":             "%d / %d Sanitized Records",
+	"mock.rules.empty":                  "No .gorequest/mocks/*.mock.yaml rules found. Create a rule from the active request or an imported OpenAPI operation.",
+	"mock.rules.conflicts_title":        "Same-Priority Rule Ambiguity Detected (Server Start Blocked):",
+	"mock.rules.priority_badge":         "P%d",
+	"mock.rules.scenarios":              "Scenarios: %s",
+	"mock.rules.source":                 "File: %s",
+	"mock.log.empty":                    "No requests captured yet. Access records are bounded in memory and automatically redacted.",
+	"mock.log.redaction_note":           "Authorization, Cookie, Set-Cookie, registered secrets, and sensitive JSON fields are automatically scrubbed.",
+	"mock.log.matched_rule":             "Rule: %s (Scenario: %s)",
+	"mock.log.unmatched":                "Unmatched (404 Near-Miss Diagnostics Returned)",
+	"mock.suite.empty":                  "No .gorequest/suites/*.suite.yaml found in current project.",
+	"mock.suite.select_label":           "Suite:",
+	"mock.suite.isolation_note":         "Controlled runs start an isolated loopback Mock snapshot and inject {{%s}} into RunVars without modifying shared environments.",
+	"mock.suite.status_idle":            "Select a suite to run against an isolated controlled Mock server.",
+	"mock.suite.status_running":         "Running suite %q against isolated Mock (scenario=%s)...",
+	"mock.suite.status_done":            "Suite %q finished: %s (Passed %d, Failed %d, Skipped %d) | Mock Endpoint: %s | Mock Requests: %d",
+	"mock.msg.no_project":               "Open or create a project first.",
+	"mock.msg.no_active_request":        "Select a request tab in the workspace first.",
+	"mock.msg.no_openapi":               "The active request has no OpenAPI response contract configured.",
+	"mock.msg.rule_created":             "Saved sanitized Mock rule %q to %s",
+	"mock.msg.schema_rule_created":      "Saved A03-validated schema Mock rule %q to %s",
+	"mock.msg.started":                  "Mock server listening on %s (scenario: %s)",
+	"mock.msg.stopped":                  "Mock server stopped.",
+	"mock.msg.scenario_updated":         "Active panel Mock scenario switched to %q (in-flight controlled Suite runs keep their frozen snapshot).",
+	"mock.msg.log_cleared":              "Cleared in-memory Mock access log.",
+}
+
+var mockZH = map[string]string{
+	"menu.project.mock_server":          "本地 Mock 服务...",
+	"mock.modal.title":                  "本地 Mock 服务",
+	"mock.action.reload":                "重载规则",
+	"mock.action.start":                 "启动服务",
+	"mock.action.stop":                  "停止服务",
+	"mock.action.close":                 "关闭",
+	"mock.action.clear_log":             "清空访问记录",
+	"mock.action.from_current_req":      "从当前请求生成规则",
+	"mock.action.from_openapi_schema":   "从 OpenAPI Schema 生成规则 (A03)",
+	"mock.action.run_controlled_suite":  "使用受控 Mock 运行套件",
+	"mock.action.stop_controlled_suite": "取消套件运行",
+	"mock.tab.rules":                    "规则与冲突检查",
+	"mock.tab.access_log":               "受限脱敏访问记录",
+	"mock.tab.suite_control":            "Suite 受控启停",
+	"mock.field.listen_host":            "监听主机",
+	"mock.field.listen_port":            "端口 (0 = 随机空闲端口)",
+	"mock.field.allow_lan":              "允许局域网绑定 (LAN)",
+	"mock.field.scenario":               "当前场景",
+	"mock.field.seed":                   "确定性种子 (Seed)",
+	"mock.field.target_var":             "注入变量名",
+	"mock.status.stopped":               "已停止",
+	"mock.status.running":               "运行中",
+	"mock.status.conflict":              "规则冲突",
+	"mock.status.error":                 "错误",
+	"mock.status.bound_url":             "实际监听地址: %s",
+	"mock.status.loopback_only":         "仅本地回环 (127.0.0.1 / ::1)",
+	"mock.status.lan_warning":           "局域网暴露警告: 当前绑定非回环地址 (%s)，局域网内其他设备可访问此 Mock 服务。",
+	"mock.status.digest":                "快照摘要: %s",
+	"mock.status.rule_count":            "%d 条规则 (%d 个文件)",
+	"mock.status.log_count":             "%d / %d 条脱敏记录",
+	"mock.rules.empty":                  "当前项目暂无 .gorequest/mocks/*.mock.yaml 规则。可从当前请求或已导入的 OpenAPI 契约生成规则。",
+	"mock.rules.conflicts_title":        "检测到同优先级规则歧义（已阻止启动）：",
+	"mock.rules.priority_badge":         "优先级 %d",
+	"mock.rules.scenarios":              "可用场景: %s",
+	"mock.rules.source":                 "文件: %s",
+	"mock.log.empty":                    "暂无访问记录。记录仅保存在有界内存中并自动执行秘密脱敏。",
+	"mock.log.redaction_note":           "Authorization、Cookie、Set-Cookie、已注册凭据秘密及敏感 JSON 字段均已自动脱敏，不会写入规则或项目文件。",
+	"mock.log.matched_rule":             "命中规则: %s (场景: %s)",
+	"mock.log.unmatched":                "未命中规则 (已返回清晰 404 诊断信息)",
+	"mock.suite.empty":                  "当前项目下未找到 .gorequest/suites/*.suite.yaml 测试套件。",
+	"mock.suite.select_label":           "目标套件:",
+	"mock.suite.isolation_note":         "受控运行会启动独立回环 Mock 快照，并将监听地址注入临时运行变量 {{%s}}，不污染共享环境文件。",
+	"mock.suite.status_idle":            "选择测试套件以使用受控 Mock 生命周期执行验证。",
+	"mock.suite.status_running":         "正在使用隔离受控 Mock 运行套件 %q (场景=%s)...",
+	"mock.suite.status_done":            "套件 %q 执行结束: %s (通过 %d, 失败 %d, 跳过 %d) | Mock 地址: %s | Mock 命中记录: %d",
+	"mock.msg.no_project":               "请先打开或创建一个项目。",
+	"mock.msg.no_active_request":        "请先在工作区选择一个请求标签页。",
+	"mock.msg.no_openapi":               "当前请求未配置 OpenAPI 响应契约。",
+	"mock.msg.rule_created":             "已将脱敏 Mock 规则 %q 保存至 %s",
+	"mock.msg.schema_rule_created":      "已将通过 A03 校验的 Schema Mock 规则 %q 保存至 %s",
+	"mock.msg.started":                  "Mock 服务已启动，监听地址 %s (场景: %s)",
+	"mock.msg.stopped":                  "Mock 服务已停止。",
+	"mock.msg.scenario_updated":         "面板当前场景已切换为 %q（已开始的受控 Suite 运行继续保持其固定快照）。",
+	"mock.msg.log_cleared":              "已清空内存访问记录。",
+}
+
+func mockT(a *App, key string) string {
+	if a != nil && a.mgr != nil && a.mgr.cfg != nil && a.mgr.cfg.language() == "zh" {
+		if v, ok := mockZH[key]; ok {
+			return v
+		}
+	}
+	if v, ok := mockEN[key]; ok {
+		return v
+	}
+	return key
+}
+
+func mockTf(a *App, key string, args ...any) string {
+	return fmt.Sprintf(mockT(a, key), args...)
+}
