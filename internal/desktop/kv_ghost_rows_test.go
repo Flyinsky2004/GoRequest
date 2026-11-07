@@ -9,9 +9,9 @@ import (
 	"gorequest/internal/core"
 )
 
-// countText counts exact matches of want in texts. The KV headers are compared
+// countKVHeaderText counts exact matches of want in texts. The KV headers are compared
 // exactly so the "Key:Value" mode label is not mistaken for the "Key" heading.
-func countText(texts []string, want string) int {
+func countKVHeaderText(texts []string, want string) int {
 	n := 0
 	for _, s := range texts {
 		if s == want {
@@ -26,10 +26,10 @@ func countText(texts []string, want string) int {
 func assertKVHeadersOnce(t *testing.T, tt *ui.Tester, m *messages) {
 	t.Helper()
 	texts := tt.Texts()
-	if got := countText(texts, m.Key); got != 1 {
+	if got := countKVHeaderText(texts, m.Key); got != 1 {
 		t.Fatalf("Key heading appears %d times, want 1; texts=%v", got, texts)
 	}
-	if got := countText(texts, m.Value); got != 1 {
+	if got := countKVHeaderText(texts, m.Value); got != 1 {
 		t.Fatalf("Value heading appears %d times, want 1; texts=%v", got, texts)
 	}
 	key, ok := tt.Find(m.Key)
