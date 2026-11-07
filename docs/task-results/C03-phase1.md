@@ -41,7 +41,7 @@
 
 ## 5. 待执行用例
 
-`internal/docgen` 7 个测试文件、39 个用例（引用语法往返/扫描定位/诊断合并/幂等展开/更新传播/卡片派生/净化阻断/HTML 渲染子集/导出安全闸门，含 nil-project、symlink、目标冲突、手工文件保护、上限截断等边界），完整期望见 [derived-docs-evidence](../specs/derived-docs-evidence.md) §10。**按本批"先不执行测试"的要求尚未运行**，未以任何形式标记为通过。
+`internal/docgen` 7 个测试文件、38 个用例（引用语法往返/扫描定位/诊断合并/幂等展开/更新传播/卡片派生/净化阻断/HTML 渲染子集/导出安全闸门，含 nil-project、symlink、目标冲突、手工文件保护、上限截断等边界），完整期望见 [derived-docs-evidence](../specs/derived-docs-evidence.md) §10。**按本批"先不执行测试"的要求尚未运行**，未以任何形式标记为通过。
 
 ## 6. 未编译 / 未人工 / 跨平台未验收
 
