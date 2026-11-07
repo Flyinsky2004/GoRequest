@@ -2,11 +2,13 @@ package desktop
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 
 	"gorequest/internal/desktop/uikit"
+	"gorequest/internal/mockserver"
 )
 
 // BuildMockProjectMenuItems adds the "Local Mock Server..." entry to the
@@ -28,15 +30,31 @@ func (a *App) MockModals(c *ui.Context, t *ui.Theme) {
 	}
 	a.ensureMockProjectBound(s)
 	if !s.open {
+		if s.suiteRunning {
+			a.CancelControlledMockSuite()
+		}
 		return
 	}
+	if !s.visible {
+		// ui.Modal writes its bool false on Escape / outside click. With an
+		// unsaved rule draft that dismissal becomes an explicit discard
+		// confirmation instead of silently dropping the edits.
+		if s.editor != nil && s.editor.dirty() {
+			s.visible = true
+			s.editor.confirmDiscard = true
+		} else {
+			a.dismissMockPanel(s)
+			return
+		}
+	}
+	s.visible = true
 
 	p := uikit.PaletteFor(t)
 	winW, winH := c.Size()
 	panelW := max(float32(360), min(float32(920), float32(winW)-48))
 	panelH := max(float32(280), min(float32(760), float32(winH)-64))
 
-	ui.Modal(c, &s.open, func() {
+	ui.Modal(c, &s.visible, func() {
 		ui.Column(c).Width(panelW).Height(panelH).Gap(10).Padding(18).Background(p.BG).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Children(func() {
 			// Header row
 			ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
@@ -68,10 +86,7 @@ func (a *App) MockModals(c *ui.Context, t *ui.Theme) {
 				closeBtn := ui.Button(c, mockT(a, "mock.action.close"))
 				uikit.ActionCursor(closeBtn)
 				if closeBtn.Clicked() {
-					if s.suiteRunning {
-						a.CancelControlledMockSuite()
-					}
-					s.open = false
+					a.requestMockPanelClose(s)
 				}
 			})
 
@@ -129,6 +144,18 @@ func (a *App) MockModals(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, mockTf(a, "mock.status.digest", digestShort)).Font("monospace").FontSize(11).TextColor(p.Muted)
 				})
 
+				if s.running && s.server != nil && s.snapshot != nil && s.server.CurrentSnapshot() != nil &&
+					s.server.CurrentSnapshot().SnapshotDigest != s.snapshot.SnapshotDigest {
+					ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, mockT(a, "mock.status.pending_apply")).FontSize(11).FontWeight(700).TextColor(t.Warning)
+						ui.Box(c).Grow(1)
+						applyBtn := ui.Button(c, mockT(a, "mock.action.apply_snapshot"))
+						uikit.ActionCursor(applyBtn)
+						if applyBtn.Clicked() {
+							a.ApplyMockSnapshotToServer()
+						}
+					})
+				}
 				if s.isLAN || (s.allowLAN && !isLoopbackHostText(s.listenHost)) {
 					addrText := s.boundAddr
 					if addrText == "" {
@@ -169,10 +196,6 @@ func (a *App) MockModals(c *ui.Context, t *ui.Theme) {
 			})
 		})
 	})
-
-	if !s.open && s.suiteRunning {
-		a.CancelControlledMockSuite()
-	}
 }
 
 func (a *App) renderMockStatusBadge(c *ui.Context, t *ui.Theme, p uikit.Palette, s *mockState) {
@@ -195,6 +218,15 @@ func (a *App) renderMockStatusBadge(c *ui.Context, t *ui.Theme, p uikit.Palette,
 }
 
 func (a *App) renderMockRulesTab(c *ui.Context, t *ui.Theme, p uikit.Palette, s *mockState) {
+	if s.editor != nil {
+		if !s.editor.open {
+			s.editor = nil
+		} else {
+			a.renderMockRuleEditor(c, t, p, s, s.editor)
+			return
+		}
+	}
+
 	hasActiveReq := a.ps != nil && a.ps.activeTab() != nil && a.ps.activeTab().Kind == "request" && a.ps.activeTab().Entry != nil
 	ui.Column(c).FillWidth().Gap(10).Children(func() {
 		ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
@@ -209,7 +241,10 @@ func (a *App) renderMockRulesTab(c *ui.Context, t *ui.Theme, p uikit.Palette, s 
 			if fromSchemaBtn.Clicked() {
 				a.CreateMockRuleFromActiveOpenAPI()
 			}
+
+			ui.Box(c).Grow(1)
 		})
+		ui.Text(c, mockT(a, "mock.rules.manage_hint")).FontSize(11).TextColor(p.Muted)
 
 		if len(s.conflicts) > 0 {
 			ui.Column(c).FillWidth().Gap(4).Padding(10).Background(p.Sidebar).Radius(6).BorderWidth(1).BorderColor(t.Danger).Children(func() {
@@ -220,35 +255,145 @@ func (a *App) renderMockRulesTab(c *ui.Context, t *ui.Theme, p uikit.Palette, s 
 			})
 		}
 
-		if s.snapshot == nil || len(s.snapshot.Rules) == 0 {
+		if len(s.files) == 0 {
 			ui.Text(c, mockT(a, "mock.rules.empty")).FontSize(12).TextColor(p.Muted)
 			return
 		}
 
-		for _, cr := range s.snapshot.Rules {
-			rule := cr.Rule
-			resp := cr.Response
-			relFile := cr.FileRelPath
-			ui.Column(c).FillWidth().Gap(4).Padding(10).Background(p.Sidebar).Radius(6).BorderWidth(1).BorderColor(p.Hairline).Children(func() {
-				ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, mockTf(a, "mock.rules.priority_badge", rule.Priority)).Font("monospace").FontSize(11).FontWeight(700).TextColor(p.Muted)
-					ui.Text(c, cr.Method+" "+rule.Match.Path).Font("monospace").FontSize(13).FontWeight(700).TextColor(p.Text)
-					ui.Text(c, fmt.Sprintf("→ HTTP %d", resp.Status)).Font("monospace").FontSize(12).TextColor(t.Success)
-					ui.Box(c).Grow(1)
-					ui.Text(c, rule.ID).Font("monospace").FontSize(11).TextColor(p.Muted)
-				})
-				var variantNames []string
-				for k := range rule.Variants {
-					variantNames = append(variantNames, k)
-				}
-				metaLine := mockTf(a, "mock.rules.source", relFile)
-				if len(variantNames) > 0 {
-					metaLine += " · " + mockTf(a, "mock.rules.scenarios", strings.Join(variantNames, ", "))
-				}
-				ui.Text(c, metaLine).FontSize(11).TextColor(p.Muted)
-			})
+		for _, f := range s.files {
+			a.renderMockRuleFileSection(c, t, p, s, f)
 		}
 	})
+}
+
+// renderMockRuleFileSection renders one mock file's editable rule section
+// with its own "add rule" affordance, so file selection for new rules is
+// explicit.
+func (a *App) renderMockRuleFileSection(c *ui.Context, t *ui.Theme, p uikit.Palette, s *mockState, f *mockserver.MockFile) {
+	if f == nil {
+		return
+	}
+	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(p.Sidebar).Radius(8).BorderWidth(1).BorderColor(p.Hairline).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, f.SourceRelPath).Font("monospace").FontSize(12).FontWeight(700).TextColor(p.Text)
+			ui.Text(c, mockTf(a, "mock.rules.file_rule_count", len(f.Rules))).FontSize(11).TextColor(p.Muted)
+			if strings.TrimSpace(f.DefaultScenario) != "" {
+				ui.Text(c, mockTf(a, "mock.rules.source", f.ID)).FontSize(11).TextColor(p.Faint)
+			}
+			ui.Box(c).Grow(1)
+			addBtn := ui.Button(c, mockTf(a, "mock.rules.add_in_file", f.ID))
+			uikit.ActionCursor(addBtn)
+			if addBtn.Clicked() {
+				a.NewMockRuleDraft(f.SourceRelPath)
+			}
+		})
+		for i := range f.Rules {
+			a.renderMockRuleRow(c, t, p, s, f.SourceRelPath, &f.Rules[i])
+		}
+	})
+}
+
+// renderMockRuleRow renders one rule row with Edit/Copy and the two-step
+// inline delete confirmation.
+func (a *App) renderMockRuleRow(c *ui.Context, t *ui.Theme, p uikit.Palette, s *mockState, fileRel string, rule *mockserver.MockRule) {
+	if rule == nil {
+		return
+	}
+	key := fileRel + "#" + rule.ID
+	if s.deletingRuleKey == key {
+		ui.Row(c).Key(key).FillWidth().Gap(8).AlignItems(ui.Center).Padding(8, 10).Background(p.Sidebar).Radius(6).BorderWidth(1).BorderColor(t.Danger).Children(func() {
+			ui.Text(c, mockT(a, "mock.action.confirm_delete")+" ["+rule.ID+"]").FontSize(12).FontWeight(700).TextColor(t.Danger)
+			ui.Box(c).Grow(1)
+			yesBtn := ui.Button(c, mockT(a, "mock.action.delete"))
+			uikit.ActionCursor(yesBtn)
+			if yesBtn.Clicked() {
+				a.DeleteMockRule(fileRel, rule.ID)
+			}
+			noBtn := ui.Button(c, mockT(a, "mock.action.cancel_delete"))
+			uikit.ActionCursor(noBtn)
+			if noBtn.Clicked() {
+				s.deletingRuleKey = ""
+			}
+		})
+		return
+	}
+
+	variantNames := make([]string, 0, len(rule.Variants))
+	for sc := range rule.Variants {
+		variantNames = append(variantNames, sc)
+	}
+	sort.Strings(variantNames)
+
+	ui.Column(c).Key(key).FillWidth().Gap(4).Padding(10).Background(p.Sidebar).Radius(6).BorderWidth(1).BorderColor(p.Hairline).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, mockTf(a, "mock.rules.priority_badge", rule.Priority)).Font("monospace").FontSize(11).FontWeight(700).TextColor(p.Muted)
+			if rule.IsEnabled() {
+				ui.Text(c, mockT(a, "mock.rules.rule_enabled")).FontSize(10).TextColor(p.Faint)
+			} else {
+				ui.Text(c, mockT(a, "mock.rules.rule_disabled")).FontSize(10).TextColor(t.Warning)
+			}
+			ui.Text(c, rule.Match.Method+" "+rule.Match.Path).Font("monospace").FontSize(13).FontWeight(700).TextColor(p.Text)
+			ui.Text(c, fmt.Sprintf("→ HTTP %d", rule.Response.Status)).Font("monospace").FontSize(12).TextColor(t.Success)
+			if !mockRuleApplies(*rule, s.scenario) {
+				ui.Text(c, mockTf(a, "mock.rules.inactive_scenario", s.scenario)).FontSize(10).TextColor(p.Faint)
+			}
+			ui.Box(c).Grow(1)
+			if len(variantNames) > 0 {
+				ui.Text(c, mockTf(a, "mock.rules.variants_count", len(variantNames))+" ("+strings.Join(variantNames, ", ")+")").FontSize(10).TextColor(p.Faint)
+			}
+			ui.Text(c, rule.ID).Font("monospace").FontSize(11).TextColor(p.Muted)
+		})
+		if rule.Name != "" {
+			ui.Text(c, rule.Name).FontSize(11).TextColor(p.Muted)
+		}
+		ui.Row(c).FillWidth().Gap(6).Justify(ui.End).Children(func() {
+			editBtn := ui.Button(c, mockT(a, "mock.action.edit"))
+			uikit.ActionCursor(editBtn)
+			if editBtn.Clicked() {
+				a.OpenMockRuleEditor(fileRel, rule.ID)
+			}
+			copyBtn := ui.Button(c, mockT(a, "mock.action.copy"))
+			uikit.ActionCursor(copyBtn)
+			if copyBtn.Clicked() {
+				a.DuplicateMockRule(fileRel, rule.ID)
+			}
+			delBtn := ui.Button(c, mockT(a, "mock.action.delete"))
+			uikit.ActionCursor(delBtn)
+			if delBtn.Clicked() {
+				s.deletingRuleKey = key
+			}
+		})
+	})
+}
+
+// dismissMockPanel performs the final modal close: cancels an in-flight
+// controlled suite run (phase 1 semantics), clears any rule draft or pending
+// delete confirmation, and marks the modal closed. It runs only after unsaved
+// drafts have been discarded explicitly.
+func (a *App) dismissMockPanel(s *mockState) {
+	if s == nil {
+		return
+	}
+	if s.suiteRunning {
+		a.CancelControlledMockSuite()
+	}
+	s.open = false
+	s.visible = false
+	s.editor = nil
+	s.deletingRuleKey = ""
+}
+
+// requestMockPanelClose guards the panel's Close button: a dirty rule draft
+// must be discarded explicitly first.
+func (a *App) requestMockPanelClose(s *mockState) {
+	if s == nil {
+		return
+	}
+	if s.editor != nil && s.editor.dirty() {
+		s.editor.confirmDiscard = true
+		return
+	}
+	a.dismissMockPanel(s)
 }
 
 func (a *App) renderMockAccessLogTab(c *ui.Context, t *ui.Theme, p uikit.Palette, s *mockState) {
