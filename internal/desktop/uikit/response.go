@@ -47,12 +47,68 @@ func SkeletonLines(c *ui.Context, p Palette, n int) {
 	})
 }
 
+// sendButtonColors are the Send control's three state fills (§1.1/§5), derived
+// from the Palette alone so the control needs no theme lookup.
+//
+// Every state mixes the accent toward black, never toward white and never as a
+// translucent wash. The label and both icons are the fixed white p.OnAccent, so
+// darkening the fill only ever improves their contrast; lightening it (as a
+// generic accent-hover token does in dark mode) would push white text below
+// 4.5:1. The three steps are far enough apart to read as distinct states in
+// both themes: light 12%/25% toward black, dark 15%/32% (dark starts lighter,
+// so it needs a slightly deeper mix for the same perceived step). Rest is the
+// unmodified p.Accent token.
+func sendButtonColors(p Palette) (rest, hover, pressed ui.Color) {
+	black := ui.RGB(0, 0, 0)
+	if p.Dark {
+		return p.Accent, p.Accent.Mix(black, 0.15), p.Accent.Mix(black, 0.32)
+	}
+	return p.Accent, p.Accent.Mix(black, 0.12), p.Accent.Mix(black, 0.25)
+}
+
 // SendButton is the Send control (§3, morphing per §6.2): a 40×104 accent pill
 // whose icon morphs between a paper plane (Send) and an × (Cancel) with the
 // 340ms/0.30 icon spring — the two icons cross-scale and cross-fade rather than
 // hard-cutting — with the label switching between send and cancel.
+//
+// It also has the full pointer-state feedback (§5): resting accent, a distinct
+// hover fill, and a darker/tighter pressed fill plus the 0.97 primary press
+// scale. Both functional states (Send and Cancel) get the same states. Hover and
+// press are visual only — the action still fires on release through Clicked(),
+// never on a press or a hover. Hovered/Pressed and the explicit IsDisabled
+// guard keep a disabled button (or one under a disabled ancestor) at its
+// resting face with no press scale and no action. The color and pose animate
+// over the shared 120ms hover beat and settle: no frame is requested once they
+// reach their target, so an idle button costs no redraws.
 func SendButton(c *ui.Context, p Palette, sending bool, label string) (ui.Element, bool) {
-	e := ActionCursor(ui.Row(c).Height(40).Width(104).Radius(10).Center().Background(p.Accent))
+	rest, hover, pressed := sendButtonColors(p)
+
+	e := ActionCursor(ui.Row(c).Height(40).Width(104).Radius(10).Center())
+
+	// A disabled control (itself or under a disabled ancestor) must never show
+	// a clickable state color or press feedback. Hovered/Pressed already report
+	// false for one, and IsDisabled is checked explicitly as well so the resting
+	// face is kept even if the disable is applied by a wrapper around the build.
+	// As with ActionCursor, a caller disabling the returned element itself must
+	// do so before applying further state to it (see UI02.md).
+	hovered, down := e.Hovered(), e.Pressed()
+	bg := rest
+	switch {
+	case e.IsDisabled():
+		bg = rest
+	case down:
+		bg = pressed
+	case hovered:
+		bg = hover
+	}
+	e.Background(e.AnimateColor("send-bg", bg, AnimHover))
+
+	scale := float32(1)
+	if down && !e.IsDisabled() {
+		scale = ScalePrimaryPress
+	}
+	e.AnimatePose(ui.Pose{Scale: scale}, ui.Snappy)
+
 	var clicked bool
 	e.Children(func() {
 		icon := ui.Box(c).Size(16, 16)
