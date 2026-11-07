@@ -725,3 +725,15 @@ U09只缩短显示，完整历史URL和搜索/恢复保持；query/fragment/转�
 U10须检查CheckboxBase真实绘制API，复用已有16DIP本地绘制模式（无需改共享uikit），支持亮暗/键盘可见焦点。勾选服务于现有selectedPaths提交流程，不能随点击自动stage或commit。刷新清理失效路径，未合并条目禁用，重命名/中文/空格路径选择语义不回归；Git写操作验证只在临时测试repo，不操作用户工作区index/已有改动。
 
 本轮允许build/受影响测试，旧3项desktop基线失败明确区分。报告docs/task-results/U09.md/U10.md并检查diff后本地提交；不改总账本、Core/框架/依赖/全局配置、不派子agent、不操作其他终端或merge/push/清理分支。集成验收前不勾完成。
+
+
+### 30.1 实际启动句柄
+
+两组均从登记共同基线 `e83868a` 创建独立worktree，并通过Herdr tab.new交互启动Claude Code。已读取两屏核对任务/目录/分支与bypass permissions，无信任阻塞，hc均working；沿用当前默认DeepSeek V4.1 Flash 1017 (Mistral)，不指定或修改全局模型。
+
+| ID | Herdr终端 | tab ID |
+| --- | --- | --- |
+| U09 | t4m | tba7d13b76303c08a3581223d203264b40 |
+| U10 | t4n | tb22336c7c4482f880ecdf5133ca3e97e8 |
+
+完整提示词和原始启动响应仅存本机 `/private/tmp/gorequest-u09-u10-20261107/` 不入Git。两组开发中，尚未交付/合并/验收；本轮仅完成派工和静态账本检查，未运行功能构建/测试。既有U01–U08和用户/其他项目终端均保留，用户示例环境与debug产物不纳入提交。
