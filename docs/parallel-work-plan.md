@@ -531,3 +531,7 @@ Herdr终端 `t3b`，tab `tb3d3591a57162fc0ea36db75749afe846`（BRAND01 Logo 接�
 | P01-phase1 | `t3r` | `tb4694a11299e72c66ce48b630e5800cf0` | `vibe/P01-websocket` / `../GoRequest-P01-ws` |
 
 完整派工提示词和原始启动响应保存在本机 `/private/tmp/gorequest-vibe-five-20261107/`，不入Git；长期范围见§24。各agent只交专属报告与公共接线patch，完成后等待用户安排集成，集成与验收满足后再由集成人打勾。本轮只做派工与静态账本检查，未运行构建/测试，未触碰现有用户会话或旧worktree。
+
+### 24.2 五个会话切换 Flash 并继续（2026-11-07）
+
+用户先提出暂停四个，但未指定四个，实际尚未执行暂停；随后明确改为五个全部切换 glm-5.3-flash 并接着开发。已在原 Herdr t3m/t3n/t3p/t3q/t3r 内中断当前生成，使用 `/model` 选择器选择 **GLM-5.3 Flash (Mistral Hosted)**（Vibe提供的模型alias `zai-glm-5-3-flash`），使用session-only模式保存，然后发送继续原任务的指令。五个屏幕均确认Flash模型和auto-approve，原会话上下文、分支/worktree与已写代码保持，不新建重复开发会话、不修改全局默认模型，也不操作其他用户会话。原任务边界和暂不运行测试/构建/vet约束保持。当前仍是开发中，未验收、不打勾。
