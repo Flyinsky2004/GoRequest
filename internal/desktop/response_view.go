@@ -167,12 +167,13 @@ func isCanceledErr(msg string) bool { return strings.Contains(msg, "canceled") }
 // position is the status group (status-code capsule, protocol, duration and
 // size as rolling tabular figures, plus wire vs decompressed size and
 // redirect/TLS badges), followed by the Body/Headers/Cookies/Network view
-// switch, Pretty/Raw/Tree for the body, and find/copy/save at the end of the
-// row. The Cookies view carries the project Cookie Jar entry and the Network
-// view carries the Network/TLS settings entry, so there is no second settings
-// row. Below it: a send progress line and skeleton while a request is in
-// flight, an inline error with a Retry pill, and the body as a read-only code
-// view, interactive JSON tree, or binary inspector.
+// switch and find/copy/save. The Pretty/Raw/Tree body-format switch ends the
+// row, right-aligned after those controls. The Cookies view carries the
+// project Cookie Jar entry and the Network view carries the Network/TLS
+// settings entry, so there is no second settings row. Below it: a send
+// progress line and skeleton while a request is in flight, an inline error
+// with a Retry pill, and the body as a read-only code view, interactive JSON
+// tree, or binary inspector.
 func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	m := a.msg()
 	nm := a.networkMsg()
@@ -186,11 +187,14 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	ui.Column(c).Grow(1).FillHeight().Background(p.BG).Children(func() {
 		// One wrapping tool row. The status group is its first child, so the
 		// status capsule, protocol, duration and size keep the leading position
-		// on the first line at every width; the view switch, body format, find
-		// and copy/save follow in reading order. There is no second settings
-		// row: the Cookie Jar lives in the Cookies view and the Network/TLS
-		// settings live inside the Network view, so neither can push the status
-		// off its anchor.
+		// on the first line at every width; the view switch, find and copy/save
+		// follow in reading order. The body-format switch ends the row and is
+		// right-aligned: an automatic left margin takes the line's free space,
+		// so it sits at the right edge after find/copy/save and, when the
+		// wrapping row moves it to its own line at a narrow width, right-aligns
+		// there too instead of overflowing. There is no second settings row: the
+		// Cookie Jar lives in the Cookies view and the Network/TLS settings live
+		// inside the Network view, so neither can push the status off its anchor.
 		ui.Row(c).FillWidth().Wrap().Gap(8).Padding(6, 10).AlignItems(ui.Start).
 			BorderWidth(1, 0, 0, 0).BorderColor(p.Hairline).Children(func() {
 			// Status elements are direct children (not one non-wrapping group)
@@ -200,22 +204,12 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				responseSegments(c, t, &tab.RespSection, m.BodySection, m.HeadersSection,
 					cookieSectionLabel(nm, jar.Count()), nm.NetworkSection)
 				if tab.RespSection == 0 && !tab.Resp.IsBinary {
-					ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
-						if responseBodyIsJSON(tab.Resp) && tab.Resp.BodySize <= largeResponseThreshold {
-							responseSegments(c, t, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
-						} else {
-							if tab.RespRawIdx > 1 {
-								tab.RespRawIdx = 0
-							}
-							responseSegments(c, t, &tab.RespRawIdx, m.Pretty, m.Raw)
+					if b := uikit.IconButton(c, p, uikit.IconSearch, m.FindPlaceholder).Label(m.FindPlaceholder).Cursor(ui.CursorPointer); b.Clicked() {
+						tab.respFindOpen = !tab.respFindOpen
+						if tab.respFindOpen {
+							tab.respFindFocus = true
 						}
-						if b := uikit.IconButton(c, p, uikit.IconSearch, m.FindPlaceholder).Label(m.FindPlaceholder).Cursor(ui.CursorPointer); b.Clicked() {
-							tab.respFindOpen = !tab.respFindOpen
-							if tab.respFindOpen {
-								tab.respFindFocus = true
-							}
-						}
-					})
+					}
 				}
 				ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 					if b := uikit.IconButton(c, p, uikit.IconCopy, m.CopyResponse).Label(m.CopyResponse).Cursor(ui.CursorPointer); b.Clicked() {
@@ -226,6 +220,18 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 						a.saveResponse(tab)
 					}
 				})
+				if tab.RespSection == 0 && !tab.Resp.IsBinary {
+					ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Margin(0, 0, 0, ui.Auto).Children(func() {
+						if responseBodyIsJSON(tab.Resp) && tab.Resp.BodySize <= largeResponseThreshold {
+							responseSegments(c, t, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
+						} else {
+							if tab.RespRawIdx > 1 {
+								tab.RespRawIdx = 0
+							}
+							responseSegments(c, t, &tab.RespRawIdx, m.Pretty, m.Raw)
+						}
+					})
+				}
 			}
 		})
 
