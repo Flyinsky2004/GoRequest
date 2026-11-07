@@ -424,10 +424,21 @@ main 已从 `0695700` 快进到 `dcc7858`（本轮公共接线/验证边界提�
 
 | 子任务 | 分支 / worktree | 专属范围 | 状态 |
 | --- | --- | --- | --- |
-| C01-phase1 | `agy/C01-local-mock` / `../GoRequest-C01` | 新增internal/mockserver/**、desktop/mock*.go、独立规则格式/本机记录及证据；确定性HTTP Mock、场景、显式启停、受限脱敏访问记录；Runner生命周期仅明确注入端口/最小patch | 待启动 |
-| C02-phase1 | `agy/C02-performance` / `../GoRequest-C02` | 新增internal/diagnostics/**、desktop/performance*.go与专属统计/报告；复用B04 Trace，受限采样/取消/nearest-rank/比较与JSON/CSV；底层逐跳trace缺口交最小公共patch | 待启动 |
+| C01-phase1 | `agy/C01-local-mock` / `../GoRequest-C01` | 新增internal/mockserver/**、desktop/mock*.go、独立规则格式/本机记录及证据；确定性HTTP Mock、场景、显式启停、受限脱敏访问记录；Runner生命周期仅明确注入端口/最小patch | 已领取 / Herdr working |
+| C02-phase1 | `agy/C02-performance` / `../GoRequest-C02` | 新增internal/diagnostics/**、desktop/performance*.go与专属统计/报告；复用B04 Trace，受限采样/取消/nearest-rank/比较与JSON/CSV；底层逐跳trace缺口交最小公共patch | 已领取 / Herdr working |
 
 - [ ] C01-phase1 本地Mock闭环：待交付、集成和验证。
 - [ ] C02-phase1 性能诊断闭环：待交付、集成和验证。
 
 两卡不修改对方模块，公共core/model/project/plan/network、runner生命周期、desktop/app/manager/workspace/nav/response_view等只交最小接线patch，集成人统一应用。不得改FIX08的network_ui.go或FIX09的environment_editor/identity_management模块，不新增产品CLI，不因打开项目自动监听或发网。按用户最新“先不执行测试”的约束，本轮先实现/提交与提供验证用例，暂不执行测试/构建/vet；交付必须明确本轮未验证，不能用旧报告冒充通过。正式验收与主卡勾选待后续恢复验证。
+
+### 19.1 实际启动
+
+两个agy在新版Herdr独立标签/worktree交互启动，当前模型列表已确认 `gemini-4-argon-medium` 可用，启动屏幕显示Gemini 4 Argon Medium；沿用会话Full Access（--dangerously-skip-permissions），未改全局设置。C01目录信任按用户既有授权确认；两条hc状态均working，C02已显示完整任务并开始生成。共同基线 `00c1bf42b9d15a23ac5b970f7431b895c4239786`，仅包含此前已合并代码与本轮派工文档。
+
+| 子任务 | 终端 | tab | 实际分支 / worktree |
+| --- | --- | --- | --- |
+| C01-phase1 | `t37` | `tbfc7be1bced0dcb4c0aafe5a65aa1ded3` | `agy/C01-local-mock` / `../GoRequest-C01` |
+| C02-phase1 | `t38` | `tb547e6bcfdbf91658103f30e50b168416` | `agy/C02-performance` / `../GoRequest-C02` |
+
+提示词/精确句柄存本机临时 `/private/tmp/gorequest-c01-c02-20261107/` 不入Git。FIX08(t34)/FIX09(t35)继续，不清理、不改变模型。当前仅领取，未交付/未验证；按本轮约束暂不执行测试，不能勾完成。
