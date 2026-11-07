@@ -475,3 +475,13 @@ main从 `7d47e6f` 快进至 `6c4d2b7`（公共接线/静态导入修正与状态
 ### 21.1 实际领取
 
 Herdr终端 `t39`，tab `tb993c3427183e97acc2755d07dd250f5d`（FIX10 Mock 编译修复 · agy），独立worktree `../GoRequest-FIX10` / `agy/FIX10-mock-checkbox`，共同基线 `957ea339967e41e7e774374068007c6f6e5e5e0b`。新版tab.new交互启动，指定Gemini 4 Argon Medium，会话Full Access；目录信任按用户既有授权确认。任务提示词/句柄存本机临时 `/private/tmp/gorequest-fix10-20261107/` 不提交。允许本轮必要编译验证，测试套件仍跳过。代码未合入main，待交付后集成。
+
+## 22. BRAND01 用户Logo接入（Claude Code / Herdr，2026-11-07）
+
+用户提供 `/Users/flyinsky/Downloads/GoRequest macOS 容器无阴影版.png` 并要求开Claude Code处理。任务把该现成设计作为GoRequest官方Logo接入原生应用/应用图标资源与必要项目展示；不重绘、不调用生成模型改设计。原图1600×1600、带alpha通道，保持透明度、颜色和已有macOS圆角容器，不叠加第二层底板/圆角/阴影。
+
+- [ ] BRAND01 原图入仓、原生Logo/应用图标与必要资源接线：待交付/集成。
+
+分支 `cc/BRAND01-logo-integration`，worktree `../GoRequest-BRAND01`；将原图无损复制为 `assets/brand/gorequest-logo.png` 供agent读取/纳入本卡提交，Downloads原文件不修改。先查MyGo运行时icon能力与现有打包方式，有支持的入口实际接线，macOS icns按原图确定性导出；缺打包基础则给最小可复现资源生成/使用说明，不宣称Dock已生效或已签名发布。源图和合理最终图标可提交，iconset/tmp/app/debug等中间产物不提交；不擅自新增重型工具/下载依赖。
+
+FIX10 agy仍独占mock_ui.go及同批编译修复，BRAND01不碰相关文件/分支。公共window/manager/welcome/nav/README可作本Logo必要最小增量，保持现有布局/文字与操作入口，不把位图替换全站功能图标。按先不执行测试约束跳过测试，做资源尺寸/透明度/引用/格式等静态检查；编译受FIX10未合入影响时如实说明，不修其他任务。交付docs/task-results/BRAND01.md记录资源来源、生成步骤、实际生效范围/未验证项、提交；不自勾总账本，不merge/push/改共享git config/操作用户窗口或其他agent，不启子agent。
