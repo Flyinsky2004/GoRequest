@@ -709,3 +709,19 @@ R1/R2/R4：预览去重与差异行、同行超时徽标、方法段分隔。R3/
 | U08 | t4j | tbe6434340b58edc3da5c68d83e92851f6 |
 
 提示词/原始启动响应在本机 `/private/tmp/gorequest-u06-u08-20261107/` 不入Git。设计已经交付并静态核对，代码开发中，未交付、未合并、未编译/实机验收本批功能，不勾完成；U07/U08公共接线待收集交付后串行接入U06。本轮未操作或清理既有U01–U05和用户/其他项目会话，用户dirty文件保持。
+
+
+## 30. U09–U10 历史显示与Git复选框（2026-11-07）
+
+用户继续要求创建CC：清空历史旁增加「仅端点」开关隐藏协议/域名/端口，悬浮显示完整URL，修复历史行信息/删除重叠与删除红色，以及Git文件勾选。核对main `26460e9`，历史行确实绝对定位两个默认宽按钮，Git行已有selection逻辑但使用无样式CheckboxBase。继续使用独立worktree，旧U01–U08及用户/其他项目会话保留。共同基线为本节登记提交，不携带用户dev.yaml/debug产物。
+
+| ID / 负责人 | 分支 / 实际worktree | 范围与验收 | 状态 |
+| --- | --- | --- | --- |
+| U09 / CC history | cc/U09-history-display / /private/tmp/gorequest-u09-u10-20261107/history | history.go的historyUI/历史列表绘制及专属模块测试；仅端点开关、完整脱敏URL tooltip、独立紧凑信息/红色删除按钮；不更改历史存储/重放/筛选语义 | 待启动 |
+| U10 / CC git-checkbox | cc/U10-git-checkbox / /private/tmp/gorequest-u09-u10-20261107/git-checkbox | git_ui.go entryRow/list、git.go选择逻辑必要最小修复及专属测试；可见主题复选框、单选/全选/清选/禁用冲突、打开diff不误勾选；不改变Git服务/提交/暂存边界 | 待启动 |
+
+U09只缩短显示，完整历史URL和搜索/恢复保持；query/fragment/转义路径不丢，非标准URL保守回退，IPv6和无路径有测试。仅从已脱敏记录展示完整URL，不重新读取原始secret。仅端点状态至少同一窗口切换过滤/刷新/显隐保持，可放historyUI，不改全局config。按钮用现有palette/图标，明确尺寸/间距/布局保留槽位，点击信息/删除不触发恢复。
+
+U10须检查CheckboxBase真实绘制API，复用已有16DIP本地绘制模式（无需改共享uikit），支持亮暗/键盘可见焦点。勾选服务于现有selectedPaths提交流程，不能随点击自动stage或commit。刷新清理失效路径，未合并条目禁用，重命名/中文/空格路径选择语义不回归；Git写操作验证只在临时测试repo，不操作用户工作区index/已有改动。
+
+本轮允许build/受影响测试，旧3项desktop基线失败明确区分。报告docs/task-results/U09.md/U10.md并检查diff后本地提交；不改总账本、Core/框架/依赖/全局配置、不派子agent、不操作其他终端或merge/push/清理分支。集成验收前不勾完成。
