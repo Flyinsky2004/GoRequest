@@ -11,6 +11,7 @@ import (
 
 	"gorequest/internal/core"
 	"gorequest/internal/desktop/uikit"
+	"gorequest/internal/docgen"
 )
 
 // This file owns the document workspace's interaction state and its extra
@@ -150,6 +151,8 @@ type docMessages struct {
 	DiagBadLink        string // %s
 	HeadingLabel       string // %d, %s
 	OutlineHint        string
+	Export             string
+	MissingRequestRef  string // %s
 }
 
 func docMessagesFor(l language) *docMessages {
@@ -175,6 +178,7 @@ func docMessagesFor(l language) *docMessages {
 			DiagMermaid: "Mermaid is not rendered in this build; the source is kept",
 			DiagBadLink: "Bad link: %s", HeadingLabel: "H%d %s",
 			OutlineHint: "Click a heading to jump",
+			Export:      "Export", MissingRequestRef: "Missing request: %s",
 		}
 	}
 	return &docMessages{
@@ -198,6 +202,7 @@ func docMessagesFor(l language) *docMessages {
 		DiagMermaid: "当前版本不渲染 Mermaid，保留源代码",
 		DiagBadLink: "链接无效：%s", HeadingLabel: "H%d %s",
 		OutlineHint: "点击标题跳转",
+		Export:      "导出", MissingRequestRef: "请求不存在：%s",
 	}
 }
 
@@ -218,6 +223,9 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	p := uikit.PaletteFor(t)
 	root := ui.Column(c).Grow(1).FillHeight()
 	pruneDocStates(root, tab.Owner)
+	// C03: the derived-document export panel keeps its own per-tab state on
+	// the same root and prunes with the B09 state.
+	pruneDerivedDocStates(root, tab.Owner)
 	st := docStateFor(root, tab)
 	src := tab.DocEditor.Buffer.String()
 	digest := core.Digest([]byte(src))
@@ -242,7 +250,7 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		// current for ordinary documents; very large documents are checked
 		// on demand from the Problems button.
 		if len(src) <= 256<<10 {
-			st.diagnostics = tab.Owner.project.DiagnoseDoc(tab.DocRel, src)
+			st.diagnostics = docgen.MergeDocDiagnostics(tab.Owner.project.DiagnoseDoc(tab.DocRel, src), docgen.DiagnoseRefs(tab.Owner.project, tab.DocRel, src, nil))
 		} else {
 			st.diagnostics = nil
 		}
@@ -254,7 +262,10 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	}
 
 	root.Children(func() {
-		a.docHeader(c, t, p, tab, st, dm, m)
+		a.docHeader(c, t, p, root, tab, st, dm, m)
+		if derivedDocStateFor(root, tab).open {
+			a.docgenExportPanel(c, t, p, root, tab)
+		}
 		if st.searchOpen {
 			a.docSearchBar(c, p, tab, st, dm)
 			if st.searchDone {
@@ -270,13 +281,16 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				ui.Box(c).Width(1).FillHeight().Background(p.Hairline)
 			}
 			ui.Column(c).Grow(1).FillHeight().Children(func() {
-				a.docBody(c, t, tab, src, opts)
+				// C03: preview renders the docgen-expanded text (identical
+				// when the document has no references); the editor buffer and
+				// all diagnostics keep working on the untouched source.
+				a.docBody(c, t, tab, a.docgenPreviewSource(root, tab, src), opts)
 			})
 		})
 	})
 }
 
-func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, st *docViewState, dm *docMessages, m *messages) {
+func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, root ui.Element, tab *Tab, st *docViewState, dm *docMessages, m *messages) {
 	ui.Row(c).Gap(8).Padding(8, 12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 		uikit.NativeSegmented(c, &tab.Section, m.SplitView, m.EditView, m.PreviewView)
 		if uikit.ActionCursor(ui.Button(c, dm.Outline)).Clicked() {
@@ -291,7 +305,8 @@ func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, s
 		}
 		if uikit.ActionCursor(ui.Button(c, problems)).Clicked() {
 			st.problemsOpen = !st.problemsOpen
-			st.diagnostics = tab.Owner.project.DiagnoseDoc(tab.DocRel, tab.DocEditor.Buffer.String())
+			src := tab.DocEditor.Buffer.String()
+			st.diagnostics = docgen.MergeDocDiagnostics(tab.Owner.project.DiagnoseDoc(tab.DocRel, src), docgen.DiagnoseRefs(tab.Owner.project, tab.DocRel, src, nil))
 		}
 		ui.Box(c).Grow(1)
 		if tab.Dirty {
@@ -299,6 +314,7 @@ func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, s
 				a.saveActive()
 			}
 		}
+		a.docgenExportButton(c, p, root, tab)
 		uikit.ActionCursor(ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) { a.docInsertMenu(mm, tab, dm) }))
 	})
 }
@@ -331,6 +347,8 @@ func (a *App) docInsertMenu(mm *ui.Menu, tab *Tab, dm *docMessages) {
 	if mm.Item(dm.Table).Chosen() {
 		insertDocTemplate(tab, "", "\n| Column | Column |\n| --- | --- |\n| Cell | Cell |\n")
 	}
+	// C03: request link / card directive entries (submenu of project requests).
+	a.docgenInsertMenuEntries(mm, tab, a.derivedDocMsg())
 }
 
 func (a *App) docOutline(c *ui.Context, p uikit.Palette, tab *Tab, st *docViewState, dm *docMessages) {
@@ -510,6 +528,11 @@ func (dm *docMessages) diagText(d core.DocDiagnostic) string {
 		return dm.DiagHTML
 	case core.DiagMermaid:
 		return dm.DiagMermaid
+	case docgen.DiagBadReference, docgen.DiagRefNoCard, docgen.DiagStrayEnd, docgen.DiagTooManyRefs, docgen.DiagScrubbed:
+		return d.Message
+	case core.DiagMissingRequest, docgen.DiagMissingRequest:
+		// C03: a gorequest reference whose request is not in the project.
+		return fmt.Sprintf(dm.MissingRequestRef, d.Dest)
 	default:
 		return fmt.Sprintf(dm.DiagBadLink, d.Dest)
 	}

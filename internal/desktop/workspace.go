@@ -82,10 +82,12 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
 		a.openMove(tab)
 	}
 	a.BuildInteropProjectMenuItems(c, mm)
+	a.BuildSnippetProjectMenuItems(mm)
 	a.BuildOpenAPIProjectMenuItems(c, mm)
 	a.BuildRunnerProjectMenuItems(mm)
 	a.BuildMockProjectMenuItems(mm)
 	a.BuildPerformanceProjectMenuItems(mm)
+	a.BuildWebSocketProjectMenuItems(mm)
 	mm.Separator()
 	a.BuildIdentityManagementMenuItems(mm, tab)
 	mm.Separator()

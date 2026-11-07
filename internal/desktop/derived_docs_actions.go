@@ -177,7 +177,10 @@ func (a *App) docgenInsertMenuEntries(mm *ui.Menu, tab *Tab, dm *derivedDocMessa
 	mm.Separator()
 	linkMenu := mm.Submenu(dm.InsertRef)
 	cardMenu := mm.Submenu(dm.InsertCard)
-	for _, id := range orders {
+	for i, id := range orders {
+		if i >= docgenMaxListedRequests {
+			break
+		}
 		if id == "" {
 			continue
 		}
@@ -192,9 +195,6 @@ func (a *App) docgenInsertMenuEntries(mm *ui.Menu, tab *Tab, dm *derivedDocMessa
 		if cardMenu.Item(label).Chosen() {
 			insertDocgenRef(tab, id, docgen.FormatDirective(id, nil))
 			a.status = fmt.Sprintf(dm.OpenRequest, id)
-		}
-		if len(orders) >= docgenMaxListedRequests {
-			break
 		}
 	}
 }
@@ -246,7 +246,18 @@ func (a *App) docgenOpenRequestLink(tab *Tab, dest string) bool {
 // the derived one, and a document without references renders identically.
 func (a *App) docgenPreviewSource(root ui.Element, tab *Tab, src string) string {
 	st := derivedDocStateFor(root, tab)
-	digest := core.Digest([]byte(src))
+	var key strings.Builder
+	key.WriteString(src)
+	key.WriteString("\x00" + a.cardLabelsFor().Interface)
+	if tab.Owner != nil && tab.Owner.project != nil {
+		for _, ref := range docgen.ScanDocument(src) {
+			key.WriteString("\x00" + ref.ID)
+			if entry := tab.Owner.project.Requests[ref.ID]; entry != nil {
+				key.WriteString("\x00" + entry.BaselineDigest)
+			}
+		}
+	}
+	digest := core.Digest([]byte(key.String()))
 	if st.previewDigest == digest {
 		return st.previewContent
 	}
@@ -256,7 +267,7 @@ func (a *App) docgenPreviewSource(root ui.Element, tab *Tab, src string) string 
 		st.previewContent, st.previewRefs = src, false
 		return src
 	}
-	exp, err := docgen.ExpandDoc(ps.project, src, CardOptions{Labels: a.cardLabelsFor()})
+	exp, err := docgen.ExpandDoc(ps.project, src, docgen.CardOptions{Labels: a.cardLabelsFor()})
 	if err != nil || !exp.Changed {
 		st.previewContent, st.previewRefs = src, false
 		return src

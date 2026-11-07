@@ -543,3 +543,27 @@ Herdr终端 `t3b`，tab `tb3d3591a57162fc0ea36db75749afe846`（BRAND01 Logo 接�
 新负责人 **Claude Code**，Herdr终端 `t3v`，tab `tb3d3c033aab5741a2c41cb1357e173b20`，继续使用原worktree `../GoRequest-P01-ws` 与原分支 `vibe/P01-websocket`（分支名称保留历史，不代表仍由Vibe执行）。通过tab.new交互启动 `/Users/flyinsky/.local/bin/claude --name gorequest-P01-websocket --dangerously-skip-permissions -- <交接提示词>`，沿用当前CC配置默认模型，未指定或修改全局模型；屏幕状态栏当前显示DeepSeek V4.1 Fla…，不能把Claude Code应用名当作Claude模型名。已核对正确目录/分支/任务、bypass permissions和hc working。要求先审查原草稿和MyGo真实API，从现有进度完成Core/UI/公共patch/静态检查/本地提交与报告，不仅回复计划；原§24范围、暂不测试/构建/vet约束和公共文件归属保持。其他四个Vibe及用户/其他项目会话未操作。
 
 交接提示词/新句柄/源文件备份只存上述本机临时目录，不入Git；本轮仅换负责人，未交付、未集成、未验收，不打勾。
+
+## 25. 五条并行交付合并与清理（2026-11-07）
+
+用户明确要求所有已完成agent合并代码、清理旧分支，先不跑测试。从main `3122e44` 创建独立 `integrate/vibe-five` / `../GoRequest-integration`，核对五个来源worktree均干净、各有本地提交和交付报告，依次no-ff合并，无冲突。
+
+| 交付分支 | 原分支头 | 合并提交 |
+| --- | --- | --- |
+| `vibe/A02-assertion-editor` | `e3849ae` | `3f4e62d` |
+| `vibe/C01-rule-editor` | `0b6c9e6` | `da06eac` |
+| `vibe/C03-derived-docs` | `764e671` | `0e63a75` |
+| `vibe/C04-request-snippets` | `2cfba13` | `bf11869` |
+| `vibe/P01-websocket` | `a612c87` | `aa2a0a5` |
+
+公共接线：应用C03/C04/P01三份integration.patch；C03接入文档引用跳转、卡片预览、插入与导出面板，C04接入Snippet模态/项目菜单，P01接入WebSocket模态/项目菜单。A02/C01复用既有Runner/Mock公共入口，无额外patch。集成人静态核对发现并最小修正C03 patch的词条结构实参不匹配、desktop内未限定的CardOptions；补文档面板引用诊断合并/消息显示、请求菜单60项循环边界，以及派生预览缓存纳入所引保存请求摘要与语言，避免保存请求后预览仍命中旧缓存。
+
+本轮只执行gofmt解析/格式检查（64个改动Go文件）、公共patch适用性、顶层函数重名扫描、diff/分支祖先/工作区状态核对。**没有运行go build/go vet/go test、没有启动应用或真实网络，没有类型检查或UI/平台验收**；这些静态证据不能当编译通过。各agent报告也明确未经编译/测试，旧main构建证据不适用于本批。各卡仅代码集成，主卡不勾：
+
+- [ ] A02-phase2：断言/提取可视化编辑及结果详情已合并，组合验证/人工验收待补；Suite DAG/数据完整编辑仍后续。
+- [ ] C01-phase2：规则/场景结构化编辑与安全保存已合并，组合验证/人工验收待补；复杂Schema等仍后续。
+- [ ] C03-phase1：引用派生与离线Markdown/HTML导出已合并，组合验证/人工验收待补；Mermaid原生渲染未实现。
+- [ ] C04-phase1：五语言Snippet与原生预览/复制/导出已合并，组合验证/语义等价验收待补；SDK生成未实现。
+- [ ] P01-phase1：共享有界流与WebSocket手工会话已合并，组合验证/网络/UI验收待补；完整Runner流式调度、CookieJar/文件发送等仍后续。
+
+来源报告及限制保持：docs/task-results/A02-phase2.md、C01-phase2.md、C03-phase1.md、C04-phase1.md、P01-phase1.md。合并后将只清理main已包含且干净的五条本批分支/worktree，以及此前已合入的FIX10/BRAND01旧分支/worktree与本轮临时集成目录；按精确tab关闭本批t3m/t3n/t3p/t3q/t3v，保留当前对话、用户shell与oct项目agent。不push，不改共享Git配置，不提交或删除用户示例环境/debug产物。实际清理完成后补记。

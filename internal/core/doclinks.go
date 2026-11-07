@@ -29,6 +29,10 @@ const (
 	// LinkExternal is an http, https or mailto address that opens only when
 	// the user clicks it.
 	LinkExternal
+	// LinkDocRef is a gorequest://request/<id> reference to a request of the
+	// project (C03). The desktop layer owns what opening it does; core only
+	// validates that the referenced request exists.
+	LinkDocRef
 )
 
 func (k LinkKind) String() string {
@@ -41,6 +45,8 @@ func (k LinkKind) String() string {
 		return "asset"
 	case LinkExternal:
 		return "external"
+	case LinkDocRef:
+		return "request"
 	}
 	return "unknown"
 }
@@ -77,6 +83,9 @@ const (
 	LinkProblemMissingAnchor     = "missing-anchor"
 	LinkProblemUnsupportedAsset  = "unsupported-asset"
 	LinkProblemNotFile           = "not-file"
+	// LinkProblemMissingRequest marks a gorequest://request/<id> reference
+	// whose request ID is not in the project (C03).
+	LinkProblemMissingRequest = "missing-request"
 )
 
 // LinkProblem is a link that cannot be used safely.
@@ -121,6 +130,10 @@ func (p *Project) ResolveDocLink(docRel, dest string) (LinkTarget, error) {
 		case "http", "https", "mailto":
 			t.Kind, t.URL = LinkExternal, raw
 			return t, nil
+		case "gorequest":
+			// C03: gorequest://request/<id> references resolve against the
+			// project's request map; the desktop owns the open action.
+			return p.resolveRequestRef(raw)
 		case "javascript", "data", "file", "vbscript", "blob":
 			return t, &LinkProblem{Kind: LinkProblemDangerousScheme, Dest: raw, Detail: scheme + ": is not allowed"}
 		default:
@@ -185,6 +198,30 @@ func (p *Project) ResolveDocLink(docRel, dest string) (LinkTarget, error) {
 		t.Kind = LinkAsset
 		return t, nil
 	}
+}
+
+// resolveRequestRef validates a gorequest:// destination. Only
+// gorequest://request/<id> is a reference; a valid shape whose request ID is
+// not in the project is a missing-request problem; any other gorequest path
+// stays unsupported.
+func (p *Project) resolveRequestRef(dest string) (LinkTarget, error) {
+	t := LinkTarget{Dest: dest}
+	rest, ok := strings.CutPrefix(dest, "gorequest://request/")
+	if !ok {
+		return t, &LinkProblem{Kind: LinkProblemUnsupportedScheme, Dest: dest, Detail: "only request/<id> references exist under gorequest:"}
+	}
+	id := strings.TrimSpace(rest)
+	if id == "" || strings.ContainsAny(id, " \t\r\n/?#%\\") {
+		return t, &LinkProblem{Kind: LinkProblemMissingRequest, Dest: dest, Detail: "reference is not gorequest://request/<id>"}
+	}
+	if p == nil || p.Requests == nil {
+		return t, &LinkProblem{Kind: LinkProblemMissingRequest, Dest: dest, Detail: id}
+	}
+	if _, found := p.Requests[id]; !found {
+		return t, &LinkProblem{Kind: LinkProblemMissingRequest, Dest: dest, Detail: id}
+	}
+	t.Kind = LinkDocRef
+	return t, nil
 }
 
 func (p *Project) resolveDocAnchor(docRel string, t LinkTarget, frag string) (LinkTarget, error) {
@@ -292,6 +329,9 @@ const (
 	DiagHTMLNotExecuted = "html-not-executed"
 	DiagMermaid         = "mermaid-unsupported"
 	DiagBadLink         = "bad-link"
+	// DiagMissingRequest marks a gorequest reference to a request that is
+	// not in the project (C03).
+	DiagMissingRequest = "missing-request"
 )
 
 // DiagnoseDoc checks every link and image of src and reports local problems:
@@ -348,6 +388,8 @@ func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
 						kind = DiagDangerousScheme
 					case LinkProblemMissingAnchor:
 						kind = DiagMissingLink
+					case LinkProblemMissingRequest:
+						kind = DiagMissingRequest
 					}
 					add(in.Start, sev, kind, in.Dest, err.Error())
 					continue

@@ -201,10 +201,12 @@ func (a *App) View(c *ui.Context) {
 	a.transferModal(c, t)
 	a.b03CustomMethodModal(c, t)
 	a.InteropModals(c, t)
+	a.SnippetModals(c, t)
 	a.OpenAPIModals(c, t)
 	a.RunnerModals(c, t)
 	a.MockModals(c, t)
 	a.PerformanceModals(c, t)
+	a.WebSocketModals(c, t)
 	a.IdentityManagementModals(c, t)
 	if a.git != nil {
 		a.git.modals(c, t)

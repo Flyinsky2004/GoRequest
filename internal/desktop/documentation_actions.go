@@ -19,6 +19,14 @@ func (a *App) handleDocLink(c *ui.Context, root ui.Element, tab *Tab, st *docVie
 	if ps == nil || ps.project == nil {
 		return
 	}
+	// C03: request references carry their own target behavior; a gorequest
+	// destination resolves in the derived-docs layer, never as a filesystem
+	// path. Unhandled document failures fall back to the B09 paths below.
+	if strings.HasPrefix(dest, "gorequest://") {
+		if a.docgenOpenRequestLink(tab, dest) {
+			return
+		}
+	}
 	tgt, err := ps.project.ResolveDocLink(tab.DocRel, dest)
 	if err != nil {
 		a.status = a.docLinkProblem(err)
@@ -58,6 +66,8 @@ func (a *App) handleDocLink(c *ui.Context, root ui.Element, tab *Tab, st *docVie
 		// callback: opening a document or rendering the preview never opens
 		// a URL.
 		c.OpenURL(tgt.URL)
+	case core.LinkDocRef:
+		a.docgenOpenRequestLink(tab, tgt.Dest)
 	case core.LinkAsset:
 		a.status = fmt.Sprintf(a.docMsg().AttachmentRef, tgt.RelPath)
 	}
