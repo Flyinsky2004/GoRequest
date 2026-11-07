@@ -355,13 +355,13 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 | --- | --- | --- | --- |
 | FIX06 | `cc/FIX06-settings-height` / `../GoRequest-FIX06` | `desktop/settings.go` 面板高度：保留左分类/右内容，把当前接近整窗高改为约现有一半的紧凑默认，内容滚动/Done可达，兼容小窗口 | 已合并 / 本轮跳过验证 |
 | FIX07 | `cc/FIX07-send-feedback` / `../GoRequest-FIX07` | `desktop/uikit/response.go` SendButton：启用hover/pressed可见颜色差异，保留手型/发送取消图标/点击/尺寸，深浅主题都可辨 | 已合并 / 本轮跳过验证 |
-| FIX08 | `cc/FIX08-timeout-entry` / `../GoRequest-FIX08` | `desktop/network_ui.go` 超时段与专属双语提示/测试：明确总超时入口/单位/继承后实际值与阶段超时归属，不再隐藏在技术设置中；顶层快捷入口若需公共文件交patch | 已领取 / working |
-| FIX09 | `cc/FIX09-secret-value-entry` / `../GoRequest-FIX09` | `desktop/environment_editor.go` 密钥声明入口、`identity_management*.go` 凭据录入：从本地密钥名称直接设置/更新同名本机秘密值、绑定状态与不可用错误，复用原系统凭据管理，不能写明文项目 | 已领取 / working |
+| FIX08 | `cc/FIX08-timeout-entry` / `../GoRequest-FIX08` | `desktop/network_ui.go` 超时段与专属双语提示/测试：明确总超时入口/单位/继承后实际值与阶段超时归属，不再隐藏在技术设置中；顶层快捷入口若需公共文件交patch | 已合并 / 组合验证待补 |
+| FIX09 | `cc/FIX09-secret-value-entry` / `../GoRequest-FIX09` | `desktop/environment_editor.go` 密钥声明入口、`identity_management*.go` 凭据录入：从本地密钥名称直接设置/更新同名本机秘密值、绑定状态与不可用错误，复用原系统凭据管理，不能写明文项目 | 已合并 / 组合验证待补 |
 
 - [ ] FIX06 紧凑设置面板：代码已合并，用户要求本轮不跑测试，组合/人工验收待补。
 - [ ] FIX07 发送按钮 hover/pressed 颜色：代码已合并，用户要求本轮不跑测试，组合/人工验收待补。
-- [ ] FIX08 请求超时的可发现入口与准确说明：待集成验证。
-- [ ] FIX09 声明密钥后的实际值录入与请求闭环：待集成验证。
+- [ ] FIX08 请求超时的可发现入口与准确说明：代码已合并并接顶层快捷入口；本轮跳过构建/测试，组合/人工验收待补。
+- [ ] FIX09 声明密钥后的实际值录入与请求闭环：代码已合并，复用既有公共挂载；本轮跳过构建/测试，组合/人工验收待补。
 
 公共 app/manager/nav/workspace/tab/config/i18n、go.mod/go.sum 与账本由集成人拥有，新公共接线交最小patch；FIX06 设置壳层只接入口patch，不与FIX08/09并行重写公共设置。按钮状态样式仅改SendButton，FIX08不改uikit按钮；FIX09不改网络超时。各卡独立测试与临时夹具，不写真实凭据/本机配置、不触碰用户窗口/示例dirty，不push/merge/reset/clean/改共享git config/启子agent。完成适当验证后只commit本卡文件，写 docs/task-results/FIX0x.md。人工/三平台未做必须明示；集成后再勾选。
 
@@ -424,11 +424,11 @@ main 已从 `0695700` 快进到 `dcc7858`（本轮公共接线/验证边界提�
 
 | 子任务 | 分支 / worktree | 专属范围 | 状态 |
 | --- | --- | --- | --- |
-| C01-phase1 | `agy/C01-local-mock` / `../GoRequest-C01` | 新增internal/mockserver/**、desktop/mock*.go、独立规则格式/本机记录及证据；确定性HTTP Mock、场景、显式启停、受限脱敏访问记录；Runner生命周期仅明确注入端口/最小patch | 已领取 / Herdr working |
-| C02-phase1 | `agy/C02-performance` / `../GoRequest-C02` | 新增internal/diagnostics/**、desktop/performance*.go与专属统计/报告；复用B04 Trace，受限采样/取消/nearest-rank/比较与JSON/CSV；底层逐跳trace缺口交最小公共patch | 已领取 / Herdr working |
+| C01-phase1 | `agy/C01-local-mock` / `../GoRequest-C01` | 新增internal/mockserver/**、desktop/mock*.go、独立规则格式/本机记录及证据；确定性HTTP Mock、场景、显式启停、受限脱敏访问记录；Runner生命周期仅明确注入端口/最小patch | 已合并 / 组合验证待补 |
+| C02-phase1 | `agy/C02-performance` / `../GoRequest-C02` | 新增internal/diagnostics/**、desktop/performance*.go与专属统计/报告；复用B04 Trace，受限采样/取消/nearest-rank/比较与JSON/CSV；底层逐跳trace缺口交最小公共patch | 已合并 / 组合验证待补 |
 
-- [ ] C01-phase1 本地Mock闭环：待交付、集成和验证。
-- [ ] C02-phase1 性能诊断闭环：待交付、集成和验证。
+- [ ] C01-phase1 本地Mock闭环：代码已合并并接菜单/模态；未运行构建/测试，整卡和组合验收待补。
+- [ ] C02-phase1 性能诊断闭环：代码已合并并接菜单/模态；未运行构建/测试，整卡和组合验收待补。
 
 两卡不修改对方模块，公共core/model/project/plan/network、runner生命周期、desktop/app/manager/workspace/nav/response_view等只交最小接线patch，集成人统一应用。不得改FIX08的network_ui.go或FIX09的environment_editor/identity_management模块，不新增产品CLI，不因打开项目自动监听或发网。按用户最新“先不执行测试”的约束，本轮先实现/提交与提供验证用例，暂不执行测试/构建/vet；交付必须明确本轮未验证，不能用旧报告冒充通过。正式验收与主卡勾选待后续恢复验证。
 
@@ -442,3 +442,18 @@ main 已从 `0695700` 快进到 `dcc7858`（本轮公共接线/验证边界提�
 | C02-phase1 | `t38` | `tb547e6bcfdbf91658103f30e50b168416` | `agy/C02-performance` / `../GoRequest-C02` |
 
 提示词/精确句柄存本机临时 `/private/tmp/gorequest-c01-c02-20261107/` 不入Git。FIX08(t34)/FIX09(t35)继续，不清理、不改变模型。当前仅领取，未交付/未验证；按本轮约束暂不执行测试，不能勾完成。
+
+## 20. FIX08/FIX09/C01/C02 合并与清理（2026-11-07）
+
+用户要求全部已交付agent合并到main并清理。本轮从main `7d47e6f` 在独立 `integrate/fix08-fix09-mock-performance` / `../GoRequest-integration` 串行no-ff合并四条分支，全部无冲突。原始四worktree均干净，交付报告与公共patch已核对。
+
+| 交付分支 | 原分支头 | 本轮合并提交 |
+| --- | --- | --- |
+| `cc/FIX08-timeout-entry` | `69811e5` | `408a59d` |
+| `cc/FIX09-secret-value-entry` | `c4c8f4d` | `4aa0d31` |
+| `agy/C01-local-mock` | `a3e7ad7` | `da02aca` |
+| `agy/C02-performance` | `4740aa2` | `9b613b1` |
+
+公共接线：App.View增加MockModals/PerformanceModals，项目菜单增加BuildMockProjectMenuItems/BuildPerformanceProjectMenuItems；urlGroup增加FIX08 renderTimeoutQuickEntry。FIX09已有envEditor/IdentityManagement公共挂载，无须应用其零hunk说明文件。修复C01 desktop/mock.go导入路径 `" runtime"` 的多余空格，未改引擎语义。
+
+本轮沿用用户先不执行测试约束，仅做diff/补丁/静态导入与重名检查、gofmt及Git祖先/干净核对；未运行go build/go vet/go test，未启动Mock/采样或操作真实凭据。FIX08/09自分支已有验证记录只作为历史证据；C01/02按派工约束未构建/测试，不能把合并算通过。主验收checkbox保留未勾。阶段限制：C01细粒度规则编辑/复杂Schema生成/A02主面板联动，C02 SOCKS5复用与中间跳不可观测阶段仍见各自报告；真实窗口/三平台待验收。不push、不提交用户示例环境与debug文件。清理结果在完成后补记。

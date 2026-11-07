@@ -10,7 +10,7 @@ import (
 	"time"
 	"weak"
 
-	" runtime"
+	"runtime"
 
 	"gorequest/internal/core"
 	"gorequest/internal/mockserver"

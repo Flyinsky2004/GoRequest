@@ -84,6 +84,8 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
 	a.BuildInteropProjectMenuItems(c, mm)
 	a.BuildOpenAPIProjectMenuItems(c, mm)
 	a.BuildRunnerProjectMenuItems(mm)
+	a.BuildMockProjectMenuItems(mm)
+	a.BuildPerformanceProjectMenuItems(mm)
 	mm.Separator()
 	a.BuildIdentityManagementMenuItems(mm, tab)
 	mm.Separator()
@@ -296,6 +298,10 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 				a.trySend(tab)
 			}
 		})
+		// FIX08 optional top-level shortcut (wired by the integrator; see
+		// docs/task-results/FIX08-integration.patch). It only navigates to the
+		// request editor's Settings tab and shows the effective timeout/source.
+		a.renderTimeoutQuickEntry(c, t, tab)
 		a.b03URLPreview(c, t, tab)
 	})
 }

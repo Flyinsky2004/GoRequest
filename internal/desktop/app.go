@@ -203,6 +203,8 @@ func (a *App) View(c *ui.Context) {
 	a.InteropModals(c, t)
 	a.OpenAPIModals(c, t)
 	a.RunnerModals(c, t)
+	a.MockModals(c, t)
+	a.PerformanceModals(c, t)
 	a.IdentityManagementModals(c, t)
 	if a.git != nil {
 		a.git.modals(c, t)
