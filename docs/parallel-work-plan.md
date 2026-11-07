@@ -633,3 +633,16 @@ R1/R2/R4：预览去重与差异行、同行超时徽标、方法段分隔。R3/
 ### 26.3 清理完成
 
 四个精确tab.close均返回ok:true，hc ls确认t44/t45/t46/t47不再live。已不带force删除四个交付worktree与 `cc/R-request-chrome`、`cc/R-kv`、`cc/R-layout-status`、`cc/R-response`，以及本轮干净的临时集成worktree/分支。删除前逐项核对来源提交均为main祖先、worktree无已修改或未跟踪文件。最终仅剩main分支与主worktree；用户t1h/t2s、既有CC t3w与oct t31保留，示例dev.yaml及两个debug产物原样保留。未push；截图和既有三项失败保持上节说明。
+
+
+## 27. U01–U03 三处请求响应 UI 调整（2026-11-07）
+
+用户要求读取本机 Herdr AGENTS 并创建几个 CC 完成三项修正。已读并核对当前main共同代码基线 `9358cf4`，只保留用户dev.yaml改动与两个debug二进制，不纳入交付。集成人负责总账本及合入，三CC用独立worktree，从登记提交共同起步；不改Core/依赖/框架/全局模型，不操作其他会话，不派子agent。允许本轮build与受影响测试，旧三项基线失败须如实区分。
+
+| ID / 负责人 | 分支 / worktree | 文件归属与验收 | 状态 |
+| --- | --- | --- | --- |
+| U01 / CC response | cc/U01-response-right / /private/tmp/gorequest-u01-u03-20261107/response | response_view.go及专属测试；美化/原始/树形位于响应工具条最右，宽窄布局和原功能保持 | 待启动 |
+| U02 / CC url-status | cc/U02-url-status / /private/tmp/gorequest-u01-u03-20261107/url-status | workspace.go的urlGroup及专属模块/测试；成功绿、超时失败红，空闲/发送中/取消合理，保留键盘焦点；必要app/tab改动最小化 | 待启动 |
+| U03 / CC preview | cc/U03-preview-row / /private/tmp/gorequest-u01-u03-20261107/preview | body_http_ui.go的b03URLPreview及request_form.go的urlVarLine与专属测试；变量与解析预览同行，长URL不溢出，保留遮密与去重 | 待启动 |
+
+每CC提交本任务文件和docs/task-results/U0N.md，报告真实验证和未完成内容；不得改总账本、merge/push、清理分支或其他终端。集成且验收满足前不勾完成。
