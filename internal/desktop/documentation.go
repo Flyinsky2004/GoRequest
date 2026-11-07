@@ -48,6 +48,10 @@ type docViewState struct {
 
 	options *markdown.Options
 
+	// live is the rendered-canvas state (Section 3): the block being edited
+	// in place and the slash menu.
+	live *docLiveState
+
 	outlineScroll  ui.ScrollState
 	resultsScroll  ui.ScrollState
 	problemsScroll ui.ScrollState
@@ -78,15 +82,17 @@ func docStateFor(root ui.Element, tab *Tab) *docViewState {
 	return st
 }
 
-// pruneDocStates drops the state of tabs that are no longer open.
-func pruneDocStates(root ui.Element, ps *projectState) {
+// pruneDocStates drops the state of tabs that are no longer open. It flushes
+// a canvas block edit first, so switching from one document to another never
+// drops the last keystroke.
+func (a *App) pruneDocStates(root ui.Element, ps *projectState) {
 	if ps == nil {
 		return
 	}
 	store := ui.Local(root, docStateKey{}, func() docStateStore {
 		return docStateStore{states: map[*Tab]*docViewState{}}
 	})
-	for tab := range store.states {
+	for tab, st := range store.states {
 		open := false
 		for _, t := range ps.tabs {
 			if t == tab {
@@ -95,6 +101,8 @@ func pruneDocStates(root ui.Element, ps *projectState) {
 			}
 		}
 		if !open {
+			a.flushDocCanvas(tab, st)
+			a.closeDocSlash(st)
 			delete(store.states, tab)
 		}
 	}
@@ -128,6 +136,7 @@ type docMessages struct {
 	InsertLink         string
 	Bold               string
 	Italic             string
+	InlineCode         string
 	CodeBlock          string
 	Table              string
 	NoHeadings         string
@@ -153,6 +162,7 @@ type docMessages struct {
 	OutlineHint        string
 	Export             string
 	MissingRequestRef  string // %s
+	Canvas             string
 }
 
 func docMessagesFor(l language) *docMessages {
@@ -164,7 +174,7 @@ func docMessagesFor(l language) *docMessages {
 			Problems: "Problems", NoProblems: "No link or attachment problems",
 			Insert: "Insert…", InsertImageDocs: "Image to docs/assets…",
 			InsertImageSibling: "Image next to this document…", InsertLink: "Link…",
-			Bold: "Bold", Italic: "Italic", CodeBlock: "Code block", Table: "Table",
+			Bold: "Bold", Italic: "Italic", InlineCode: "Inline code", CodeBlock: "Code block", Table: "Table",
 			NoHeadings: "No headings", Imported: "Inserted %s",
 			ImportFailed: "Import failed: %s", AttachmentRef: "Attachment: %s",
 			DialogUnavailable: "The file dialog is not available in this window",
@@ -179,6 +189,7 @@ func docMessagesFor(l language) *docMessages {
 			DiagBadLink: "Bad link: %s", HeadingLabel: "H%d %s",
 			OutlineHint: "Click a heading to jump",
 			Export:      "Export", MissingRequestRef: "Missing request: %s",
+			Canvas: "Canvas",
 		}
 	}
 	return &docMessages{
@@ -188,7 +199,7 @@ func docMessagesFor(l language) *docMessages {
 		Problems: "问题", NoProblems: "未发现链接或附件问题",
 		Insert: "插入…", InsertImageDocs: "图片插入 docs/assets…",
 		InsertImageSibling: "图片插入文档同级 assets…", InsertLink: "链接…",
-		Bold: "加粗", Italic: "斜体", CodeBlock: "代码块", Table: "表格",
+		Bold: "加粗", Italic: "斜体", InlineCode: "行内代码", CodeBlock: "代码块", Table: "表格",
 		NoHeadings: "无标题", Imported: "已插入 %s",
 		ImportFailed: "导入失败：%s", AttachmentRef: "附件：%s",
 		DialogUnavailable: "当前窗口无法打开文件对话框",
@@ -203,6 +214,7 @@ func docMessagesFor(l language) *docMessages {
 		DiagBadLink: "链接无效：%s", HeadingLabel: "H%d %s",
 		OutlineHint: "点击标题跳转",
 		Export:      "导出", MissingRequestRef: "请求不存在：%s",
+		Canvas: "文档",
 	}
 }
 
@@ -222,11 +234,20 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	dm := a.docMsg()
 	p := uikit.PaletteFor(t)
 	root := ui.Column(c).Grow(1).FillHeight()
-	pruneDocStates(root, tab.Owner)
+	a.pruneDocStates(root, tab.Owner)
 	// C03: the derived-document export panel keeps its own per-tab state on
 	// the same root and prunes with the B09 state.
 	pruneDerivedDocStates(root, tab.Owner)
 	st := docStateFor(root, tab)
+	lv := docLiveFor(st)
+	// New document views open on the rendered canvas. A mode the user chose
+	// in this session is kept; Sections 0/1/2 keep their old meanings.
+	if !lv.modeInit {
+		lv.modeInit = true
+		if tab.Section == 0 {
+			tab.Section = docSectionCanvas
+		}
+	}
 	src := tab.DocEditor.Buffer.String()
 	digest := core.Digest([]byte(src))
 	// The editor buffer tracks its own saved text (including undo back to
@@ -240,6 +261,7 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	tab.Dirty = tab.DocEditor.Buffer.Modified()
 	c.OnShortcut(ui.Cmd, ui.KeyS, func() {
 		if tab.Owner != nil && tab.Owner.activeTab() == tab {
+			a.flushDocCanvas(tab, st)
 			a.saveActive()
 		}
 	})
@@ -257,7 +279,7 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	}
 	st.applyPending()
 	var opts *markdown.Options
-	if tab.Section != 1 {
+	if tab.Section == 0 || tab.Section == 2 {
 		opts = a.docMarkdownOptions(c, root, tab, st)
 	}
 
@@ -284,19 +306,64 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				// C03: preview renders the docgen-expanded text (identical
 				// when the document has no references); the editor buffer and
 				// all diagnostics keep working on the untouched source.
-				a.docBody(c, t, tab, a.docgenPreviewSource(root, tab, src), opts)
+				a.docBody(c, t, root, tab, a.docgenPreviewSource(root, tab, src), opts)
 			})
 		})
 	})
 }
 
+// docSectionIndex maps a stored Section value to the segmented control's
+// position: canvas first, then source, preview and split.
+func docSectionIndex(section int) int {
+	switch section {
+	case docSectionCanvas:
+		return 0
+	case 1:
+		return 1
+	case 2:
+		return 2
+	case 0:
+		return 3
+	}
+	return 0
+}
+
+// docSectionFromIndex maps the segmented control's position back to the
+// stored Section value.
+func docSectionFromIndex(index int) int {
+	switch index {
+	case 0:
+		return docSectionCanvas
+	case 1:
+		return 1
+	case 2:
+		return 2
+	case 3:
+		return 0
+	}
+	return docSectionCanvas
+}
+
 func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, root ui.Element, tab *Tab, st *docViewState, dm *docMessages, m *messages) {
 	ui.Row(c).Gap(8).Padding(8, 12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-		uikit.NativeSegmented(c, &tab.Section, m.SplitView, m.EditView, m.PreviewView)
+		// The canvas is the default entry, but the stored Section values keep
+		// their old meanings: 0 split, 1 source, 2 preview, 3 canvas.
+		sel := docSectionIndex(tab.Section)
+		uikit.NativeSegmented(c, &sel, dm.Canvas, m.EditView, m.PreviewView, m.SplitView)
+		if next := docSectionFromIndex(sel); next != tab.Section {
+			a.flushDocCanvas(tab, st)
+			if st.live != nil {
+				st.live.block = nil
+				st.live.slashOpen = false
+			}
+			tab.Section = next
+		}
 		if uikit.ActionCursor(ui.Button(c, dm.Outline)).Clicked() {
+			a.closeDocSlash(st)
 			st.outlineOpen = !st.outlineOpen
 		}
 		if uikit.ActionCursor(ui.Button(c, dm.Search)).Clicked() {
+			a.closeDocSlash(st)
 			st.searchOpen = !st.searchOpen
 		}
 		problems := dm.Problems
@@ -304,6 +371,7 @@ func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, root ui.Ele
 			problems = fmt.Sprintf("%s (%d)", dm.Problems, n)
 		}
 		if uikit.ActionCursor(ui.Button(c, problems)).Clicked() {
+			a.closeDocSlash(st)
 			st.problemsOpen = !st.problemsOpen
 			src := tab.DocEditor.Buffer.String()
 			st.diagnostics = docgen.MergeDocDiagnostics(tab.Owner.project.DiagnoseDoc(tab.DocRel, src), docgen.DiagnoseRefs(tab.Owner.project, tab.DocRel, src, nil))
@@ -311,41 +379,58 @@ func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, root ui.Ele
 		ui.Box(c).Grow(1)
 		if tab.Dirty {
 			if uikit.ActionCursor(ui.PrimaryButton(c, m.SaveDoc)).Clicked() {
+				a.closeDocSlash(st)
+				a.flushDocCanvas(tab, st)
 				a.saveActive()
 			}
 		}
 		a.docgenExportButton(c, p, root, tab)
-		uikit.ActionCursor(ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) { a.docInsertMenu(mm, tab, dm) }))
+		uikit.ActionCursor(ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) {
+			a.closeDocSlash(st)
+			a.docInsertMenu(mm, tab, st, dm)
+		}))
 	})
 }
 
-func (a *App) docInsertMenu(mm *ui.Menu, tab *Tab, dm *docMessages) {
+func (a *App) docInsertMenu(mm *ui.Menu, tab *Tab, st *docViewState, dm *docMessages) {
 	if tab == nil || tab.Owner == nil {
 		return
 	}
 	docsAssets := "docs/assets"
 	sibling := path.Join(path.Dir(tab.DocRel), "assets")
+	blockActive := st != nil && st.live != nil && st.live.block != nil
 	if mm.Item(dm.InsertImageDocs).Chosen() {
-		a.chooseDocAsset(tab, docsAssets)
+		if blockActive {
+			a.chooseDocAssetAt(tab, st, docsAssets)
+		} else {
+			a.chooseDocAsset(tab, docsAssets)
+		}
 	}
 	if mm.Item(dm.InsertImageSibling).Chosen() {
-		a.chooseDocAsset(tab, sibling)
+		if blockActive {
+			a.chooseDocAssetAt(tab, st, sibling)
+		} else {
+			a.chooseDocAsset(tab, sibling)
+		}
 	}
 	mm.Separator()
 	if mm.Item(dm.Bold).Chosen() {
-		wrapDocSelection(tab, "**", "**")
+		a.docWrapSelection(tab, st, "**", "**")
 	}
 	if mm.Item(dm.Italic).Chosen() {
-		wrapDocSelection(tab, "*", "*")
+		a.docWrapSelection(tab, st, "*", "*")
+	}
+	if mm.Item(dm.InlineCode).Chosen() {
+		a.docWrapSelection(tab, st, "`", "`")
 	}
 	if mm.Item(dm.InsertLink).Chosen() {
-		insertDocLink(tab)
+		a.docInsertLink(tab, st)
 	}
 	if mm.Item(dm.CodeBlock).Chosen() {
-		insertDocTemplate(tab, "```\n", "\n```\n")
+		a.docInsertTemplate(tab, st, "```\n", "\n```\n")
 	}
 	if mm.Item(dm.Table).Chosen() {
-		insertDocTemplate(tab, "", "\n| Column | Column |\n| --- | --- |\n| Cell | Cell |\n")
+		a.docInsertTemplate(tab, st, "", "\n| Column | Column |\n| --- | --- |\n| Cell | Cell |\n")
 	}
 	// C03: request link / card directive entries (submenu of project requests).
 	a.docgenInsertMenuEntries(mm, tab, a.derivedDocMsg())
@@ -538,17 +623,30 @@ func (dm *docMessages) diagText(d core.DocDiagnostic) string {
 	}
 }
 
-func (a *App) docBody(c *ui.Context, t *ui.Theme, tab *Tab, src string, opts *markdown.Options) {
+func (a *App) docBody(c *ui.Context, t *ui.Theme, root ui.Element, tab *Tab, src string, opts *markdown.Options) {
 	// The doc editor is cached on the tab; restyle it in place so an
 	// appearance switch repaints it without losing the caret or undo history.
 	a.syncEditorTheme(tab.DocEditor, &tab.docBuiltGen, t)
 	switch tab.Section {
 	case 1:
-		editor.View(c, tab.DocEditor).Grow(1).FillWidth()
+		tab.DocEditor.OnDefinition = func(offset int) { a.docDefinitionAt(tab, offset) }
+		view := editor.View(c, tab.DocEditor).Grow(1).FillWidth()
+		st := docStateFor(root, tab)
+		lv := docLiveFor(st)
+		if !lv.mentionHooks && installDocMentionHooks != nil {
+			installDocMentionHooks(a, tab, tab.DocEditor)
+			lv.mentionHooks = true
+		}
+		if renderDocMentionTools != nil {
+			renderDocMentionTools(a, c, t, view, tab, tab.DocEditor)
+		}
 	case 2:
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			a.markdownPreview(c, src, opts)
 		})
+	case docSectionCanvas:
+		st := docStateFor(root, tab)
+		a.docCanvasView(c, t, root, tab, st)
 	default:
 		docSplit := &tab.Owner.docSplit
 		ui.Split(c, docSplit, func() {
