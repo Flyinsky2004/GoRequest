@@ -45,6 +45,7 @@ type bodyMessages struct {
 	MultipartBoundaryHint       string
 	WirePreviewLabel            string
 	ResolvedURLPreviewLabel     string
+	ResolvedURLWithParamsLabel  string
 
 	UnsupportedBodyTitle   string // %s
 	UnsupportedBodyHint    string
@@ -99,6 +100,7 @@ var bodyMessagesZh = bodyMessages{
 	MultipartBoundaryHint:       "multipart boundary 由引擎自动生成并管理。",
 	WirePreviewLabel:            "编码预览",
 	ResolvedURLPreviewLabel:     "解析预览",
+	ResolvedURLWithParamsLabel:  "含参数",
 
 	UnsupportedBodyTitle:   "已保留未支持的正文模式：%s",
 	UnsupportedBodyHint:    "保存此请求时会原样保留该正文及未知字段，不会静默吞掉。仅在明确需要改写时点击下方替换按钮。",
@@ -153,6 +155,7 @@ var bodyMessagesEn = bodyMessages{
 	MultipartBoundaryHint:       "Multipart boundary is automatically generated and managed by the engine.",
 	WirePreviewLabel:            "Wire Preview",
 	ResolvedURLPreviewLabel:     "Resolved URL",
+	ResolvedURLWithParamsLabel:  "With params",
 
 	UnsupportedBodyTitle:   "Preserved unsupported body mode: %s",
 	UnsupportedBodyHint:    "Saving this request keeps this body and any unknown fields intact. Click Replace below only if you want to overwrite it.",
