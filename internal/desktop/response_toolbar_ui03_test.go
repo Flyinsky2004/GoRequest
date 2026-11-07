@@ -49,7 +49,8 @@ func ui03SameX(a, b ui.Rect) bool { return math.Abs(float64(a.X-b.X)) <= 0.5 }
 // Render the production panel, including the actual content views, with the
 // same constrained width that a split workspace gives the response panel. The
 // single tool row must read: status group first, then Body/Headers/Cookies/
-// Network, then the body-only Pretty/Raw/Tree group, then find, copy and save.
+// Network, then find, copy and save, with the body-only Pretty/Raw/Tree group
+// last and right-aligned (U01).
 func TestUI03ResponseToolRowOrderAndAnchors(t *testing.T) {
 	for _, language := range []language{langEnglish, langSimplifiedChinese} {
 		for _, width := range []int{320, 480, 900} {
@@ -81,9 +82,10 @@ func TestUI03ResponseToolRowOrderAndAnchors(t *testing.T) {
 				if !ui03Before(network, pretty) {
 					t.Fatalf("body format is not after the view switch: network=%+v pretty=%+v", network, pretty)
 				}
-				// Find/copy/save are at the end of the row.
-				if !ui03Before(pretty, copyRect) || !ui03Before(copyRect, saveRect) {
-					t.Fatalf("row actions out of order: pretty=%+v copy=%+v save=%+v", pretty, copyRect, saveRect)
+				// Find/copy/save come before the body-format switch, which ends
+				// the row (right-aligned; it wraps to its own line when narrow).
+				if !ui03Before(copyRect, saveRect) || !ui03Before(saveRect, pretty) {
+					t.Fatalf("row actions out of order: copy=%+v save=%+v pretty=%+v", copyRect, saveRect, pretty)
 				}
 
 				// The old second-row controls are gone; the Cookie count is part

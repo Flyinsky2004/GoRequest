@@ -247,6 +247,95 @@ func TestResponseJSONTreeUIExpandCollapseSearchAndCopy(t *testing.T) {
 	}
 }
 
+// TestResponseFormatSwitchRightAlignedAfterActions pins U01's placement: the
+// Pretty/Raw/Tree switch is the tool row's last control, after find/copy/save,
+// and right-aligned to the response pane. The row wraps instead of overflowing
+// at the compact acceptance width. Geometry comes from the real layout engine
+// via ui.NewTester; no screenshots.
+func TestResponseFormatSwitchRightAlignedAfterActions(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		w, h int
+	}{
+		{"1200x820", 1200, 820},
+		{"1024x640", 1024, 640},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, ps := openTestProject(t, "RespFormat "+tc.name)
+			tab := openRequestTabs(t, ps, "Users")[0]
+			tab.Resp = &core.ExecResult{
+				Status:   200,
+				Proto:    "HTTP/1.1",
+				Duration: 10 * time.Millisecond,
+				Body:     []byte(`{"ok":true}`),
+				Pretty:   "{\n  \"ok\": true\n}",
+				BodySize: 11,
+			}
+			tab.respVersion = 1
+
+			var respRect ui.Rect
+			tt := ui.NewTester(func(c *ui.Context) {
+				a.View(c)
+				respRect = ps.respRef.Bounds(c)
+			}, tc.w, tc.h)
+			tt.Frame()
+			tt.Frame()
+			if respRect.W <= 0 {
+				t.Fatalf("response pane not measured: %+v", respRect)
+			}
+			paneRight := respRect.X + respRect.W
+
+			tree, ok := tt.Find(networkMessagesEn.TreeMode)
+			if !ok {
+				t.Fatalf("Tree switch missing; texts=%v", tt.Texts())
+			}
+			save, ok := tt.Find(messagesEn.SaveResponse)
+			if !ok {
+				t.Fatalf("Save control missing; texts=%v", tt.Texts())
+			}
+			copyBtn, ok := tt.Find(messagesEn.CopyResponse)
+			if !ok {
+				t.Fatalf("Copy control missing; texts=%v", tt.Texts())
+			}
+			find, ok := tt.Find(messagesEn.FindPlaceholder)
+			if !ok {
+				t.Fatalf("Find control missing; texts=%v", tt.Texts())
+			}
+
+			// Reading order: find, then copy/save, then the body format switch.
+			if copyBtn.X < find.X+find.W-1 {
+				t.Fatalf("Copy is not after Find: find=%+v copy=%+v", find, copyBtn)
+			}
+			if save.X < copyBtn.X+copyBtn.W-1 {
+				t.Fatalf("Save is not after Copy: copy=%+v save=%+v", copyBtn, save)
+			}
+			if tree.X < save.X+save.W-1 {
+				t.Fatalf("Tree switch is not after Save: save=%+v tree=%+v", save, tree)
+			}
+
+			// Right-aligned to the pane's inner edge (the row's 10 DIP padding
+			// plus the segmented track/segment padding sit to the text's right).
+			if gap := paneRight - (tree.X + tree.W); gap < 0 || gap > 40 {
+				t.Fatalf("Tree switch is not right-aligned: gap=%g pane=%+v tree=%+v", gap, respRect, tree)
+			}
+			// No overflow at either width: every tool control stays in the pane.
+			for name, r := range map[string]ui.Rect{"find": find, "copy": copyBtn, "save": save, "tree": tree} {
+				if r.X < respRect.X-1 || r.X+r.W > paneRight+1 {
+					t.Fatalf("%s overflows the response pane: %+v pane=%+v", name, r, respRect)
+				}
+			}
+
+			// The moved switch still drives the body format.
+			if err := tt.Click(networkMessagesEn.TreeMode); err != nil {
+				t.Fatalf("click Tree: %v", err)
+			}
+			if tab.RespRawIdx != 2 {
+				t.Fatalf("RespRawIdx = %d, want 2 (Tree)", tab.RespRawIdx)
+			}
+		})
+	}
+}
+
 func TestResponseBinaryInspectorAndExactSave(t *testing.T) {
 	a, ps := openTestProject(t, "BinaryResp")
 	tab := openRequestTabs(t, ps, "Download")[0]
