@@ -216,6 +216,10 @@ func validateCORSConfig(c *CORSConfig) error {
 }
 
 func validateMockRule(r *MockRule, lim ServerLimits) error {
+	// Zero-valued limits mean "use the documented defaults" (see
+	// ServerLimits.Effective). Callers such as the rule builders pass a zero
+	// ServerLimits, so normalize here instead of treating 0 as a literal cap.
+	lim = lim.Effective()
 	method := strings.ToUpper(strings.TrimSpace(r.Match.Method))
 	if method == "" {
 		return fmt.Errorf("match.method is required")

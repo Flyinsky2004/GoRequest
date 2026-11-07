@@ -248,8 +248,8 @@ func (r *Runner) prepare(ctx context.Context) error {
 		}
 	}
 	runPlaceholders := map[string]string{}
-	for k := range r.suite.Variables {
-		runPlaceholders[k] = "preflight"
+	for k, v := range r.suite.Variables {
+		runPlaceholders[k] = v
 	}
 	for _, a := range r.suite.Before {
 		if n := actionName(a); n != "" {
