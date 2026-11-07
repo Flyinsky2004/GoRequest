@@ -144,4 +144,6 @@ func sortDocDiags(out []core.DocDiagnostic) {
 
 // cardAnchor is the in-page anchor the HTML export assigns to a derived
 // card. It must match render.go's anchor emission.
-func cardAnchor(id string) string { return "docgen-request-" + id }
+func cardAnchor(id string) string {
+	return "docgen-request-" + strings.ReplaceAll(id, ".", "-")
+}

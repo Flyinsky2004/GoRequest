@@ -1,6 +1,7 @@
 package docgen
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -62,7 +63,7 @@ func TestScrubberKeepsReadableValues(t *testing.T) {
 func TestScrubberCountsSecretTemplateRefs(t *testing.T) {
 	s := NewScrubber(nil)
 	out := s.Value(map[string]any{"api_key": secretTemplateRef})
-	if out != s.Value(map[string]any{"api_key": secretTemplateRef}) {
+	if fmt.Sprint(out) != fmt.Sprint(NewScrubber(nil).Value(map[string]any{"api_key": secretTemplateRef})) {
 		t.Fatalf("nondeterministic scrub")
 	}
 	if got := s.String(secretTemplateRef); got != secretTemplateRef {

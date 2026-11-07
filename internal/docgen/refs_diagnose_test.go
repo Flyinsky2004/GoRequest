@@ -131,7 +131,7 @@ func TestScanDocumentPositionsAndFences(t *testing.T) {
 	if len(directive.Views) != 2 {
 		t.Fatalf("views not parsed: %v", directive.Views)
 	}
-	if malformed.ID != "" || strings.Count(strings.Join(refOccurrences(malformed), ""), "") < 0 {
+	if malformed.ID != "users.me" || strings.Count(strings.Join(refOccurrences(malformed), ""), "") < 0 {
 		t.Fatalf("malformed directive keeps its best-effort id: %+v", malformed)
 	}
 }

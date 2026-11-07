@@ -247,18 +247,32 @@ func checkTargetDir(p *core.Project, target string) error {
 	if abs == string(filepath.Separator) {
 		return fmt.Errorf("refusing to export into the filesystem root")
 	}
-	storeRoot, err := filepath.EvalSymlinks(p.Store.Root)
-	if err != nil {
-		storeRoot = filepath.Clean(p.Store.Root)
-	}
-	scrubbed, err := filepath.EvalSymlinks(abs)
-	if err == nil {
-		abs = scrubbed
-	}
+	storeRoot := resolveTargetSymlinks(p.Store.Root)
+	abs = resolveTargetSymlinks(abs)
 	if abs == storeRoot || strings.HasPrefix(abs, storeRoot+string(filepath.Separator)) {
 		return fmt.Errorf("target directory is inside the GoRequest project store (%s); pick a separate export directory", p.Store.Root)
 	}
 	return nil
+}
+
+func resolveTargetSymlinks(p string) string {
+	clean := filepath.Clean(p)
+	cur := clean
+	var tail []string
+	for {
+		if resolved, err := filepath.EvalSymlinks(cur); err == nil {
+			for i := len(tail) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, tail[i])
+			}
+			return resolved
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return clean
+		}
+		tail = append(tail, filepath.Base(cur))
+		cur = parent
+	}
 }
 
 // buildExportSet enumerates documents and assets, expands cards, computes
@@ -725,11 +739,21 @@ func (s *exportSet) fileConflicts() []ExportConflict {
 			out = append(out, ExportConflict{TargetPath: f.TargetPath, Reason: "target exists and overwriting is disabled"})
 			continue
 		}
-		if !isDocgenFile(absTarget) {
+		if !s.canOverwrite(f, absTarget) {
 			out = append(out, ExportConflict{TargetPath: f.TargetPath, Reason: "target exists and does not carry the docgen marker; manual files are never overwritten"})
 		}
 	}
 	return out
+}
+
+func (s *exportSet) canOverwrite(f ExportFile, absTarget string) bool {
+	if f.Copied {
+		srcPath := filepath.Join(s.project.Store.Root, filepath.FromSlash(f.SourceRel))
+		a, err1 := os.ReadFile(absTarget)
+		b, err2 := os.ReadFile(srcPath)
+		return err1 == nil && err2 == nil && string(a) == string(b)
+	}
+	return isDocgenFile(absTarget)
 }
 
 // isDocgenFile reports whether an existing file carries the generated marker.
@@ -806,7 +830,7 @@ func (s *exportSet) writeFile(f ExportFile) error {
 		if fi.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("target is a symbolic link")
 		}
-		if !s.opts.AllowOverwrite || !isDocgenFile(absTarget) {
+		if !s.opts.AllowOverwrite || !s.canOverwrite(f, absTarget) {
 			return fmt.Errorf("target exists and is protected from overwriting")
 		}
 	}
@@ -936,13 +960,11 @@ func hexEscapeByte(c byte) string {
 
 // fragmentURI percent-encodes a "#anchor" part.
 func fragmentURI(frag string) string {
+	frag = strings.TrimPrefix(frag, "#")
 	if frag == "" {
 		return ""
 	}
-	if !strings.HasPrefix(frag, "#") {
-		frag = "#" + frag
-	}
-	return frag
+	return "#" + uriPathEscapeSeg(frag)
 }
 
 // docTitle returns the index/page title of a document.

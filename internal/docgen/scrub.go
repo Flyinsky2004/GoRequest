@@ -184,7 +184,7 @@ func credentialMaterial(s string) bool {
 	if strings.Contains(s, "-----BEGIN") && strings.Contains(s, "PRIVATE KEY-----") {
 		return true
 	}
-	for _, prefix := range []string{"sk-", "sk_", "ghp_", "gho_", "ghu_", "ghr_", "github_pat_", "xoxb", "xoxp", "xoxa", "glpat-", "AIza", "ya29.", "SG."} {
+	for _, prefix := range []string{"sk-", "sk_", "ghp_", "gho_", "ghu_", "ghr_", "github_pat_", "xoxb", "xoxp", "xoxa", "glpat-", "AIza", "ya29.", "SG.", "AKIA", "ASIA"} {
 		if strings.HasPrefix(s, prefix) {
 			return true
 		}

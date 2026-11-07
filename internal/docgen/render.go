@@ -118,7 +118,7 @@ func buildBlockTree(src string, blocks []markdown.Block) []*blockNode {
 		for len(stack) > 0 {
 			top := stack[len(stack)-1]
 			contained := b.Start >= top.block.Start && b.End <= top.block.End &&
-				!(top.block.Start == b.Start && top.block.End == b.End)
+				canContainBlock(top.block.Kind, b.Kind)
 			if contained {
 				break
 			}
@@ -133,6 +133,24 @@ func buildBlockTree(src string, blocks []markdown.Block) []*blockNode {
 		stack = append(stack, n)
 	}
 	return roots
+}
+
+func canContainBlock(parent, child markdown.Kind) bool {
+	switch parent {
+	case markdown.List:
+		return child == markdown.Item
+	case markdown.Table:
+		return child == markdown.TableRow
+	case markdown.TableRow:
+		return child == markdown.TableCell
+	case markdown.Item, markdown.Quote, markdown.FootnoteDefinition:
+		switch child {
+		case markdown.Item, markdown.TableRow, markdown.TableCell:
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 // --- renderer -----------------------------------------------------------------
@@ -295,6 +313,15 @@ func (r *htmlRenderer) writeItem(n *blockNode) {
 		r.b.WriteString("<li class=\"task-unchecked\">&#9744; ")
 	default:
 		r.b.WriteString("<li>")
+		if len(n.child) > 1 {
+			r.b.WriteString("\n")
+		}
+	}
+	if len(n.child) == 1 && n.child[0].block.Kind == markdown.Paragraph {
+		in := r.inlinesOf(n.child[0])
+		r.writeInlineSpan(in, 0, len(in))
+		r.b.WriteString("</li>\n")
+		return
 	}
 	wroteLead := false
 	for _, c := range n.child {
@@ -478,8 +505,9 @@ func defaultResolveLink(dest string) (string, bool) {
 	case strings.HasPrefix(dest, "#"):
 		return dest, true
 	}
-	if strings.HasSuffix(strings.ToLower(dest), ".md") {
-		return strings.TrimSuffix(dest, ".md") + ".html", true
+	pathPart, frag, _ := strings.Cut(dest, "#")
+	if strings.HasSuffix(strings.ToLower(pathPart), ".md") {
+		return pathPart[:len(pathPart)-3] + ".html" + fragmentURI(frag), true
 	}
 	return "", false
 }

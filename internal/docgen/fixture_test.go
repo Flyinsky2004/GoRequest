@@ -29,6 +29,13 @@ func newDocgenProject(t *testing.T) *core.Project {
 	if err != nil {
 		t.Fatalf("NewRequest users: %v", err)
 	}
+	delete(p.Requests, users.Request.ID)
+	users.Request.ID = "users.me"
+	for i, id := range p.Order {
+		if id == "users-me" {
+			p.Order[i] = "users.me"
+		}
+	}
 	users.Request.HTTP.Method = "GET"
 	users.Request.HTTP.URL = "{{baseUrl}}/users/me"
 	users.Request.HTTP.Query = []core.KV{
@@ -129,7 +136,9 @@ const apiDoc = `# API 总览
 
 ## 图片与链接
 
-![图标](assets/图标 示例.png)
+![图标](assets/图标%20example.png)
+
+![缺失图](assets/missing.png)
 
 ![远程](https://example.com/remote.png)
 
@@ -150,7 +159,7 @@ const guideDoc = `# 指南
 
 一般说明。[返回 API](api.md#api-总览)
 
-![图标](assets/图标 示例.png)
+![图标](assets/图标%20example.png)
 `
 
 func writeDocgenDoc(t *testing.T, p *core.Project, rel, src string) {
@@ -169,7 +178,7 @@ func newDocgenProjectWithDocs(t *testing.T) *core.Project {
 	p := newDocgenProject(t)
 	writeDocgenDoc(t, p, "docs/api.md", apiDoc)
 	writeDocgenDoc(t, p, "docs/guide.md", guideDoc)
-	if err := p.Store.WriteAtomic("docs/assets/图标 示例.png", pngBytes()); err != nil {
+	if err := p.Store.WriteAtomic("docs/assets/图标 example.png", pngBytes()); err != nil {
 		t.Fatalf("write asset: %v", err)
 	}
 	// Reload so Docs and assets are visible to store-backed helpers.

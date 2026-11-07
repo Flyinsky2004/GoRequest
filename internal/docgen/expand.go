@@ -122,7 +122,7 @@ func ExpandDoc(project *core.Project, src string, opts CardOptions) (*Expansion,
 	}
 
 	exp.Markdown = strings.Join(out, "\n")
-	exp.Changed = changed
+	exp.Changed = changed && exp.Markdown != src
 	return exp, nil
 }
 

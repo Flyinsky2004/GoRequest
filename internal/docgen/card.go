@@ -534,7 +534,7 @@ func responseSortKey(status string) int {
 		return 1 << 30
 	case strings.HasSuffix(status, "XX"):
 		if n := statusNumber(strings.TrimSuffix(status, "XX")); n > 0 {
-			return n
+			return 1<<20 + n
 		}
 		return 1<<29 - 1
 	default:
@@ -903,11 +903,7 @@ func writeCardBody(b *strings.Builder, card *RequestCard, labels CardLabels) {
 func writeCardResponses(b *strings.Builder, card *RequestCard, labels CardLabels) {
 	fmt.Fprintf(b, "**%s**\n\n", labels.Responses)
 	if len(card.Responses) == 0 {
-		if card.HasContract {
-			fmt.Fprintf(b, "%s\n\n", labels.NoResponses)
-		} else {
-			fmt.Fprintf(b, "%s\n\n", labels.NoContract)
-		}
+		fmt.Fprintf(b, "%s\n\n", labels.NoResponses)
 		// Still record the missing-definition fact in notes below.
 		return
 	}
