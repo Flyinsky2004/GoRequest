@@ -51,7 +51,7 @@ JSON
 
 # 5) 启动应用；登录密码用一次性虚构值，经环境变量提供，不落盘
 HOME=/tmp/gorequest-r7r8/home \
-GOREQUEST_SECRET_LOGINPASSWORD='demo-password-not-real' \
+GOREQUEST_SECRET_LOGINPASSWORD='demo-password' \
   /tmp/gorequest-r7r8/gorequest-desktop -project /tmp/gorequest-r7r8/project
 ```
 
