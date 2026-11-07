@@ -106,6 +106,7 @@ func (r *Runner) Run(ctx context.Context) (*RunResult, error) {
 		res.finalize()
 		r.events.send(Event{Kind: EventRunStarted, Status: StatusCanceled})
 		r.events.send(Event{Kind: EventRunFinished, Status: StatusCanceled})
+		r.redactReport(res)
 		return res, nil
 	}
 	if err := r.Prepare(ctx); err != nil {
@@ -116,6 +117,7 @@ func (r *Runner) Run(ctx context.Context) (*RunResult, error) {
 		res.FinishedAt = r.clock()
 		res.DurationMs = 0
 		res.finalize()
+		r.redactReport(res)
 		return res, err
 	}
 
@@ -176,6 +178,7 @@ func (r *Runner) Run(ctx context.Context) (*RunResult, error) {
 		}
 	}
 	r.events.send(Event{Kind: EventRunFinished, Status: res.Status, DurationMs: res.DurationMs})
+	r.redactReport(res)
 	return res, nil
 }
 

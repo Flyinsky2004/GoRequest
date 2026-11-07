@@ -257,6 +257,14 @@ func writeRunnerReport(result *runner.RunResult, destination, projectRoot string
 	if err != nil {
 		return err
 	}
+	for dir := parent; ; dir = filepath.Dir(dir) {
+		if filepath.Base(dir) == ".gorequest" || filepath.Base(dir) == ".git" {
+			return errors.New("choose a report location outside project metadata")
+		}
+		if filepath.Dir(dir) == dir {
+			break
+		}
+	}
 	root, err := filepath.EvalSymlinks(projectRoot)
 	if err != nil {
 		return err

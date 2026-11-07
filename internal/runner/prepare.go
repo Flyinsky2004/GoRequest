@@ -145,16 +145,13 @@ func preflightf(kind FailureKind, format string, args ...any) error {
 // than once; the first error is cached.
 func (r *Runner) Prepare(ctx context.Context) error {
 	if r.prepared {
-		return r.prepareErr
+		if r.prepareErr != nil {
+			return r.prepareErr
+		}
+		return nil
 	}
 	r.prepared = true
-	if enumerable, ok := r.opts.Secrets.(secretEnumerator); ok {
-		for _, name := range enumerable.SecretNames() {
-			if value, found := r.opts.Secrets.Get(name); found && value != "" {
-				r.red.RegisterSecret(value)
-			}
-		}
-	}
+	r.registerBoundSecrets()
 	if err := r.prepare(ctx); err != nil {
 		if pe, ok := err.(*preflightError); ok {
 			r.prepareErr = pe
@@ -230,6 +227,19 @@ func (r *Runner) prepare(ctx context.Context) error {
 		return preflightf(KindDataset, "%v", err)
 	}
 	r.data = ds
+	// Dataset credential fields must be masked even when never extracted. Keep
+	// raw values only in the private execution rows; every step redactor knows
+	// their values so assertion/event failures cannot echo them.
+	for _, row := range ds.rows {
+		for name, value := range row.Vars {
+			if value != "" && sensitiveJSONKeyPattern.MatchString(name) {
+				r.red.RegisterSecret(value)
+				if !containsString(r.knownSecrets, value) {
+					r.knownSecrets = append(r.knownSecrets, value)
+				}
+			}
+		}
+	}
 
 	placeholders := map[string]core.StepOutput{}
 	for _, sp := range r.order {
@@ -383,19 +393,7 @@ func (r *Runner) prepare(ctx context.Context) error {
 			r.red.RegisterSecret(v)
 		}
 	}
-	// Register all bound values from the supplied provider. MapSecrets and
-	// device-backend providers enumerated here are the source of runtime secret
-	// material; a report must never echo a bound value even when no template
-	// referenced it in the saved project snapshot.
-	if enumerable, ok := r.opts.Secrets.(secretEnumerator); ok {
-		for _, name := range enumerable.SecretNames() {
-			v, found := r.opts.Secrets.Get(name)
-			if found && v != "" && !containsString(r.knownSecrets, v) {
-				r.knownSecrets = append(r.knownSecrets, v)
-				r.red.RegisterSecret(v)
-			}
-		}
-	}
+	r.registerBoundSecrets()
 	r.snap = r.snapshotDigest()
 	r.runID = newRunID(r.clock())
 	r.events = newEventBus(r.runID, r.clock, r.opts.Emit)

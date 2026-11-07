@@ -18,7 +18,10 @@ import (
 
 var errSchemaConfig = errors.New("invalid or unsupported offline schema configuration")
 
-type adapterSchema struct{ node any }
+type adapterSchema struct {
+	node    any
+	encoded []byte
+}
 type adapterTarget struct {
 	schema    *adapterSchema
 	responses map[string]*adapterSchema
@@ -31,13 +34,15 @@ type adapterTarget struct {
 // contracts are rejected during preflight, rather than silently ignored.
 // Prepared targets contain no live file references; concurrent validation is safe.
 type ProjectSchemaAdapter struct {
-	project *core.Project
-	mu      sync.Mutex
-	targets map[string]*adapterTarget
+	project        *core.Project
+	mu             sync.Mutex
+	targets        map[string]*adapterTarget
+	loader         *schemaLoader
+	expandedBudget int64
 }
 
 func NewProjectSchemaAdapter(p *core.Project) *ProjectSchemaAdapter {
-	return &ProjectSchemaAdapter{project: p, targets: map[string]*adapterTarget{}}
+	return &ProjectSchemaAdapter{project: p, targets: map[string]*adapterTarget{}, expandedBudget: core.DefaultMaxSchemaBytes}
 }
 func schemaKey(r SchemaRef) string { return r.Ref + "\x00" + r.Operation }
 func (a *ProjectSchemaAdapter) PreflightSchema(r SchemaRef) error {
@@ -49,7 +54,10 @@ func (a *ProjectSchemaAdapter) PreflightSchema(r SchemaRef) error {
 	if a.project == nil || a.project.Store == nil {
 		return errSchemaConfig
 	}
-	loader := &schemaLoader{p: a.project, docs: map[string]any{}, active: map[string]bool{}}
+	if a.loader == nil {
+		a.loader = &schemaLoader{p: a.project, docs: map[string]any{}, active: map[string]bool{}}
+	}
+	loader := a.loader
 	t := &adapterTarget{}
 	if r.Operation == "" {
 		if r.Ref == "" {
@@ -63,7 +71,7 @@ func (a *ProjectSchemaAdapter) PreflightSchema(r SchemaRef) error {
 		if err != nil {
 			return errSchemaConfig
 		}
-		t.schema = &adapterSchema{n}
+		t.schema = &adapterSchema{node: n}
 	} else {
 		if r.Ref != "" {
 			return errSchemaConfig
@@ -110,7 +118,30 @@ func (a *ProjectSchemaAdapter) PreflightSchema(r SchemaRef) error {
 			if err != nil {
 				return errSchemaConfig
 			}
-			t.responses[status] = &adapterSchema{n}
+			t.responses[status] = &adapterSchema{node: n}
+		}
+	}
+	// Ensure annotation/const/enum values are JSON-compatible too (YAML permits
+	// non-string keys, NaN and infinities which are not JSON Schema values).
+	if t.schema != nil {
+		if err := boundSchemaJSON(t.schema.node, &a.expandedBudget, 0); err != nil {
+			return err
+		}
+		encoded, err := json.Marshal(t.schema.node)
+		if err != nil {
+			return errSchemaConfig
+		}
+		t.schema.encoded = encoded
+	} else {
+		for _, schema := range t.responses {
+			if err := boundSchemaJSON(schema.node, &a.expandedBudget, 0); err != nil {
+				return err
+			}
+			encoded, err := json.Marshal(schema.node)
+			if err != nil {
+				return errSchemaConfig
+			}
+			schema.encoded = encoded
 		}
 	}
 	a.targets[schemaKey(r)] = t
@@ -128,7 +159,7 @@ func (a *ProjectSchemaAdapter) ValidateSchema(body []byte, r SchemaRef) ([]Schem
 		media := "application/json"
 		for _, h := range r.Headers {
 			if strings.EqualFold(h[0], "Content-Type") {
-				media = strings.TrimSpace(strings.Split(h[1], ";")[0])
+				media = strings.ToLower(strings.TrimSpace(strings.Split(h[1], ";")[0]))
 				break
 			}
 		}
@@ -149,13 +180,9 @@ func (a *ProjectSchemaAdapter) ValidateSchema(body []byte, r SchemaRef) ([]Schem
 	if !json.Valid(body) {
 		return []SchemaIssue{{InstancePath: "$", Message: "response body is not valid JSON"}}, nil
 	}
-	instance := any(nil)
-	dec := json.NewDecoder(strings.NewReader(string(body)))
-	dec.UseNumber()
-	if dec.Decode(&instance) != nil {
-		return nil, errSchemaConfig
-	}
-	result, err := core.ValidateParsedSchema(s.node, instance, core.SchemaValidationOptions{})
+	// Delegate instance semantics to the actual A03 port. All references were
+	// already resolved by configuration preflight; the engine cannot reopen files.
+	result, err := core.NewSchemaValidator().ValidateInstance(s.encoded, body, core.SchemaValidationOptions{})
 	if err != nil {
 		return nil, errSchemaConfig
 	}
@@ -205,6 +232,9 @@ func (l *schemaLoader) reference(ref, file string, root any, depth int) (any, st
 			if l.bytes > core.DefaultMaxSchemaBytes {
 				return nil, "", errSchemaConfig
 			}
+			if _, err := core.ParseStrictYAMLTree(b, core.YAMLLimits{MaxBytes: core.DefaultMaxSchemaBytes, MaxDepth: 64, MaxNodes: 100000, MaxExpandedNodes: 100000}); err != nil {
+				return nil, "", errSchemaConfig
+			}
 			if yaml.Unmarshal(b, &doc) != nil {
 				return nil, "", errSchemaConfig
 			}
@@ -221,6 +251,14 @@ func (l *schemaLoader) reference(ref, file string, root any, depth int) (any, st
 			return nil, "", errSchemaConfig
 		}
 		for _, key := range strings.Split(fragment[1:], "/") {
+			for i := 0; i < len(key); i++ {
+				if key[i] == '~' {
+					if i+1 >= len(key) || (key[i+1] != '0' && key[i+1] != '1') {
+						return nil, "", errSchemaConfig
+					}
+					i++
+				}
+			}
 			key = strings.ReplaceAll(strings.ReplaceAll(key, "~1", "/"), "~0", "~")
 			switch v := n.(type) {
 			case map[string]any:
@@ -244,7 +282,8 @@ func (l *schemaLoader) reference(ref, file string, root any, depth int) (any, st
 }
 func (l *schemaLoader) freeze(n any, file string, root any, depth int) (any, error) {
 	l.nodes++
-	if depth > 48 || l.nodes > 10000 {
+	// Schema depth counts the root as level one, like the A03 evaluator.
+	if depth >= core.DefaultMaxSchemaDepth || l.nodes > 10000 {
 		return nil, errSchemaConfig
 	}
 	if _, ok := n.(bool); ok {
@@ -323,16 +362,25 @@ func (l *schemaLoader) freeze(n any, file string, root any, depth int) (any, err
 		case "type":
 			valid := func(x any) bool {
 				s, ok := x.(string)
-				return ok && strings.Contains("|null|boolean|object|array|number|integer|string|", "|"+s+"|")
+				if !ok {
+					return false
+				}
+				switch s {
+				case "null", "boolean", "object", "array", "number", "integer", "string":
+					return true
+				}
+				return false
 			}
 			if arr, ok := v.([]any); ok {
 				if len(arr) == 0 {
 					return nil, errSchemaConfig
 				}
+				seen := map[any]bool{}
 				for _, x := range arr {
-					if !valid(x) {
+					if !valid(x) || seen[x] {
 						return nil, errSchemaConfig
 					}
+					seen[x] = true
 				}
 			} else if !valid(v) {
 				return nil, errSchemaConfig
@@ -343,10 +391,13 @@ func (l *schemaLoader) freeze(n any, file string, root any, depth int) (any, err
 			if !ok {
 				return nil, errSchemaConfig
 			}
+			seen := map[string]bool{}
 			for _, x := range arr {
-				if _, ok := x.(string); !ok {
+				name, ok := x.(string)
+				if !ok || seen[name] {
 					return nil, errSchemaConfig
 				}
+				seen[name] = true
 			}
 			out[k] = v
 		case "pattern":
@@ -375,13 +426,35 @@ func (l *schemaLoader) freeze(n any, file string, root any, depth int) (any, err
 			if !ok || len(arr) == 0 {
 				return nil, errSchemaConfig
 			}
+			seen := map[string]bool{}
+			for _, value := range arr {
+				localBudget := int64(core.DefaultMaxSchemaBytes)
+				if err := boundSchemaJSON(value, &localBudget, 0); err != nil {
+					return nil, err
+				}
+				b, err := json.Marshal(value)
+				if err != nil || seen[string(b)] {
+					return nil, errSchemaConfig
+				}
+				seen[string(b)] = true
+			}
 			out[k] = v
 		case "uniqueItems":
 			if _, ok := v.(bool); !ok {
 				return nil, errSchemaConfig
 			}
 			out[k] = v
-		case "const", "title", "description", "examples", "default", "$comment":
+		case "title", "description", "$comment":
+			if _, ok := v.(string); !ok {
+				return nil, errSchemaConfig
+			}
+			out[k] = v
+		case "examples":
+			if _, ok := v.([]any); !ok {
+				return nil, errSchemaConfig
+			}
+			out[k] = v
+		case "const", "default":
 			out[k] = v
 		case "$schema":
 			s, ok := v.(string)
@@ -429,4 +502,43 @@ func (a *ProjectSchemaAdapter) SchemaSnapshotDigest() string {
 	}
 	b, _ := json.Marshal(targets)
 	return digestBytes(b)
+}
+
+// Bound the expanded representation too: repeatedly referencing a large const
+// or annotation must not turn a small offline file set into an unbounded JSON
+// allocation. String escaping uses a conservative six-byte upper bound.
+func boundSchemaJSON(value any, budget *int64, depth int) error {
+	if depth > 64 || *budget < 0 {
+		return errSchemaConfig
+	}
+	*budget -= 2
+	switch v := value.(type) {
+	case map[string]any:
+		for key, child := range v {
+			*budget -= int64(len(key))*6 + 4
+			if err := boundSchemaJSON(child, budget, depth+1); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if err := boundSchemaJSON(child, budget, depth+1); err != nil {
+				return err
+			}
+		}
+	case string:
+		*budget -= int64(len(v)) * 6
+	case nil, bool:
+		*budget -= 5
+	case int, int64, uint64, float64:
+		*budget -= 64
+	case json.Number:
+		*budget -= int64(len(v))
+	default:
+		return errSchemaConfig
+	}
+	if *budget < 0 {
+		return errSchemaConfig
+	}
+	return nil
 }

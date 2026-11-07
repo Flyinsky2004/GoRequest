@@ -148,6 +148,16 @@ func freezeRunnerTLS(ctx context.Context, opts *core.ExecuteOptions, files *runn
 // returned Runner and all its options are independent of App/projectState/Tab.
 func prepareDesktopRunner(ctx context.Context, p *core.Project, suite *runner.Suite, env string, network core.ExecuteOptions, source core.SecretProvider, emit runner.Emitter) (*runner.Runner, error) {
 	secrets := &runnerSecrets{source: source, values: core.MapSecrets{}}
+	switch provider := source.(type) {
+	case interface{ SecretNames() []string }:
+		for _, name := range provider.SecretNames() {
+			secrets.Get(name)
+		}
+	case core.MapSecrets:
+		for name := range provider {
+			secrets.Get(name)
+		}
+	}
 	// Fetch all declared/template names before preflight can fail, so even config
 	// reports get the same secret masking as successful runs.
 	b, err := yaml.Marshal(struct {
