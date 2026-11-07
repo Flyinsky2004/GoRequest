@@ -535,3 +535,11 @@ Herdr终端 `t3b`，tab `tb3d3591a57162fc0ea36db75749afe846`（BRAND01 Logo 接�
 ### 24.2 五个会话切换 Flash 并继续（2026-11-07）
 
 用户先提出暂停四个，但未指定四个，实际尚未执行暂停；随后明确改为五个全部切换 glm-5.3-flash 并接着开发。已在原 Herdr t3m/t3n/t3p/t3q/t3r 内中断当前生成，使用 `/model` 选择器选择 **GLM-5.3 Flash (Mistral Hosted)**（Vibe提供的模型alias `zai-glm-5-3-flash`），使用session-only模式保存，然后发送继续原任务的指令。五个屏幕均确认Flash模型和auto-approve，原会话上下文、分支/worktree与已写代码保持，不新建重复开发会话、不修改全局默认模型，也不操作其他用户会话。原任务边界和暂不运行测试/构建/vet约束保持。当前仍是开发中，未验收、不打勾。
+
+### 24.3 P01 移交 Claude Code（2026-11-07）
+
+用户指出P01停止并要求换CC。核对原Vibe `t3r` 为done，分支仍停在共同基线 `b91ba32`，没有交付提交；有go.mod/go.sum与stream/websocket/三个desktop websocket文件的未提交草稿。保留并在本机 `/private/tmp/gorequest-p01-cc-handoff-20261107/` 备份这些源文件及状态，关闭旧tab `tb4694a11299e72c66ce48b630e5800cf0` 返回ok:true，随后确认t3r不再live后才启动接管者，避免双写。
+
+新负责人 **Claude Code**，Herdr终端 `t3v`，tab `tb3d3c033aab5741a2c41cb1357e173b20`，继续使用原worktree `../GoRequest-P01-ws` 与原分支 `vibe/P01-websocket`（分支名称保留历史，不代表仍由Vibe执行）。通过tab.new交互启动 `/Users/flyinsky/.local/bin/claude --name gorequest-P01-websocket --dangerously-skip-permissions -- <交接提示词>`，沿用当前CC配置默认模型，未指定或修改全局模型；屏幕状态栏当前显示DeepSeek V4.1 Fla…，不能把Claude Code应用名当作Claude模型名。已核对正确目录/分支/任务、bypass permissions和hc working。要求先审查原草稿和MyGo真实API，从现有进度完成Core/UI/公共patch/静态检查/本地提交与报告，不仅回复计划；原§24范围、暂不测试/构建/vet约束和公共文件归属保持。其他四个Vibe及用户/其他项目会话未操作。
+
+交接提示词/新句柄/源文件备份只存上述本机临时目录，不入Git；本轮仅换负责人，未交付、未集成、未验收，不打勾。
