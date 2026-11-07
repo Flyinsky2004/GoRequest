@@ -604,3 +604,32 @@ main已从 `3122e44` 快进至 `f15f528`（五条no-ff合并 + 公共接线/静�
 | CC response | `t47` | `tb59bbfb9e26246f9140fefe6d3371402c` | `cc/R-response` |
 
 本轮派工前在main代码基线实际执行 `go build ./...`，exit 0（首轮沙箱缓存访问被拒后，获准在沙箱外重跑通过）。尚未跑本轮最终组合测试，尚无实现交付/合入/两尺寸截图，不能宣称R1–R9验收通过。完整提示词/launch脚本/句柄仅存本机 `/private/tmp/gorequest-r1-r9-20261107/` 不入Git；后续据精确分支/终端与各R报告收集交付并集成验证。
+
+### 26.2 四组交付集成与验证（2026-11-07）
+
+用户要求合并代码、清理分支与agent。从main `aee8580` 创建独立集成worktree `/private/tmp/gorequest-r1-r9-integration` / `integrate/R1-R9`，核对四来源工作区干净且交付完成，串行no-ff合并，均无冲突。main已快进至 `a8c57f5`。
+
+| 来源分支 | 交付头 | 合并提交 |
+| --- | --- | --- |
+| cc/R-request-chrome | be78492 | b7434ea |
+| cc/R-kv | a068341 | 2c2a19e |
+| cc/R-layout-status | b4669c5 | 518cdbb |
+| cc/R-response | f5ad3f1 | ed8d87c |
+
+R1/R2/R4：预览去重与差异行、同行超时徽标、方法段分隔。R3/R6：统一KV尾空行动作提示、16DIP本地checkbox。R5/R9：55:45默认与180DIP响应保护，钳制不覆盖持久化偏好；R9复现发送成功/失败/取消回调未写状态栏并修复，连续5次终态测试通过。R7/R8：状态前置单工具行、Cookie/网络视图内部入口、只读无当前行高亮与收窄gutter。每项文件/选择/限制详见 `docs/task-results/R1.md` 至 `R9.md`。本批未修改internal/core、go.mod/go.sum或新增颜色token。
+
+组合验证：
+
+- `go build ./...` 通过。
+- 首轮desktop测试编译发现R1/R3都新增了不同签名的countText辅助函数；集成人在 `a8c57f5` 仅将KV测试helper改名countKVHeaderText，无生产代码改动。该提交信息提到记录验证，但实际验证记录在本节后续文档提交。
+- 修正后 `go test ./internal/desktop ./internal/desktop/uikit -count=1`：uikit通过；desktop执行完成，仅3项失败：`mock_rule_editor_test.go:499 TestMockEditorSuggestionsAreProjectUnique`、`runner_editor_test.go:56 TestRunnerEditorDescribeAssertions`、`runner_editor_test.go:263 TestRunnerEditorPatchSuiteExtract`。
+- 集成人从 `git archive 7874b0b` 解出干净基线，实际复跑上述3项，全部以相同原因失败；均不在本批改动文件中，未越界修复或删除断言。组合测试其余用例通过。
+- diff whitespace及Core/依赖范围核对通过。日志存本机 `/private/tmp/gorequest-r1-r9-20261107/integration-tests.log` 与 `baseline-tests.log`。未重跑race/跨平台/实机GUI。
+
+未完成验收：1200×820与1024×640两张真实示例登录已发送截图尚未生成；无头测试不替代实机证据。R2实际保留导航Settings行为，未改成弹层；R8通过关闭只读正文折叠槽缩窄gutter，折叠使用JSON树，均见各项报告。以上限制保持，代码合并不代表全部产品验收完成，不勾总卡。§26派工表的“实现中”为历史领取状态，本节更新为“已集成、人工验收待补”。
+
+本轮清理仅四组t44/t45/t46/t47及其分支/worktree；保留t1h、用户shell t2s、已有CC t3w和oct t31。main包含交付头且工作区干净后，精确关闭对应tab、不带force删除工作树与已合入分支。用户示例环境与两个debug产物保留，不push。实际清理结果下节补记。
+
+### 26.3 清理完成
+
+四个精确tab.close均返回ok:true，hc ls确认t44/t45/t46/t47不再live。已不带force删除四个交付worktree与 `cc/R-request-chrome`、`cc/R-kv`、`cc/R-layout-status`、`cc/R-response`，以及本轮干净的临时集成worktree/分支。删除前逐项核对来源提交均为main祖先、worktree无已修改或未跟踪文件。最终仅剩main分支与主worktree；用户t1h/t2s、既有CC t3w与oct t31保留，示例dev.yaml及两个debug产物原样保留。未push；截图和既有三项失败保持上节说明。
