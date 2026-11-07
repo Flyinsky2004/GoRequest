@@ -807,3 +807,13 @@ Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t3
 | DOC01 / Claude Code | cc/DOC01-readme / /private/tmp/gorequest-doc01-20261108 | 独占README.md，新增docs/task-results/DOC01.md；先核对当前代码、实现状态及账本§31；无代码依赖，公共账本由集成人维护 | 已登记，待启动 |
 
 从本登记提交创建worktree；中文产品首页，突出原生、本地优先、Git、请求与文档工作流、下载/上手/反馈入口。只陈述实际已有能力，不宣传GraphQL/gRPC/完整SDK等规划，不虚构截图/性能/跨平台实机验收或发布成功；保留源码体验入口和真实许可证。允许必要文档检查与本地commit；不改代码/依赖/全局配置，不push，不派子agent，不操作其他终端。交付报告记录提交及验证证据，集成人复核后接入。
+
+
+### 32.1 DOC01 交付与集成完成
+
+通过Herdr tab.new在GoRequest space启动一个交互Claude Code，终端 `t4p` / tab `tb662187d54a907dfdaf048d7940554f90`；沿用现有默认DeepSeek V4.1 Flash 1017 (Mistral)，未修改模型/全局配置，已核对目录与分支。共同基线 `3c8f0de`。交付提交 `843c8b0`、审阅修订 `b789a49`，仅README与DOC01报告，工作树干净。
+
+- [x] DOC01 README重写已由集成人审阅并快进接入main：Logo/徽章/导航、产品价值、六组能力、下载、折叠源码体验、反馈/许可与精简开发资料。修正Secret的绝对表述，不把支持内联凭据说成绝不落库。
+- 集成复核：`git diff --check 3c8f0de..b789a49`通过；README的10处相对链接文件存在、三个页内导航匹配标题、details开闭配对通过；showcase对象JSON可解析且mode为native。报告见 `docs/task-results/DOC01.md`，首版结构说明由其中第二版修订覆盖。
+- 本次为纯文档改动，未运行Go构建/测试；未验证远端链接可达性、实际发布附件或GitHub页面渲染，不虚构截图/跑分/功能验收。
+- 用户dev.yaml、示例文档、debug产物保留，未push。DOC01的CC标签与worktree/分支保留供后续查看；未操作其他会话。
