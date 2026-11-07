@@ -72,18 +72,30 @@ type varChip struct {
 // as "{{name}} = value" chips with a faint source tag, undefined ones as red
 // chips that open the environment editor. Sending is still guarded separately
 // by trySend; this bar is display and navigation only.
-func (a *App) urlVarLine(c *ui.Context, t *ui.Theme, tab *Tab) {
+//
+// The resolved preview shares this row instead of taking its own line, which
+// saves one row of height. The row never wraps: the labels keep their width,
+// the chips shrink, and the preview text is single-line and grows into
+// whatever room is left, so many chips and a long URL in a narrow window
+// ellipsize instead of running past the window edge.
+func (a *App) urlVarLine(c *ui.Context, t *ui.Theme, tab *Tab, resolvedURL string) {
 	chips := a.varChipsFor(tab)
 	if len(chips) == 0 {
 		return
 	}
 	p := uikit.PaletteFor(t)
 	m := a.msg()
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().FillWidth().Children(func() {
-		ui.Text(c, m.VarLabel).FontSize(11).FontWeight(600).TextColor(p.Muted).SingleLine()
+	bm := a.bodyMsg()
+	ui.Row(c).Gap(6).AlignItems(ui.Center).FillWidth().Children(func() {
+		ui.Text(c, m.VarLabel).FontSize(11).FontWeight(600).TextColor(p.Muted).SingleLine().Shrink(0)
 		for _, chip := range chips {
 			a.drawVarChip(c, p, m, chip)
 		}
+		if resolvedURL == "" {
+			return
+		}
+		ui.Text(c, bm.ResolvedURLPreviewLabel+":").FontSize(11).FontWeight(600).TextColor(p.Muted).SingleLine().Shrink(0)
+		ui.Text(c, resolvedURL).Font("monospace").FontSize(11).TextColor(p.Muted).SingleLine().Grow(1)
 	})
 }
 
