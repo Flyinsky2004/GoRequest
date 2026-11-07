@@ -283,8 +283,16 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 	ui.Column(c).Gap(4).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			a.saveControl(c, p, tab)
-			grp := ui.Row(c).Grow(1).Height(40).Radius(10).BorderWidth(1).BorderColor(p.Hairline).
-				Background(p.BG).AlignItems(ui.Center).Clip()
+			// The group owns the single border, colored by the last send's
+			// outcome. MyGo's TextInput paints its own border with the theme
+			// Accent (a red-orange) whenever it has focus, so after a send the
+			// URL field looked permanently red even after a success. The
+			// look-less base input below has no border of its own; the group
+			// supplies the status color and a separate focus ring.
+			grp := ui.Row(c).Grow(1).Height(40).Radius(10).BorderWidth(1).
+				BorderColor(urlStatusBorderColor(urlSendStateOf(tab), p)).
+				Background(p.BG).AlignItems(ui.Center).Clip().Label("request URL group")
+			var urlInput ui.Element
 			grp.Children(func() {
 				a.b03MethodPicker(c, p, tab)
 				// R4: the old 22-high Hairline (7% alpha) was nearly invisible
@@ -294,18 +302,39 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 				// adding a color token.
 				ui.Box(c).Width(1).Height(40).Background(methodURLDividerColor(p)).
 					Label("method separator")
-				inp := ui.TextInput(c, &tab.URL).Grow(1).Font("monospace").Label("request URL")
-				inp.OnShortcut(0, ui.KeyEnter, func() { a.trySend(tab) })
-				if inp.Changed() {
-					tab.Dirty = true
-				}
-				if tab.focusURL {
-					inp.Focus()
-					tab.focusURL = false
-				}
+				// Keep the URL's existing Sidebar surface and padding, but draw
+				// them on a plain row instead of a TextInput, whose border would
+				// otherwise turn accent-colored on focus.
+				urlBox := ui.Row(c).Grow(1).Padding(6, 10).AlignItems(ui.Center).
+					Radius(8).Background(p.Sidebar)
+				urlBox.Children(func() {
+					urlInput = ui.TextInputBase(c, &tab.URL).Grow(1).Font("monospace").Label("request URL")
+					urlInput.OnShortcut(0, ui.KeyEnter, func() { a.trySend(tab) })
+					if urlInput.Changed() {
+						tab.Dirty = true
+					}
+					if tab.focusURL {
+						urlInput.Focus()
+						tab.focusURL = false
+					}
+				})
 				if b := uikit.IconButton(c, p, uikit.IconCopy, "Copy URL"); b.Clicked() {
 					c.WriteClipboard(tab.URL)
 					a.status = m.Copied
+				}
+			})
+			// Focus stays visible independently of the status color. The ring
+			// uses the palette's neutral Muted step rather than the theme's
+			// accent focus color: the accent is the same red-orange that caused
+			// the bug, and a red halo around a successful (green) field would
+			// still read as an error.
+			grp.DrawOver(func(painter *ui.Painter, r ui.Rect) {
+				if urlInput.Focused() {
+					const ring = float32(2)
+					painter.Stroke(ui.Rect{
+						X: r.X - ring - 1, Y: r.Y - ring - 1,
+						W: r.W + 2*ring + 2, H: r.H + 2*ring + 2,
+					}, p.Muted, 12, ring)
 				}
 			})
 			// R2: the timeout entry is a compact badge in the URL row; the old
