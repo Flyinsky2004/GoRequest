@@ -24,17 +24,17 @@ import (
 // keys are provided in docs/task-results/B04-integration.patch and B04.md.
 type networkMessages struct {
 	// Toolbar & Section tabs
-	CookiesSection    string
-	NetworkSection    string
-	TreeMode          string
-	CookieJarBtnFmt   string // %d
-	NetworkBtn        string
-	OpenCookieJarBtn  string
-	SaveBinaryBtn     string
-	CopyJSONPathBtn   string
-	CopyValueBtn      string
-	ExpandAllBtn      string
-	CollapseAllBtn    string
+	CookiesSection   string
+	NetworkSection   string
+	TreeMode         string
+	CookieJarBtnFmt  string // %d
+	NetworkBtn       string
+	OpenCookieJarBtn string
+	SaveBinaryBtn    string
+	CopyJSONPathBtn  string
+	CopyValueBtn     string
+	ExpandAllBtn     string
+	CollapseAllBtn   string
 
 	// Status bar & Size / Compression
 	TransferVsBodyFmt string // %s (transfer), %s (body), %s (encoding)
@@ -67,79 +67,98 @@ type networkMessages struct {
 	HideSecret              string
 
 	// Network Settings Modal & Request Settings
-	NetworkModalTitle       string
-	StageTimeoutsHeader     string
-	DialTimeoutLabel        string
-	TLSTimeoutLabel         string
-	TTFBTimeoutLabel        string
-	TotalTimeoutLabel       string
-	RedirectHeader          string
-	RedirectModeLabel       string
-	RedirectFollowOpt       string
-	RedirectNoneOpt         string
-	RedirectSameOriginOpt   string
-	MaxRedirectsLabel       string
-	SendJarCookiesLabel     string
-	ProxyHeader             string
-	ProxyModeLabel          string
-	ProxyURLPlaceholder     string
-	NoProxyPlaceholder      string
-	ProxyUserPlaceholder    string
-	ProxyPassPlaceholder    string
-	ProxySecretPlaceholder  string
-	TLSHeader               string
-	UseSystemCALabel        string
-	CustomCASlotLabel       string
-	ClientCertSlotLabel     string
-	ClientKeySlotLabel      string
-	LocalPathPlaceholder    string
-	SNIServerNameLabel      string
-	MTLSKeyLocalOnlyNote    string
-	TargetPolicyHeader      string
-	ProdActionLabel         string
-	DeniedHostsLabel        string
-	AllowedHostsLabel       string
-	EnforceTLSVerifyLabel   string
-	RequireHTTPSCredsLabel  string
-	SaveNetworkSettingsBtn  string
-	NetworkSettingsSaved    string
+	NetworkModalTitle   string
+	StageTimeoutsHeader string
+	DialTimeoutLabel    string
+	TLSTimeoutLabel     string
+	TTFBTimeoutLabel    string
+	TotalTimeoutLabel   string
+
+	// FIX08: request-timeout discoverability (bilingual; see timeout_ui.go).
+	RequestTimeoutHeader      string
+	RequestTimeoutScopeHint   string
+	RequestTimeoutPlaceholder string
+	RequestTimeoutUnitHint    string
+	TimeoutEntryHint          string
+	TimeoutQuickEntry         string
+	TimeoutQuickEntryTip      string
+	TimeoutQuickEntryInvalid  string
+	TimeoutEffectiveFmt       string // %s (effective duration), %s (source)
+	TimeoutSourceRequest      string
+	TimeoutSourceDefault      string
+	TimeoutSourceDeviceTotal  string
+	TimeoutNoTabHint          string
+	TimeoutInvalidFmt         string // %s (parse error)
+	TimeoutNonPositiveFmt     string
+	StageTimeoutsNote         string
+	NetworkDraftsInvalidFmt   string // %s (validation error)
+	RedirectHeader            string
+	RedirectModeLabel         string
+	RedirectFollowOpt         string
+	RedirectNoneOpt           string
+	RedirectSameOriginOpt     string
+	MaxRedirectsLabel         string
+	SendJarCookiesLabel       string
+	ProxyHeader               string
+	ProxyModeLabel            string
+	ProxyURLPlaceholder       string
+	NoProxyPlaceholder        string
+	ProxyUserPlaceholder      string
+	ProxyPassPlaceholder      string
+	ProxySecretPlaceholder    string
+	TLSHeader                 string
+	UseSystemCALabel          string
+	CustomCASlotLabel         string
+	ClientCertSlotLabel       string
+	ClientKeySlotLabel        string
+	LocalPathPlaceholder      string
+	SNIServerNameLabel        string
+	MTLSKeyLocalOnlyNote      string
+	TargetPolicyHeader        string
+	ProdActionLabel           string
+	DeniedHostsLabel          string
+	AllowedHostsLabel         string
+	EnforceTLSVerifyLabel     string
+	RequireHTTPSCredsLabel    string
+	SaveNetworkSettingsBtn    string
+	NetworkSettingsSaved      string
 
 	// Response Network Trace Tab
-	TraceSummaryHeader      string
-	TraceTransferSize       string
-	TraceDecompressedSize   string
-	TraceEncoding           string
-	TraceRemoteAddr         string
-	TraceConnReused         string
-	TraceProxyUsed          string
-	TraceStageDNS           string
-	TraceStageConnect       string
-	TraceStageTLS           string
-	TraceStageWrite         string
-	TraceStageTTFB          string
-	TraceStageDownload      string
-	TraceTLSHeader          string
-	TraceRedirectsHeader    string
-	TraceNoRedirects        string
-	TraceStrippedBadge      string
-	TraceCrossOriginBadge   string
-	TraceNotObserved        string
-	YesLabel                string
-	NoLabel                 string
+	TraceSummaryHeader    string
+	TraceTransferSize     string
+	TraceDecompressedSize string
+	TraceEncoding         string
+	TraceRemoteAddr       string
+	TraceConnReused       string
+	TraceProxyUsed        string
+	TraceStageDNS         string
+	TraceStageConnect     string
+	TraceStageTLS         string
+	TraceStageWrite       string
+	TraceStageTTFB        string
+	TraceStageDownload    string
+	TraceTLSHeader        string
+	TraceRedirectsHeader  string
+	TraceNoRedirects      string
+	TraceStrippedBadge    string
+	TraceCrossOriginBadge string
+	TraceNotObserved      string
+	YesLabel              string
+	NoLabel               string
 }
 
 var networkMessagesZh = networkMessages{
-	CookiesSection:    "Cookie",
-	NetworkSection:    "网络",
-	TreeMode:          "树形",
-	CookieJarBtnFmt:   "Cookie (%d)",
-	NetworkBtn:        "网络与证书…",
-	OpenCookieJarBtn:  "管理项目 Cookie 罐…",
-	SaveBinaryBtn:     "保存原始二进制文件…",
-	CopyJSONPathBtn:   "复制路径",
-	CopyValueBtn:      "复制值",
-	ExpandAllBtn:      "全部展开",
-	CollapseAllBtn:    "全部折叠",
+	CookiesSection:   "Cookie",
+	NetworkSection:   "网络",
+	TreeMode:         "树形",
+	CookieJarBtnFmt:  "Cookie (%d)",
+	NetworkBtn:       "网络与证书…",
+	OpenCookieJarBtn: "管理项目 Cookie 罐…",
+	SaveBinaryBtn:    "保存原始二进制文件…",
+	CopyJSONPathBtn:  "复制路径",
+	CopyValueBtn:     "复制值",
+	ExpandAllBtn:     "全部展开",
+	CollapseAllBtn:   "全部折叠",
 
 	TransferVsBodyFmt: "%s 传输 · %s 解压 (%s)",
 	RedirectsBadgeFmt: "%d 次重定向",
@@ -168,78 +187,96 @@ var networkMessagesZh = networkMessages{
 	RevealSecret:            "显示",
 	HideSecret:              "隐藏",
 
-	NetworkModalTitle:       "网络传输、代理、TLS/mTLS 与目标策略",
-	StageTimeoutsHeader:     "阶段超时（均可随时取消）",
-	DialTimeoutLabel:        "连接/握手拨号超时 (Dial)",
-	TLSTimeoutLabel:         "TLS 握手超时",
-	TTFBTimeoutLabel:        "首字节响应头超时 (TTFB)",
-	TotalTimeoutLabel:       "请求总超时",
-	RedirectHeader:          "重定向与会话 Cookie 策略",
-	RedirectModeLabel:       "重定向策略",
-	RedirectFollowOpt:       "跟随重定向 (跨源自动剥离凭据)",
-	RedirectNoneOpt:         "不跟随 (直接返回 3xx)",
-	RedirectSameOriginOpt:   "仅同源重定向",
-	MaxRedirectsLabel:       "最大重定向跳数",
-	SendJarCookiesLabel:     "启用项目隔离 Cookie 罐自动收发",
-	ProxyHeader:             "HTTP / SOCKS5 代理（本机凭据）",
-	ProxyModeLabel:          "代理模式",
-	ProxyURLPlaceholder:     "代理地址 (如 http://127.0.0.1:8080 或 socks5://127.0.0.1:1080)",
-	NoProxyPlaceholder:      "免代理列表 (如 localhost, 127.0.0.1, .internal)",
-	ProxyUserPlaceholder:    "代理用户名 (本机)",
-	ProxyPassPlaceholder:    "会话代理密码 (不落盘)",
-	ProxySecretPlaceholder:  "或绑定钥匙串秘密名 (如 proxy_pass)",
-	TLSHeader:               "TLS 证书校验、自定义 CA 与 mTLS（本机文件映射）",
-	UseSystemCALabel:        "信任操作系统根证书池 (System CA)",
-	CustomCASlotLabel:       "自定义 CA 槽位 (local:<slot>)",
-	ClientCertSlotLabel:     "mTLS 客户端证书槽位 (local:<slot>)",
-	ClientKeySlotLabel:      "mTLS 客户端私钥槽位 (仅限本机 local:<slot>)",
-	LocalPathPlaceholder:    "本机绝对路径 (仅存于当前设备，不写入项目)",
-	SNIServerNameLabel:      "TLS SNI ServerName 覆盖",
-	MTLSKeyLocalOnlyNote:    "安全边界：mTLS 私钥与代理密码仅引用本机配置，禁止从共享项目文件加载私钥，默认严格启用 TLS 校验。",
-	TargetPolicyHeader:      "本机目标与生产环境防护策略 (B05 策略端口)",
-	ProdActionLabel:         "生产目标动作",
-	DeniedHostsLabel        : "禁止访问域名列表 (逗号分隔，支持 *.example.com)",
-	AllowedHostsLabel:       "允许访问域名白名单 (留空为不限)",
-	EnforceTLSVerifyLabel:   "强制 TLS 证书校验（禁止请求跳过证书验证）",
-	RequireHTTPSCredsLabel:  "非回环地址携带凭据时要求 HTTPS",
-	SaveNetworkSettingsBtn:  "应用并保存本机网络设置",
-	NetworkSettingsSaved:    "已保存本机网络与证书映射设置",
+	NetworkModalTitle:   "网络传输、代理、TLS/mTLS 与目标策略",
+	StageTimeoutsHeader: "阶段超时（均可随时取消）",
+	DialTimeoutLabel:    "连接/握手拨号超时 (Dial)",
+	TLSTimeoutLabel:     "TLS 握手超时",
+	TTFBTimeoutLabel:    "首字节响应头超时 (TTFB)",
+	TotalTimeoutLabel:   "请求总超时",
 
-	TraceSummaryHeader:      "传输大小与连接摘要",
-	TraceTransferSize:       "网络传输字节 (Wire)",
-	TraceDecompressedSize:   "解压后 Body 大小",
-	TraceEncoding:           "内容编码 (Content-Encoding)",
-	TraceRemoteAddr:         "远端地址",
-	TraceConnReused:         "连接复用",
-	TraceProxyUsed:          "实际使用代理",
-	TraceStageDNS:           "DNS 解析",
-	TraceStageConnect:       "TCP 建连",
-	TraceStageTLS:           "TLS 握手",
-	TraceStageWrite:         "请求发送",
-	TraceStageTTFB:          "首字节等待 (TTFB)",
-	TraceStageDownload:      "响应接收",
-	TraceTLSHeader:          "TLS 与证书详情",
-	TraceRedirectsHeader:    "重定向逐跳审计记录",
-	TraceNoRedirects:        "本次请求未发生重定向。",
-	TraceStrippedBadge:      "已剥离跨源/降级敏感凭据",
-	TraceCrossOriginBadge:   "跨源跳转",
-	TraceNotObserved:        "未触发/复用",
-	YesLabel:                "是",
-	NoLabel:                 "否",
+	RequestTimeoutHeader:      "请求超时（本机保存，随请求文件共享）",
+	RequestTimeoutScopeHint:   "这是本次请求从发起到收到完整响应的总时限；留空或无效时由下方“当前生效”说明列出实际值与来源。",
+	RequestTimeoutPlaceholder: "例如 10s、2.5s、500ms、1m30s",
+	RequestTimeoutUnitHint:    "单位用 Go 时长写法：ns、us（µs）、ms、s、m、h，可组合，例如 1m30s；不能用纯数字或 10 秒。留空 = 继承默认 10s。",
+	TimeoutEntryHint:          "保存请求后此项写入项目里的该请求文件；下方“阶段超时”只保存在本机设备，不随项目共享。",
+	TimeoutQuickEntry:         "请求超时…",
+	TimeoutQuickEntryTip:      "跳到请求编辑区的「设置」标签页修改请求总超时（⌘S 保存）",
+	TimeoutQuickEntryInvalid:  "请求超时值无效，点此修正",
+	TimeoutEffectiveFmt:       "当前生效：%s（来源：%s）",
+	TimeoutSourceRequest:      "本请求设置",
+	TimeoutSourceDefault:      "内置默认（请求未设置）",
+	TimeoutSourceDeviceTotal:  "本机网络设置的总超时（优先于请求设置）",
+	TimeoutNoTabHint:          "从请求编辑区打开此面板即可设置该请求的总超时。",
+	TimeoutInvalidFmt:         "输入无效：%s；请改成如 10s、500ms。修正并保存前不会按新值发送。",
+	TimeoutNonPositiveFmt:     "超时必须为正数；0 或负数会被忽略并回退到内置默认 10s。",
+	StageTimeoutsNote:         "以下拨号 / TLS / 首字节阶段时限只保存在本机设备配置（network.json），作用于这台机器上的全部请求，不写入项目请求文件；与上方的“请求总超时”互不相同。",
+	NetworkDraftsInvalidFmt:   "本机阶段超时未保存：%s。已保留上一份有效设置；请修正后重试。",
+	RedirectHeader:            "重定向与会话 Cookie 策略",
+	RedirectModeLabel:         "重定向策略",
+	RedirectFollowOpt:         "跟随重定向 (跨源自动剥离凭据)",
+	RedirectNoneOpt:           "不跟随 (直接返回 3xx)",
+	RedirectSameOriginOpt:     "仅同源重定向",
+	MaxRedirectsLabel:         "最大重定向跳数",
+	SendJarCookiesLabel:       "启用项目隔离 Cookie 罐自动收发",
+	ProxyHeader:               "HTTP / SOCKS5 代理（本机凭据）",
+	ProxyModeLabel:            "代理模式",
+	ProxyURLPlaceholder:       "代理地址 (如 http://127.0.0.1:8080 或 socks5://127.0.0.1:1080)",
+	NoProxyPlaceholder:        "免代理列表 (如 localhost, 127.0.0.1, .internal)",
+	ProxyUserPlaceholder:      "代理用户名 (本机)",
+	ProxyPassPlaceholder:      "会话代理密码 (不落盘)",
+	ProxySecretPlaceholder:    "或绑定钥匙串秘密名 (如 proxy_pass)",
+	TLSHeader:                 "TLS 证书校验、自定义 CA 与 mTLS（本机文件映射）",
+	UseSystemCALabel:          "信任操作系统根证书池 (System CA)",
+	CustomCASlotLabel:         "自定义 CA 槽位 (local:<slot>)",
+	ClientCertSlotLabel:       "mTLS 客户端证书槽位 (local:<slot>)",
+	ClientKeySlotLabel:        "mTLS 客户端私钥槽位 (仅限本机 local:<slot>)",
+	LocalPathPlaceholder:      "本机绝对路径 (仅存于当前设备，不写入项目)",
+	SNIServerNameLabel:        "TLS SNI ServerName 覆盖",
+	MTLSKeyLocalOnlyNote:      "安全边界：mTLS 私钥与代理密码仅引用本机配置，禁止从共享项目文件加载私钥，默认严格启用 TLS 校验。",
+	TargetPolicyHeader:        "本机目标与生产环境防护策略 (B05 策略端口)",
+	ProdActionLabel:           "生产目标动作",
+	DeniedHostsLabel:          "禁止访问域名列表 (逗号分隔，支持 *.example.com)",
+	AllowedHostsLabel:         "允许访问域名白名单 (留空为不限)",
+	EnforceTLSVerifyLabel:     "强制 TLS 证书校验（禁止请求跳过证书验证）",
+	RequireHTTPSCredsLabel:    "非回环地址携带凭据时要求 HTTPS",
+	SaveNetworkSettingsBtn:    "应用并保存本机网络设置",
+	NetworkSettingsSaved:      "已保存本机网络与证书映射设置",
+
+	TraceSummaryHeader:    "传输大小与连接摘要",
+	TraceTransferSize:     "网络传输字节 (Wire)",
+	TraceDecompressedSize: "解压后 Body 大小",
+	TraceEncoding:         "内容编码 (Content-Encoding)",
+	TraceRemoteAddr:       "远端地址",
+	TraceConnReused:       "连接复用",
+	TraceProxyUsed:        "实际使用代理",
+	TraceStageDNS:         "DNS 解析",
+	TraceStageConnect:     "TCP 建连",
+	TraceStageTLS:         "TLS 握手",
+	TraceStageWrite:       "请求发送",
+	TraceStageTTFB:        "首字节等待 (TTFB)",
+	TraceStageDownload:    "响应接收",
+	TraceTLSHeader:        "TLS 与证书详情",
+	TraceRedirectsHeader:  "重定向逐跳审计记录",
+	TraceNoRedirects:      "本次请求未发生重定向。",
+	TraceStrippedBadge:    "已剥离跨源/降级敏感凭据",
+	TraceCrossOriginBadge: "跨源跳转",
+	TraceNotObserved:      "未触发/复用",
+	YesLabel:              "是",
+	NoLabel:               "否",
 }
 
 var networkMessagesEn = networkMessages{
-	CookiesSection:    "Cookies",
-	NetworkSection:    "Network",
-	TreeMode:          "Tree",
-	CookieJarBtnFmt:   "Cookies (%d)",
-	NetworkBtn:        "Network & TLS…",
-	OpenCookieJarBtn:  "Manage Project Cookie Jar…",
-	SaveBinaryBtn:     "Save Raw Binary…",
-	CopyJSONPathBtn:   "Copy Path",
-	CopyValueBtn:      "Copy Value",
-	ExpandAllBtn:      "Expand All",
-	CollapseAllBtn:    "Collapse All",
+	CookiesSection:   "Cookies",
+	NetworkSection:   "Network",
+	TreeMode:         "Tree",
+	CookieJarBtnFmt:  "Cookies (%d)",
+	NetworkBtn:       "Network & TLS…",
+	OpenCookieJarBtn: "Manage Project Cookie Jar…",
+	SaveBinaryBtn:    "Save Raw Binary…",
+	CopyJSONPathBtn:  "Copy Path",
+	CopyValueBtn:     "Copy Value",
+	ExpandAllBtn:     "Expand All",
+	CollapseAllBtn:   "Collapse All",
 
 	TransferVsBodyFmt: "%s wire · %s body (%s)",
 	RedirectsBadgeFmt: "%d redirects",
@@ -268,64 +305,82 @@ var networkMessagesEn = networkMessages{
 	RevealSecret:            "Show",
 	HideSecret:              "Hide",
 
-	NetworkModalTitle:       "Network Transport, Proxy, TLS/mTLS & Target Policy",
-	StageTimeoutsHeader:     "Stage Timeouts (Cancellable)",
-	DialTimeoutLabel:        "Connect / Dial Timeout",
-	TLSTimeoutLabel:         "TLS Handshake Timeout",
-	TTFBTimeoutLabel:        "Response Header Timeout (TTFB)",
-	TotalTimeoutLabel:       "Overall Request Timeout",
-	RedirectHeader:          "Redirects & Cookie Jar Policy",
-	RedirectModeLabel:       "Redirect Policy",
-	RedirectFollowOpt:       "Follow Redirects (strip cross-origin credentials)",
-	RedirectNoneOpt:         "Do Not Follow (return 3xx directly)",
-	RedirectSameOriginOpt:   "Same-Origin Redirects Only",
-	MaxRedirectsLabel:       "Max Redirect Hops",
-	SendJarCookiesLabel:     "Enable project-isolated Cookie Jar for requests",
-	ProxyHeader:             "HTTP / SOCKS5 Proxy (Machine-Local Credentials)",
-	ProxyModeLabel:          "Proxy Mode",
-	ProxyURLPlaceholder:     "Proxy URL (e.g. http://127.0.0.1:8080 or socks5://127.0.0.1:1080)",
-	NoProxyPlaceholder:      "No-Proxy bypass list (e.g. localhost, 127.0.0.1, .internal)",
-	ProxyUserPlaceholder:    "Proxy username (local)",
-	ProxyPassPlaceholder:    "Session proxy password (not written to disk)",
-	ProxySecretPlaceholder:  "Or Keychain secret name (e.g. proxy_pass)",
-	TLSHeader:               "TLS Verification, Custom CA & mTLS (Local Slot Mappings)",
-	UseSystemCALabel:        "Trust OS System Root CA Pool",
-	CustomCASlotLabel:       "Custom CA Slot (local:<slot>)",
-	ClientCertSlotLabel:     "mTLS Client Cert Slot (local:<slot>)",
-	ClientKeySlotLabel:      "mTLS Client Key Slot (local:<slot> only)",
-	LocalPathPlaceholder:    "Absolute local file path on this machine",
-	SNIServerNameLabel:      "TLS SNI ServerName Override",
-	MTLSKeyLocalOnlyNote:    "Security boundary: mTLS private keys and proxy credentials remain strictly machine-local. TLS verification is never skipped by default.",
-	TargetPolicyHeader:      "Device Target & Production Guardrails (B05 Policy Port)",
-	ProdActionLabel:         "Production Target Action",
-	DeniedHostsLabel:        "Denied Hosts (comma-separated, supports *.example.com)",
-	AllowedHostsLabel:       "Allowed Hosts (leave blank for all non-denied)",
-	EnforceTLSVerifyLabel:   "Enforce TLS Certificate Verification (forbid skipping TLS verify)",
-	RequireHTTPSCredsLabel:  "Require HTTPS when sending credentials to non-loopback hosts",
-	SaveNetworkSettingsBtn:  "Apply & Save Device Network Settings",
-	NetworkSettingsSaved:    "Saved device network & certificate bindings",
+	NetworkModalTitle:   "Network Transport, Proxy, TLS/mTLS & Target Policy",
+	StageTimeoutsHeader: "Stage Timeouts (Cancellable)",
+	DialTimeoutLabel:    "Connect / Dial Timeout",
+	TLSTimeoutLabel:     "TLS Handshake Timeout",
+	TTFBTimeoutLabel:    "Response Header Timeout (TTFB)",
+	TotalTimeoutLabel:   "Overall Request Timeout",
 
-	TraceSummaryHeader:      "Transfer Size & Connection Summary",
-	TraceTransferSize:       "Wire Transfer Size",
-	TraceDecompressedSize:   "Decompressed Body Size",
-	TraceEncoding:           "Content-Encoding",
-	TraceRemoteAddr:         "Remote Address",
-	TraceConnReused:         "Connection Reused",
-	TraceProxyUsed:          "Proxy Used",
-	TraceStageDNS:           "DNS Lookup",
-	TraceStageConnect:       "TCP Connect",
-	TraceStageTLS:           "TLS Handshake",
-	TraceStageWrite:         "Request Write",
-	TraceStageTTFB:          "Waiting (TTFB)",
-	TraceStageDownload:      "Content Download",
-	TraceTLSHeader:          "TLS & Certificate Security",
-	TraceRedirectsHeader:    "Redirect Hop Audit Trail",
-	TraceNoRedirects:        "No redirects occurred during this request.",
-	TraceStrippedBadge:      "Credentials Stripped",
-	TraceCrossOriginBadge:   "Cross-Origin",
-	TraceNotObserved:        "reused / n/a",
-	YesLabel:                "Yes",
-	NoLabel:                 "No",
+	RequestTimeoutHeader:      "Request Timeout (saved with this request, shared in the project)",
+	RequestTimeoutScopeHint:   "Total deadline from sending this request until the full response is read. Leave blank or invalid — the effective value and its source are shown below.",
+	RequestTimeoutPlaceholder: "e.g. 10s, 2.5s, 500ms, 1m30s",
+	RequestTimeoutUnitHint:    "Use Go duration units: ns, us, ms, s, m, h; combine them, e.g. 1m30s. Bare numbers or '10 seconds' are not valid. Blank = inherit the 10s default.",
+	TimeoutEntryHint:          "Saving the request writes this value to that request's project file; the Stage Timeouts below stay machine-local and are never shared in the project.",
+	TimeoutQuickEntry:         "Request Timeout…",
+	TimeoutQuickEntryTip:      "Open the request editor's Settings tab to edit the overall timeout (save with Cmd+S)",
+	TimeoutQuickEntryInvalid:  "Request timeout value is invalid — click to fix",
+	TimeoutEffectiveFmt:       "In effect now: %s (source: %s)",
+	TimeoutSourceRequest:      "this request",
+	TimeoutSourceDefault:      "built-in default (request has none)",
+	TimeoutSourceDeviceTotal:  "device network overall timeout (overrides the request)",
+	TimeoutNoTabHint:          "Open this panel from a request editor to set that request's overall timeout.",
+	TimeoutInvalidFmt:         "Invalid value: %s; use e.g. 10s or 500ms. The new value is not used until you fix and save it.",
+	TimeoutNonPositiveFmt:     "Timeout must be positive; 0 or a negative value is ignored and falls back to the 10s default.",
+	StageTimeoutsNote:         "These Dial / TLS / first-byte phase limits are stored only in this machine's device config (network.json). They apply to every request on this device and are never written into project request files; they are separate from the Request Timeout above.",
+	NetworkDraftsInvalidFmt:   "Device stage timeouts not saved: %s. The last valid settings remain in effect; fix the value and retry.",
+	RedirectHeader:            "Redirects & Cookie Jar Policy",
+	RedirectModeLabel:         "Redirect Policy",
+	RedirectFollowOpt:         "Follow Redirects (strip cross-origin credentials)",
+	RedirectNoneOpt:           "Do Not Follow (return 3xx directly)",
+	RedirectSameOriginOpt:     "Same-Origin Redirects Only",
+	MaxRedirectsLabel:         "Max Redirect Hops",
+	SendJarCookiesLabel:       "Enable project-isolated Cookie Jar for requests",
+	ProxyHeader:               "HTTP / SOCKS5 Proxy (Machine-Local Credentials)",
+	ProxyModeLabel:            "Proxy Mode",
+	ProxyURLPlaceholder:       "Proxy URL (e.g. http://127.0.0.1:8080 or socks5://127.0.0.1:1080)",
+	NoProxyPlaceholder:        "No-Proxy bypass list (e.g. localhost, 127.0.0.1, .internal)",
+	ProxyUserPlaceholder:      "Proxy username (local)",
+	ProxyPassPlaceholder:      "Session proxy password (not written to disk)",
+	ProxySecretPlaceholder:    "Or Keychain secret name (e.g. proxy_pass)",
+	TLSHeader:                 "TLS Verification, Custom CA & mTLS (Local Slot Mappings)",
+	UseSystemCALabel:          "Trust OS System Root CA Pool",
+	CustomCASlotLabel:         "Custom CA Slot (local:<slot>)",
+	ClientCertSlotLabel:       "mTLS Client Cert Slot (local:<slot>)",
+	ClientKeySlotLabel:        "mTLS Client Key Slot (local:<slot> only)",
+	LocalPathPlaceholder:      "Absolute local file path on this machine",
+	SNIServerNameLabel:        "TLS SNI ServerName Override",
+	MTLSKeyLocalOnlyNote:      "Security boundary: mTLS private keys and proxy credentials remain strictly machine-local. TLS verification is never skipped by default.",
+	TargetPolicyHeader:        "Device Target & Production Guardrails (B05 Policy Port)",
+	ProdActionLabel:           "Production Target Action",
+	DeniedHostsLabel:          "Denied Hosts (comma-separated, supports *.example.com)",
+	AllowedHostsLabel:         "Allowed Hosts (leave blank for all non-denied)",
+	EnforceTLSVerifyLabel:     "Enforce TLS Certificate Verification (forbid skipping TLS verify)",
+	RequireHTTPSCredsLabel:    "Require HTTPS when sending credentials to non-loopback hosts",
+	SaveNetworkSettingsBtn:    "Apply & Save Device Network Settings",
+	NetworkSettingsSaved:      "Saved device network & certificate bindings",
+
+	TraceSummaryHeader:    "Transfer Size & Connection Summary",
+	TraceTransferSize:     "Wire Transfer Size",
+	TraceDecompressedSize: "Decompressed Body Size",
+	TraceEncoding:         "Content-Encoding",
+	TraceRemoteAddr:       "Remote Address",
+	TraceConnReused:       "Connection Reused",
+	TraceProxyUsed:        "Proxy Used",
+	TraceStageDNS:         "DNS Lookup",
+	TraceStageConnect:     "TCP Connect",
+	TraceStageTLS:         "TLS Handshake",
+	TraceStageWrite:       "Request Write",
+	TraceStageTTFB:        "Waiting (TTFB)",
+	TraceStageDownload:    "Content Download",
+	TraceTLSHeader:        "TLS & Certificate Security",
+	TraceRedirectsHeader:  "Redirect Hop Audit Trail",
+	TraceNoRedirects:      "No redirects occurred during this request.",
+	TraceStrippedBadge:    "Credentials Stripped",
+	TraceCrossOriginBadge: "Cross-Origin",
+	TraceNotObserved:      "reused / n/a",
+	YesLabel:              "Yes",
+	NoLabel:               "No",
 }
 
 func (a *App) networkMsg() *networkMessages {
@@ -374,6 +429,10 @@ type projectNetworkState struct {
 	enforceTLSVerify  bool
 	requireHTTPSCreds bool
 	netErrMsg         string
+	// timeoutErr is the inline FIX08 feedback for an invalid stage-timeout
+	// draft. It is kept separate from netErrMsg (the modal-level save error) so
+	// the message stays next to the field that caused it.
+	timeoutErr string
 }
 
 // tabNetworkState holds per-tab response JSON tree state and optional per-tab
@@ -390,8 +449,8 @@ type tabNetworkState struct {
 }
 
 var (
-	projNetMu     sync.Mutex
-	projNetByWeak = map[weak.Pointer[projectState]]*projectNetworkState{}
+	projNetMu       sync.Mutex
+	projNetByWeak   = map[weak.Pointer[projectState]]*projectNetworkState{}
 	fallbackProjNet *projectNetworkState
 
 	tabNetMu     sync.Mutex
@@ -438,32 +497,32 @@ func initProjectNetworkState(scopeKey, storePath string) *projectNetworkState {
 	ns := platform.NewNetworkStore(storePath)
 	dev := ns.DeviceSettings()
 	st := &projectNetworkState{
-		scopeKey:          scopeKey,
-		cookieJar:         core.NewCookieJar(scopeKey),
-		netStore:          ns,
-		cookieUI:          newCookieModalState(),
-		dialTimeoutDraft:  dev.Timeouts.DialTimeout.String(),
-		tlsTimeoutDraft:   dev.Timeouts.TLSHandshakeTimeout.String(),
-		ttfbTimeoutDraft:  dev.Timeouts.ResponseHeaderTimeout.String(),
-		redirectModeIdx:   redirectModeToIdx(dev.Redirect.EffectiveMode()),
-		maxRedirectsDraft: strconv.Itoa(dev.Redirect.EffectiveMaxHops()),
-		sendCookies:       true,
-		proxyModeIdx:      proxyModeToIdx(dev.Proxy.EffectiveMode()),
-		proxyURLDraft:     dev.Proxy.URL,
-		noProxyDraft:      dev.Proxy.NoProxy,
-		proxyUserDraft:    dev.Proxy.Username,
-		proxyPassDraft:    dev.Proxy.Password,
-		proxySecretDraft:  dev.Proxy.PasswordSecret,
-		useSystemCA:       dev.TLS.SystemCAEnabled(),
-		customCASlot:      strings.TrimPrefix(dev.TLS.CustomCARef, core.LocalFileRefPrefix),
-		clientCertSlot:    strings.TrimPrefix(dev.TLS.ClientCertRef, core.LocalFileRefPrefix),
-		clientKeySlot:     strings.TrimPrefix(dev.TLS.ClientKeyRef, core.LocalFileRefPrefix),
+		scopeKey:           scopeKey,
+		cookieJar:          core.NewCookieJar(scopeKey),
+		netStore:           ns,
+		cookieUI:           newCookieModalState(),
+		dialTimeoutDraft:   dev.Timeouts.DialTimeout.String(),
+		tlsTimeoutDraft:    dev.Timeouts.TLSHandshakeTimeout.String(),
+		ttfbTimeoutDraft:   dev.Timeouts.ResponseHeaderTimeout.String(),
+		redirectModeIdx:    redirectModeToIdx(dev.Redirect.EffectiveMode()),
+		maxRedirectsDraft:  strconv.Itoa(dev.Redirect.EffectiveMaxHops()),
+		sendCookies:        true,
+		proxyModeIdx:       proxyModeToIdx(dev.Proxy.EffectiveMode()),
+		proxyURLDraft:      dev.Proxy.URL,
+		noProxyDraft:       dev.Proxy.NoProxy,
+		proxyUserDraft:     dev.Proxy.Username,
+		proxyPassDraft:     dev.Proxy.Password,
+		proxySecretDraft:   dev.Proxy.PasswordSecret,
+		useSystemCA:        dev.TLS.SystemCAEnabled(),
+		customCASlot:       strings.TrimPrefix(dev.TLS.CustomCARef, core.LocalFileRefPrefix),
+		clientCertSlot:     strings.TrimPrefix(dev.TLS.ClientCertRef, core.LocalFileRefPrefix),
+		clientKeySlot:      strings.TrimPrefix(dev.TLS.ClientKeyRef, core.LocalFileRefPrefix),
 		sniServerNameDraft: dev.TLS.ServerName,
-		prodActionIdx:     prodActionToIdx(dev.DevicePolicy.ProductionAction),
-		deniedHostsDraft:  strings.Join(dev.DevicePolicy.DeniedHosts, ", "),
-		allowedHostsDraft: strings.Join(dev.DevicePolicy.AllowedHosts, ", "),
-		enforceTLSVerify:  !dev.DevicePolicy.AllowInsecureTLS,
-		requireHTTPSCreds: !dev.DevicePolicy.AllowPlainHTTPWithCreds,
+		prodActionIdx:      prodActionToIdx(dev.DevicePolicy.ProductionAction),
+		deniedHostsDraft:   strings.Join(dev.DevicePolicy.DeniedHosts, ", "),
+		allowedHostsDraft:  strings.Join(dev.DevicePolicy.AllowedHosts, ", "),
+		enforceTLSVerify:   !dev.DevicePolicy.AllowInsecureTLS,
+		requireHTTPSCreds:  !dev.DevicePolicy.AllowPlainHTTPWithCreds,
 	}
 	if st.customCASlot == "" {
 		st.customCASlot = "corp_ca"
@@ -736,22 +795,22 @@ func (a *App) buildExecuteOptionsForTab(
 
 	localFiles := st.netStore.LocalFileProviderFor(st.scopeKey, a.localFilesFor(ps))
 	return core.ExecuteOptions{
-		Timeouts:        dev.Timeouts,
-		Redirect:        dev.Redirect,
-		Proxy:           dev.Proxy,
-		TLS:             dev.TLS,
-		CookieJar:       st.cookieJar,
-		DisableCookies:  !st.sendCookies,
-		TargetPolicy:    pol,
-		HasTargetPolicy: true,
-		EnvID:           envID,
-		AuthScheme:      auth,
-		Redactor:        red,
-		Interactive:     true,
-		Confirmed:       ts.policyConfirmed,
-		ProjectRoot:     projectRoot,
-		LocalFiles:      localFiles,
-		Secrets:         a.mgrSecrets(),
+		Timeouts:         dev.Timeouts,
+		Redirect:         dev.Redirect,
+		Proxy:            dev.Proxy,
+		TLS:              dev.TLS,
+		CookieJar:        st.cookieJar,
+		DisableCookies:   !st.sendCookies,
+		TargetPolicy:     pol,
+		HasTargetPolicy:  true,
+		EnvID:            envID,
+		AuthScheme:       auth,
+		Redactor:         red,
+		Interactive:      true,
+		Confirmed:        ts.policyConfirmed,
+		ProjectRoot:      projectRoot,
+		LocalFiles:       localFiles,
+		Secrets:          a.mgrSecrets(),
 		MaxResponseBytes: dev.MaxBodyBytes,
 	}
 }
@@ -791,6 +850,13 @@ func (a *App) openNetworkSettingsModal(ps *projectState) {
 		return
 	}
 	st.netErrMsg = ""
+	// Drafts persist across modal open/close, so recompute the inline FIX08
+	// feedback for whatever is currently in the fields instead of showing a
+	// stale error (or hiding a still-invalid draft).
+	st.timeoutErr = ""
+	if err := validateStageTimeoutDrafts(st, a.networkMsg()); err != nil {
+		st.timeoutErr = fmt.Sprintf(a.networkMsg().NetworkDraftsInvalidFmt, err)
+	}
 	st.netModalOpen = true
 }
 
@@ -817,13 +883,25 @@ func (a *App) networkSettingsModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).FillWidth().Children(func() {
 				if uikit.ActionCursor(ui.Button(c, m.Close)).Clicked() {
+					// Cancel: keep the user's drafts (valid or not) so they can
+					// fix them next time; device settings were never overridden
+					// by an invalid value, so the last valid limits stay live.
+					st.netErrMsg = ""
 					st.netModalOpen = false
 				}
 				if uikit.ActionCursor(ui.PrimaryButton(c, nm.SaveNetworkSettingsBtn)).Clicked() {
-					if err := st.applyNetworkDrafts(); err != nil {
-						st.netErrMsg = err.Error()
+					// FIX08: an invalid stage-timeout draft must not be
+					// silently ignored. Route its feedback to the field; keep
+					// the modal open so the user can correct or cancel.
+					if err := st.applyNetworkDraftsFromUI(nm); err != nil {
+						if st.timeoutErr == "" {
+							st.netErrMsg = err.Error()
+						} else {
+							st.netErrMsg = ""
+						}
 					} else {
 						st.netErrMsg = ""
+						st.timeoutErr = ""
 						st.netModalOpen = false
 						a.status = nm.NetworkSettingsSaved
 					}
@@ -832,6 +910,9 @@ func (a *App) networkSettingsModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 		})
 	})
 	if modal.Dismissed() {
+		// Dismissing is a cancel too: preserve the drafts and the last valid
+		// device settings; only clear the transient modal-level save message.
+		st.netErrMsg = ""
 		st.netModalOpen = false
 	}
 }
@@ -850,34 +931,16 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 	p := uikit.PaletteFor(t)
 
 	ui.Column(c).Gap(12).FillWidth().Padding(4, 2).Children(func() {
-		// 1. Stage Timeouts
-		ui.Column(c).Gap(6).Padding(8, 10).BorderWidth(1).BorderColor(p.Hairline).Radius(8).FillWidth().Children(func() {
-			ui.Text(c, nm.StageTimeoutsHeader).FontSize(12).FontWeight(600)
-			ui.Row(c).Gap(12).AlignItems(ui.Center).FillWidth().Children(func() {
-				if tab != nil {
-					ui.Text(c, nm.TotalTimeoutLabel).FontSize(12).TextColor(p.Muted)
-					if ui.TextInput(c, &tab.Timeout).Width(90).Font("monospace").Placeholder("10s").Changed() {
-						tab.Dirty = true
-					}
-				}
-				ui.Text(c, nm.DialTimeoutLabel).FontSize(12).TextColor(p.Muted)
-				if ui.TextInput(c, &st.dialTimeoutDraft).Width(90).Font("monospace").Placeholder("10s").Changed() {
-					_ = st.applyNetworkDrafts()
-				}
-			})
-			ui.Row(c).Gap(12).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Text(c, nm.TLSTimeoutLabel).FontSize(12).TextColor(p.Muted)
-				if ui.TextInput(c, &st.tlsTimeoutDraft).Width(90).Font("monospace").Placeholder("10s").Changed() {
-					_ = st.applyNetworkDrafts()
-				}
-				ui.Text(c, nm.TTFBTimeoutLabel).FontSize(12).TextColor(p.Muted)
-				if ui.TextInput(c, &st.ttfbTimeoutDraft).Width(90).Font("monospace").Placeholder("30s").Changed() {
-					_ = st.applyNetworkDrafts()
-				}
-			})
-		})
+		// 1. Request-level overall timeout (FIX08): a clearly named entry with
+		// units, examples, the effective value + its source, and inline error
+		// feedback. Rendered first so it is not buried under technical settings.
+		a.renderRequestTimeoutCard(c, t, tab, st, nm)
 
-		// 2. Redirect Policy & Cookie Jar
+		// 2. Device-local phase timeouts (FIX08): kept visually and semantically
+		// separate from the request-level timeout above.
+		a.renderStageTimeoutCard(c, t, st, nm)
+
+		// 3. Redirect Policy & Cookie Jar
 		ui.Column(c).Gap(6).Padding(8, 10).BorderWidth(1).BorderColor(p.Hairline).Radius(8).FillWidth().Children(func() {
 			ui.Text(c, nm.RedirectHeader).FontSize(12).FontWeight(600)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
@@ -901,7 +964,7 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 			})
 		})
 
-		// 3. Proxy Configuration (Direct / System / HTTP / SOCKS5)
+		// 4. Proxy Configuration (Direct / System / HTTP / SOCKS5)
 		ui.Column(c).Gap(6).Padding(8, 10).BorderWidth(1).BorderColor(p.Hairline).Radius(8).FillWidth().Children(func() {
 			ui.Text(c, nm.ProxyHeader).FontSize(12).FontWeight(600)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
@@ -935,7 +998,7 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 			}
 		})
 
-		// 4. TLS, Custom CA & mTLS Local Slot Bindings
+		// 5. TLS, Custom CA & mTLS Local Slot Bindings
 		ui.Column(c).Gap(6).Padding(8, 10).BorderWidth(1).BorderColor(p.Hairline).Radius(8).FillWidth().Children(func() {
 			ui.Text(c, nm.TLSHeader).FontSize(12).FontWeight(600)
 			ui.Text(c, nm.MTLSKeyLocalOnlyNote).FontSize(11).TextColor(p.Muted)
@@ -976,7 +1039,7 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 			})
 		})
 
-		// 5. Device Target & Production Policy Guardrails
+		// 6. Device Target & Production Policy Guardrails
 		ui.Column(c).Gap(6).Padding(8, 10).BorderWidth(1).BorderColor(p.Hairline).Radius(8).FillWidth().Children(func() {
 			ui.Text(c, nm.TargetPolicyHeader).FontSize(12).FontWeight(600)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
