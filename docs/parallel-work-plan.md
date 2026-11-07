@@ -353,10 +353,10 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 
 | 任务 | 分支 / worktree | 独占范围与目标 | 状态 |
 | --- | --- | --- | --- |
-| FIX06 | `cc/FIX06-settings-height` / `../GoRequest-FIX06` | `desktop/settings.go` 面板高度：保留左分类/右内容，把当前接近整窗高改为约现有一半的紧凑默认，内容滚动/Done可达，兼容小窗口 | 待启动 |
-| FIX07 | `cc/FIX07-send-feedback` / `../GoRequest-FIX07` | `desktop/uikit/response.go` SendButton：启用hover/pressed可见颜色差异，保留手型/发送取消图标/点击/尺寸，深浅主题都可辨 | 待启动 |
-| FIX08 | `cc/FIX08-timeout-entry` / `../GoRequest-FIX08` | `desktop/network_ui.go` 超时段与专属双语提示/测试：明确总超时入口/单位/继承后实际值与阶段超时归属，不再隐藏在技术设置中；顶层快捷入口若需公共文件交patch | 待启动 |
-| FIX09 | `cc/FIX09-secret-value-entry` / `../GoRequest-FIX09` | `desktop/environment_editor.go` 密钥声明入口、`identity_management*.go` 凭据录入：从本地密钥名称直接设置/更新同名本机秘密值、绑定状态与不可用错误，复用原系统凭据管理，不能写明文项目 | 待启动 |
+| FIX06 | `cc/FIX06-settings-height` / `../GoRequest-FIX06` | `desktop/settings.go` 面板高度：保留左分类/右内容，把当前接近整窗高改为约现有一半的紧凑默认，内容滚动/Done可达，兼容小窗口 | 已领取 / working |
+| FIX07 | `cc/FIX07-send-feedback` / `../GoRequest-FIX07` | `desktop/uikit/response.go` SendButton：启用hover/pressed可见颜色差异，保留手型/发送取消图标/点击/尺寸，深浅主题都可辨 | 已领取 / working |
+| FIX08 | `cc/FIX08-timeout-entry` / `../GoRequest-FIX08` | `desktop/network_ui.go` 超时段与专属双语提示/测试：明确总超时入口/单位/继承后实际值与阶段超时归属，不再隐藏在技术设置中；顶层快捷入口若需公共文件交patch | 已领取 / working |
+| FIX09 | `cc/FIX09-secret-value-entry` / `../GoRequest-FIX09` | `desktop/environment_editor.go` 密钥声明入口、`identity_management*.go` 凭据录入：从本地密钥名称直接设置/更新同名本机秘密值、绑定状态与不可用错误，复用原系统凭据管理，不能写明文项目 | 已领取 / working |
 
 - [ ] FIX06 紧凑设置面板：待集成验证。
 - [ ] FIX07 发送按钮 hover/pressed 颜色：待集成验证。
@@ -364,3 +364,16 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 - [ ] FIX09 声明密钥后的实际值录入与请求闭环：待集成验证。
 
 公共 app/manager/nav/workspace/tab/config/i18n、go.mod/go.sum 与账本由集成人拥有，新公共接线交最小patch；FIX06 设置壳层只接入口patch，不与FIX08/09并行重写公共设置。按钮状态样式仅改SendButton，FIX08不改uikit按钮；FIX09不改网络超时。各卡独立测试与临时夹具，不写真实凭据/本机配置、不触碰用户窗口/示例dirty，不push/merge/reset/clean/改共享git config/启子agent。完成适当验证后只commit本卡文件，写 docs/task-results/FIX0x.md。人工/三平台未做必须明示；集成后再勾选。
+
+### 16.1 实际启动
+
+共同基线 `a20960beffbc63880eb9e74214ec2675523af6bf`。四条均通过新版 Herdr tab.new 交互启动 CC，沿用此前授权的会话 Full Access，不改全局设置。屏幕已确认各自目录/任务、Hy4 (hy4std) 当前默认模型、bypass permissions；hc均为working。未修改其他用户终端。
+
+| 任务 | Herdr终端 | tab ID | 实际worktree / 分支 |
+| --- | --- | --- | --- |
+| FIX06 | `t32` | `tb54260f1c08be1ac2b3dab9b5ebf36b79` | `../GoRequest-FIX06` / `cc/FIX06-settings-height` |
+| FIX07 | `t33` | `tbea34262dc5be98ea32daf47da9664ded` | `../GoRequest-FIX07` / `cc/FIX07-send-feedback` |
+| FIX08 | `t34` | `tb9b69eaf892616671b83cf58c899e40ab` | `../GoRequest-FIX08` / `cc/FIX08-timeout-entry` |
+| FIX09 | `t35` | `tb0b17915347082d0862d3effb432f8c06` | `../GoRequest-FIX09` / `cc/FIX09-secret-value-entry` |
+
+本机提示词/句柄 `/private/tmp/gorequest-fix06-09-20261107/` 不入Git。新任务只完成领取，未交付/未集成，不打勾。现有超时入口为请求编辑区设置→请求总超时；密钥真实值入口为顶部项目菜单→系统凭据，声明名本身不等于绑定值。本批需改善上述发现与操作闭环，不能只重述旧入口即交差。
