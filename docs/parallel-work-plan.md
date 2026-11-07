@@ -796,3 +796,14 @@ main已从 `7bc923d` 快进至 `5fd17ca`（10条no-ff合并与集成接线/回�
 已精确关闭t49/t4b/t4c/t4d/t4f/t4g/t4h/t4j/t4m/t4n对应10个tab，全部返回ok:true；逐个确认finished后hc rm清除会话记录。删除前重新确认每条来源提交为main祖先、工作树干净，均不带force删除10个来源worktree/分支及本轮临时集成worktree/分支。最终只剩main与主worktree。
 
 Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t31/t48/t4k。merge/清理前后用户文件内容与存在性校验一致，dev.yaml改动和现存demo-server debug产物保留；桌面debug产物在清理前快照时已不存在，本轮未删除。没有push、没有操作用户当前示例/生产服务。验证与未验收范围保持§31.2–31.3，不以清理完成宣称实机产品验收通过。
+
+
+## 32. DOC01 GitHub README 产品展示（2026-11-08）
+
+用户要求派一个CC重写README，使其面向GitHub访客介绍产品，并由集成人提供MyGo showcase条目。核对main基线 `e3be483`，现有用户dev.yaml、示例文档和debug产物不纳入本任务。
+
+| ID / 负责人 | 分支 / 实际worktree | 范围与依赖 | 状态 |
+| --- | --- | --- | --- |
+| DOC01 / Claude Code | cc/DOC01-readme / /private/tmp/gorequest-doc01-20261108 | 独占README.md，新增docs/task-results/DOC01.md；先核对当前代码、实现状态及账本§31；无代码依赖，公共账本由集成人维护 | 已登记，待启动 |
+
+从本登记提交创建worktree；中文产品首页，突出原生、本地优先、Git、请求与文档工作流、下载/上手/反馈入口。只陈述实际已有能力，不宣传GraphQL/gRPC/完整SDK等规划，不虚构截图/性能/跨平台实机验收或发布成功；保留源码体验入口和真实许可证。允许必要文档检查与本地commit；不改代码/依赖/全局配置，不push，不派子agent，不操作其他终端。交付报告记录提交及验证证据，集成人复核后接入。
