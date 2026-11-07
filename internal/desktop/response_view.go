@@ -744,7 +744,14 @@ func (a *App) responseEditorFor(t *ui.Theme, tab *Tab) *editor.State {
 	st := &editor.State{
 		Buffer:   editor.NewBuffer(responseBodyText(tab.Resp, tab.RespRawIdx == 1)),
 		ReadOnly: true,
-		Theme:    uikit.EditorTheme(t),
+		// A read-only response is not an editing surface: the caret's line
+		// must not get the editor's active-line wash (the first line would
+		// otherwise show a grey band straight under the tool row), and the
+		// fold-marker column only widens the gutter. The JSON Tree view
+		// provides folding for structured bodies.
+		NoActiveLine: true,
+		NoFolding:    true,
+		Theme:        uikit.EditorTheme(t),
 	}
 	if !degraded && responseBodyIsJSON(tab.Resp) {
 		st.Buffer.SetLanguage(editor.LanguageNamed("json"))
