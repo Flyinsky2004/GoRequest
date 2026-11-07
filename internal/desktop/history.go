@@ -480,6 +480,10 @@ type historyUIState struct {
 	timeRange  int // 0 all, 1 today, 2 last 7 days, 3 last 30 days
 	result     int // 0 all, 1 success, 2 client, 3 server, 4 network, 5 canceled
 	query      string
+	// endpointOnly shortens each row's URL to its path, query and fragment.
+	// It is display state only: records, filters and restore keep the full
+	// URL, and the row tooltip still shows it.
+	endpointOnly bool
 
 	diag string
 
@@ -533,6 +537,9 @@ func (a *App) historyPanel(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Grow(1).FillWidth().Children(func() {
 		ui.Row(c).Padding(6, 10, 4, 10).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, m.HistoryLabel).FontSize(11).FontWeight(600).TextColor(p.Muted).Grow(1)
+			// The display switch is independent of the clear scope: it stays
+			// usable with an empty list and in the read-only all-project view.
+			a.historyEndpointToggle(c, p)
 			// Clearing is scoped to this project, so it is only offered while the
 			// panel shows this project. The all-project view is read-only on
 			// purpose: one click must not erase other projects' history.
@@ -563,7 +570,7 @@ func (a *App) historyPanel(c *ui.Context, t *ui.Theme) {
 							lastDay = d
 							ui.Text(c, dayLabel(r.Ts, m)).FontSize(11).FontWeight(600).TextColor(p.Faint).Padding(6, 10)
 						}
-						a.historyRow(c, p, m, r)
+						a.historyRow(c, t, p, m, r)
 					}
 				})
 			})
@@ -632,11 +639,15 @@ func (a *App) historyFilters(c *ui.Context, p uikit.Palette, m *messages) {
 	})
 }
 
-func (a *App) historyRow(c *ui.Context, p uikit.Palette, m *messages, r historyRecord) {
-	row := ui.Row(c).Height(32).FillWidth().AlignItems(ui.Center).Padding(0, 8).Gap(6).Clip()
+func (a *App) historyRow(c *ui.Context, t *ui.Theme, p uikit.Palette, m *messages, r historyRecord) {
+	row := ui.Row(c).Height(32).FillWidth().AlignItems(ui.Center).Padding(0, 6).Gap(4).Clip()
 	if row.Hovered() {
 		row.Background(p.Hover)
 	}
+	// The stored, already-redacted URL is the row's tooltip in both display
+	// modes, so a shortened or clipped label never hides where the request
+	// went. This reads the record only; it never re-reads a secret.
+	row.Tooltip(r.URL)
 	if uikit.ActionCursor(row).Clicked() {
 		a.restoreHistory(r)
 	}
@@ -647,7 +658,7 @@ func (a *App) historyRow(c *ui.Context, p uikit.Palette, m *messages, r historyR
 		if a.historyUI.allProjects && r.ProjectName != "" {
 			ui.Text(c, r.ProjectName).FontSize(10).TextColor(p.Faint).Width(58).SingleLine()
 		}
-		ui.Text(c, r.URL).FontSize(12).TextColor(p.Muted).Grow(1).SingleLine()
+		ui.Text(c, historyDisplayURL(r.URL, a.historyUI.endpointOnly)).FontSize(12).TextColor(p.Muted).Grow(1).SingleLine()
 		if r.Status > 0 {
 			uikit.StatusPill(c, p, r.Status)
 		} else {
@@ -655,17 +666,9 @@ func (a *App) historyRow(c *ui.Context, p uikit.Palette, m *messages, r historyR
 				TextColor(historyOutcomeColor(p, r.OutcomeValue())).Width(52).SingleLine()
 		}
 		ui.Text(c, fmt.Sprintf("%d ms", r.DurationMs)).FontSize(11).FontFeatures("tnum").TextColor(p.Faint).SingleLine()
-		if row.Hovered() {
-			info := uikit.ActionCursor(ui.Button(c, "i")).Absolute().Right(26).Top(-2)
-			if info.Clicked() {
-				a.historyUI.detail = r
-				a.historyUI.detailOpen = true
-			}
-			del := uikit.ActionCursor(ui.Button(c, "✕")).Absolute().Right(2).Top(-2)
-			if del.Clicked() {
-				a.deleteHistory(r)
-			}
-		}
+		// A reserved, compact action area replaces the old absolutely
+		// positioned buttons, which overlapped the status and duration cells.
+		a.historyRowActions(c, p, t, r)
 	})
 }
 
