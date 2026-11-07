@@ -5,6 +5,7 @@ package desktop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -306,8 +307,11 @@ func (a *App) send(tab *Tab) {
 	a.attachConfirmedNetworkOptions(tab, plan, confirmed)
 
 	tab.cancel = cancel
+	tab.sendSeq++
+	seq := tab.sendSeq
 	tab.Sending = true
 	tab.RespErr = ""
+	started := time.Now()
 	a.status = translate(a.msg().Sending, req.HTTP.Method, red.SanitizePlan(plan).URL)
 
 	win := a.win
@@ -322,23 +326,42 @@ func (a *App) send(tab *Tab) {
 			if a.closed || win.IsDestroyed() || ps.indexOfTab(tab) < 0 {
 				return
 			}
+			// Only the newest send may finish the tab. A forced reset (window
+			// teardown) or a superseding send leaves this callback stale.
+			if tab.sendSeq != seq {
+				return
+			}
 			tab.Sending = false
+			lm := a.layoutMsg()
 			if err != nil {
 				tab.Resp = nil
 				tab.RespErr = red.RedactError(err).Error()
 				a.recordHistoryFailure(tab, plan, red, err, ctx.Err())
+				// The status bar must leave its "sending…" state even when the
+				// request failed or was canceled.
+				if errors.Is(ctx.Err(), context.Canceled) || isCanceledErr(tab.RespErr) {
+					a.status = translate(lm.SendCanceledFmt, sendMs(time.Since(started)))
+				} else {
+					a.status = translate(lm.SendFailedFmt, sendMs(time.Since(started)), tab.RespErr)
+				}
 			} else {
 				tab.Resp = res
 				tab.RespErr = ""
 				tab.respVersion++
 				tab.respEditor = nil
 				a.recordHistory(tab, plan, red, res)
+				// Terminal success: status code and measured duration, so the
+				// line never stays on "sending…" after completion.
+				a.status = translate(lm.SendDoneFmt, res.Status, sendMs(res.Duration))
 			}
 			// Put the caret back in the URL so the user can tweak and resend.
 			tab.focusURL = true
 		})
 	}()
 }
+
+// sendMs formats a duration as milliseconds for the send status line.
+func sendMs(d time.Duration) float64 { return float64(d.Microseconds()) / 1000.0 }
 
 // cancelAllRequests cancels every in-flight request owned by this window and
 // marks its tabs idle. Called when the window is destroyed, so late results are

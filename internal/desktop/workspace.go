@@ -200,6 +200,10 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
+	ps := tab.Owner
+	if ps == nil {
+		ps = a.ps
+	}
 	// §9 shortcuts: ⌘↩ sends the active request from anywhere in the request
 	// area; ⌘S saves it.
 	c.OnShortcut(ui.Cmd, ui.KeyEnter, func() {
@@ -223,7 +227,14 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		}
 		uikit.UnderlineTabs(c, p, &tab.Section, labels, badges)
 
-		split := ui.SplitVerticalPercent(c, &tab.Owner.buildPct, func() {
+		// §7 split. The splitter receives a per-frame effective share: the
+		// stored preference, reduced only when the window is too short to keep
+		// the response pane readable. MyGo's SplitVerticalPercent has no
+		// minimum-response-height option, so the guard is applied here.
+		splitHeight := ps.splitRef.Bounds(c).H
+		eff := clampBuildPctForHeight(ps.buildPct, splitHeight)
+		ps.layoutPct = eff
+		split := ui.SplitVerticalPercent(c, &ps.layoutPct, func() {
 			ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
 				switch tab.Section {
 				case 0:
@@ -243,17 +254,22 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				}
 			})
 		}, func() {
-			a.responseView(c, t, tab)
-		}).Grow(1).FillWidth()
+			ui.Column(c).Grow(1).FillHeight().Bind(&ps.respRef).Children(func() {
+				a.responseView(c, t, tab)
+			})
+		}).Grow(1).FillWidth().Bind(&ps.splitRef)
 
-		// §7: double-click the splitter to restore the default 64:36, and
-		// persist the user's dragged ratio across launches.
-		if tab.Owner.buildPct != a.mgr.cfg.buildPct() {
-			a.mgr.cfg.setBuildPct(tab.Owner.buildPct)
+		// The splitter writes layoutPct only on a user move. Fold that move
+		// into the preference and persist it; a height clamp (eff != buildPct)
+		// is never written back. §7: double-click restores the 55:45 default.
+		if moved := ps.layoutPct; moved != eff {
+			ps.buildPct = applyBuildPctMove(ps.buildPct, eff, moved)
+			a.mgr.cfg.setBuildPct(ps.buildPct)
 		}
 		if split.DoubleClicked() {
-			tab.Owner.buildPct = 64
-			a.mgr.cfg.setBuildPct(64)
+			ps.buildPct = defaultBuildPct
+			ps.layoutPct = defaultBuildPct
+			a.mgr.cfg.setBuildPct(defaultBuildPct)
 		}
 	})
 }

@@ -186,8 +186,8 @@ func TestKVRowsReorder(t *testing.T) {
 func TestBuildPctPersistence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	s := newConfigStore(path)
-	if got := s.buildPct(); got != 64 {
-		t.Fatalf("default buildPct = %v, want 64", got)
+	if got := s.buildPct(); got != 55 {
+		t.Fatalf("default buildPct = %v, want 55", got)
 	}
 	s.setBuildPct(70)
 	if got := s.buildPct(); got != 70 {

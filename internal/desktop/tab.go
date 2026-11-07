@@ -107,6 +107,10 @@ type Tab struct {
 	respFindFocus bool
 	respFindIdx   int
 	respFindJump  bool
+
+	// sendSeq identifies the newest send so a late result from an older one
+	// (for example after a forced reset) cannot overwrite the tab or status.
+	sendSeq int
 }
 
 // requestFromTab builds a core.Request from the tab's edited fields.

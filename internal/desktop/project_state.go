@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
 	"gorequest/internal/core"
@@ -24,8 +25,19 @@ type projectState struct {
 	sel      string // sidebar selection id within this project ("req:..."/"doc:..."/"folder:...")
 	docSplit float32
 	// buildPct is the build/response split percentage (build pane share) for
-	// request tabs, 64 by default (§7) and adjusted when the user drags it.
+	// request tabs, 55 by default (§7) and adjusted when the user drags it.
+	// It is the user's preference; a temporary height clamp is never stored
+	// here.
 	buildPct float32
+	// layoutPct is the value handed to the splitter this frame. The splitter
+	// writes it only on a user move, so comparing it with the value we passed
+	// distinguishes a drag from a layout clamp.
+	layoutPct float32
+	// splitRef and respRef measure the request split's committed geometry. The
+	// split height drives the minimum response height guard; the response rect
+	// is also read by layout tests.
+	splitRef ui.Handle
+	respRef  ui.Handle
 
 	// envUI is the in-progress environment create/edit draft for this project.
 	// Keeping it per project means switching projects cannot apply one project's
@@ -51,7 +63,8 @@ func newProjectState(root string, p *core.Project) *projectState {
 		project:   p,
 		envSel:    "(none)",
 		docSplit:  0.5,
-		buildPct:  64,
+		buildPct:  defaultBuildPct,
+		layoutPct: defaultBuildPct,
 		expanded:  map[string]bool{},
 		collapsed: map[string]bool{},
 	}
