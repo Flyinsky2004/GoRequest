@@ -13,6 +13,8 @@ type SchemaRef struct {
 	// Status is the observed HTTP status, allowing a validator to pick the
 	// matching response definition.
 	Status int
+	// Headers carries actual response media type; additive A02 contract field.
+	Headers [][2]string
 }
 
 // SchemaIssue is one validation finding. InstancePath uses JSONPath notation
