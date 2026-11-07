@@ -972,7 +972,9 @@ func (ed *mockRuleEditor) buildRule(a *App, s *mockState) (mockserver.MockRule, 
 			rule.Response.DelayMs = v
 		}
 	}
-	if ed.delayRangeOn {
+	// Keep the first delay error: the range check must not overwrite the
+	// fixed-delay / exclusivity message already reported for this field.
+	if ed.delayRangeOn && ed.errs[mockFieldDelay] == "" {
 		vmin, errMin := strconv.Atoi(strings.TrimSpace(ed.delayMinText))
 		vmax, errMax := strconv.Atoi(strings.TrimSpace(ed.delayMaxText))
 		switch {

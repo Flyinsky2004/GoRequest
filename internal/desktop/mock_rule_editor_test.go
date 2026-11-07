@@ -20,11 +20,12 @@ import (
 // tests exercise the same encode path as production.
 func writeEditorMockFile(t *testing.T, ps *projectState, mf *mockserver.MockFile) string {
 	t.Helper()
-	rel, err := mockserver.SaveMockFile(ps.project, mf, "")
-	if err != nil {
+	// SaveMockFile returns the saved content digest, not the path; the
+	// project-relative path is recorded on mf.SourceRelPath.
+	if _, err := mockserver.SaveMockFile(ps.project, mf, ""); err != nil {
 		t.Fatalf("SaveMockFile: %v", err)
 	}
-	return rel
+	return mf.SourceRelPath
 }
 
 func simpleEditorRule(id string) mockserver.MockRule {
