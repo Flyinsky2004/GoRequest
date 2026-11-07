@@ -271,9 +271,7 @@ func (g *gitController) commitModal(c *ui.Context, t *ui.Theme) {
 			if g.commitMsgEditor == nil {
 				g.commitMsgEditor = &editor.State{Buffer: editor.NewBuffer("")}
 			}
-			if g.commitMsgEditor.Theme == nil {
-				g.commitMsgEditor.Theme = uikit.EditorTheme(t)
-			}
+			g.app.syncEditorTheme(g.commitMsgEditor, &g.commitMsgEditorGen, t)
 			ui.Column(c).Height(130).Radius(6).BorderWidth(1).BorderColor(p.Hairline).Clip().Children(func() {
 				editor.View(c, g.commitMsgEditor).Grow(1).FillWidth()
 			})
@@ -343,9 +341,7 @@ func (g *gitController) diffModal(c *ui.Context, t *ui.Theme) {
 			case !g.diff.OldExists && !g.diff.NewExists:
 				ui.Text(c, m.DiffMissing).FontSize(12).TextColor(p.Muted)
 			case g.diffState != nil:
-				if g.diffState.Theme == nil {
-					g.diffState.Theme = uikit.EditorTheme(t)
-				}
+				g.app.syncDiffTheme(g.diffState, &g.diffStateGen, t)
 				ui.Column(c).Grow(1).FillWidth().MinHeight(0).Radius(6).
 					BorderWidth(1).BorderColor(p.Hairline).Clip().Children(func() {
 					editor.DiffView(c, g.diffState).Grow(1).FillWidth()

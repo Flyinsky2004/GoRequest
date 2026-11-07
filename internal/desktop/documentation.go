@@ -539,6 +539,9 @@ func (dm *docMessages) diagText(d core.DocDiagnostic) string {
 }
 
 func (a *App) docBody(c *ui.Context, t *ui.Theme, tab *Tab, src string, opts *markdown.Options) {
+	// The doc editor is cached on the tab; restyle it in place so an
+	// appearance switch repaints it without losing the caret or undo history.
+	a.syncEditorTheme(tab.DocEditor, &tab.docBuiltGen, t)
 	switch tab.Section {
 	case 1:
 		editor.View(c, tab.DocEditor).Grow(1).FillWidth()

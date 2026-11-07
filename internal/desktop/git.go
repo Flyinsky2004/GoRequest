@@ -53,6 +53,9 @@ type gitController struct {
 	commitOpen      bool
 	commitErr       string
 	commitMsgEditor *editor.State
+	// commitMsgEditorGen is the theme generation the cached commit editor was
+	// themed with, so an appearance switch restyles it in place.
+	commitMsgEditorGen int
 
 	// diff modal
 	diffOpen   bool
@@ -62,6 +65,8 @@ type gitController struct {
 	diff       *gitservice.FileDiff
 	diffErr    string
 	diffState  *editor.DiffState
+	// diffStateGen is the theme generation diffState was themed with.
+	diffStateGen int
 
 	// pull/push confirmation modal
 	confirmOpen   bool

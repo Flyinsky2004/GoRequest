@@ -62,6 +62,9 @@ type Tab struct {
 	// doc editing state
 	DocRel    string
 	DocEditor *editor.State
+	// docBuiltGen is the theme generation the doc editor was themed with, so
+	// an appearance switch restyles it without rebuilding the buffer.
+	docBuiltGen int
 
 	// body codeView editor and rich B03 body state (built lazily per request)
 	bodyEditor   *editor.State
@@ -93,6 +96,9 @@ type Tab struct {
 	// respBuiltDegraded records whether the cached response editor was built in
 	// the large-response plain-text mode, so a size change rebuilds it.
 	respBuiltDegraded bool
+	// respBuiltGen is the theme generation the cached response editor was
+	// themed with; a newer generation restyles it in place.
+	respBuiltGen int
 
 	// Response find (§7): the small in-panel find bar. respFindQuery drives the
 	// editor's native find, and respFindOpen toggles the bar via ⌘F.

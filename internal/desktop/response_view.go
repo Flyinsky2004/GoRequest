@@ -735,6 +735,10 @@ func (a *App) responseEditorFor(t *ui.Theme, tab *Tab) *editor.State {
 	degraded := tab.Resp != nil && tab.Resp.BodySize > largeResponseThreshold
 	if tab.respEditor != nil && tab.respBuiltVer == tab.respVersion &&
 		tab.respBuiltIdx == tab.RespRawIdx && tab.respBuiltDegraded == degraded {
+		// The buffer is unchanged; only a theme switch can make the cached
+		// editor stale. Update its colors in place so it repaints immediately
+		// without losing selection, scroll or undo history.
+		a.syncEditorTheme(tab.respEditor, &tab.respBuiltGen, t)
 		return tab.respEditor
 	}
 	st := &editor.State{
@@ -749,6 +753,7 @@ func (a *App) responseEditorFor(t *ui.Theme, tab *Tab) *editor.State {
 	tab.respBuiltVer = tab.respVersion
 	tab.respBuiltIdx = tab.RespRawIdx
 	tab.respBuiltDegraded = degraded
+	tab.respBuiltGen = a.themeGeneration()
 	return st
 }
 

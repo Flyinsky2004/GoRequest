@@ -64,9 +64,13 @@ type wsDialog struct {
 	selectedSeq      uint64
 
 	// headersEditor and sendEditor hold the multi-line drafts (editor.State
-	// is heavy, so it is created lazily and kept per window).
-	headersEditor *editor.State
-	sendEditor    *editor.State
+	// is heavy, so it is created lazily and kept per window). The *Gen fields
+	// record the theme generation each was themed with, so an appearance
+	// switch restyles them without losing the draft or carets.
+	headersEditor    *editor.State
+	headersEditorGen int
+	sendEditor       *editor.State
+	sendEditorGen    int
 
 	// Session lifecycle. redactor is per session-generation; session may be
 	// non-nil with a terminal state (facts remain visible until cleared).

@@ -283,7 +283,11 @@ func (a *App) renderTextLikeBody(c *ui.Context, t *ui.Theme, p uikit.Palette, bm
 			}
 			tab.bodyEditor = st
 			bs.builtEditorKey = kind
+			bs.builtEditorGen = a.themeGeneration()
 		}
+		// An appearance switch restyles the cached editor in place; the
+		// buffer, caret and undo history are untouched.
+		a.syncEditorTheme(tab.bodyEditor, &bs.builtEditorGen, t)
 		if s := tab.bodyEditor.Buffer.String(); s != *bufPtr {
 			*bufPtr = s
 			bs.markMutated(tab)

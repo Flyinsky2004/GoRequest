@@ -53,6 +53,10 @@ type fileSyncController struct {
 	mergeEditor   *editor.State
 	baseDiskDiff  *editor.DiffState
 	diskMergeDiff *editor.DiffState
+	// modalThemeGen is the theme generation the five cached states above were
+	// themed with. A newer generation restyles them in place, keeping buffers,
+	// selections and scroll positions.
+	modalThemeGen int
 }
 
 // peekFileSync returns the existing fileSyncController for ps, or nil without

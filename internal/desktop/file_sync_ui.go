@@ -112,8 +112,7 @@ func (a *App) fileSyncModal(c *ui.Context, t *ui.Theme, ps *projectState) {
 		return
 	}
 
-	edTheme := uikit.EditorTheme(t)
-	syncModalEditorThemes(ctrl, edTheme)
+	a.syncFileSyncModalTheme(ctrl, t)
 
 	fm := a.fileSyncMsg()
 	p := uikit.PaletteFor(t)
@@ -288,23 +287,39 @@ func paneTitleBar(c *ui.Context, p uikit.Palette, title string, accent bool) {
 		})
 }
 
+// syncFileSyncModalTheme restyles the conflict modal's cached editors when the
+// app's theme generation moved. The modal's five states are created together,
+// so one generation covers them; only Theme changes, so buffers, selections and
+// scroll positions survive an appearance switch.
+func (a *App) syncFileSyncModalTheme(ctrl *fileSyncController, t *ui.Theme) {
+	if ctrl == nil {
+		return
+	}
+	cur := a.themeGeneration()
+	if ctrl.modalThemeGen == cur && ctrl.baseEditor != nil && ctrl.baseEditor.Theme != nil {
+		return
+	}
+	syncModalEditorThemes(ctrl, uikit.EditorTheme(t))
+	ctrl.modalThemeGen = cur
+}
+
 func syncModalEditorThemes(ctrl *fileSyncController, edTheme *editor.Theme) {
 	if ctrl == nil || edTheme == nil {
 		return
 	}
-	if ctrl.baseEditor != nil && ctrl.baseEditor.Theme == nil {
+	if ctrl.baseEditor != nil {
 		ctrl.baseEditor.Theme = edTheme
 	}
-	if ctrl.diskEditor != nil && ctrl.diskEditor.Theme == nil {
+	if ctrl.diskEditor != nil {
 		ctrl.diskEditor.Theme = edTheme
 	}
-	if ctrl.mergeEditor != nil && ctrl.mergeEditor.Theme == nil {
+	if ctrl.mergeEditor != nil {
 		ctrl.mergeEditor.Theme = edTheme
 	}
-	if ctrl.baseDiskDiff != nil && ctrl.baseDiskDiff.Theme == nil {
+	if ctrl.baseDiskDiff != nil {
 		ctrl.baseDiskDiff.Theme = edTheme
 	}
-	if ctrl.diskMergeDiff != nil && ctrl.diskMergeDiff.Theme == nil {
+	if ctrl.diskMergeDiff != nil {
 		ctrl.diskMergeDiff.Theme = edTheme
 	}
 }

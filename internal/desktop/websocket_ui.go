@@ -180,7 +180,9 @@ func (a *App) wsHeadersEditor(c *ui.Context, t *ui.Theme, s *wsDialog, p uikit.P
 	if s.headersEditor == nil {
 		s.headersEditor = &editor.State{Buffer: editor.NewBuffer(s.headersDraft), Theme: uikit.EditorTheme(t)}
 		s.headersEditor.Buffer.SetLanguage(editor.LanguageNamed("text"))
+		s.headersEditorGen = a.themeGeneration()
 	}
+	a.syncEditorTheme(s.headersEditor, &s.headersEditorGen, t)
 	if got := s.headersEditor.Buffer.String(); got != s.headersDraft {
 		s.headersDraft = got
 	}
@@ -357,7 +359,9 @@ func (a *App) wsSendEditor(c *ui.Context, t *ui.Theme, s *wsDialog, p uikit.Pale
 	if s.sendEditor == nil {
 		s.sendEditor = &editor.State{Buffer: editor.NewBuffer(s.textDraft), Theme: uikit.EditorTheme(t)}
 		s.sendEditor.Buffer.SetLanguage(editor.LanguageNamed("json"))
+		s.sendEditorGen = a.themeGeneration()
 	}
+	a.syncEditorTheme(s.sendEditor, &s.sendEditorGen, t)
 	if got := s.sendEditor.Buffer.String(); got != s.textDraft {
 		s.textDraft = got
 	}

@@ -11,14 +11,10 @@ import (
 
 const appVersion = "0.1.0 (MVP)"
 
-// applyAppearance applies the stored appearance preference for the frame. When
-// the preference is System (or unset) the frame keeps the system theme. The
-// stored value stays a stable English token ("System"/"Light"/"Dark") so an
-// existing config keeps working; only its display label is localized.
-func applyAppearance(c *ui.Context, cfg *configStore) {
-	// Resolve the appearance: an explicit Light/Dark choice wins; otherwise
-	// follow the desktop's current appearance, read from the theme the frame
-	// started with.
+// appearanceDark resolves whether the frame should use the dark palette. An
+// explicit Light/Dark choice wins; otherwise it follows the desktop's current
+// appearance, read from the theme the frame started with.
+func appearanceDark(c *ui.Context, cfg *configStore) bool {
 	dark := false
 	if th := c.Theme(); th != nil && th.Dark {
 		dark = true
@@ -29,6 +25,15 @@ func applyAppearance(c *ui.Context, cfg *configStore) {
 	case "Dark":
 		dark = true
 	}
+	return dark
+}
+
+// applyAppearance applies the stored appearance preference for the frame. When
+// the preference is System (or unset) the frame keeps the system theme. The
+// stored value stays a stable English token ("System"/"Light"/"Dark") so an
+// existing config keeps working; only its display label is localized.
+func applyAppearance(c *ui.Context, cfg *configStore) {
+	dark := appearanceDark(c, cfg)
 	p := uikit.PaletteFor(&ui.Theme{Dark: dark})
 	c.SetTheme(uikit.Theme(p, dark))
 }

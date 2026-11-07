@@ -116,6 +116,13 @@ type App struct {
 	// autoSaveLast is the UI-thread clock of the last attempt.
 	autoSaveStop chan struct{}
 	autoSaveLast time.Time
+
+	// themeGen counts resolved light/dark appearance changes, and themeDark is
+	// the mode it last resolved. Cached editor states record the generation
+	// they were themed with, so a theme switch refreshes only their Theme
+	// instead of rebuilding the tab or dropping the user's edits.
+	themeGen  int
+	themeDark bool
 }
 
 // wire connects the project window's lifecycle to the manager and the close
@@ -156,7 +163,7 @@ func (a *App) saveGeometry() {
 
 // View builds one frame of the project window.
 func (a *App) View(c *ui.Context) {
-	applyAppearance(c, a.mgr.cfg)
+	a.applyTheme(c)
 	t := c.Theme()
 	a.registerShortcuts(c)
 	// The rail keeps its workspace range (220–380 DIPs) even while dragged.

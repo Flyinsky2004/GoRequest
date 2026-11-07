@@ -109,14 +109,16 @@ type tabBodyState struct {
 	modeIdx int // index into uiBodyModes
 
 	// Inline / file source for json, xml, text
-	textSource        int // bodySourceInline | bodySourceProjectFile | bodySourceLocalFile
-	inlineJSON        string
-	inlineXML         string
-	inlineText        string
-	projectFile       string
-	localSlot         string
-	localPathDraft    string
-	builtEditorKey    string
+	textSource     int // bodySourceInline | bodySourceProjectFile | bodySourceLocalFile
+	inlineJSON     string
+	inlineXML      string
+	inlineText     string
+	projectFile    string
+	localSlot      string
+	localPathDraft string
+	builtEditorKey string
+	// builtEditorGen is the theme generation tab.bodyEditor was themed with.
+	builtEditorGen int
 
 	// Binary mode state
 	binSource      int // binSourceProjectFile | binSourceLocalFile
