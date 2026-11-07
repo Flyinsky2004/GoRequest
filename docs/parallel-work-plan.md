@@ -498,3 +498,22 @@ Herdr终端 `t3b`，tab `tb3d3591a57162fc0ea36db75749afe846`（BRAND01 Logo 接�
 - BRAND01原PNG与嵌入副本、512PNG/icns、运行时应用/窗口图标、欢迎页/README展示、最小未签名macOS.app脚本入仓。Downloads原文件不动，无重绘/裁剪/重复底板。
 - 合并后实际 `go build ./...` exit 0；shell脚本 `sh -n` 通过，源/嵌入PNG SHA256一致，代码diff whitespace检查通过。未运行go test或启动真实应用，不能把构建通过当交互验收。BRAND01分支报告里的旧基线编译阻塞已由本轮FIX10消除；真实Dock/Finder图标、打包运行、其他平台仍待验收。
 - 本次仅合并。原两分支/worktree及对应agent保留，尤其BRAND01 worktree另有用户Codex会话t3d使用，不删除目录或关闭该会话；用户t31/oct等其他会话未动。只清理本轮自建临时集成worktree/分支（main快进并确认干净后）。用户主目录示例环境与debug产物保留，不push。
+
+
+## 24. 五条 Vibe 并行开发（2026-11-07）
+
+用户要求用 Herdr 新开五个 Vibe，各用独立 worktree。重新核对 main `5d448b0`：Runner、Mock 已有首阶段模块；派生文档导出、Snippet、WebSocket/共享流尚无实现。选择以下五条独立增量，不把未实现共享流的 GraphQL Subscription / gRPC 提前并行。实际共同基线、终端和 tab 在启动确认后补记。
+
+| 子任务 | 分支 / worktree | 本轮专属范围 | 明确后续 |
+| --- | --- | --- | --- |
+| A02-phase2 | `vibe/A02-assertion-editor` / `../GoRequest-A02-editor` | `internal/desktop/runner*.go`、新增 `runner_editor*.go`，复用 A01 的断言/提取解析与保存契约，提供结构化编辑、错误定位与保存保护，连接已有 Runner | 完整 Suite DAG/数据编辑器另期 |
+| C01-phase2 | `vibe/C01-rule-editor` / `../GoRequest-C01-editor` | `internal/mockserver/**`、`desktop/mock*.go`：细粒度规则/场景编辑、校验/冲突预览、安全保存，复用现有监听及 Suite 生命周期 | 复杂 Schema 生成、主 Runner 生命周期联动另期 |
+| C03-phase1 | `vibe/C03-derived-docs` / `../GoRequest-C03-docs` | 新增 `internal/docgen/**`、`desktop/derived_docs*.go`：稳定 ID 引用、派生卡片/参数/响应、行号诊断、受控离线 Markdown/HTML 导出 | Mermaid 原生渲染另期，源码保留并明确警告 |
+| C04-phase1 | `vibe/C04-request-snippets` / `../GoRequest-C04-snippets` | 新增 `internal/snippet/**`、`desktop/snippet*.go`：cURL/Go/Python/JS/TS 可审阅生成、Secret 占位、语义与限制报告、复制/显式导出 | SDK/Proto 生成另期，不依赖 P03 |
+| P01-phase1 | `vibe/P01-websocket` / `../GoRequest-P01-ws` | 新增 `internal/stream/**`、`internal/websocket/**`、`desktop/websocket*.go`：共享有界流契约与 WebSocket 会话、取消/超时/消息上限/游标/关闭事实，提供手工会话入口 | P02/P03后续消费共享流；完整 A01 流式调度另期 |
+
+五条均未交付、未集成，不勾完成。各阶段需交可用实现而非只写方案；超出本阶段的功能在报告中列清，不声称整卡关闭。A02/C01允许各自模块内增量；C03/C04只消费现有只读 Core 定义/脱敏能力，不能互改模块。共享 `core/model.go/project.go/validate.go/plan.go`、桌面 `app.go/manager.go/nav.go/workspace.go/tab.go/project_state.go/config.go/settings.go/i18n.go` 及总账本/实现状态由集成人拥有，agent提交可应用的最小公共接线patch。不要通过全局强引用UI map绕开生命周期。
+
+仅 P01 可按必要性修改 go.mod/go.sum，为选定且固定版本的成熟 WebSocket 库添加依赖；其他四条只用现有依赖。P01不得自制不完整握手/帧协议，不允许削弱TLS/目标策略；与HTTP网络配置无法安全复用的选项发网前明确拒绝。不恢复产品 CLI / WebView，不自动发网/监听/下载工具，不写本机秘密/运行结果到共享项目。
+
+沿用用户此前“先不执行测试”：本批暂不执行 go test/go build/go vet，不启动真实应用或访问生产服务；完成 gofmt、diff检查与静态API核对，并给出待执行的有意义用例，明确未经编译/运行验证。不得把未运行的检查标成通过。仅提交本任务文件及 docs/task-results/<子任务ID>.md，不改总账本、不merge/push/删分支/改共享Git配置/操作其他终端或启动子agent。用户 main 的示例环境改动与debug二进制不纳入基线。现有用户 t1h/t2s/t3h/t3j 与其他项目t31均保留。此前FIX10/BRAND01的t39/t3b/t3d已按用户要求关闭，原worktree和分支仍保留。
