@@ -683,3 +683,16 @@ R1/R2/R4：预览去重与差异行、同行超时徽标、方法段分隔。R3/
 | U05 | t4f | tb40836a741ae33037a59c78f9113262b1 |
 
 完整提示词和原始启动响应保存在本机 `/private/tmp/gorequest-u04-u05-20261107/`，不入Git。U04报告需交删除旧保存入口的最小patch，与U02集成后由集成人串行应用，避免并发重写urlGroup。上一批t49/t4b/t4c继续原任务，既有用户/其他项目会话未操作。
+
+
+## 29. U06–U08 Markdown画布与接口提及（2026-11-07）
+
+用户要求先设计再创建CC开发：渲染界面编辑、斜杠语法创建、智能表格，以及@接口补全与应用内打开。集成人已核对main `ef5c3ad` 与文档/引用/编辑器实现，设计契约见docs/design/markdown-live-authoring.md；不改用户dirty文件。上一批U01–U05保留并继续，不混入共同基线。
+
+| ID / 负责人 | 分支 / 实际worktree | 专属范围与依赖 | 状态 |
+| --- | --- | --- | --- |
+| U06 / CC canvas | cc/U06-doc-canvas / /private/tmp/gorequest-u06-u08-20261107/canvas | documentation.go及doc_live*.go、internal/docedit与测试；原生画布、斜杠、统一buffer事务；接线U07/U08由此负责人/集成人串行进行，不能未接线声称完成 | 待启动 |
+| U07 / CC table | cc/U07-doc-table / /private/tmp/gorequest-u06-u08-20261107/table | internal/doctable、desktop/doc_table*.go及测试；有界GFM表格结构编辑/TSV/事务回调，接线patch交报告，不改documentation.go | 待启动 |
+| U08 / CC mentions | cc/U08-doc-mentions / /private/tmp/gorequest-u06-u08-20261107/mentions | internal/docmention、desktop/doc_mentions*.go及测试；@补全/稳定ID/失效引用，复用docgen打开请求；公共接线patch交报告 | 待启动 |
+
+三者共同从设计登记提交创建worktree，先读设计按固定契约实现；不新增依赖、不改Core/框架/go.mod/go.sum、不改workspace/app/tab/settings等共享壳层（必要以最小patch交集成人），不覆盖彼此回调或全局UI map。报告docs/task-results/U06.md–U08.md，记录真实build/测试/实机限制、接线状态、本地commit；不得只写设计代替实现，也不得把首版说成完整Notion。允许本轮build和受影响测试，本地commit授权继续；禁止子agent、merge/push、操作其他终端/全局模型或清理分支。未集成验收前不勾完成。
