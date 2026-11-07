@@ -51,50 +51,98 @@ func renderSettings(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspa
 // settingsBody's signature.
 type settingsSelectionKey struct{}
 
+const (
+	// settingsWindowInset is the room ui.Modal reserves around the sheet's
+	// content in both directions (MyGo v0.7.4 coreModal): 40 DIPs of outer
+	// margin plus 20 DIPs of panel padding on each side.
+	settingsWindowInset = 80
+	// settingsModalChrome is the modal panel's own vertical padding (20 DIPs
+	// on each side), added on top of the content height below.
+	settingsModalChrome = 40
+	// settingsMaxContentHeight caps the sheet at 380 content DIPs, i.e. a
+	// 420 DIP panel. FIX05 reserved winH-80 DIPs for the whole sheet, so a
+	// 1200×820 project window showed a ~780 DIP panel that nearly filled the
+	// window. The new panel is ~54% of that while staying comfortably usable.
+	settingsMaxContentHeight = 380
+	// settingsMinContentHeight is the preferred floor (280 DIP panel). Even at
+	// this height both panes scroll rather than squash their controls.
+	settingsMinContentHeight = 240
+	// settingsTargetPanelFraction aims the panel at 55% of the window height;
+	// the absolute cap wins on tall windows and the floor on short ones.
+	settingsTargetPanelFraction = 0.55
+	settingsMaxSheetWidth       = 640
+	settingsMinSheetWidth       = 200
+	settingsRailMinWidth        = 104
+	settingsRailMaxWidth        = 168
+)
+
+// settingsGeometry is the sheet's size for one window. It is a pure function
+// of the window size: the height never depends on the selected category or on
+// how tall its content is, so switching categories cannot make the sheet jump.
+type settingsGeometry struct {
+	width  float32
+	height float32
+	leftW  float32
+}
+
+func settingsGeometryFor(winW, winH float32) settingsGeometry {
+	width := winW - settingsWindowInset
+	if width > settingsMaxSheetWidth {
+		width = settingsMaxSheetWidth
+	}
+	if width < settingsMinSheetWidth {
+		width = settingsMinSheetWidth
+	}
+	leftW := width * 0.30
+	if leftW < settingsRailMinWidth {
+		leftW = settingsRailMinWidth
+	}
+	if leftW > settingsRailMaxWidth {
+		leftW = settingsRailMaxWidth
+	}
+
+	// Available content height inside the modal panel.
+	room := winH - settingsWindowInset
+	// Preferred panel: a fraction of the window for small windows (so the
+	// sheet never dominates a 480 DIP welcome window), capped at an absolute
+	// maximum for tall windows (the FIX06 "about half" request).
+	height := winH*settingsTargetPanelFraction - settingsModalChrome
+	if height > settingsMaxContentHeight {
+		height = settingsMaxContentHeight
+	}
+	if height < settingsMinContentHeight {
+		height = settingsMinContentHeight
+	}
+	// A window shorter than the preferred floor must still contain the sheet;
+	// never let a hard minimum push Done out of the window.
+	if room > 0 && height > room {
+		height = room
+	}
+	return settingsGeometry{width: width, height: height, leftW: leftW}
+}
+
 // settingsBody draws the two-pane settings sheet (FIX05): a left rail of
-// categories and a right pane showing only the chosen category's settings. The
-// pane sizing is derived from the window so a narrow window shrinks instead of
-// overflowing horizontally; the rail and content row are clipped as a hard
-// guarantee.
+// categories and a right pane showing only the chosen category's settings.
+// FIX06 gives the root column a fixed, capped height derived only from the
+// window. The two-pane row takes the remaining space through Grow, so a
+// larger title or Done button (theme / enlarged text) shrinks the scrollable
+// panes instead of pushing Done out of the window. Both panes scroll
+// independently and Done lives outside them, always visible.
 func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspacePrefsStore, open *bool, setStatus func(string)) {
 	m := messagesFor(cfg.language())
 	p := uikit.PaletteFor(t)
 	titles := settingsCategoryTitles(cfg.language())
 
-	// The modal panel is capped at window-40 with 20 DIP padding per side, so a
-	// window-80 content width always fits inside it. A small floor keeps the
-	// controls usable on very small windows; clipping prevents any spill.
 	winW, winH := c.Size()
-	width := winW - 80
-	if width > 640 {
-		width = 640
-	}
-	if width < 200 {
-		width = 200
-	}
-	height := winH - 80
-	if height < 240 {
-		height = 240
-	}
-	leftW := width * 0.30
-	if leftW < 104 {
-		leftW = 104
-	}
-	if leftW > 168 {
-		leftW = 168
-	}
-	rowH := height - 92
-	if rowH < 160 {
-		rowH = 160
-	}
+	g := settingsGeometryFor(winW, winH)
 
-	root := ui.Column(c).Gap(12).Width(width)
+	root := ui.Column(c).Gap(12).Width(g.width).Height(g.height)
 	selected := ui.Local(root, settingsSelectionKey{}, func() int { return int(settingsCategoryAppearance) })
 	root.Children(func() {
-		ui.Text(c, m.SettingsTitle).FontSize(17).FontWeight(700).TextColor(p.Text)
+		ui.Text(c, m.SettingsTitle).FontSize(17).FontWeight(700).TextColor(p.Text).Shrink(0)
 
-		ui.Row(c).Gap(12).FillWidth().Height(rowH).Clip().Children(func() {
-			settingsCategoryRail(c, p, titles, selected, leftW)
+		ui.Row(c).Gap(12).FillWidth().Grow(1).Clip().Children(func() {
+			settingsCategoryRail(c, p, titles, selected, g.leftW)
 			ui.Scroll(c).Grow(1).FillHeight().Children(func() {
 				ui.Column(c).Gap(10).FillWidth().Padding(0, 2).Children(func() {
 					settingsCategoryContent(c, p, m, settingsCategory(*selected), cfg, prefs, setStatus)
@@ -102,7 +150,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 			})
 		})
 
-		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+		ui.Row(c).Gap(8).Justify(ui.End).Shrink(0).Children(func() {
 			if uikit.ActionCursor(ui.PrimaryButton(c, m.Done)).Clicked() {
 				*open = false
 			}
@@ -110,34 +158,39 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 	})
 }
 
-// settingsCategoryRail draws the left category list. Each row is a clickable,
-// left-aligned label: the chosen one is filled with the accent color, a hovered
-// one with the hover wash. Selection is written back through *selected.
+// settingsCategoryRail draws the left category list inside a scrollable card.
+// The card keeps its FIX05 look; only its list scrolls, so a long category
+// list (or a short window / larger text) keeps every category reachable
+// instead of clipping the ones past the bottom.
 func settingsCategoryRail(c *ui.Context, p uikit.Palette, titles []string, selected *int, width float32) {
 	rail := ui.Column(c).Width(width).FillHeight().Radius(10).Background(p.Sidebar).
-		BorderWidth(1).BorderColor(p.Hairline).Padding(6).Gap(2).Clip()
+		BorderWidth(1).BorderColor(p.Hairline).Padding(6).Clip()
 	rail.Children(func() {
-		for i, title := range titles {
-			i := i
-			row := uikit.ActionCursor(ui.Row(c).FillWidth().Height(30).Radius(7).
-				AlignItems(ui.Center).Padding(0, 10))
-			bg := ui.Transparent
-			textColor := p.Text
-			switch {
-			case i == *selected:
-				bg = p.Accent
-				textColor = p.OnAccent
-			case row.Hovered():
-				bg = p.Hover
-			}
-			row.Background(bg)
-			row.Children(func() {
-				ui.Text(c, title).FontSize(13).TextColor(textColor).SingleLine()
+		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+			ui.Column(c).Gap(2).FillWidth().Children(func() {
+				for i, title := range titles {
+					i := i
+					row := uikit.ActionCursor(ui.Row(c).FillWidth().Height(30).Radius(7).
+						AlignItems(ui.Center).Padding(0, 10))
+					bg := ui.Transparent
+					textColor := p.Text
+					switch {
+					case i == *selected:
+						bg = p.Accent
+						textColor = p.OnAccent
+					case row.Hovered():
+						bg = p.Hover
+					}
+					row.Background(bg)
+					row.Children(func() {
+						ui.Text(c, title).FontSize(13).TextColor(textColor).SingleLine()
+					})
+					if row.Clicked() {
+						*selected = i
+					}
+				}
 			})
-			if row.Clicked() {
-				*selected = i
-			}
-		}
+		})
 	})
 }
 
