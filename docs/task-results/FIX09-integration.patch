@@ -1,0 +1,56 @@
+# FIX09 integration: NO public-file hunks are required
+#
+# This is a deliberate zero-hunk integration record, not an empty file by
+# accident. The complete FIX09 value-entry flow is reachable through public
+# hooks that are ALREADY wired in the common baseline a20960b:
+#
+#   internal/desktop/app.go:194   a.envEditorModal(c, t)
+#   internal/desktop/app.go:205   a.IdentityManagementModals(c, t)
+#
+# FIX09 adds `a.secretEntryModal(c, t)` INSIDE IdentityManagementModals
+# (internal/desktop/identity_management_ui.go, a FIX09-owned file), so the
+# dialog renders on every project window without editing app.go.
+#
+# The environment-editor entry ("Set value" / "Update local value" beside each
+# declared name) is added entirely inside envEditorModal/envEditorBody
+# (internal/desktop/environment_editor.go, a FIX09-owned file), reached by the
+# existing "New Env" / "Edit Env" workspace buttons.
+#
+# The credentials-page entry is added to renderCredentialRow and the existing
+# project-menu item "系统凭据 / Credentials" (BuildIdentityManagementMenuItems
+# -> workspace.go:87) already reaches that page; no new menu wiring is needed.
+#
+# The bilingual labels live in identity_management_i18n.go (FIX09-owned).
+# i18n.go is NOT modified. go.mod / go.sum are NOT modified.
+#
+# Therefore the integrator has nothing to apply in
+#   app / manager / nav / workspace / tab / config / i18n.go / go.mod / go.sum
+# for this card.
+#
+# Verification of the zero-patch claim (performed in this worktree):
+#   git diff --name-only  -> only the 5 FIX09-owned files listed in FIX09.md
+#   git diff internal/desktop/app.go | wc -c -> 0
+#   All FIX09 tests drive the REAL production App.View path via ui.NewTester:
+#     TestSecretEntryEnvDeclareSetSendReopen
+#     TestSecretEntryCredentialPageEntryAndSharedStatus
+#   These render the dialog through App.View -> IdentityManagementModals and
+#   click the actual per-row buttons; no test-only View wrapper is needed for
+#   the product path.
+#
+# Merge guidance for the integrator (informational, no hunk):
+#   * If another card also edits IdentityManagementModals, keep BOTH calls:
+#       a.identityManagementModal(c, t)   (guarded by !a.secretEntryActive(a.ps))
+#       a.productionPolicyModal(c, t)
+#       a.secretEntryModal(c, t)          <- FIX09
+#   * If another card edits envEditorBody's secret section, keep the per-name
+#     status badge + action button added by FIX09 alongside their changes.
+#   * Do not run FIX09 tests through IdentityManagementView: that test-only
+#     wrapper renders IdentityManagementModals a second time after a.View,
+#     which double-renders every overlay in headless tests (pre-existing
+#     behavior). Use a.View for exact-overlay assertions.
+#
+# To regenerate a unified diff for review (informational only):
+#   git diff a20960beffbc63880eb9e74214ec2675523af6bf -- internal/desktop/secret_entry.go \
+#       internal/desktop/secret_entry_test.go internal/desktop/environment_editor.go \
+#       internal/desktop/identity_management.go internal/desktop/identity_management_ui.go \
+#       internal/desktop/identity_management_i18n.go

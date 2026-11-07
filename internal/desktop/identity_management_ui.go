@@ -30,10 +30,19 @@ func (a *App) IdentityManagementView(c *ui.Context) {
 }
 
 // IdentityManagementModals is the exact integration entry point for the
-// integrator's App.View. It renders nothing when no dialog is open.
+// integrator's App.View. It renders nothing when no dialog is open. FIX09: the
+// secret value-entry dialog is rendered from the same already-wired hook, so
+// no public App.View change is required for the entry to be reachable.
 func (a *App) IdentityManagementModals(c *ui.Context, t *ui.Theme) {
-	a.identityManagementModal(c, t)
+	// Only one overlay owns the window at a time. While the secret value-entry
+	// dialog is open, suppress the management modal's own overlay so the two
+	// ui.Modal backdrops never stack and block each other. The management state
+	// (open/section/draft) is left intact; closing the dialog returns to it.
+	if !a.secretEntryActive(a.ps) {
+		a.identityManagementModal(c, t)
+	}
 	a.productionPolicyModal(c, t)
+	a.secretEntryModal(c, t)
 }
 
 // BuildIdentityManagementMenuItems adds the four management entries to an
@@ -432,6 +441,7 @@ func (a *App) renderCredentialSection(c *ui.Context, t *ui.Theme, ps *projectSta
 
 func (a *App) renderCredentialRow(c *ui.Context, t *ui.Theme, ps *projectState, st *identityManagementState, entry credentialView) {
 	m := a.identityManagementMsg()
+	sm := a.secretEntryMessages()
 	p := uikit.PaletteFor(t)
 	status := m.CredStatusMissing
 	col := uikit.MethodColor("DELETE", p)
@@ -446,6 +456,11 @@ func (a *App) renderCredentialRow(c *ui.Context, t *ui.Theme, ps *projectState, 
 		ui.Text(c, "{{secret."+entry.Name+"}}").FontSize(12).Font("monospace").TextColor(p.Text).Width(220).SingleLine()
 		ui.Text(c, status).FontSize(11).TextColor(col).Grow(1).SingleLine()
 		ui.Text(c, strings.Join(entry.Sources, ", ")).FontSize(10).TextColor(p.Muted).SingleLine()
+		// FIX09: a per-name entry point that opens the same focused value-entry
+		// dialog as the environment editor, with the name pre-filled.
+		if uikit.ActionCursor(ui.Button(c, sm.CredSetValue)).Clicked() {
+			a.openSecretEntry(ps, entry.Name)
+		}
 		if ui.Button(c, m.CredDelete).TextColor(t.Danger).Clicked() {
 			a.requestDeleteCredential(st, entry.Name)
 		}

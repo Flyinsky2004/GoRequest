@@ -9,6 +9,7 @@ import (
 	"gorequest/internal/desktop/uikit"
 
 	"gorequest/internal/core"
+	"gorequest/internal/platform"
 )
 
 // envVarRow is one editable environment variable row. ID is a stable UI
@@ -44,6 +45,16 @@ type environmentEditor struct {
 
 	varRows    []*envVarRow
 	secretRows []*envSecretRow
+
+	// secretStatus caches NON-SENSITIVE binding state (bound / missing /
+	// unavailable) for declared names, keyed by name. It never holds or renders
+	// a real secret value. FIX09 uses it to make each declared name show
+	// whether a local value has been set, and to label the entry button.
+	secretStatus map[string]core.SecretStatus
+	// secretStatusKey invalidates the cache after a value is set/deleted in the
+	// focused dialog, so the "Set value"/"Update local value" label and badge
+	// refresh without reopening the environment editor.
+	secretStatusKey string
 
 	err            string
 	confirmDiscard bool
@@ -286,6 +297,14 @@ func (a *App) envEditorModal(c *ui.Context, t *ui.Theme) {
 	if !e.open {
 		return
 	}
+	// FIX09: while the secret value-entry dialog is open, exactly one overlay
+	// owns the window. Do not close/hide the environment modal (that would run
+	// the dismissal logic below and could discard an unsaved draft); simply
+	// skip rendering it for this frame. The unsaved draft, focus and current
+	// project are untouched, and closing the dialog returns here unchanged.
+	if a.secretEntryActive(ps) {
+		return
+	}
 	// ui.Modal sets its bool to false on Escape or an outside click. If there
 	// were edits, turn that dismissal into an explicit discard confirmation
 	// rather than silently throwing the draft away.
@@ -344,17 +363,22 @@ func (a *App) envEditorBody(c *ui.Context, t *ui.Theme, ps *projectState, e *env
 
 		ui.Box(c).Height(1).Background(t.Border)
 
-		// Secret names: declarations only, never values.
+		// Secret names: declarations only, never values. FIX09 adds an
+		// actionable hint and a per-name entry to set the real local value,
+		// so declaring a name is immediately followed by a discoverable step.
 		ui.Text(c, m.SecretNamesLabel).FontSize(12).Bold().TextColor(t.TextMuted)
 		ui.Text(c, m.SecretNamesHint).FontSize(11).TextColor(t.TextMuted)
+		a.refreshEnvSecretStatuses(ps, e)
 		ui.Column(c).Gap(4).FillWidth().Children(func() {
 			for _, row := range e.secretRows {
-				e.envSecretRow(c, t, ps, row, m)
+				a.envSecretRow(c, t, ps, e, row, m)
 			}
 		})
 		if uikit.ActionCursor(ui.Button(c, m.AddSecretName)).Clicked() {
 			e.secretRows = append(e.secretRows, &envSecretRow{ID: nextRowID()})
 		}
+		sm := a.secretEntryMessages()
+		ui.Text(c, sm.EnvHint).FontSize(11).TextColor(t.TextMuted)
 
 		if e.err != "" {
 			ui.Text(c, e.err).FontSize(12).TextColor(t.Danger)
@@ -401,17 +425,97 @@ func (e *environmentEditor) envVarRow(c *ui.Context, t *ui.Theme, ps *projectSta
 	})
 }
 
-func (e *environmentEditor) envSecretRow(c *ui.Context, t *ui.Theme, ps *projectState, row *envSecretRow, m *messages) {
+func (a *App) envSecretRow(c *ui.Context, t *ui.Theme, ps *projectState, e *environmentEditor, row *envSecretRow, m *messages) {
+	sm := a.secretEntryMessages()
 	ui.Row(c).Key(row.ID).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-		ui.TextInput(c, &row.Name).Grow(1).Placeholder(m.SecretPlaceholder)
-		if strings.TrimSpace(row.Name) == "" {
+		ui.TextInput(c, &row.Name).Grow(1).Placeholder(m.SecretPlaceholder).Changed()
+		name := strings.TrimSpace(row.Name)
+		if name == "" {
 			ui.Box(c).Width(24)
 			return
+		}
+		// Non-sensitive binding status for this declared name. Values are
+		// never read back or displayed.
+		st := e.secretStatus[name]
+		label, col := sm.EnvStatusMissing, t.Warning
+		switch st.State {
+		case core.SecretStateBound:
+			label, col = sm.EnvStatusBound, t.Success
+		case core.SecretStateUnavailable:
+			label, col = sm.EnvStatusUnavail, t.Danger
+		}
+		ui.Text(c, label).FontSize(11).TextColor(col).Width(84).SingleLine()
+		btn := sm.EnvSetValue
+		if st.State == core.SecretStateBound {
+			btn = sm.EnvUpdateValue
+		}
+		if uikit.ActionCursor(ui.Button(c, btn)).Clicked() {
+			// Pre-fill the same name; the focused dialog writes only to the
+			// project-scoped OS credential store. The unsaved environment
+			// draft stays open behind a single overlay.
+			a.openSecretEntry(ps, name)
 		}
 		if uikit.ActionCursor(ui.Button(c, "✕")).Clicked() {
 			e.removeSecretRow(row.ID)
 		}
 	})
+}
+
+// refreshEnvSecretStatuses fills a small NON-SENSITIVE status cache for the
+// declared secret names shown in the editor. It uses ManagedCredentials.List,
+// which returns state/backend/detail only: no secret value is ever read back,
+// stored in the draft, or rendered. The cache is recomputed when the set of
+// declared names changes or when the value-entry dialog reports a successful
+// Set/Delete via its generation counter — never on every frame.
+func (a *App) refreshEnvSecretStatuses(ps *projectState, e *environmentEditor) {
+	names := make([]string, 0, len(e.secretRows))
+	for _, row := range e.secretRows {
+		n := strings.TrimSpace(row.Name)
+		if n != "" {
+			names = append(names, n)
+		}
+	}
+	d := secretEntryFor(ps)
+	key := fmt.Sprintf("%d\x1f%s", d.generation, strings.Join(names, "\x1e"))
+	if e.secretStatusKey == key && e.secretStatus != nil {
+		return
+	}
+	out := make(map[string]core.SecretStatus, len(names))
+	mc, err := a.managedCredentials(ps)
+	if err != nil {
+		for _, n := range names {
+			out[n] = core.SecretStatus{
+				Name: n, State: core.SecretStateUnavailable, Backend: "keychain",
+				Detail: err.Error(),
+			}
+		}
+	} else {
+		// A single List call probes binding status for all declared names at
+		// once (no repeated OS keychain reads, no secret values read back).
+		records, listErr := mc.List(names)
+		byName := make(map[string]platform.CredentialRecord, len(records))
+		for _, rec := range records {
+			byName[rec.Name] = rec
+		}
+		for _, n := range names {
+			if rec, ok := byName[n]; ok {
+				out[n] = core.SecretStatus{
+					Name: n, State: rec.State, Backend: rec.Backend, Detail: rec.Detail,
+				}
+				continue
+			}
+			st := core.SecretStatus{Name: n, State: core.SecretStateMissing, Backend: "keychain"}
+			if listErr != nil {
+				st = core.SecretStatus{
+					Name: n, State: core.SecretStateUnavailable, Backend: "keychain",
+					Detail: listErr.Error(),
+				}
+			}
+			out[n] = st
+		}
+	}
+	e.secretStatus = out
+	e.secretStatusKey = key
 }
 
 func (e *environmentEditor) removeVarRow(id string) {
