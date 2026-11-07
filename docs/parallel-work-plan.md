@@ -391,3 +391,9 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 先核对现有 runner.SchemaValidator 与 A03 SchemaValidatorPort 的真实差异，再做明确引用规则/错误分类/预检；不得把不可解析或没有schema误当通过，不让未知格式/坏引用在发网后才失败。运行固定保存快照，脏编辑清楚标识；UI更新只投递发起窗口，取消/关窗回收，结果数量/事件列表有界，不写共享项目历史/令牌/报告，不放宽生产策略。桌面选择集合/已有Suite文件、显示步骤/逐次尝试/错误与skipped，报告显式导出本地；未实现的可视化断言/提取编辑器、完整Suite编排/数据编辑界面如实列后续，不用大段源码输入假冒可视化闭环。
 
 必要成功/失败/取消/隔离/Schema错误路径/脱敏/导出失败回归与build/vet/race。真实窗口/平台未验证如实标注，契约首次联合验证后记录兼容与待冻结点，不宣称全面冻结。仅本卡可交付代码完成验证后自行commit；最终集成与勾选由集成人执行，不push/merge/删分支/操作其他agent，不启子agent。
+
+### 17.1 实际领取
+
+负责人 Codex / 当前默认 GPT-6.1-Sol，Herdr终端 `t36`，tab `tba6a08517f98dd3bea9c1ac3a00c6dfc8`（A02 自动化首个闭环 · Codex）。实际worktree `../GoRequest-A02` / `codex/A02-runner-first-loop`，共同基线 `3d51b99c29d9f583fcec8339e3ab77dc7f121643`。新版tab.new交互启动含 `--no-daemon`，会话 danger-full-access / approval never，未改全局模型/配置；已核对屏幕任务、目录和模型，hc working。其余四个FIX任务未中断。
+
+完整提示词/句柄存本机临时 `/private/tmp/gorequest-a02-20261107/`，不入Git；长期范围见§17，后续交付 `docs/task-results/A02-phase1.md`。当前只领取，未交付/未集成，不勾整张A02。
