@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild (for example v0.1.0)
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - mygo.json
+      - go.mod
+      - go.sum
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  CGO_ENABLED: '0'
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}/${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            arch: amd64
+            runner: windows-2025
+          - platform: windows
+            arch: arm64
+            runner: windows-11-arm
+          - platform: darwin
+            arch: amd64
+            runner: macos-15-intel
+          - platform: darwin
+            arch: arm64
+            runner: macos-15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the release tag (or PR merge commit)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.ref || format('refs/tags/{0}', github.event.release.tag_name || inputs.tag) }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Set the application version from the release tag
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const config = JSON.parse(fs.readFileSync('mygo.json', 'utf8'));
+          const tag = process.env.RELEASE_TAG;
+          if (tag) {
+            const match = /^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/.exec(tag);
+            if (!match) throw new Error('Release tag must be a version such as v1.2.3 or v1.2.3-beta.1');
+            config.version = match[1];
+            fs.writeFileSync('mygo.json', JSON.stringify(config, null, 2) + '\n');
+          }
+          fs.appendFileSync(process.env.GITHUB_ENV, `APP_VERSION=${config.version}\n`);
+          NODE
+
+      - name: Install the MyGo CLI at the application's dependency version
+        run: |
+          mygo_version=$(go list -m -f '{{.Version}}' github.com/egoist/mygo)
+          go install "github.com/egoist/mygo/cmd/mygo@$mygo_version"
+
+      - name: Build and package the application
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}/${{ matrix.arch }}
+        run: mygo build -platform "$TARGET_PLATFORM" -skip-notarize
+
+      - name: Collect the macOS disk image
+        if: matrix.platform == 'darwin'
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p bin/release-assets
+          cp "bin/release/darwin-$TARGET_ARCH/gorequest-$APP_VERSION-$TARGET_ARCH.dmg" bin/release-assets/
+
+      - name: Collect the Windows installer and portable archive
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          $output = "bin/release/windows-$env:TARGET_ARCH"
+          New-Item -ItemType Directory -Force bin/release-assets | Out-Null
+          Copy-Item "$output/gorequest-setup-$env:APP_VERSION-$env:TARGET_ARCH.exe" bin/release-assets/
+          Compress-Archive -Path "$output/GoRequest.exe", "$output/LICENSE" -DestinationPath "bin/release-assets/gorequest-$env:APP_VERSION-windows-$env:TARGET_ARCH.zip"
+
+      - name: Store the release assets
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.arch }}
+          path: bin/release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  publish:
+    name: Attach assets to the release
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download all four platform builds
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Create checksums and upload to the existing release
+        working-directory: release-assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" >/dev/null
+          sha256sum -- *.dmg *.exe *.zip > SHA256SUMS
+          gh release upload "$RELEASE_TAG" --clobber -- *.dmg *.exe *.zip SHA256SUMS
