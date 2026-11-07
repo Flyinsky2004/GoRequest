@@ -27,7 +27,6 @@ type networkMessages struct {
 	CookiesSection   string
 	NetworkSection   string
 	TreeMode         string
-	CookieJarBtnFmt  string // %d
 	NetworkBtn       string
 	OpenCookieJarBtn string
 	SaveBinaryBtn    string
@@ -153,7 +152,6 @@ var networkMessagesZh = networkMessages{
 	CookiesSection:   "Cookie",
 	NetworkSection:   "网络",
 	TreeMode:         "树形",
-	CookieJarBtnFmt:  "Cookie (%d)",
 	NetworkBtn:       "网络与证书…",
 	OpenCookieJarBtn: "管理项目 Cookie 罐…",
 	SaveBinaryBtn:    "保存原始二进制文件…",
@@ -273,7 +271,6 @@ var networkMessagesEn = networkMessages{
 	CookiesSection:   "Cookies",
 	NetworkSection:   "Network",
 	TreeMode:         "Tree",
-	CookieJarBtnFmt:  "Cookies (%d)",
 	NetworkBtn:       "Network & TLS…",
 	OpenCookieJarBtn: "Manage Project Cookie Jar…",
 	SaveBinaryBtn:    "Save Raw Binary…",
@@ -1084,11 +1081,39 @@ func (a *App) renderRequestNetworkSettings(c *ui.Context, t *ui.Theme, tab *Tab)
 // responseNetworkView renders the Network & Redirects diagnostic tab inside the
 // Response panel, showing wire transfer size vs decompressed body size,
 // observed stage timings, TLS/mTLS metadata, and redirect hop audit records.
-func (a *App) responseNetworkView(c *ui.Context, t *ui.Theme, res *core.ExecResult, p uikit.Palette) {
+// The Network/TLS settings entry lives here, inside the view, instead of on a
+// separate tool row, so the response tool row keeps a single line.
+func (a *App) responseNetworkView(c *ui.Context, t *ui.Theme, tab *Tab, res *core.ExecResult, p uikit.Palette) {
 	nm := a.networkMsg()
 	if res == nil {
 		return
 	}
+	ps := a.ps
+	if tab != nil && tab.Owner != nil {
+		ps = tab.Owner
+	}
+
+	ui.Column(c).Grow(1).FillWidth().Children(func() {
+		// Settings entry for this view: the transport/proxy/TLS/target-policy
+		// dialog used to sit on a second response tool row. It now belongs to
+		// the Network view it configures.
+		ui.Row(c).FillWidth().Gap(10).Padding(4, 12).AlignItems(ui.Center).
+			BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
+			ui.Text(c, nm.NetworkSection).FontSize(12).FontWeight(600).TextColor(p.Text)
+			ui.Box(c).Grow(1)
+			if uikit.ActionCursor(ui.Button(c, nm.NetworkBtn)).Clicked() {
+				a.openNetworkSettingsModal(ps)
+			}
+		})
+		a.responseNetworkDetail(c, t, res, p)
+	})
+}
+
+// responseNetworkDetail renders the scrollable diagnostic cards of the Network
+// view. It is separate from the view header so the settings entry stays fixed
+// while the diagnostic content scrolls.
+func (a *App) responseNetworkDetail(c *ui.Context, t *ui.Theme, res *core.ExecResult, p uikit.Palette) {
+	nm := a.networkMsg()
 	tr := res.Trace
 	if tr == nil {
 		tr = &core.NetworkTrace{}

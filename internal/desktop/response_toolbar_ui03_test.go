@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -32,9 +33,24 @@ func ui03Rect(t *testing.T, tt *ui.Tester, label string, width int) ui.Rect {
 	return r
 }
 
+// ui03Before reports whether a comes before b in reading order. Elements whose
+// vertical spans overlap are on the same visual line (their text baselines can
+// differ inside taller controls), so they are compared left to right; otherwise
+// the upper element comes first.
+func ui03Before(a, b ui.Rect) bool {
+	if a.Y < b.Y+b.H && b.Y < a.Y+a.H {
+		return a.X < b.X
+	}
+	return a.Y < b.Y
+}
+
+func ui03SameX(a, b ui.Rect) bool { return math.Abs(float64(a.X-b.X)) <= 0.5 }
+
 // Render the production panel, including the actual content views, with the
-// same constrained width that a split workspace gives the response panel.
-func TestUI03ResponseNavigationAnchors(t *testing.T) {
+// same constrained width that a split workspace gives the response panel. The
+// single tool row must read: status group first, then Body/Headers/Cookies/
+// Network, then the body-only Pretty/Raw/Tree group, then find, copy and save.
+func TestUI03ResponseToolRowOrderAndAnchors(t *testing.T) {
 	for _, language := range []language{langEnglish, langSimplifiedChinese} {
 		for _, width := range []int{320, 480, 900} {
 			t.Run(fmt.Sprintf("%s/%d", language, width), func(t *testing.T) {
@@ -42,71 +58,226 @@ func TestUI03ResponseNavigationAnchors(t *testing.T) {
 				m.cfg.cfg.Language = string(language)
 				tt := ui.NewTester(func(c *ui.Context) { a.responseView(c, c.Theme(), tab) }, width, 600)
 				msg, nm := a.msg(), a.networkMsg()
-				labels := []string{msg.BodySection, msg.HeadersSection, nm.CookiesSection, nm.NetworkSection}
-				anchors := make([]ui.Rect, len(labels))
-				for i, label := range labels {
-					anchors[i] = ui03Rect(t, tt, label, width)
+
+				status := ui03Rect(t, tt, "200", width)
+				body := ui03Rect(t, tt, msg.BodySection, width)
+				headers := ui03Rect(t, tt, msg.HeadersSection, width)
+				cookies := ui03Rect(t, tt, nm.CookiesSection, width)
+				network := ui03Rect(t, tt, nm.NetworkSection, width)
+				pretty := ui03Rect(t, tt, msg.Pretty, width)
+				copyRect := ui03Rect(t, tt, msg.CopyResponse, width)
+				saveRect := ui03Rect(t, tt, msg.SaveResponse, width)
+
+				// The status capsule is the first element of the first line.
+				if !ui03Before(status, body) || status.X > body.X {
+					t.Fatalf("status is not the leading element: status=%+v body=%+v", status, body)
 				}
-				for _, payload := range []string{"json", "text", "large", "binary", "long-status"} {
-					switch payload {
-					case "text":
-						tab.Resp.Pretty = ""
-						tab.Resp.Body = []byte("plain text")
-					case "large":
-						tab.Resp.Pretty = `{"ok":true}`
-						tab.Resp.BodySize = largeResponseThreshold + 1
-						tab.RespRawIdx = 2
-					case "binary":
-						tab.Resp.IsBinary = true
-						tab.Resp.ContentType = "application/octet-stream"
-					case "long-status":
-						tab.Resp.IsBinary = false
-						tab.Resp.Status = 503
-						tab.Resp.Duration = 999999 * time.Millisecond
-						tab.Resp.BodySize = 999999999
-						tab.Resp.TransferSize = 999999
-						tab.Resp.Decompressed = true
-						tab.Resp.ContentEncoding = "gzip"
-						tab.Resp.Redirects = make([]core.RedirectHop, 12)
-						tab.Resp.Truncated = true
-						tab.Resp.Trace = &core.NetworkTrace{TLSInsecureSkipVerify: true}
-					}
-					tab.respVersion++
-					for section, label := range labels {
-						tt.Frame()
-						if err := tt.Click(label); err != nil {
-							t.Fatal(err)
-						}
-						if tab.RespSection != section {
-							t.Fatalf("%s click selected %d", label, tab.RespSection)
-						}
-						for i, l := range labels {
-							r := ui03Rect(t, tt, l, width)
-							if r != anchors[i] {
-								t.Fatalf("%s section=%d moved %s: %+v -> %+v", payload, section, l, anchors[i], r)
-							}
-							tt.Move(r.X+r.W/2, r.Y+r.H/2)
-							if tt.Cursor() != ui.CursorPointer {
-								t.Fatalf("%s cursor=%v", l, tt.Cursor())
-							}
-						}
-						// Every action remains inside the constrained panel;
-						// settings cannot share/overlap the navigation line.
-						copyRect := ui03Rect(t, tt, msg.CopyResponse, width)
-						saveRect := ui03Rect(t, tt, msg.SaveResponse, width)
-						jarRect := ui03Rect(t, tt, fmt.Sprintf(nm.CookieJarBtnFmt, 0), width)
-						networkRect := ui03Rect(t, tt, nm.NetworkBtn, width)
-						if jarRect.Y < copyRect.Y+copyRect.H || networkRect.Y < saveRect.Y+saveRect.H {
-							t.Fatal("status/settings overlap response actions")
-						}
-						if section != 0 && tt.HasText(msg.Pretty) {
-							t.Fatal("body formatting outside body section")
-						}
+				if !ui03Before(body, headers) || !ui03Before(headers, cookies) || !ui03Before(cookies, network) {
+					t.Fatalf("view switch out of order: body=%+v headers=%+v cookies=%+v network=%+v",
+						body, headers, cookies, network)
+				}
+				// The body-only format group follows the view switch; it can
+				// never push the view switch sideways.
+				if !ui03Before(network, pretty) {
+					t.Fatalf("body format is not after the view switch: network=%+v pretty=%+v", network, pretty)
+				}
+				// Find/copy/save are at the end of the row.
+				if !ui03Before(pretty, copyRect) || !ui03Before(copyRect, saveRect) {
+					t.Fatalf("row actions out of order: pretty=%+v copy=%+v save=%+v", pretty, copyRect, saveRect)
+				}
+
+				// The old second-row controls are gone; the Cookie count is part
+				// of the view label and zero carries no suffix.
+				for _, gone := range []string{fmt.Sprintf("%s (0)", nm.CookiesSection), nm.NetworkBtn, nm.CookiesSection + " · 0"} {
+					if tt.HasText(gone) {
+						t.Fatalf("obsolete second-row control %q still rendered; texts=%v", gone, tt.Texts())
 					}
 				}
-				t.Logf("width=%d language=%s category label bounds=%+v", width, language, anchors)
+
+				for _, r := range []ui.Rect{body, headers, cookies, network, pretty} {
+					tt.Move(r.X+r.W/2, r.Y+r.H/2)
+					if tt.Cursor() != ui.CursorPointer {
+						t.Fatalf("segment cursor=%v at %+v", tt.Cursor(), r)
+					}
+				}
+				t.Logf("width=%d language=%s status=%+v body=%+v headers=%+v cookies=%+v network=%+v pretty=%+v copy=%+v save=%+v",
+					width, language, status, body, headers, cookies, network, pretty, copyRect, saveRect)
 			})
 		}
+	}
+}
+
+// Preserve the old payload-state coverage: text, large, binary and long-status
+// responses must all keep the status group leading, the view switch in order
+// and every control inside the panel, while the body-only format group follows
+// the response kind.
+func TestUI03ResponseToolRowPayloadStates(t *testing.T) {
+	for _, width := range []int{320, 900} {
+		for _, payload := range []string{"text", "large", "binary", "long-status"} {
+			t.Run(fmt.Sprintf("%d/%s", width, payload), func(t *testing.T) {
+				_, a, tab := ui03Fixture(t)
+				statusText := "200"
+				switch payload {
+				case "text":
+					tab.Resp.Pretty = ""
+					tab.Resp.Body = []byte("plain text")
+				case "large":
+					tab.Resp.BodySize = largeResponseThreshold + 1
+					tab.RespRawIdx = 2
+				case "binary":
+					tab.Resp.IsBinary = true
+					tab.Resp.ContentType = "application/octet-stream"
+				case "long-status":
+					statusText = "503"
+					tab.Resp.Status = 503
+					tab.Resp.Duration = 999999 * time.Millisecond
+					tab.Resp.BodySize = 999999999
+					tab.Resp.TransferSize = 999999
+					tab.Resp.Decompressed = true
+					tab.Resp.ContentEncoding = "gzip"
+					tab.Resp.Redirects = make([]core.RedirectHop, 12)
+					tab.Resp.Truncated = true
+					tab.Resp.Trace = &core.NetworkTrace{TLSInsecureSkipVerify: true}
+				}
+				tab.respVersion++
+				tt := ui.NewTester(func(c *ui.Context) { a.responseView(c, c.Theme(), tab) }, width, 600)
+				msg, nm := a.msg(), a.networkMsg()
+
+				status := ui03Rect(t, tt, statusText, width)
+				cookies := ui03Rect(t, tt, nm.CookiesSection, width)
+				network := ui03Rect(t, tt, nm.NetworkSection, width)
+				if !ui03Before(status, cookies) || status.X > cookies.X {
+					t.Fatalf("status not leading: status=%+v cookies=%+v", status, cookies)
+				}
+				if !ui03Before(cookies, network) {
+					t.Fatalf("view switch out of order: cookies=%+v network=%+v", cookies, network)
+				}
+				copyRect := ui03Rect(t, tt, msg.CopyResponse, width)
+				saveRect := ui03Rect(t, tt, msg.SaveResponse, width)
+				if !ui03Before(network, copyRect) || !ui03Before(copyRect, saveRect) {
+					t.Fatalf("actions out of order: network=%+v copy=%+v save=%+v", network, copyRect, saveRect)
+				}
+				_, hasTree := tt.Find(nm.TreeMode)
+				if payload == "binary" {
+					if _, hasPretty := tt.Find(msg.Pretty); hasPretty {
+						t.Fatal("binary response exposes a body format group")
+					}
+				} else {
+					pretty := ui03Rect(t, tt, msg.Pretty, width)
+					if !ui03Before(network, pretty) {
+						t.Fatalf("format group not after the view switch: network=%+v pretty=%+v", network, pretty)
+					}
+					if (payload == "text" || payload == "large") && hasTree {
+						t.Fatal("non-JSON/large response exposes Tree mode")
+					}
+				}
+			})
+		}
+	}
+}
+
+// The Cookie view label carries the project Cookie Jar count only when it is
+// non-zero, so an empty jar reads as the plain view name.
+func TestUI03CookieCountSuffix(t *testing.T) {
+	_, a, tab := ui03Fixture(t)
+	jar := a.cookieJarFor(a.ps)
+	for _, name := range []string{"a", "b"} {
+		if err := jar.Upsert(core.CookieEntry{Domain: "api.example.com", Path: "/", Name: name, Value: "1"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt := ui.NewTester(func(c *ui.Context) { a.responseView(c, c.Theme(), tab) }, 480, 600)
+	nm := a.networkMsg()
+	if !tt.HasText(nm.CookiesSection + " · 2") {
+		t.Fatalf("Cookie view missing count suffix; texts=%v", tt.Texts())
+	}
+	if tt.HasText(nm.CookiesSection + " · 0") {
+		t.Fatalf("zero count must carry no suffix; texts=%v", tt.Texts())
+	}
+	jar.Clear()
+	tt.Frame()
+	if !tt.HasText(nm.CookiesSection) || tt.HasText(nm.CookiesSection+" · 0") {
+		t.Fatalf("empty jar label wrong; texts=%v", tt.Texts())
+	}
+}
+
+// Switching views must not move the view switch or the status capsule: the
+// body-only format group sits after them, so it cannot push them sideways, and
+// top alignment keeps the first line stable when the row height changes.
+func TestUI03ViewSwitchStaysAnchored(t *testing.T) {
+	for _, width := range []int{320, 480, 900} {
+		t.Run(fmt.Sprintf("%d", width), func(t *testing.T) {
+			_, a, tab := ui03Fixture(t)
+			tt := ui.NewTester(func(c *ui.Context) { a.responseView(c, c.Theme(), tab) }, width, 600)
+			msg, nm := a.msg(), a.networkMsg()
+			labels := []string{msg.BodySection, msg.HeadersSection, nm.CookiesSection, nm.NetworkSection}
+			anchors := make([]ui.Rect, len(labels))
+			for i, label := range labels {
+				anchors[i] = ui03Rect(t, tt, label, width)
+			}
+			status := ui03Rect(t, tt, "200", width)
+			for section, label := range labels {
+				tt.Frame()
+				if err := tt.Click(label); err != nil {
+					t.Fatal(err)
+				}
+				if tab.RespSection != section {
+					t.Fatalf("%s click selected %d", label, tab.RespSection)
+				}
+				for i, l := range labels {
+					r := ui03Rect(t, tt, l, width)
+					if !ui03SameX(r, anchors[i]) || math.Abs(float64(r.Y-anchors[i].Y)) > 0.5 {
+						t.Fatalf("section=%d moved %s: %+v -> %+v", section, l, anchors[i], r)
+					}
+				}
+				if got := ui03Rect(t, tt, "200", width); got != status {
+					t.Fatalf("section=%d moved the status capsule: %+v -> %+v", section, status, got)
+				}
+				if section != 0 && tt.HasText(msg.Pretty) {
+					t.Fatal("body format outside body section")
+				}
+			}
+		})
+	}
+}
+
+// The Cookie Jar entry lives inside the Cookies view and the Network/TLS
+// settings entry inside the Network view; both stay reachable after the
+// second tool row is removed.
+func TestUI03CookieAndNetworkEntriesLiveInViews(t *testing.T) {
+	_, a, tab := ui03Fixture(t)
+	// Wide enough for the 680-DIP Cookie Jar modal to keep its Close button
+	// inside the test window.
+	tt := ui.NewTester(func(c *ui.Context) { a.responseView(c, c.Theme(), tab) }, 900, 600)
+	msg, nm := a.msg(), a.networkMsg()
+
+	if err := tt.Click(nm.CookiesSection); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(nm.OpenCookieJarBtn) {
+		t.Fatalf("Cookie view has no Cookie Jar entry; texts=%v", tt.Texts())
+	}
+	if err := tt.Click(nm.OpenCookieJarBtn); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(nm.CookieJarTitle) {
+		t.Fatalf("Cookie Jar modal did not open; texts=%v", tt.Texts())
+	}
+	if err := tt.Click(msg.Close); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := tt.Click(nm.NetworkSection); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(nm.NetworkBtn) {
+		t.Fatalf("Network view has no settings entry; texts=%v", tt.Texts())
+	}
+	if err := tt.Click(nm.NetworkBtn); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(nm.NetworkModalTitle) {
+		t.Fatalf("Network settings modal did not open; texts=%v", tt.Texts())
 	}
 }
 
@@ -159,20 +330,13 @@ func TestUI03ResponseToolbarInteractionAndUnavailable(t *testing.T) {
 			tab.Resp = nil
 		}
 		tt.Frame()
-		for _, label := range []string{m.BodySection, m.Pretty, m.CopyResponse, m.SaveResponse} {
+		for _, label := range []string{m.BodySection, m.Pretty, m.CopyResponse, m.SaveResponse, nm.NetworkBtn} {
 			if _, ok := tt.Find(label); ok {
 				t.Fatalf("%s exposes response action %s", state, label)
 			}
 		}
 		if state == "error" && !tt.HasText(m.Retry) {
 			t.Fatal("retry missing")
-		}
-		for _, label := range []string{fmt.Sprintf(nm.CookieJarBtnFmt, 0), nm.NetworkBtn} {
-			r := ui03Rect(t, tt, label, 480)
-			tt.Move(r.X+r.W/2, r.Y+r.H/2)
-			if tt.Cursor() != ui.CursorPointer {
-				t.Fatalf("%s cursor=%v", label, tt.Cursor())
-			}
 		}
 	}
 }
@@ -207,6 +371,48 @@ func TestUI03ResponseSegmentHoverPixels(t *testing.T) {
 	}
 }
 
+// The two acceptance window sizes must keep the whole tool row inside the
+// window with the status group leading, even though the response panel is
+// narrower than the window.
+func TestUI03ResponseToolRowAtAcceptanceSizes(t *testing.T) {
+	for _, size := range []struct{ w, h int }{{1200, 820}, {1024, 640}} {
+		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
+			a, ps := openTestProject(t, fmt.Sprintf("UI03 %dx%d", size.w, size.h))
+			tab := openRequestTabs(t, ps, "Acceptance")[0]
+			tab.Resp = &core.ExecResult{
+				Status: 200, Proto: "HTTP/1.1", Duration: 42 * time.Millisecond,
+				Body:     []byte(`{"user":"alice","token":"demo"}`),
+				Pretty:   "{\n  \"user\": \"alice\",\n  \"token\": \"demo\"\n}",
+				BodySize: 34,
+			}
+			tab.respVersion = 1
+			tt := ui.NewTester(a.View, size.w, size.h)
+			tt.Frame()
+			msg, nm := a.msg(), a.networkMsg()
+			status, ok := tt.Find("200")
+			if !ok {
+				t.Fatalf("status missing; texts=%v", tt.Texts())
+			}
+			// "Body"/"Headers" also name request-editor tabs, so the unique
+			// response labels anchor this check; the isolated panel test covers
+			// the full Body/Headers/Cookies/Network order.
+			for _, label := range []string{nm.CookiesSection, nm.NetworkSection, msg.Pretty, msg.CopyResponse, msg.SaveResponse} {
+				r, ok := tt.Find(label)
+				if !ok {
+					t.Fatalf("%q missing; texts=%v", label, tt.Texts())
+				}
+				if r.X < 0 || r.X+r.W > float32(size.w)+0.5 || r.Y < 0 || r.Y+r.H > float32(size.h)+0.5 {
+					t.Fatalf("%q outside %dx%d: %+v", label, size.w, size.h, r)
+				}
+			}
+			cookies, _ := tt.Find(nm.CookiesSection)
+			if !ui03Before(status, cookies) || status.X > cookies.X {
+				t.Fatalf("status not leading: status=%+v cookies=%+v", status, cookies)
+			}
+		})
+	}
+}
+
 func TestUI03ResponseAnchorsInWorkspace(t *testing.T) {
 	a, ps := openTestProject(t, "UI03 workspace")
 	tab := openRequestTabs(t, ps, "UI03 request")[0]
@@ -218,15 +424,22 @@ func TestUI03ResponseAnchorsInWorkspace(t *testing.T) {
 		if !ok {
 			t.Fatal("workspace response switch missing")
 		}
+		status, ok := tt.Find("200")
+		if !ok {
+			t.Fatal("workspace response status missing")
+		}
+		if !ui03Before(status, r) {
+			t.Fatalf("workspace %d: status is not leading: status=%+v cookies=%+v", width, status, r)
+		}
 		for _, label := range []string{a.networkMsg().CookiesSection, a.networkMsg().NetworkSection} {
 			if err := tt.Click(label); err != nil {
 				t.Fatal(err)
 			}
 			next, _ := tt.Find(a.networkMsg().CookiesSection)
-			if next != r {
+			if !ui03SameX(next, r) || math.Abs(float64(next.Y-r.Y)) > 0.5 {
 				t.Fatalf("workspace %d: navigation moved %+v -> %+v", width, r, next)
 			}
 		}
-		t.Logf("workspace width=%d Cookies label bounds=%+v", width, r)
+		t.Logf("workspace width=%d status=%+v Cookies label bounds=%+v", width, status, r)
 	}
 }

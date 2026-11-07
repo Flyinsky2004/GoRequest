@@ -163,13 +163,16 @@ func transferSizeSummary(res *core.ExecResult, nm *networkMessages) string {
 // isCanceledErr reports whether a request error was a user cancellation.
 func isCanceledErr(msg string) bool { return strings.Contains(msg, "canceled") }
 
-// responseView draws the response panel: a status line (status-code capsule,
-// protocol, duration and size as rolling tabular figures, plus wire vs
-// decompressed size and redirect/TLS badges), a Body/Headers/Cookies/Network
-// switch with Pretty/Raw/Tree for the body, quick access to the project's
-// isolated Cookie Jar and Network/TLS settings, a send progress line and
-// skeleton while a request is in flight, an inline error with a Retry pill, and
-// the body as a read-only code view, interactive JSON tree, or binary inspector.
+// responseView draws the response panel: one wrapping tool row whose first
+// position is the status group (status-code capsule, protocol, duration and
+// size as rolling tabular figures, plus wire vs decompressed size and
+// redirect/TLS badges), followed by the Body/Headers/Cookies/Network view
+// switch, Pretty/Raw/Tree for the body, and find/copy/save at the end of the
+// row. The Cookies view carries the project Cookie Jar entry and the Network
+// view carries the Network/TLS settings entry, so there is no second settings
+// row. Below it: a send progress line and skeleton while a request is in
+// flight, an inline error with a Retry pill, and the body as a read-only code
+// view, interactive JSON tree, or binary inspector.
 func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	m := a.msg()
 	nm := a.networkMsg()
@@ -181,13 +184,21 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	jar := a.cookieJarFor(ps)
 
 	ui.Column(c).Grow(1).FillHeight().Background(p.BG).Children(func() {
-		// Navigation is the first, non-shrinking group. Context controls wrap
-		// after it; metrics and project settings have their own independent row.
-		// Neither changing body mode nor a long status can move its left anchor.
+		// One wrapping tool row. The status group is its first child, so the
+		// status capsule, protocol, duration and size keep the leading position
+		// on the first line at every width; the view switch, body format, find
+		// and copy/save follow in reading order. There is no second settings
+		// row: the Cookie Jar lives in the Cookies view and the Network/TLS
+		// settings live inside the Network view, so neither can push the status
+		// off its anchor.
 		ui.Row(c).FillWidth().Wrap().Gap(8).Padding(6, 10).AlignItems(ui.Start).
 			BorderWidth(1, 0, 0, 0).BorderColor(p.Hairline).Children(func() {
+			// Status elements are direct children (not one non-wrapping group)
+			// so a long status can wrap at narrow widths without overflowing.
+			a.responseStatus(c, tab, m, p)
 			if tab.Resp != nil && !tab.Sending && tab.RespErr == "" {
-				responseSegments(c, t, &tab.RespSection, m.BodySection, m.HeadersSection, nm.CookiesSection, nm.NetworkSection)
+				responseSegments(c, t, &tab.RespSection, m.BodySection, m.HeadersSection,
+					cookieSectionLabel(nm, jar.Count()), nm.NetworkSection)
 				if tab.RespSection == 0 && !tab.Resp.IsBinary {
 					ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 						if responseBodyIsJSON(tab.Resp) && tab.Resp.BodySize <= largeResponseThreshold {
@@ -206,7 +217,7 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 						}
 					})
 				}
-				ui.Row(c).Shrink(0).Gap(8).Children(func() {
+				ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 					if b := uikit.IconButton(c, p, uikit.IconCopy, m.CopyResponse).Label(m.CopyResponse).Cursor(ui.CursorPointer); b.Clicked() {
 						c.WriteClipboard(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
 						a.status = m.Copied
@@ -215,16 +226,6 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 						a.saveResponse(tab)
 					}
 				})
-			}
-		})
-		ui.Row(c).FillWidth().Wrap().Gap(8).Padding(4, 10).AlignItems(ui.Center).Children(func() {
-			a.responseStatus(c, tab, m, p)
-			// Project settings remain usable even without a response.
-			if ui.Button(c, fmt.Sprintf(nm.CookieJarBtnFmt, jar.Count())).Cursor(ui.CursorPointer).Clicked() {
-				a.openCookieJarModal(ps)
-			}
-			if ui.Button(c, nm.NetworkBtn).Cursor(ui.CursorPointer).Clicked() {
-				a.openNetworkSettingsModal(ps)
 			}
 		})
 
@@ -269,7 +270,7 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		case 2:
 			a.responseCookiesView(c, t, tab, p)
 		case 3:
-			a.responseNetworkView(c, t, tab.Resp, p)
+			a.responseNetworkView(c, t, tab, tab.Resp, p)
 		default:
 			a.responseFindBar(c, t, tab)
 			a.responseBodyArea(c, t, tab, m, p)
@@ -744,7 +745,14 @@ func (a *App) responseEditorFor(t *ui.Theme, tab *Tab) *editor.State {
 	st := &editor.State{
 		Buffer:   editor.NewBuffer(responseBodyText(tab.Resp, tab.RespRawIdx == 1)),
 		ReadOnly: true,
-		Theme:    uikit.EditorTheme(t),
+		// A read-only response is not an editing surface: the caret's line
+		// must not get the editor's active-line wash (the first line would
+		// otherwise show a grey band straight under the tool row), and the
+		// fold-marker column only widens the gutter. The JSON Tree view
+		// provides folding for structured bodies.
+		NoActiveLine: true,
+		NoFolding:    true,
+		Theme:        uikit.EditorTheme(t),
 	}
 	if !degraded && responseBodyIsJSON(tab.Resp) {
 		st.Buffer.SetLanguage(editor.LanguageNamed("json"))

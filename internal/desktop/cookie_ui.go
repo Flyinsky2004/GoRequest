@@ -237,6 +237,19 @@ func (a *App) cookieJarModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 	}
 }
 
+// cookieSectionLabel names the response Cookies view in the tool row. The
+// project Cookie Jar count is attached only when non-zero, so an empty jar
+// reads as the plain view name instead of "Cookies · 0".
+func cookieSectionLabel(nm *networkMessages, count int) string {
+	if nm == nil || count <= 0 {
+		if nm == nil {
+			return ""
+		}
+		return nm.CookiesSection
+	}
+	return fmt.Sprintf("%s · %d", nm.CookiesSection, count)
+}
+
 // responseCookiesView renders the Cookies tab inside the Response panel,
 // showing Set-Cookie entries from the response and providing direct access to
 // the project's isolated Cookie Jar manager.

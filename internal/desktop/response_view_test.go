@@ -387,12 +387,19 @@ func TestCookieJarModalViewEditClearAndProjectIsolation(t *testing.T) {
 
 	tabA := openRequestTabs(t, appA.ps, "ReqA")[0]
 	openRequestTabs(t, appB.ps, "ReqB")
+	// A response makes the view switch available; the Cookie Jar entry lives
+	// inside the Cookies view now, not on a second tool row.
+	tabA.Resp = &core.ExecResult{Status: 200, Proto: "HTTP/1.1", Body: []byte(`{}`), BodySize: 2}
+	tabA.respVersion = 1
 
 	ttA := ui.NewTester(appA.View, 1200, 820)
 	ttA.Frame()
 
-	// Open Cookie Jar modal from the request toolbar in ProjA.
-	if err := ttA.Click("Cookies (0)"); err != nil {
+	// Open the Cookies view, then the Cookie Jar manager from inside it.
+	if err := ttA.Click(appA.networkMsg().CookiesSection); err != nil {
+		t.Fatalf("open Cookies view: %v", err)
+	}
+	if err := ttA.Click(appA.networkMsg().OpenCookieJarBtn); err != nil {
 		t.Fatalf("open Cookie Jar modal: %v", err)
 	}
 	if !ttA.HasText("Project Cookie Jar") {
@@ -490,12 +497,19 @@ func TestCookieJarModalViewEditClearAndProjectIsolation(t *testing.T) {
 func TestNetworkSettingsModalAndEndToEndExecuteTabPlan(t *testing.T) {
 	a, ps := openTestProject(t, "NetSettings")
 	tab := openRequestTabs(t, ps, "RedirectTest")[0]
+	// The Network/TLS settings entry lives inside the Network view, which
+	// requires a response to be shown.
+	tab.Resp = &core.ExecResult{Status: 200, Proto: "HTTP/1.1", Body: []byte(`{}`), BodySize: 2}
+	tab.respVersion = 1
 
 	tt := ui.NewTester(a.View, 1200, 820)
 	tt.Frame()
 
-	// Open Network & TLS settings modal from the request toolbar.
-	if err := tt.Click("Network & TLS…"); err != nil {
+	// Open the Network view, then the settings modal from inside it.
+	if err := tt.Click(a.networkMsg().NetworkSection); err != nil {
+		t.Fatalf("click Network view: %v", err)
+	}
+	if err := tt.Click(a.networkMsg().NetworkBtn); err != nil {
 		t.Fatalf("click Network & TLS…: %v", err)
 	}
 	if !tt.HasText("Network Transport, Proxy, TLS/mTLS & Target Policy") {
