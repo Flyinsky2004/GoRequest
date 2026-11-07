@@ -630,7 +630,7 @@ func (a *App) kvRow(c *ui.Context, t *ui.Theme, tab *Tab, kind kvKind, row *KVRo
 			})
 			g.Drag(kvDrag{kind: kind, id: row.ID}).Tooltip(m.DragTip)
 		}
-		if uikit.ActionCursor(ui.Checkbox(c, &row.Enabled, "")).Changed() {
+		if uikit.ActionCursor(kvCheckbox(c, p, &row.Enabled)).Changed() {
 			tab.Dirty = true
 		}
 		keyPh, valPh := kvCellPlaceholders(m, blank)
