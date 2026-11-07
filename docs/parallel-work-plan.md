@@ -346,3 +346,21 @@ UI04/05 对同一标题区串行接线：UI05 只做布局，UI04 交 navHeader 
 - **ASK01**：讨论会话越界补写了 `docs/decisions.md`(ADR-010) 与 `docs/storage-format.md` 的 Secret 实现现状说明；已核对引用的 `platform/keychain*.go`、`platform/secrets.go`、`GOREQUEST_SECRET_`、`SecretProvider` 均真实存在后，作为文档提交 `92d9968` 纳入 main（仅文档，不改代码语义）。
 - **清理**：5 个功能分支已入 main，删除其 worktree 与分支；集成分支/worktree 亦删除；关闭 5 个代码 agent 标签（`t2t/t2v/t2w/t2x/t2y`）；ASK01（`t2z`）与用户终端 `t1h`、集成 CC `t2r`、`t2s` 不动。
 - **如实保留的限制**：均为无窗口自动化 + `-race` 通过；FIX01 三版本模态键鼠、FIX02 拖拽/右键移动即时刷新、FIX03 标点色观感、FIX04 折叠按钮尺寸、FIX05 左右栏布局与暗色/窄窗口，均**未做真实窗口人工/三平台验收**，不据此宣称人工通过。FIX01 另提一处**可选**记账接线（非必需）。
+
+## 16. 设置高度、发送反馈、超时与密钥入口（2026-11-07）
+
+用户要求继续用 Herdr 开几个 CC 修四项。开工代码基线 main `e56fc0f`：旧任务均已合并清理，当前仅主worktree；用户示例环境改动与两个调试二进制不纳入基线。修复现有入口，不重复实现网络或凭据引擎；ADR-010 的 Secret 外部化与系统凭据隔离边界继续有效。
+
+| 任务 | 分支 / worktree | 独占范围与目标 | 状态 |
+| --- | --- | --- | --- |
+| FIX06 | `cc/FIX06-settings-height` / `../GoRequest-FIX06` | `desktop/settings.go` 面板高度：保留左分类/右内容，把当前接近整窗高改为约现有一半的紧凑默认，内容滚动/Done可达，兼容小窗口 | 待启动 |
+| FIX07 | `cc/FIX07-send-feedback` / `../GoRequest-FIX07` | `desktop/uikit/response.go` SendButton：启用hover/pressed可见颜色差异，保留手型/发送取消图标/点击/尺寸，深浅主题都可辨 | 待启动 |
+| FIX08 | `cc/FIX08-timeout-entry` / `../GoRequest-FIX08` | `desktop/network_ui.go` 超时段与专属双语提示/测试：明确总超时入口/单位/继承后实际值与阶段超时归属，不再隐藏在技术设置中；顶层快捷入口若需公共文件交patch | 待启动 |
+| FIX09 | `cc/FIX09-secret-value-entry` / `../GoRequest-FIX09` | `desktop/environment_editor.go` 密钥声明入口、`identity_management*.go` 凭据录入：从本地密钥名称直接设置/更新同名本机秘密值、绑定状态与不可用错误，复用原系统凭据管理，不能写明文项目 | 待启动 |
+
+- [ ] FIX06 紧凑设置面板：待集成验证。
+- [ ] FIX07 发送按钮 hover/pressed 颜色：待集成验证。
+- [ ] FIX08 请求超时的可发现入口与准确说明：待集成验证。
+- [ ] FIX09 声明密钥后的实际值录入与请求闭环：待集成验证。
+
+公共 app/manager/nav/workspace/tab/config/i18n、go.mod/go.sum 与账本由集成人拥有，新公共接线交最小patch；FIX06 设置壳层只接入口patch，不与FIX08/09并行重写公共设置。按钮状态样式仅改SendButton，FIX08不改uikit按钮；FIX09不改网络超时。各卡独立测试与临时夹具，不写真实凭据/本机配置、不触碰用户窗口/示例dirty，不push/merge/reset/clean/改共享git config/启子agent。完成适当验证后只commit本卡文件，写 docs/task-results/FIX0x.md。人工/三平台未做必须明示；集成后再勾选。
