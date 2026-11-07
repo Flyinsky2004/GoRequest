@@ -253,10 +253,10 @@ func TestSnippetJSONBodyAndQueryEncoding(t *testing.T) {
 	if !strings.Contains(res.Code, `{"count":3,"name":"glycerin"}`) {
 		t.Fatalf("json body not core-parity (map key sort + var resolved):\n%s", res.Code)
 	}
-	if !strings.Contains(res.Code, `"X-Trace: req-glycerin"`) {
+	if !strings.Contains(res.Code, `'X-Trace: req-glycerin'`) {
 		t.Fatalf("templated header not resolved:\n%s", res.Code)
 	}
-	if !strings.Contains(res.Code, "--max-time '5'") {
+	if !strings.Contains(res.Code, "--max-time \\\n  '5'") && !strings.Contains(res.Code, "--max-time '5'") {
 		t.Fatalf("request timeout not carried:\n%s", res.Code)
 	}
 }
@@ -268,7 +268,9 @@ func TestSnippetDuplicateHeaders(t *testing.T) {
 	if err != nil || curlRes.Blocked != "" {
 		t.Fatalf("curl: %v / %s", err, curlRes.Blocked)
 	}
-	if strings.Count(curlRes.Code, "-H 'X-Feature:") != 2 {
+	if strings.Count(curlRes.Code, "'X-Feature: ") != 2 ||
+		!strings.Contains(curlRes.Code, "'X-Feature: alpha'") ||
+		!strings.Contains(curlRes.Code, "'X-Feature: beta'") {
 		t.Fatalf("cURL must carry duplicate headers twice:\n%s", curlRes.Code)
 	}
 	pyRes, err := Generate(p, entry, LangPython, Options{})
@@ -351,9 +353,12 @@ func TestSnippetURLEncodedPrebuiltLiteral(t *testing.T) {
 func TestSnippetBlocksAndTimeouts(t *testing.T) {
 	// Invalid timeout refuses generation (mirrors core config error).
 	files := baseFixtureFiles()
-	files["collections/users.badtime.request.yaml"] = strings.Replace(fixtureBaseRequest, "timeout: 5s", "timeout: soon", 1)
-	files["collections/users.ws.request.yaml"] = strings.Replace(fixtureBaseRequest, "protocol: http", "protocol: ws", 1)
-	files["collections/users.undef.request.yaml"] = strings.Replace(fixtureBaseRequest, "{{itemName}}", "{{mysteryName}}", 2)
+	withID := func(id string) string {
+		return strings.Replace(fixtureBaseRequest, "id: users.create", "id: "+id, 1)
+	}
+	files["collections/users.badtime.request.yaml"] = strings.Replace(withID("users.badtime"), "timeout: 5s", "timeout: soon", 1)
+	files["collections/users.ws.request.yaml"] = strings.Replace(withID("users.ws"), "protocol: http", "protocol: ws", 1)
+	files["collections/users.undef.request.yaml"] = strings.Replace(withID("users.undef"), "{{itemName}}", "{{mysteryName}}", 2)
 	p2 := writeFixtureProject(t, files)
 
 	for id, want := range map[string]string{
@@ -419,8 +424,9 @@ func TestSnippetRuntimeDeclared(t *testing.T) {
 
 func TestSnippetJSONSecretKeepsVisiblePlaceholder(t *testing.T) {
 	files := baseFixtureFiles()
+	base := strings.Replace(fixtureBaseRequest, "id: users.create", "id: users.jsonsecret", 1)
 	files["collections/users.jsonsecret.request.yaml"] = strings.Replace(
-		fixtureBaseRequest, `"{{itemName}}"`, `"{{secret.api_token}}"`, 1)
+		base, `"{{itemName}}"`, `"{{secret.api_token}}"`, 1)
 	p := writeFixtureProject(t, files)
 	entry := fixtureEntry(t, p, "users.jsonsecret")
 	res, err := Generate(p, entry, LangGo, Options{EnvID: "dev"})

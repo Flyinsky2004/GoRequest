@@ -118,14 +118,12 @@ func shellLiteral(s string) string {
 // used at run time. The word is shell-exact regardless of content.
 func shellValue(segs []segment) string {
 	var b strings.Builder
-	for _, s := range segs {
+	for _, s := range coalesceSegments(segs) {
 		switch s.kind {
 		case segSecret:
 			b.WriteString(`"$` + s.text + `"`)
 		case segLiteral, segUnresolved:
-			if s.text != "" {
-				b.WriteString(shellLiteral(s.text))
-			}
+			b.WriteString(shellLiteral(s.text))
 		}
 	}
 	if b.Len() == 0 {

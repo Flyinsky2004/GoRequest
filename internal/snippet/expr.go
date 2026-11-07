@@ -7,19 +7,39 @@ import (
 	"strings"
 )
 
+// coalesceSegments merges adjacent non-secret segments into a single literal
+// segment so a pure resolved value renders as one quoted string instead of
+// concatenated pieces.
+func coalesceSegments(segs []segment) []segment {
+	var out []segment
+	for _, s := range segs {
+		if s.kind == segSecret {
+			out = append(out, s)
+			continue
+		}
+		if s.text == "" {
+			continue
+		}
+		if len(out) > 0 && out[len(out)-1].kind != segSecret {
+			out[len(out)-1].text += s.text
+			continue
+		}
+		out = append(out, segment{kind: s.kind, text: s.text})
+	}
+	return out
+}
+
 // goSegExpr renders segments as a Go expression string, composing runtime
 // env lookups: "Bearer " + mustEnv("GOREQ_X"). A pure literal renders as one
 // quoted string.
 func goSegExpr(segs []segment) string {
 	var parts []string
-	for _, s := range segs {
+	for _, s := range coalesceSegments(segs) {
 		switch s.kind {
 		case segSecret:
 			parts = append(parts, fmt.Sprintf("mustEnv(%s)", goQuote(s.text)))
 		default:
-			if s.text != "" {
-				parts = append(parts, goQuote(s.text))
-			}
+			parts = append(parts, goQuote(s.text))
 		}
 	}
 	switch len(parts) {
@@ -35,14 +55,12 @@ func goSegExpr(segs []segment) string {
 // pySegExpr renders segments as a Python expression using os.environ lookups.
 func pySegExpr(segs []segment) string {
 	var parts []string
-	for _, s := range segs {
+	for _, s := range coalesceSegments(segs) {
 		switch s.kind {
 		case segSecret:
 			parts = append(parts, fmt.Sprintf("os.environ[%s]", pyQuote(s.text)))
 		default:
-			if s.text != "" {
-				parts = append(parts, pyQuote(s.text))
-			}
+			parts = append(parts, pyQuote(s.text))
 		}
 	}
 	switch len(parts) {
@@ -59,14 +77,12 @@ func pySegExpr(segs []segment) string {
 // requireEnv helper (emitted only when needed).
 func jsSegExpr(segs []segment) string {
 	var parts []string
-	for _, s := range segs {
+	for _, s := range coalesceSegments(segs) {
 		switch s.kind {
 		case segSecret:
 			parts = append(parts, fmt.Sprintf("requireEnv(%s)", jsQuote(s.text)))
 		default:
-			if s.text != "" {
-				parts = append(parts, jsQuote(s.text))
-			}
+			parts = append(parts, jsQuote(s.text))
 		}
 	}
 	switch len(parts) {
