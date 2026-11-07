@@ -457,3 +457,9 @@ main 已从 `0695700` 快进到 `dcc7858`（本轮公共接线/验证边界提�
 公共接线：App.View增加MockModals/PerformanceModals，项目菜单增加BuildMockProjectMenuItems/BuildPerformanceProjectMenuItems；urlGroup增加FIX08 renderTimeoutQuickEntry。FIX09已有envEditor/IdentityManagement公共挂载，无须应用其零hunk说明文件。修复C01 desktop/mock.go导入路径 `" runtime"` 的多余空格，未改引擎语义。
 
 本轮沿用用户先不执行测试约束，仅做diff/补丁/静态导入与重名检查、gofmt及Git祖先/干净核对；未运行go build/go vet/go test，未启动Mock/采样或操作真实凭据。FIX08/09自分支已有验证记录只作为历史证据；C01/02按派工约束未构建/测试，不能把合并算通过。主验收checkbox保留未勾。阶段限制：C01细粒度规则编辑/复杂Schema生成/A02主面板联动，C02 SOCKS5复用与中间跳不可观测阶段仍见各自报告；真实窗口/三平台待验收。不push、不提交用户示例环境与debug文件。清理结果在完成后补记。
+
+### 20.1 main与清理完成
+
+main从 `7d47e6f` 快进至 `6c4d2b7`（公共接线/静态导入修正与状态文档提交，四个合并提交均在历史）。确认四分支均已进入main、worktree各自CLEAN后，不带force删除 `cc/FIX08-timeout-entry`、`cc/FIX09-secret-value-entry`、`agy/C01-local-mock`、`agy/C02-performance` 及对应 `../GoRequest-FIX08/FIX09/C01/C02`；干净的集成worktree/分支亦从主目录删除。
+
+随后按精确tab关闭四个本轮交付agent：FIX08 `t34`、FIX09 `t35`、C01 `t37`、C02 `t38`，四次tab.close均ok:true。保留用户主会话t1h、用户shell t2s和另一个oct space中的t31，不停止Herdr app/core。最终Git仅剩main和主worktree，用户示例环境改动及两个调试产物保持原状。本轮未运行build/vet/测试，未push。清理只代表交付已入main，不表示验证通过。
