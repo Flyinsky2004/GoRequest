@@ -3,6 +3,8 @@ package desktop
 import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+
+	"gorequest/internal/brand"
 )
 
 // window is the small slice of a native MyGo window that the desktop manager
@@ -88,5 +90,12 @@ func newRealWindow(s windowSpec) window {
 		opts.TitleBarStyle = mygo.TitleBarHidden
 		opts.Vibrancy = mygo.VibrancySidebar
 	}
-	return &realWindow{w: mygo.NewWindow(opts)}
+	w := mygo.NewWindow(opts)
+	// WindowOptions has no icon field, so apply the embedded logo right after
+	// construction. MyGo v0.7.4's SetIcon shows it in the title bar / taskbar
+	// on Linux and Windows and is a documented no-op on macOS windows; the mac
+	// Dock icon is set once at startup by Manager.WireApp. A failure is not
+	// fatal: the platform keeps its default icon and the app stays usable.
+	_ = w.SetIcon(brand.PNG())
+	return &realWindow{w: w}
 }

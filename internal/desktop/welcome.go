@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"gorequest/internal/brand"
 	"gorequest/internal/desktop/uikit"
 )
 
@@ -53,10 +54,20 @@ func (w *welcomeState) view(c *ui.Context) {
 	m := w.msg()
 
 	ui.Column(c).Fill().Children(func() {
-		// Brand block.
+		// Brand block. The logo goes to the left of the existing wordmark and
+		// tagline; it is a small, single decorative image, not a replacement
+		// for any functional icon or a backdrop behind the whole window. The
+		// text, padding, drag region and actions below are unchanged.
 		windowDragRegion(c).Padding(24, 24, 10, 24).Gap(6).Children(func() {
-			ui.Text(c, "GoRequest").FontSize(24).Bold().SingleLine()
-			ui.Text(c, m.WelcomeTagline).FontSize(12).TextColor(t.TextMuted).SingleLine()
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				if logo := brand.Logo(); logo != nil {
+					ui.Image(c, logo).Size(48, 48)
+				}
+				ui.Column(c).Gap(6).Children(func() {
+					ui.Text(c, "GoRequest").FontSize(24).Bold().SingleLine()
+					ui.Text(c, m.WelcomeTagline).FontSize(12).TextColor(t.TextMuted).SingleLine()
+				})
+			})
 		})
 
 		// Actions.

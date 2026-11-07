@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"gorequest/internal/brand"
 	"gorequest/internal/core"
 	"gorequest/internal/platform"
 )
@@ -106,6 +107,16 @@ func NewManager(explicitProject string) *Manager {
 // WireApp registers application-level lifecycle hooks. Call it once from
 // App.WhenReady, before Start.
 func (m *Manager) WireApp() {
+	// Use the user-provided logo as the running application's icon. In MyGo
+	// v0.7.4 App.Dock.SetIcon calls NSApplication's
+	// setApplicationIconImage: with the PNG on macOS; it also sets the default
+	// window icon on Windows/Linux. WhenReady runs after the native backend is
+	// initialized, so this is a supported call point. A failure keeps the
+	// platform default icon instead of breaking startup. This only affects a
+	// running process; a bundled .app needs CFBundleIconFile (see
+	// scripts/make-macos-app.sh) and real Dock/Finder display is not claimed
+	// from this code path alone.
+	_ = mygo.App.Dock.SetIcon(brand.PNG())
 	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
 		if m.quitting {
 			return // already resolved: let the quit proceed
