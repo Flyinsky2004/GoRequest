@@ -218,12 +218,12 @@ func TestEngine_WarmupFailuresTruncatedAndGateIndeterminate(t *testing.T) {
 				Status:   http.StatusOK,
 				Duration: 999 * time.Millisecond,
 				Trace: &core.NetworkTrace{
-					TTFB:        900 * time.Millisecond,
-					Download:    99 * time.Millisecond,
-					Total:       999 * time.Millisecond,
-					DNSObserved: false,
-					TCPObserved: true,
-					TCPConnect:  10 * time.Millisecond,
+					TTFBDuration:     900 * time.Millisecond,
+					TTFBObserved:     true,
+					DownloadDuration: 99 * time.Millisecond,
+					DNSObserved:      false,
+					ConnectObserved:  true,
+					ConnectDuration:  10 * time.Millisecond,
 				},
 			}, nil
 		case 2:
@@ -232,11 +232,11 @@ func TestEngine_WarmupFailuresTruncatedAndGateIndeterminate(t *testing.T) {
 				Status:   http.StatusOK,
 				Duration: 120 * time.Millisecond,
 				Trace: &core.NetworkTrace{
-					TTFB:        100 * time.Millisecond,
-					Download:    20 * time.Millisecond,
-					Total:       120 * time.Millisecond,
-					TCPObserved: true,
-					TCPConnect:  12 * time.Millisecond,
+					TTFBDuration:     100 * time.Millisecond,
+					TTFBObserved:     true,
+					DownloadDuration: 20 * time.Millisecond,
+					ConnectObserved:  true,
+					ConnectDuration:  12 * time.Millisecond,
 				},
 			}, nil
 		case 3:
@@ -245,8 +245,8 @@ func TestEngine_WarmupFailuresTruncatedAndGateIndeterminate(t *testing.T) {
 				Status:   http.StatusInternalServerError,
 				Duration: 45 * time.Millisecond,
 				Trace: &core.NetworkTrace{
-					TTFB:  40 * time.Millisecond,
-					Total: 45 * time.Millisecond,
+					TTFBDuration: 40 * time.Millisecond,
+					TTFBObserved: true,
 				},
 			}, nil
 		case 4:
@@ -256,9 +256,9 @@ func TestEngine_WarmupFailuresTruncatedAndGateIndeterminate(t *testing.T) {
 				Truncated: true,
 				Duration:  75 * time.Millisecond,
 				Trace: &core.NetworkTrace{
-					TTFB:     30 * time.Millisecond,
-					Download: 45 * time.Millisecond,
-					Total:    75 * time.Millisecond,
+					TTFBDuration:     30 * time.Millisecond,
+					TTFBObserved:     true,
+					DownloadDuration: 45 * time.Millisecond,
 				},
 			}, nil
 		default:
