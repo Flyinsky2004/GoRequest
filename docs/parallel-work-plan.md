@@ -463,3 +463,11 @@ main 已从 `0695700` 快进到 `dcc7858`（本轮公共接线/验证边界提�
 main从 `7d47e6f` 快进至 `6c4d2b7`（公共接线/静态导入修正与状态文档提交，四个合并提交均在历史）。确认四分支均已进入main、worktree各自CLEAN后，不带force删除 `cc/FIX08-timeout-entry`、`cc/FIX09-secret-value-entry`、`agy/C01-local-mock`、`agy/C02-performance` 及对应 `../GoRequest-FIX08/FIX09/C01/C02`；干净的集成worktree/分支亦从主目录删除。
 
 随后按精确tab关闭四个本轮交付agent：FIX08 `t34`、FIX09 `t35`、C01 `t37`、C02 `t38`，四次tab.close均ok:true。保留用户主会话t1h、用户shell t2s和另一个oct space中的t31，不停止Herdr app/core。最终Git仅剩main和主worktree，用户示例环境改动及两个调试产物保持原状。本轮未运行build/vet/测试，未push。清理只代表交付已入main，不表示验证通过。
+
+## 21. FIX10 Mock Checkbox编译修复（agy，2026-11-07）
+
+用户提供mock_ui.go:87两条IncompatibleAssign并要求派agy修复。已读本机MyGo v0.7.4签名 `Checkbox(c *Context, checked *bool, label string)`，现调用把label与布尔指针颠倒。任务只修复此编译错误及新合入Mock/性能模块内同类API调用错误，不重构业务/布局/依赖，不执行测试套件；针对本轮编译错误允许必要go build编译验证，真实交互仍未验收。
+
+- [ ] FIX10 Mock Checkbox参数顺序与相关编译错误：待交付/集成。
+
+计划分支 `agy/FIX10-mock-checkbox`，worktree `../GoRequest-FIX10`；参考main `27207fa`，实际基线/终端见启动记录。拥有desktop/mock_ui.go必要API增量，发现performance或其他新模块阻塞编译时只最小修复并报告；不以编译失败为由清理其他代码。不改公共模型/依赖/用户环境与debug文件，不merge/push/操作其他agent/启子agent，提交本卡交付docs/task-results/FIX10.md，总账本由集成人更新。
