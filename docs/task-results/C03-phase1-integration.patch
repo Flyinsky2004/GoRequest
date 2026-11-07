@@ -1,0 +1,215 @@
+--- a/internal/core/doclinks.go
++++ b/internal/core/doclinks.go
+@@ -29,6 +29,10 @@
+ 	// LinkExternal is an http, https or mailto address that opens only when
+ 	// the user clicks it.
+ 	LinkExternal
++	// LinkDocRef is a gorequest://request/<id> reference to a request of the
++	// project (C03). The desktop layer owns what opening it does; core only
++	// validates that the referenced request exists.
++	LinkDocRef
+ )
+ 
+ func (k LinkKind) String() string {
+@@ -41,6 +45,8 @@
+ 		return "asset"
+ 	case LinkExternal:
+ 		return "external"
++	case LinkDocRef:
++		return "request"
+ 	}
+ 	return "unknown"
+ }
+@@ -77,6 +83,9 @@
+ 	LinkProblemMissingAnchor     = "missing-anchor"
+ 	LinkProblemUnsupportedAsset  = "unsupported-asset"
+ 	LinkProblemNotFile           = "not-file"
++	// LinkProblemMissingRequest marks a gorequest://request/<id> reference
++	// whose request ID is not in the project (C03).
++	LinkProblemMissingRequest = "missing-request"
+ )
+ 
+ // LinkProblem is a link that cannot be used safely.
+@@ -121,6 +130,10 @@
+ 		case "http", "https", "mailto":
+ 			t.Kind, t.URL = LinkExternal, raw
+ 			return t, nil
++		case "gorequest":
++			// C03: gorequest://request/<id> references resolve against the
++			// project's request map; the desktop owns the open action.
++			return p.resolveRequestRef(raw)
+ 		case "javascript", "data", "file", "vbscript", "blob":
+ 			return t, &LinkProblem{Kind: LinkProblemDangerousScheme, Dest: raw, Detail: scheme + ": is not allowed"}
+ 		default:
+@@ -184,7 +197,31 @@
+ 		}
+ 		t.Kind = LinkAsset
+ 		return t, nil
++	}
++}
++
++// resolveRequestRef validates a gorequest:// destination. Only
++// gorequest://request/<id> is a reference; a valid shape whose request ID is
++// not in the project is a missing-request problem; any other gorequest path
++// stays unsupported.
++func (p *Project) resolveRequestRef(dest string) (LinkTarget, error) {
++	t := LinkTarget{Dest: dest}
++	rest, ok := strings.CutPrefix(dest, "gorequest://request/")
++	if !ok {
++		return t, &LinkProblem{Kind: LinkProblemUnsupportedScheme, Dest: dest, Detail: "only request/<id> references exist under gorequest:"}
+ 	}
++	id := strings.TrimSpace(rest)
++	if id == "" || strings.ContainsAny(id, " \t\r\n/?#%\\") {
++		return t, &LinkProblem{Kind: LinkProblemMissingRequest, Dest: dest, Detail: "reference is not gorequest://request/<id>"}
++	}
++	if p == nil || p.Requests == nil {
++		return t, &LinkProblem{Kind: LinkProblemMissingRequest, Dest: dest, Detail: id}
++	}
++	if _, found := p.Requests[id]; !found {
++		return t, &LinkProblem{Kind: LinkProblemMissingRequest, Dest: dest, Detail: id}
++	}
++	t.Kind = LinkDocRef
++	return t, nil
+ }
+ 
+ func (p *Project) resolveDocAnchor(docRel string, t LinkTarget, frag string) (LinkTarget, error) {
+@@ -292,6 +329,9 @@
+ 	DiagHTMLNotExecuted = "html-not-executed"
+ 	DiagMermaid         = "mermaid-unsupported"
+ 	DiagBadLink         = "bad-link"
++	// DiagMissingRequest marks a gorequest reference to a request that is
++	// not in the project (C03).
++	DiagMissingRequest = "missing-request"
+ )
+ 
+ // DiagnoseDoc checks every link and image of src and reports local problems:
+@@ -348,6 +388,8 @@
+ 						kind = DiagDangerousScheme
+ 					case LinkProblemMissingAnchor:
+ 						kind = DiagMissingLink
++					case LinkProblemMissingRequest:
++						kind = DiagMissingRequest
+ 					}
+ 					add(in.Start, sev, kind, in.Dest, err.Error())
+ 					continue
+--- a/internal/desktop/documentation.go
++++ b/internal/desktop/documentation.go
+@@ -150,6 +150,8 @@
+ 	DiagBadLink        string // %s
+ 	HeadingLabel       string // %d, %s
+ 	OutlineHint        string
++	Export             string
++	MissingRequestRef  string // %s
+ }
+ 
+ func docMessagesFor(l language) *docMessages {
+@@ -175,6 +177,7 @@
+ 			DiagMermaid: "Mermaid is not rendered in this build; the source is kept",
+ 			DiagBadLink: "Bad link: %s", HeadingLabel: "H%d %s",
+ 			OutlineHint: "Click a heading to jump",
++			Export:      "Export", MissingRequestRef: "Missing request: %s",
+ 		}
+ 	}
+ 	return &docMessages{
+@@ -198,6 +201,7 @@
+ 		DiagMermaid: "当前版本不渲染 Mermaid，保留源代码",
+ 		DiagBadLink: "链接无效：%s", HeadingLabel: "H%d %s",
+ 		OutlineHint: "点击标题跳转",
++		Export:      "导出", MissingRequestRef: "请求不存在：%s",
+ 	}
+ }
+ 
+@@ -218,6 +222,9 @@
+ 	p := uikit.PaletteFor(t)
+ 	root := ui.Column(c).Grow(1).FillHeight()
+ 	pruneDocStates(root, tab.Owner)
++	// C03: the derived-document export panel keeps its own per-tab state on
++	// the same root and prunes with the B09 state.
++	pruneDerivedDocStates(root, tab.Owner)
+ 	st := docStateFor(root, tab)
+ 	src := tab.DocEditor.Buffer.String()
+ 	digest := core.Digest([]byte(src))
+@@ -254,7 +261,10 @@
+ 	}
+ 
+ 	root.Children(func() {
+-		a.docHeader(c, t, p, tab, st, dm, m)
++		a.docHeader(c, t, p, root, tab, st, dm, m)
++		if derivedDocStateFor(root, tab).open {
++			a.docgenExportPanel(c, t, p, root, tab)
++		}
+ 		if st.searchOpen {
+ 			a.docSearchBar(c, p, tab, st, dm)
+ 			if st.searchDone {
+@@ -270,13 +280,16 @@
+ 				ui.Box(c).Width(1).FillHeight().Background(p.Hairline)
+ 			}
+ 			ui.Column(c).Grow(1).FillHeight().Children(func() {
+-				a.docBody(c, t, tab, src, opts)
++				// C03: preview renders the docgen-expanded text (identical
++				// when the document has no references); the editor buffer and
++				// all diagnostics keep working on the untouched source.
++				a.docBody(c, t, tab, a.docgenPreviewSource(root, tab, src), opts)
+ 			})
+ 		})
+ 	})
+ }
+ 
+-func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, st *docViewState, dm *docMessages, m *messages) {
++func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, root ui.Element, tab *Tab, st *docViewState, dm *docMessages, m *messages) {
+ 	ui.Row(c).Gap(8).Padding(8, 12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+ 		uikit.NativeSegmented(c, &tab.Section, m.SplitView, m.EditView, m.PreviewView)
+ 		if uikit.ActionCursor(ui.Button(c, dm.Outline)).Clicked() {
+@@ -299,6 +312,7 @@
+ 				a.saveActive()
+ 			}
+ 		}
++		a.docgenExportButton(c, p, root, tab)
+ 		uikit.ActionCursor(ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) { a.docInsertMenu(mm, tab, dm) }))
+ 	})
+ }
+@@ -331,6 +345,8 @@
+ 	if mm.Item(dm.Table).Chosen() {
+ 		insertDocTemplate(tab, "", "\n| Column | Column |\n| --- | --- |\n| Cell | Cell |\n")
+ 	}
++	// C03: request link / card directive entries (submenu of project requests).
++	a.docgenInsertMenuEntries(mm, tab, dm)
+ }
+ 
+ func (a *App) docOutline(c *ui.Context, p uikit.Palette, tab *Tab, st *docViewState, dm *docMessages) {
+@@ -510,6 +526,9 @@
+ 		return dm.DiagHTML
+ 	case core.DiagMermaid:
+ 		return dm.DiagMermaid
++	case core.DiagMissingRequest:
++		// C03: a gorequest reference whose request is not in the project.
++		return fmt.Sprintf(dm.MissingRequestRef, d.Dest)
+ 	default:
+ 		return fmt.Sprintf(dm.DiagBadLink, d.Dest)
+ 	}
+--- a/internal/desktop/documentation_actions.go
++++ b/internal/desktop/documentation_actions.go
+@@ -19,6 +19,14 @@
+ 	if ps == nil || ps.project == nil {
+ 		return
+ 	}
++	// C03: request references carry their own target behavior; a gorequest
++	// destination resolves in the derived-docs layer, never as a filesystem
++	// path. Unhandled document failures fall back to the B09 paths below.
++	if strings.HasPrefix(dest, "gorequest://") {
++		if a.docgenOpenRequestLink(tab, dest) {
++			return
++		}
++	}
+ 	tgt, err := ps.project.ResolveDocLink(tab.DocRel, dest)
+ 	if err != nil {
+ 		a.status = a.docLinkProblem(err)
+@@ -58,6 +66,8 @@
+ 		// callback: opening a document or rendering the preview never opens
+ 		// a URL.
+ 		c.OpenURL(tgt.URL)
++	case core.LinkDocRef:
++		a.docgenOpenRequestLink(tab, tgt.Dest)
+ 	case core.LinkAsset:
+ 		a.status = fmt.Sprintf(a.docMsg().AttachmentRef, tgt.RelPath)
+ 	}
