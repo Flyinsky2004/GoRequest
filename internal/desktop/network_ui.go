@@ -83,6 +83,8 @@ type networkMessages struct {
 	TimeoutQuickEntry         string
 	TimeoutQuickEntryTip      string
 	TimeoutQuickEntryInvalid  string
+	TimeoutBadgeFmt           string // %s (effective duration)
+	TimeoutBadgeInvalid       string
 	TimeoutEffectiveFmt       string // %s (effective duration), %s (source)
 	TimeoutSourceRequest      string
 	TimeoutSourceDefault      string
@@ -202,6 +204,8 @@ var networkMessagesZh = networkMessages{
 	TimeoutQuickEntry:         "请求超时…",
 	TimeoutQuickEntryTip:      "跳到请求编辑区的「设置」标签页修改请求总超时（⌘S 保存）",
 	TimeoutQuickEntryInvalid:  "请求超时值无效，点此修正",
+	TimeoutBadgeFmt:           "超时 %s",
+	TimeoutBadgeInvalid:       "超时值无效",
 	TimeoutEffectiveFmt:       "当前生效：%s（来源：%s）",
 	TimeoutSourceRequest:      "本请求设置",
 	TimeoutSourceDefault:      "内置默认（请求未设置）",
@@ -320,6 +324,8 @@ var networkMessagesEn = networkMessages{
 	TimeoutQuickEntry:         "Request Timeout…",
 	TimeoutQuickEntryTip:      "Open the request editor's Settings tab to edit the overall timeout (save with Cmd+S)",
 	TimeoutQuickEntryInvalid:  "Request timeout value is invalid — click to fix",
+	TimeoutBadgeFmt:           "Timeout %s",
+	TimeoutBadgeInvalid:       "Invalid timeout",
 	TimeoutEffectiveFmt:       "In effect now: %s (source: %s)",
 	TimeoutSourceRequest:      "this request",
 	TimeoutSourceDefault:      "built-in default (request has none)",

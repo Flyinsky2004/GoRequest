@@ -78,6 +78,12 @@ func (a *App) b03MethodPicker(c *ui.Context, p uikit.Palette, tab *Tab) {
 		width = 128
 	}
 	row := ui.Row(c).Width(width).Height(40).Padding(0, 10).Gap(4).AlignItems(ui.Center)
+	// R4: a hovered method segment gets the existing Press wash (a stronger
+	// neutral than Hover, which would blend into the URL input's surface), so
+	// the segment stays distinct from the URL on hover as well as at rest.
+	if row.Hovered() {
+		row = row.Background(p.Press)
+	}
 	row.Children(func() {
 		ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(13).
 			TextColor(uikit.MethodColor(tab.Method, p)).SingleLine()
@@ -155,15 +161,18 @@ func previewQueryKVs(tab *Tab) []core.KV {
 	return out
 }
 
-// b03URLPreview renders both secret-masked variable chips and the final
-// context-encoded URL preview under the URL bar.
+// b03URLPreview renders the secret-masked variable chips and the single
+// "resolved preview" line under the URL bar. It previews the URL field alone
+// (its own inline query included) and deliberately not the Params table: the
+// full URL with the Params query is shown once, at the bottom of Params, and
+// only when the query actually changes the final URL. That keeps the two lines
+// from repeating the same text.
 func (a *App) b03URLPreview(c *ui.Context, t *ui.Theme, tab *Tab) {
 	if tab == nil {
 		return
 	}
-	query := previewQueryKVs(tab)
-	prev := core.PreviewRequestURL(tab.URL, query, a.resolveTabVars(tab), a.mgrSecrets())
-	if len(prev.Variables) == 0 && prev.EncodedQuery == "" {
+	prev := core.PreviewRequestURL(tab.URL, nil, a.resolveTabVars(tab), a.mgrSecrets())
+	if len(prev.Variables) == 0 {
 		return
 	}
 
@@ -172,7 +181,7 @@ func (a *App) b03URLPreview(c *ui.Context, t *ui.Theme, tab *Tab) {
 
 	a.urlVarLine(c, t, tab)
 
-	if prev.ResolvedURL != "" && (len(prev.Variables) > 0 || prev.EncodedQuery != "") {
+	if prev.ResolvedURL != "" {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, bm.ResolvedURLPreviewLabel+":").FontSize(11).FontWeight(600).TextColor(p.Muted)
 			ui.Text(c, prev.ResolvedURL).Font("monospace").FontSize(11).TextColor(p.Muted).SingleLine().Grow(1)
@@ -180,25 +189,34 @@ func (a *App) b03URLPreview(c *ui.Context, t *ui.Theme, tab *Tab) {
 	}
 }
 
-// renderQueryURLPreview shows the live context-encoded & secret-masked URL
-// preview at the bottom of the Params (Query) editor.
+// renderQueryURLPreview shows the full context-encoded & secret-masked URL at
+// the bottom of the Params (Query) editor, but only when the Params query
+// changes the final URL relative to the URL-only preview above. With no
+// Params (or only disabled/blank rows) it renders nothing, so the same URL is
+// never printed twice.
 func (a *App) renderQueryURLPreview(c *ui.Context, t *ui.Theme, tab *Tab) {
 	if tab == nil {
 		return
 	}
 	query := previewQueryKVs(tab)
-	if len(query) == 0 && len(core.TemplateNames(tab.URL)) == 0 {
+	if len(query) == 0 {
 		return
 	}
-	prev := core.PreviewRequestURL(tab.URL, query, a.resolveTabVars(tab), a.mgrSecrets())
-	if prev.ResolvedURL == "" {
+	vars := a.resolveTabVars(tab)
+	secrets := a.mgrSecrets()
+	full := core.PreviewRequestURL(tab.URL, query, vars, secrets)
+	if full.ResolvedURL == "" {
+		return
+	}
+	base := core.PreviewRequestURL(tab.URL, nil, vars, secrets)
+	if full.ResolvedURL == base.ResolvedURL {
 		return
 	}
 	p := uikit.PaletteFor(t)
 	bm := a.bodyMsg()
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Padding(2, 8).FillWidth().Children(func() {
-		ui.Text(c, bm.ResolvedURLPreviewLabel+":").FontSize(11).FontWeight(600).TextColor(p.Muted)
-		ui.Text(c, prev.ResolvedURL).Font("monospace").FontSize(11).TextColor(p.Muted).SingleLine().Grow(1)
+		ui.Text(c, bm.ResolvedURLWithParamsLabel+":").FontSize(11).FontWeight(600).TextColor(p.Muted)
+		ui.Text(c, full.ResolvedURL).Font("monospace").FontSize(11).TextColor(p.Muted).SingleLine().Grow(1)
 	})
 }
 

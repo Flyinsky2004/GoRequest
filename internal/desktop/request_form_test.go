@@ -269,8 +269,8 @@ func TestKVFormQueryRawEncodedUIAndWireExecution(t *testing.T) {
 			t.Fatalf("secret leaked in Params URL preview: %q", txt)
 		}
 	}
-	if !tt.HasText("Resolved URL:") {
-		t.Fatalf("expected Resolved URL preview in Params view; texts=%v", tt.Texts())
+	if !tt.HasText(bodyMessagesEn.ResolvedURLWithParamsLabel + ":") {
+		t.Fatalf("expected the with-params URL preview in Params view; texts=%v", tt.Texts())
 	}
 
 	// Switch Key:Value -> Raw Encoded -> Key:Value through UI controls
@@ -305,5 +305,3 @@ func TestKVFormQueryRawEncodedUIAndWireExecution(t *testing.T) {
 		t.Fatalf("secret query param mismatch: %v", gotQuery)
 	}
 }
-
-

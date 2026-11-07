@@ -218,13 +218,13 @@ func (a *App) renderStageTimeoutCard(c *ui.Context, t *ui.Theme, st *projectNetw
 	})
 }
 
-// renderTimeoutQuickEntry is the optional top-level shortcut. The integrator
-// adds one call site in workspace.go (see the minimal patch); clicking it only
-// switches the request editor to its Settings tab, where the request timeout
-// card already lives. It also shows the effective value and its source so the
-// answer to "where is the timeout set / what is it now?" is visible without
-// opening any panel. No new settings surface or controller state is added.
-func (a *App) renderTimeoutQuickEntry(c *ui.Context, t *ui.Theme, tab *Tab) {
+// renderTimeoutBadge is the compact timeout affordance in the URL row. It
+// shows the value that actually takes effect, resolved by the same
+// resolveRequestTimeout rules the plan builder mirrors, so the label is never
+// a hard-coded default. Clicking it opens the request editor's Settings tab,
+// where the effective value, its source and the edit field already live; the
+// badge itself stays a single line and does not add a settings surface.
+func (a *App) renderTimeoutBadge(c *ui.Context, t *ui.Theme, tab *Tab) {
 	if tab == nil || tab.Kind != "request" {
 		return
 	}
@@ -237,20 +237,19 @@ func (a *App) renderTimeoutQuickEntry(c *ui.Context, t *ui.Theme, tab *Tab) {
 	}
 	res := resolveRequestTimeout(tab.Timeout, devTotal)
 
-	ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-		btn := uikit.ActionCursor(ui.Button(c, nm.TimeoutQuickEntry).
-			Label(nm.TimeoutQuickEntry).Tooltip(nm.TimeoutQuickEntryTip))
-		if btn.Clicked() {
-			tab.Section = requestSettingsSection
-		}
-		switch {
-		case res.ParseErr != nil, res.NonPositive:
-			ui.Text(c, nm.TimeoutQuickEntryInvalid).FontSize(11).TextColor(t.Danger)
-		default:
-			ui.Text(c, fmt.Sprintf(nm.TimeoutEffectiveFmt,
-				res.Effective.String(), timeoutSourceLabel(res.Origin, nm))).
-				FontSize(11).TextColor(p.Muted)
-		}
-		ui.Box(c).Grow(1)
+	label := fmt.Sprintf(nm.TimeoutBadgeFmt, res.Effective.String())
+	color := p.Muted
+	if !res.Valid() {
+		label = nm.TimeoutBadgeInvalid
+		color = t.Danger
+	}
+	badge := uikit.ActionCursor(ui.Row(c).Height(24).Radius(6).Padding(0, 8).Gap(4).
+		AlignItems(ui.Center).BorderWidth(1).BorderColor(p.Hairline).Background(p.Hover))
+	badge.Children(func() {
+		ui.Text(c, label).FontSize(11).FontWeight(600).TextColor(color).SingleLine()
 	})
+	badge.Label(label).Tooltip(nm.TimeoutQuickEntryTip)
+	if badge.Clicked() {
+		tab.Section = requestSettingsSection
+	}
 }
