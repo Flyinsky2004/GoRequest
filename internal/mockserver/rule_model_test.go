@@ -74,9 +74,13 @@ func TestCloneMockRuleIsDeepAndIndependent(t *testing.T) {
 	orig.Match.Headers[0].Equals = nil
 	orig.Match.Body.JSONFields[0].Path = "mutated"
 	orig.Response.Headers[0].Value = "mutated"
-	orig.Variants["error_400"].Status = 500
-	orig.Variants["error_400"].DelayRangeMs.Max = 999
-	orig.Match.PathParams["orderId"].Prefix = nil
+	variant := orig.Variants["error_400"]
+	variant.Status = 500
+	variant.DelayRangeMs.Max = 999
+	orig.Variants["error_400"] = variant
+	pathParam := orig.Match.PathParams["orderId"]
+	pathParam.Prefix = nil
+	orig.Match.PathParams["orderId"] = pathParam
 
 	if clone.Enabled == nil || *clone.Enabled != false {
 		t.Fatalf("clone enabled pointer aliased: %+v", clone.Enabled)

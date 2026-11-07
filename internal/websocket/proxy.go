@@ -164,12 +164,16 @@ func (rp *resolvedWSProxy) plan(target string, base *net.Dialer, onUse func(stri
 	if err != nil {
 		return wsDialPlan{}, err
 	}
+	policyTarget, err := url.Parse(policyURL)
+	if err != nil {
+		return wsDialPlan{}, configErrorf("parsing the target policy URL: %v", err)
+	}
 
 	if rp.mode == core.ProxySystem {
-		if core.ShouldBypassProxy(policyURL, rp.noProxy) {
+		if core.ShouldBypassProxy(policyTarget, rp.noProxy) {
 			return direct, nil
 		}
-		u, err := http.ProxyFromEnvironment(&http.Request{URL: policyURL})
+		u, err := http.ProxyFromEnvironment(&http.Request{URL: policyTarget})
 		if err != nil {
 			return wsDialPlan{}, configErrorf("resolving the system proxy: %v", err)
 		}
@@ -179,7 +183,7 @@ func (rp *resolvedWSProxy) plan(target string, base *net.Dialer, onUse func(stri
 		return planForProxyURL(u, "", "", base, onUse)
 	}
 
-	if core.ShouldBypassProxy(policyURL, rp.noProxy) {
+	if core.ShouldBypassProxy(policyTarget, rp.noProxy) {
 		return direct, nil
 	}
 	if rp.proxyURL == nil {

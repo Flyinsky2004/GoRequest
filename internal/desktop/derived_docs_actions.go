@@ -174,29 +174,43 @@ func (a *App) docgenInsertMenuEntries(mm *ui.Menu, tab *Tab, dm *derivedDocMessa
 	}
 	sort.Strings(orders)
 
-	mm.Separator()
-	linkMenu := mm.Submenu(dm.InsertRef)
-	cardMenu := mm.Submenu(dm.InsertCard)
-	for i, id := range orders {
-		if i >= docgenMaxListedRequests {
-			break
-		}
-		if id == "" {
-			continue
-		}
-		label := id
-		if names[id] != "" {
-			label = names[id] + " (" + id + ")"
-		}
-		if linkMenu.Item(label).Chosen() {
-			insertDocgenRef(tab, id, docgen.FormatRefLink(id, names[id]))
-			a.status = fmt.Sprintf(dm.OpenRequest, id)
-		}
-		if cardMenu.Item(label).Chosen() {
-			insertDocgenRef(tab, id, docgen.FormatDirective(id, nil))
-			a.status = fmt.Sprintf(dm.OpenRequest, id)
+	addItems := func(m *ui.Menu, format func(id, name string) string) {
+		for i, id := range orders {
+			if i >= docgenMaxListedRequests {
+				break
+			}
+			if id == "" {
+				continue
+			}
+			label := id
+			if names[id] != "" {
+				label = names[id] + " (" + id + ")"
+			}
+			if m.Item(label).Chosen() {
+				insertDocgenRef(tab, id, format(id, names[id]))
+				a.status = fmt.Sprintf(dm.OpenRequest, id)
+			}
 		}
 	}
+
+	mm.Separator()
+	mm.Submenu(dm.InsertRef, func(m *ui.Menu) {
+		addItems(m, docgen.FormatRefLink)
+	})
+	mm.Submenu(dm.InsertCard, func(m *ui.Menu) {
+		addItems(m, func(id, _ string) string { return docgen.FormatDirective(id, nil) })
+	})
+}
+
+// countSeverity counts diagnostics at one severity level.
+func countSeverity(diags []core.DocDiagnostic, severity core.DiagnosticSeverity) int {
+	n := 0
+	for _, d := range diags {
+		if d.Severity == severity {
+			n++
+		}
+	}
+	return n
 }
 
 // docgenMaxListedRequests keeps an oversized collection from building an

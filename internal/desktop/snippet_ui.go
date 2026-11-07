@@ -47,7 +47,7 @@ func snippetNoteColor(t *ui.Theme, severity string) (ui.Color, bool) {
 	case snippet.SeverityInfo:
 		return t.TextMuted, true
 	default:
-		return nil, false
+		return ui.Transparent, false
 	}
 }
 

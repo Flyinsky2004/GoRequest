@@ -1,6 +1,7 @@
 package docgen
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -59,13 +60,13 @@ func TestHealthCardDerivesFromDefinitionOnly(t *testing.T) {
 	if card.HasContract {
 		t.Fatalf("health has no contract")
 	}
-	if !card.ParamsDerived && len(card.Parameters) != 1 {
-		t.Fatalf("only the enabled header should become a row: %+v", card.Parameters)
+	if !card.ParamsDerived || len(card.Parameters) != 2 {
+		t.Fatalf("both enabled headers should become rows: %+v", card.Parameters)
 	}
 	if card.Parameters[0].Name != "X-Trace-Id" || card.Parameters[0].Example != "trace-1" {
 		t.Fatalf("derived parameter wrong: %+v", card.Parameters[0])
 	}
-	if strings.Contains(card.Parameters[1].Name, "Authorization") && !strings.Contains(card.Parameters[1].Example, "***") {
+	if strings.Contains(card.Parameters[1].Name, "Authorization") && !strings.Contains(fmt.Sprint(card.Parameters[1].Example), "***") {
 		// The authorization value is masked by name before publication.
 		t.Fatalf("authorization value must be masked: %+v", card.Parameters[1])
 	}

@@ -349,8 +349,6 @@ func TestSnippetURLEncodedPrebuiltLiteral(t *testing.T) {
 }
 
 func TestSnippetBlocksAndTimeouts(t *testing.T) {
-	p := writeFixtureProject(t, baseFixtureFiles())
-
 	// Invalid timeout refuses generation (mirrors core config error).
 	files := baseFixtureFiles()
 	files["collections/users.badtime.request.yaml"] = strings.Replace(fixtureBaseRequest, "timeout: 5s", "timeout: soon", 1)

@@ -74,7 +74,7 @@ func (a *App) docgenExportPanel(c *ui.Context, t *ui.Theme, p uikit.Palette, roo
 				a.docgenPreview(tab, st)
 			}
 			if uikit.ActionCursor(ui.PrimaryButton(c, dm.ExportAction)).Clicked() {
-				a.docgenExport(root, tab, st)
+				a.docgenExport(tab, st)
 			}
 		})
 

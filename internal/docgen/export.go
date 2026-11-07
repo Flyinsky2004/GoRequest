@@ -538,7 +538,7 @@ func (s *exportSet) indexFile() indexOutput {
 		for _, rel := range s.docs {
 			fmt.Fprintf(&b, "- [%s](%s)\n", MarkdownCell(rel), MarkdownCell(rel))
 		}
-		snapshotNotes(&b)
+		s.snapshotNotes(&b)
 		return indexOutput{TargetPath: "README.md", content: b.String()}
 	default:
 		var body strings.Builder

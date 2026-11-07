@@ -165,7 +165,7 @@ func Generate(p *core.Project, entry *core.RequestEntry, lang Language, opts Opt
 	case LangTypeScript:
 		code = renderTypeScript(snap, res)
 	default:
-		return blocked("snippet-unsupported-language", "unsupported snippet language %q", lang)
+		return blocked("snippet-unsupported-language", "unsupported snippet language %q", lang), nil
 	}
 	if res.Blocked != "" {
 		// Refusals may be raised during rendering too (e.g. a target runtime

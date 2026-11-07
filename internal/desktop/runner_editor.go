@@ -486,7 +486,7 @@ func (a *App) runnerEditorTarget() *runnerExtractTarget {
 
 func (a *App) BeginRunnerEditorExtractNew() {
 	s := a.runnerEditorState(false)
-	if s == nil || !s.open || s.runnerEditorTarget() == nil {
+	if s == nil || !s.open || a.runnerEditorTarget() == nil {
 		return
 	}
 	s.notice = ""

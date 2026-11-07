@@ -485,9 +485,9 @@ func (s *Session) pingHandler(conn *websocket.Conn) func(appData string) error {
 func (s *Session) pongHandler(appData string) error {
 	now := time.Now()
 	s.mu.mu.Lock()
-	pend, ok := s.pending[appData]
+	pend, ok := s.mu.pending[appData]
 	if ok {
-		delete(s.pending, appData)
+		delete(s.mu.pending, appData)
 	}
 	s.mu.pongs++
 	s.mu.mu.Unlock()
@@ -640,14 +640,14 @@ func (s *Session) logFailureFact(err error) {
 func (s *Session) openFactSummary() string {
 	s.mu.mu.Lock()
 	defer s.mu.mu.Unlock()
-	parts := []string{fmt.Sprintf("state: open (%s)", s.remoteAddr)}
-	if s.subproto != "" {
-		parts = append(parts, "subprotocol "+s.subproto)
+	parts := []string{fmt.Sprintf("state: open (%s)", s.mu.remoteAddr)}
+	if s.mu.subproto != "" {
+		parts = append(parts, "subprotocol "+s.mu.subproto)
 	}
-	if s.tlsFacts != nil {
-		parts = append(parts, "tls "+s.tlsFacts.Version)
+	if s.mu.tlsFacts != nil {
+		parts = append(parts, "tls "+s.mu.tlsFacts.Version)
 	}
-	if s.compress {
+	if s.mu.compress {
 		parts = append(parts, "permessage-deflate")
 	}
 	return strings.Join(parts, " · ")

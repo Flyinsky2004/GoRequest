@@ -99,7 +99,7 @@ func pyWriteBody(b *strings.Builder, snap *snapshot, res *Result) {
 			fmt.Fprintf(b, "data = %s.encode(\"utf-8\")\n\n", pyQuote(snap.Body.Lineup))
 		case runtimeSecret(snap):
 			b.WriteString("form = {\n")
-			for i, f := range snap.Body.Fields {
+			for _, f := range snap.Body.Fields {
 				fmt.Fprintf(b, "    %s: %s,\n", pyQuote(f.Name), pySegExpr(f.Value))
 			}
 			b.WriteString("}\n")

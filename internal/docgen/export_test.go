@@ -91,7 +91,7 @@ func TestPreviewHTMLSetPlansAssetsAndEscapes(t *testing.T) {
 	if strings.Contains(sum, "<script") || strings.Contains(sum, "http-equiv") {
 		t.Fatalf("exported page must not contain scripts or meta refresh")
 	}
-	if strings.Contains(sum, ' '+"src=\"http") {
+	if strings.Contains(sum, " src=\"http") {
 		t.Fatalf("remote image leaked into export")
 	}
 }

@@ -3,8 +3,6 @@ package docgen
 import (
 	"strings"
 	"testing"
-
-	"gorequest/internal/core"
 )
 
 // All tests in this package are authored but NOT executed in phase 1; the

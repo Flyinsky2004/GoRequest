@@ -621,7 +621,7 @@ func schemaRefName(ref string) string {
 const maxSchemaChildren = 12
 
 func inlineSchemaParts(schema map[string]any) string {
-	switch t := schema["type"]; t {
+	switch t := schema["type"].(type) {
 	case nil:
 		// OpenAPI 3.1 leaves `type` implicit; fall back to shape indicators.
 		switch {
@@ -631,21 +631,23 @@ func inlineSchemaParts(schema map[string]any) string {
 			return schemaArraySummary(schema["items"])
 		}
 		return ""
-	case "string", "number", "integer", "boolean", "null":
-		return fmt.Sprintf("%v", t)
-	case "array":
-		if items, ok := schema["items"]; ok {
-			return schemaArraySummary(items)
+	case string:
+		switch t {
+		case "array":
+			if items, ok := schema["items"]; ok {
+				return schemaArraySummary(items)
+			}
+			return "array"
+		case "object":
+			if props, ok := schema["properties"]; ok {
+				return schemaObjectSummary(props)
+			}
+			return "object"
 		}
-		return "array"
-	case "object":
-		if props, ok := schema["properties"]; ok {
-			return schemaObjectSummary(props)
-		}
-		return "object"
+		return t
 	case []any:
-		parts := make([]string, 0, len(t.([]any)))
-		for _, e := range t.([]any) {
+		parts := make([]string, 0, len(t))
+		for _, e := range t {
 			parts = append(parts, fmt.Sprintf("%v", e))
 		}
 		return strings.Join(parts, "|")

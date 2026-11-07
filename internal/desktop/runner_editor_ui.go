@@ -362,12 +362,12 @@ func (a *App) runnerEditorExtractForm(c *ui.Context, t *ui.Theme, m runnerEditor
 		}
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, m.ExtractRequiredLabel).FontSize(11).TextColor(p.Muted)
-			if uikit.ActionCursor(ui.Select(c, &f.requiredSel, runnerEditorTriStates)).Width(120) {
+			if uikit.ActionCursor(ui.Select(c, &f.requiredSel, runnerEditorTriStates)).Width(120).Changed() {
 			}
 		})
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, m.ExtractSensitiveLabel).FontSize(11).TextColor(p.Muted)
-			if uikit.ActionCursor(ui.Select(c, &f.sensitiveSel, runnerEditorTriStates)).Width(120) {
+			if uikit.ActionCursor(ui.Select(c, &f.sensitiveSel, runnerEditorTriStates)).Width(120).Changed() {
 			}
 		})
 		if s.extractErr != "" {
