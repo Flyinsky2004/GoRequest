@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -124,7 +125,8 @@ func TestTimeoutMessagesCoverBothLanguages(t *testing.T) {
 	fields := []string{
 		"RequestTimeoutHeader", "RequestTimeoutScopeHint", "RequestTimeoutPlaceholder",
 		"RequestTimeoutUnitHint", "TimeoutEntryHint", "TimeoutQuickEntry",
-		"TimeoutQuickEntryTip", "TimeoutQuickEntryInvalid", "TimeoutEffectiveFmt",
+		"TimeoutQuickEntryTip", "TimeoutQuickEntryInvalid", "TimeoutBadgeFmt",
+		"TimeoutBadgeInvalid", "TimeoutEffectiveFmt",
 		"TimeoutSourceRequest", "TimeoutSourceDefault", "TimeoutSourceDeviceTotal",
 		"TimeoutNoTabHint", "TimeoutInvalidFmt", "TimeoutNonPositiveFmt",
 		"StageTimeoutsNote", "NetworkDraftsInvalidFmt",
@@ -172,6 +174,10 @@ func timeoutMessageField(m *networkMessages, name string) (string, bool) {
 		return m.TimeoutQuickEntryTip, true
 	case "TimeoutQuickEntryInvalid":
 		return m.TimeoutQuickEntryInvalid, true
+	case "TimeoutBadgeFmt":
+		return m.TimeoutBadgeFmt, true
+	case "TimeoutBadgeInvalid":
+		return m.TimeoutBadgeInvalid, true
 	case "TimeoutEffectiveFmt":
 		return m.TimeoutEffectiveFmt, true
 	case "TimeoutSourceRequest":
@@ -440,43 +446,41 @@ func TestNetworkModalCancelPreservesDraftAndSettings(t *testing.T) {
 	}
 }
 
-// --- Quick entry: switches to the Settings tab ---
+// --- Inline badge: shows the effective value and switches to Settings ---
 
-func TestTimeoutQuickEntryNavigatesToSettingsTab(t *testing.T) {
-	a, ps := openTestProject(t, "QuickEntry")
+func TestTimeoutBadgeNavigatesToSettingsTab(t *testing.T) {
+	a, ps := openTestProject(t, "TimeoutBadge")
 	tab := openRequestTabs(t, ps, "Req")[0]
 	tab.Section = 0
 	tab.Timeout = "2s"
 
 	tt := ui.NewTester(func(c *ui.Context) {
-		a.renderTimeoutQuickEntry(c, c.Theme(), tab)
+		a.renderTimeoutBadge(c, c.Theme(), tab)
 	}, 1000, 700)
 	tt.Frame()
-	if !tt.HasText(networkMessagesEn.TimeoutQuickEntry) {
-		t.Fatalf("quick entry button missing; texts=%v", tt.Texts())
+	want := fmt.Sprintf(networkMessagesEn.TimeoutBadgeFmt, "2s")
+	if !tt.HasText(want) {
+		t.Fatalf("timeout badge missing its effective value; texts=%v", tt.Texts())
 	}
-	if !tt.HasText("In effect now: 2s") {
-		t.Fatalf("quick entry missing effective value; texts=%v", tt.Texts())
-	}
-	if err := tt.Click(networkMessagesEn.TimeoutQuickEntry); err != nil {
-		t.Fatalf("click quick entry: %v; texts=%v", err, tt.Texts())
+	if err := tt.Click(want); err != nil {
+		t.Fatalf("click timeout badge: %v; texts=%v", err, tt.Texts())
 	}
 	if tab.Section != requestSettingsSection {
-		t.Fatalf("quick entry navigated to section %d, want %d", tab.Section, requestSettingsSection)
+		t.Fatalf("timeout badge navigated to section %d, want %d", tab.Section, requestSettingsSection)
 	}
 }
 
-func TestTimeoutQuickEntryInvalidFlag(t *testing.T) {
-	a, ps := openTestProject(t, "QuickEntryBad")
+func TestTimeoutBadgeInvalidFlag(t *testing.T) {
+	a, ps := openTestProject(t, "TimeoutBadgeBad")
 	tab := openRequestTabs(t, ps, "Req")[0]
 	tab.Timeout = "nope"
 
 	tt := ui.NewTester(func(c *ui.Context) {
-		a.renderTimeoutQuickEntry(c, c.Theme(), tab)
+		a.renderTimeoutBadge(c, c.Theme(), tab)
 	}, 1000, 700)
 	tt.Frame()
-	if !tt.HasText(networkMessagesEn.TimeoutQuickEntryInvalid) {
-		t.Errorf("invalid quick entry flag missing; texts=%v", tt.Texts())
+	if !tt.HasText(networkMessagesEn.TimeoutBadgeInvalid) {
+		t.Errorf("invalid timeout badge flag missing; texts=%v", tt.Texts())
 	}
 }
 
