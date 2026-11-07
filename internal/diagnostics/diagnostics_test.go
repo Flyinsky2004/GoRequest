@@ -333,8 +333,9 @@ func TestEngine_WarmupFailuresTruncatedAndGateIndeterminate(t *testing.T) {
 func TestEngine_PolicyBlockedAndMissingSecretPreflight(t *testing.T) {
 	proj := makeTestProject("https://api.prod.example.com/v1/charge")
 	proj.Environments["prod"] = &core.Environment{
-		Name:      "prod",
-		Variables: map[string]string{},
+		SchemaVersion: 1,
+		ID:            "prod",
+		Variables:     map[string]string{},
 	}
 
 	var calls atomic.Int32
@@ -363,7 +364,7 @@ func TestEngine_PolicyBlockedAndMissingSecretPreflight(t *testing.T) {
 
 	// 2. Missing secret reference -> fails in Prepare with StatusConfigError and 0 calls.
 	projSecret := makeTestProject("http://127.0.0.1:8080/items")
-	projSecret.Requests[0].Request.HTTP.Headers = []core.KeyValue{
+	projSecret.Requests["requests/orders.yaml"].Request.HTTP.Headers = []core.KV{
 		{Name: "X-Secret", Value: "{{secret.missing_key}}"},
 	}
 	engSecret := New(projSecret, Options{
@@ -473,11 +474,12 @@ func TestRedactionAndExportConfinement(t *testing.T) {
 	secretVal := "super-secret-bearer-token-98765"
 	proj := makeTestProject("http://127.0.0.1:8080/secure?api_key={{secret.api_token}}")
 	proj.AuthSchemes["bearer_auth"] = &core.AuthScheme{
-		ID:    "bearer_auth",
-		Type:  "bearer",
-		Token: "{{secret.api_token}}",
+		SchemaVersion: 1,
+		ID:            "bearer_auth",
+		Type:          "bearer",
+		Token:         "{{secret.api_token}}",
 	}
-	proj.Requests[0].Request.Auth = &core.AuthRef{Mode: "use", SchemeID: "bearer_auth"}
+	proj.Requests["requests/orders.yaml"].Request.Auth = &core.AuthRef{Mode: "ref", Ref: "bearer_auth"}
 
 	execFn := ExecutorFunc(func(ctx context.Context, plan *core.Plan, opts core.ExecuteOptions) (*core.ExecResult, error) {
 		return nil, errors.New("upstream rejected token " + secretVal)
@@ -639,20 +641,21 @@ func makeTestProject(rawURL string) *core.Project {
 		SchemaVersion: 1,
 		ID:            "req-orders",
 		Name:          "List Orders",
-		HTTP: &core.HTTPBlock{
+		HTTP: &core.HTTPDef{
 			Method: http.MethodGet,
 			URL:    rawURL,
 		},
 	}
 	return &core.Project{
-		Root: "/tmp/test-project",
+		Dir: "/tmp/test-project",
 		File: &core.ProjectFile{
 			SchemaVersion: 1,
 			ID:            "proj-test",
 			Name:          "Test Project",
 		},
-		Requests: []*core.RequestEntry{
-			{
+		Order: []string{"requests/orders.yaml"},
+		Requests: map[string]*core.RequestEntry{
+			"requests/orders.yaml": {
 				RelPath:        "requests/orders.yaml",
 				BaselineDigest: "baseline-digest-1",
 				Request:        req,
@@ -660,8 +663,9 @@ func makeTestProject(rawURL string) *core.Project {
 		},
 		Environments: map[string]*core.Environment{
 			"dev": {
-				Name:      "dev",
-				Variables: map[string]string{},
+				SchemaVersion: 1,
+				ID:            "dev",
+				Variables:     map[string]string{},
 			},
 		},
 		EnvEntries:  map[string]*core.EnvironmentEntry{},

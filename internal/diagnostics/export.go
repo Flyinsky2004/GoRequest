@@ -241,8 +241,9 @@ func formatCSVFloat(v float64) string {
 }
 
 // ExportReportFile writes the report in JSON or CSV format to a user-selected
-// local file path outside the shared project directory. It rejects paths inside
-// projectRoot, .gorequest, or .git, and rejects symbolic links along the path.
+// local file path outside the shared project directory. It resolves parent
+// directory symlinks before checking confinement against projectRoot, .gorequest,
+// and .git, and rejects a symbolic link or non-regular file at the final target.
 func ExportReportFile(
 	targetPath string,
 	projectRoot string,
@@ -258,26 +259,63 @@ func ExportReportFile(
 		return err
 	}
 	cleanTarget := strings.TrimSpace(targetPath)
-	if cleanTarget == "" {
-		return errors.New("export file path is required")
+	if cleanTarget == "" || !filepath.IsAbs(cleanTarget) {
+		return errors.New("choose an absolute local export file path")
 	}
-	absTarget, err := filepath.Abs(cleanTarget)
-	if err != nil {
-		return fmt.Errorf("resolving export path: %w", err)
+	for _, seg := range strings.Split(filepath.ToSlash(cleanTarget), "/") {
+		if seg == ".gorequest" || seg == ".git" {
+			return fmt.Errorf("refusing to write diagnostic report inside reserved directory %q", seg)
+		}
 	}
-	info, statErr := os.Lstat(absTarget)
-	if statErr == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			return errors.New("refusing to export report through a symbolic link")
+	if info, err := os.Lstat(cleanTarget); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return errors.New("export destination must be a regular file (not a symlink or directory)")
 		}
-		if info.IsDir() {
-			return fmt.Errorf("export path %q is a directory", absTarget)
-		}
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return fmt.Errorf("checking export path: %w", statErr)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
 
-	if err := verifyExportPathConfinement(absTarget, projectRoot); err != nil {
+	parentDir, err := filepath.EvalSymlinks(filepath.Dir(cleanTarget))
+	if err != nil {
+		return fmt.Errorf("export parent directory is unavailable: %w", err)
+	}
+	parentInfo, err := os.Stat(parentDir)
+	if err != nil || !parentInfo.IsDir() {
+		return errors.New("export parent path must be an existing directory")
+	}
+	for dir := parentDir; ; dir = filepath.Dir(dir) {
+		base := filepath.Base(dir)
+		if base == ".gorequest" || base == ".git" {
+			return fmt.Errorf("refusing to write diagnostic report inside reserved directory %q", base)
+		}
+		if filepath.Dir(dir) == dir {
+			break
+		}
+	}
+
+	if trimmedRoot := strings.TrimSpace(projectRoot); trimmedRoot != "" {
+		realRoot, err := filepath.EvalSymlinks(trimmedRoot)
+		if err != nil {
+			realRoot, err = filepath.Abs(trimmedRoot)
+			if err != nil {
+				return err
+			}
+		}
+		rel, err := filepath.Rel(realRoot, parentDir)
+		if err != nil {
+			return err
+		}
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+			return errors.New("refusing to write diagnostic report inside the shared project directory; choose an external local path")
+		}
+	}
+
+	resolvedTarget := filepath.Join(parentDir, filepath.Base(cleanTarget))
+	if info, err := os.Lstat(resolvedTarget); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return errors.New("export destination must be a regular file")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
@@ -289,14 +327,6 @@ func ExportReportFile(
 		payload, err = MarshalCSVReport(rep, red)
 	}
 	if err != nil {
-		return err
-	}
-
-	parentDir := filepath.Dir(absTarget)
-	if err := os.MkdirAll(parentDir, 0o700); err != nil {
-		return fmt.Errorf("creating export parent directory: %w", err)
-	}
-	if err := rejectSymlinkAncestors(absTarget); err != nil {
 		return err
 	}
 
@@ -328,70 +358,9 @@ func ExportReportFile(
 		return fmt.Errorf("closing temporary export file: %w", err)
 	}
 
-	if err := os.Rename(tmpPath, absTarget); err != nil {
+	if err := os.Rename(tmpPath, resolvedTarget); err != nil {
 		return fmt.Errorf("committing exported report file: %w", err)
 	}
 	cleanupTmp = false
-	return nil
-}
-
-func verifyExportPathConfinement(absTarget string, projectRoot string) error {
-	for _, seg := range strings.Split(filepath.ToSlash(absTarget), "/") {
-		if seg == ".gorequest" || seg == ".git" {
-			return fmt.Errorf("refusing to write diagnostic report inside reserved directory %q", seg)
-		}
-	}
-	root := strings.TrimSpace(projectRoot)
-	if root == "" {
-		return nil
-	}
-	absRoot, err := filepath.Abs(root)
-	if err != nil {
-		return fmt.Errorf("resolving project root: %w", err)
-	}
-	realRoot := absRoot
-	if resolved, err := filepath.EvalSymlinks(absRoot); err == nil {
-		realRoot = resolved
-	}
-	checkAgainst := func(candidateTarget, candidateRoot string) error {
-		rel, err := filepath.Rel(candidateRoot, candidateTarget)
-		if err != nil {
-			return nil
-		}
-		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
-			return errors.New("refusing to write diagnostic report inside the shared project directory; choose an external local path")
-		}
-		return nil
-	}
-	if err := checkAgainst(absTarget, absRoot); err != nil {
-		return err
-	}
-	parentReal, err := filepath.EvalSymlinks(filepath.Dir(absTarget))
-	if err == nil {
-		realTarget := filepath.Join(parentReal, filepath.Base(absTarget))
-		if err := checkAgainst(realTarget, realRoot); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func rejectSymlinkAncestors(absTarget string) error {
-	cur := absTarget
-	for {
-		info, err := os.Lstat(cur)
-		if err == nil {
-			if info.Mode()&os.ModeSymlink != 0 {
-				return fmt.Errorf("refusing to export report: path component %q is a symbolic link", cur)
-			}
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		parent := filepath.Dir(cur)
-		if parent == cur {
-			break
-		}
-		cur = parent
-	}
 	return nil
 }
