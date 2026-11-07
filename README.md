@@ -1,5 +1,7 @@
 # GoRequest
 
+<img src="assets/brand/gorequest-512.png" alt="GoRequest logo" width="96" height="96" align="left" style="margin-right: 12px" />
+
 本地优先、Git 原生的 API 开发与文档管理工作台。
 
 **当前状态：MVP 已实现（可运行）。** 本仓库同时保存需求设计与 MVP 代码。纯 Go Core 与 MyGo 原生 Desktop 已可构建运行；完整目标的其余部分仍为计划。GoRequest 为单一桌面应用，**不提供独立产品 CLI**（2026-11-05 决策，见 [ADR-009](docs/decisions.md)）。设计基线日期：2026-11-05（Asia/Singapore）。已实现范围、运行方式与验证结果见 [实现状态](docs/implementation-status.md)。
@@ -13,6 +15,23 @@ go build -o bin/gorequest-desktop ./cmd/gorequest-desktop
 ```
 
 **启动行为（IDE 式）**：显式 `-project` 路径优先；否则在开启“启动恢复上次项目”时直接打开最后活动的项目；没有可恢复目标或恢复失败才显示轻量的项目选择窗口（约 720×480）。每个项目在自己的工作窗口中打开（默认 1200×820），重复打开同一规范化路径会聚焦已有窗口而非新建编辑状态。
+
+## Logo 与应用图标
+
+[assets/brand/gorequest-logo.png](assets/brand/gorequest-logo.png) 是用户提供的官方 Logo（1600×1600、带 alpha 的 PNG）。代码与设计均不重绘、不调色、不裁剪；只做确定性的尺寸/格式转换：
+
+```bash
+# 由原图生成 macOS .icns 与可预览的 512px PNG（仅用系统自带 sips/iconutil）
+sh scripts/make-macos-icon.sh
+
+# 生成最小、未签名的开发用 GoRequest.app，把 .icns 接进 Info.plist 的
+# CFBundleIconFile / Contents/Resources（不是发布安装包）
+sh scripts/make-macos-app.sh
+```
+
+运行时图标由 `internal/brand` 内嵌的同一 PNG 提供：`Manager.WireApp` 在就绪后调用 `mygo.App.Dock.SetIcon`（macOS Dock、Windows/Linux 应用图标），每个真实窗口在 `newRealWindow` 里调用 `*mygo.Window.SetIcon`（Linux/Windows 标题栏与任务栏；macOS 窗口自身无图标）。欢迎/项目选择窗口在现有文字旁显示同一 Logo 的小图，既有文字、操作、标题安全区与功能 SVG 图标不变。
+
+当前仓库**没有**已提交的 `.app` 包或签名/发布流程；直接 `go build` 出的裸二进制由上述运行时 API 设置图标，而 Finder/Dock 读取的 `.app` 图标需通过 `make-macos-app.sh` 生成的 bundle。真实 Dock/Finder 显示、小尺寸观感与各平台人工验收未在本卡做实机核验。
 
 ## 已确定的方向
 
