@@ -257,7 +257,7 @@ func (r *Runner) prepare(ctx context.Context) error {
 	if pf, ok := r.opts.Schema.(SchemaPreflighter); ok {
 		for _, ref := range schemaAssertions {
 			if err := pf.PreflightSchema(SchemaRef{Ref: ref.ref, Operation: ref.operation}); err != nil {
-				return preflightf(KindSchema, "schema %q: %v", ref.ref, err)
+				return preflightf(KindSchema, "schema preflight: %v", err)
 			}
 		}
 	}

@@ -684,7 +684,7 @@ func evalNumber(kind, target string, actual float64, ne *numberExpectation, user
 }
 
 func evalSchema(a Assertion, ctx *evalContext) (AssertionResult, *Failure) {
-	res := AssertionResult{Kind: "schema", Target: a.schema.ref}
+	res := AssertionResult{Kind: "schema", Target: "schema"}
 	if ctx.schema == nil {
 		res.Message = "schema assertion requires an injected schema validator"
 		return res, newFailure(FailureConfig, KindSchema, res.Message)
@@ -693,6 +693,7 @@ func evalSchema(a Assertion, ctx *evalContext) (AssertionResult, *Failure) {
 		Ref:       a.schema.ref,
 		Operation: a.schema.operation,
 		Status:    ctx.result.Status,
+		Headers:   ctx.result.Headers,
 	})
 	if err != nil {
 		msg := ctx.redact("schema validation failed to run: " + err.Error())
@@ -715,9 +716,9 @@ func evalSchema(a Assertion, ctx *evalContext) (AssertionResult, *Failure) {
 			parts = append(parts, is.Message)
 		}
 	}
-	res.Expected = "valid against " + a.schema.ref
+	res.Expected = "valid against selected schema"
 	res.Actual = fmt.Sprintf("%d issue(s)", len(issues))
-	res.Message = ctx.redact(assertionMessage(a.Message, "schema "+a.schema.ref+": "+strings.Join(parts, "; ")))
+	res.Message = ctx.redact(assertionMessage(a.Message, "schema: "+strings.Join(parts, "; ")))
 	return res, newFailure(FailureAssertion, KindSchema, res.Message)
 }
 
