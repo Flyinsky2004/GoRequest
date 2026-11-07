@@ -1,0 +1,24 @@
+diff --git a/internal/desktop/app.go b/internal/desktop/app.go
+index 8de15a0..e891973 100644
+--- a/internal/desktop/app.go
++++ b/internal/desktop/app.go
+@@ -205,6 +205,7 @@ func (a *App) View(c *ui.Context) {
+ 	a.RunnerModals(c, t)
+ 	a.MockModals(c, t)
+ 	a.PerformanceModals(c, t)
++	a.WebSocketModals(c, t)
+ 	a.IdentityManagementModals(c, t)
+ 	if a.git != nil {
+ 		a.git.modals(c, t)
+diff --git a/internal/desktop/workspace.go b/internal/desktop/workspace.go
+index 6355916..11d9b77 100644
+--- a/internal/desktop/workspace.go
++++ b/internal/desktop/workspace.go
+@@ -86,6 +86,7 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
+ 	a.BuildRunnerProjectMenuItems(mm)
+ 	a.BuildMockProjectMenuItems(mm)
+ 	a.BuildPerformanceProjectMenuItems(mm)
++	a.BuildWebSocketProjectMenuItems(mm)
+ 	mm.Separator()
+ 	a.BuildIdentityManagementMenuItems(mm, tab)
+ 	mm.Separator()
