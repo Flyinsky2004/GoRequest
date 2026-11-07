@@ -787,3 +787,12 @@ U10须检查CheckboxBase真实绘制API，复用已有16DIP本地绘制模式（
 ### 31.3 最终race门禁
 
 `go test -race ./internal/core ./internal/docedit ./internal/doctable ./internal/docmention ./internal/desktop/... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunnerEditorDescribeAssertions|TestRunnerEditorPatchSuiteExtract)$' -count=1` 全部通过（desktop 89.420s）。该命令仅显式跳过三项已复现的desktop基线失败；没有跳过新功能测试，不是全仓race。诊断基线失败由前述全仓普通测试保留证据。验证后的集成代码/报告统一提交，随后main快进、按精确句柄清理，实际结果下节补记。
+
+
+### 31.4 main与清理完成
+
+main已从 `7bc923d` 快进至 `5fd17ca`（10条no-ff合并与集成接线/回归提交）。最终清理复核发现U08工作树有报告中提及的两处任务外格式化改动：`internal/desktop/file_sync_i18n.go`、`internal/desktop/oauth_test.go`；未混入main，已保存本地 `stash@{0}`（创建时标识），stash提交 `96bb3fd8be54abba6fb68ee331ed209452339554`，名称 `preserve unrelated U08 formatting before agent cleanup 2026-11-08`。初检干净不能代替删除前复核，保留证据以本节为准。
+
+已精确关闭t49/t4b/t4c/t4d/t4f/t4g/t4h/t4j/t4m/t4n对应10个tab，全部返回ok:true；逐个确认finished后hc rm清除会话记录。删除前重新确认每条来源提交为main祖先、工作树干净，均不带force删除10个来源worktree/分支及本轮临时集成worktree/分支。最终只剩main与主worktree。
+
+Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t31/t48/t4k。merge/清理前后用户文件内容与存在性校验一致，dev.yaml改动和现存demo-server debug产物保留；桌面debug产物在清理前快照时已不存在，本轮未删除。没有push、没有操作用户当前示例/生产服务。验证与未验收范围保持§31.2–31.3，不以清理完成宣称实机产品验收通过。
