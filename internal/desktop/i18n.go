@@ -324,6 +324,7 @@ type messages struct {
 	CloseTabMenu string
 	CloseCurrent string
 	CloseOthers  string
+	CloseRight   string
 	CloseAll     string
 	CloseTabTip  string // %s
 
@@ -689,6 +690,7 @@ var messagesZh = messages{
 	CloseTabMenu: "关闭",
 	CloseCurrent: "关闭当前",
 	CloseOthers:  "关闭其他",
+	CloseRight:   "关闭右侧",
 	CloseAll:     "关闭全部",
 	CloseTabTip:  "关闭 %s",
 
@@ -1048,6 +1050,7 @@ var messagesEn = messages{
 	CloseTabMenu: "Close",
 	CloseCurrent: "Close Current",
 	CloseOthers:  "Close Others",
+	CloseRight:   "Close to the Right",
 	CloseAll:     "Close All",
 	CloseTabTip:  "Close %s",
 

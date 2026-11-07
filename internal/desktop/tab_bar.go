@@ -10,7 +10,8 @@ import (
 
 // This file draws the open-tab strip above the workspace and the "Open Tabs"
 // menu that lists every open request/document for this project. Tabs keep direct
-// click switching plus a per-tab close button; the menu offers a full list with
+// click switching plus a per-tab close button; right-clicking a tab opens a
+// VSCode-like close menu for that tab, and the menu offers a full list with
 // switch/close and the close-current/others/all actions.
 
 // tabDisplayLabel is the visible label of a tab: the request name, prefixed by
@@ -53,8 +54,9 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme, ps *projectState) {
 // actions (and tests) use.
 //
 // The strip is built inline instead of through uikit.TabItem so the activation
-// area can answer DoubleClicked (in-place rename, §4) and middle clicks (close)
-// directly: the click target is the activation button, not the row around it.
+// area can answer DoubleClicked (in-place rename, §4) directly, and so the row
+// can answer middle clicks (close) and the secondary button (a per-tab close
+// menu) across the whole tab.
 func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 	p := uikit.PaletteFor(t)
 	if tab.renaming {
@@ -80,6 +82,25 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 	label := tabDisplayLabel(tab)
 	closeLabel := translate(a.msg().CloseTabTip, tabIdentity(tab))
 
+	// The whole tab answers pointer input: the secondary button targets the
+	// tab (activating it, as VSCode does) before its context menu opens, and
+	// the middle button closes it like a browser. MyGo reports the pointer's
+	// button in InputEvent (1 = secondary, 2 = middle).
+	outer.HandleInput(func(ev ui.InputEvent) bool {
+		if ev.Kind != ui.InputPointerDown {
+			return false
+		}
+		switch ev.Button {
+		case 1:
+			ps.activateTab(tab)
+		case 2:
+			a.startClose(ps, []*Tab{tab})
+			return true
+		}
+		return false
+	})
+	outer.ContextMenu(func(m *ui.Menu) { a.tabContextMenu(m, ps, tab) })
+
 	var clicked, closeClicked bool
 	outer.Children(func() {
 		act := ui.ButtonBase(c).Grow(1).Height(uikit.TabHeight - 2).Gap(6).PaddingX(2)
@@ -101,16 +122,6 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 		} else if act.Clicked() {
 			clicked = true
 		}
-		// MyGo reports the pointer's button in InputEvent (2 = middle), which
-		// is how a middle click closes the tab like a browser.
-		act.HandleInput(func(ev ui.InputEvent) bool {
-			if ev.Kind == ui.InputPointerDown && ev.Button == 2 {
-				a.startClose(ps, []*Tab{tab})
-				return true
-			}
-			return false
-		})
-
 		if uikit.TabClose(c, p, closeLabel, tab.Dirty, hovered).Clicked() {
 			closeClicked = true
 		}
@@ -126,6 +137,31 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 	}
 	if clicked {
 		ps.activateTab(tab)
+	}
+}
+
+// tabContextMenu fills a tab's right-click menu with the VSCode-like close
+// actions. The menu targets tab explicitly instead of the active tab, so it
+// stays correct when opened by keyboard on a tab that is not active; the
+// pointer path already activates the tab before the menu opens. Actions that
+// would do nothing are disabled rather than hidden, so the menu keeps a stable
+// shape. Every close goes through startClose, so dirty tabs still pause for
+// Save/Discard/Cancel.
+func (a *App) tabContextMenu(m *ui.Menu, ps *projectState, tab *Tab) {
+	ps.activateTab(tab)
+	msgs := a.msg()
+	i := ps.indexOfTab(tab)
+	if m.Item(msgs.CloseTabMenu).Chosen() {
+		a.startClose(ps, []*Tab{tab})
+	}
+	if m.Item(msgs.CloseOthers).Disabled(len(ps.tabs) <= 1).Chosen() {
+		a.closeOthers()
+	}
+	if m.Item(msgs.CloseRight).Disabled(i < 0 || i >= len(ps.tabs)-1).Chosen() {
+		a.closeRight(ps, tab)
+	}
+	if m.Item(msgs.CloseAll).Chosen() {
+		a.closeAll()
 	}
 }
 

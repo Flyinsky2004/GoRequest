@@ -185,6 +185,23 @@ func (a *App) closeOthers() {
 	a.startClose(ps, targets)
 }
 
+// closeRight closes every tab after tab in ps, leaving tab and the tabs
+// before it open. It is the tab context menu's "Close to the Right" action;
+// the anchor is explicit so the result never depends on which tab happens to
+// be active.
+func (a *App) closeRight(ps *projectState, tab *Tab) {
+	if ps == nil || tab == nil {
+		return
+	}
+	i := ps.indexOfTab(tab)
+	if i < 0 || i >= len(ps.tabs)-1 {
+		return
+	}
+	targets := make([]*Tab, len(ps.tabs)-i-1)
+	copy(targets, ps.tabs[i+1:])
+	a.startClose(ps, targets)
+}
+
 // closeAll closes every tab of the current project.
 func (a *App) closeAll() {
 	ps := a.ps
