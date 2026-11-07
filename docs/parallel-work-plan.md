@@ -671,3 +671,15 @@ R1/R2/R4：预览去重与差异行、同行超时徽标、方法段分隔。R3/
 | U05 / CC folder-ime | cc/U05-folder-ime / /private/tmp/gorequest-u04-u05-20261107/folder-ime | tree_actions.go的重命名输入与forms.go新建文件夹输入及专属模块/测试；检查中文组合输入/确认键/焦点/持久化；优先应用层最小修复，不改Core/依赖或共享框架 | 待启动 |
 
 两组写docs/task-results/U04.md或U05.md，真实验证后本地提交，只纳入本任务相关文件，不改总账本。若定位框架限制则必须提供具体源码证据与最小可应用修复方案，不通过脆弱输入替换假装IME已修复；需额外修改Core/依赖/框架时先报告集成人。未验证不得声称中文输入法实机验收通过。上一批和本批均未合入，交付后再集成验收，不勾完成。
+
+
+### 28.1 实际启动句柄
+
+两组均从登记基线 `24a8b9c` 独立建worktree，通过Herdr tab.new交互启动Claude Code。已读取两屏确认正确任务/目录/分支与bypass permissions，无信任阻塞；沿用当前默认DeepSeek V4.1 Flash 1017 (Mistral)，未指定或改全局模型。状态为开发中，尚未交付/集成/验收。
+
+| ID | Herdr终端 | tab ID |
+| --- | --- | --- |
+| U04 | t4d | tb9c87de2524207d11cc0fe6db317a86e7 |
+| U05 | t4f | tb40836a741ae33037a59c78f9113262b1 |
+
+完整提示词和原始启动响应保存在本机 `/private/tmp/gorequest-u04-u05-20261107/`，不入Git。U04报告需交删除旧保存入口的最小patch，与U02集成后由集成人串行应用，避免并发重写urlGroup。上一批t49/t4b/t4c继续原任务，既有用户/其他项目会话未操作。
