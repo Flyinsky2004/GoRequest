@@ -384,3 +384,82 @@ func TestFormatWithoutBoundaryPipes(t *testing.T) {
 		t.Fatalf("Markdown = %q, want %q", got, want)
 	}
 }
+
+func TestPasteTSVAtOffsetKeepsSurroundingCells(t *testing.T) {
+	tb := mustParse(t, "| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |")
+	if err := tb.PasteTSV("x\ty", 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	again := mustParse(t, tb.Markdown())
+	want := [][]string{
+		{"1", "x", "y"},
+		{"4", "5", "6"},
+	}
+	for r := range want {
+		for c := range want[r] {
+			if got := again.CellText(r+1, c); got != want[r][c] {
+				t.Errorf("cell %d,%d = %q, want %q", r+1, c, got, want[r][c])
+			}
+		}
+	}
+}
+
+func TestPasteTSVNormalizesCRLFToTheTableEOL(t *testing.T) {
+	tb := mustParse(t, "| a | b |\n| --- | --- |\n| c | d |")
+	if err := tb.PasteTSV("x\ty\r\n1\t2\r\n", 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	got := tb.Markdown()
+	if strings.ContainsRune(got, '\r') {
+		t.Fatalf("a CRLF paste wrote a carriage return: %q", got)
+	}
+	again := mustParse(t, got)
+	if again.CellText(1, 0) != "x" || again.CellText(2, 1) != "2" {
+		t.Fatalf("pasted cells = %q, %q", again.CellText(1, 0), again.CellText(2, 1))
+	}
+}
+
+func TestSetAlignToTheSameValueKeepsSeparatorBytes(t *testing.T) {
+	src := "| a | b |\n| :--- | ---: |\n| c | d |"
+	tb := mustParse(t, src)
+	if err := tb.SetAlign(0, AlignLeft); err != nil {
+		t.Fatal(err)
+	}
+	if err := tb.SetAlign(1, AlignRight); err != nil {
+		t.Fatal(err)
+	}
+	if got := tb.Markdown(); got != src {
+		t.Fatalf("an unchanged alignment rewrote the table: %q", got)
+	}
+}
+
+func TestEditKeepsFollowingText(t *testing.T) {
+	src := "| a |\n| --- |\n| b |\n\nafter\n"
+	tb := mustParse(t, src)
+	if err := tb.SetCell(1, 0, "x"); err != nil {
+		t.Fatal(err)
+	}
+	got := tb.Markdown()
+	if !strings.HasSuffix(got, "\n\nafter\n") {
+		t.Fatalf("the text after the table changed: %q", got)
+	}
+}
+
+func TestStructuralEditsRespectTheLimits(t *testing.T) {
+	header := "| " + strings.Repeat("c | ", MaxColumns) + "\n"
+	sep := "| " + strings.Repeat("--- | ", MaxColumns) + "\n"
+	tb := mustParse(t, header+sep)
+	if err := tb.InsertColumn(0); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("InsertColumn at the limit returned %v", err)
+	}
+
+	var b strings.Builder
+	b.WriteString("| a | b |\n| --- | --- |\n")
+	for i := 0; i < MaxDataRows; i++ {
+		b.WriteString("| x | y |\n")
+	}
+	tall := mustParse(t, b.String())
+	if err := tall.InsertRow(tall.RowCount()); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("InsertRow at the limit returned %v", err)
+	}
+}
