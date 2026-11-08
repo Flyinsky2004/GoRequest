@@ -661,7 +661,7 @@ func (a *App) responseBinaryView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit.P
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, nm.BinaryPayloadTitle).FontSize(13).FontWeight(600).TextColor(p.Text)
 			ui.Box(c).Grow(1)
-			if ui.PrimaryButton(c, nm.SaveBinaryBtn).Cursor(ui.CursorPointer).Clicked() {
+			if uikit.PrimaryButton(c, nm.SaveBinaryBtn).Cursor(ui.CursorPointer).Clicked() {
 				a.saveResponse(tab)
 			}
 		})
@@ -771,7 +771,7 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
 						}
 						valColor := jsonKindColor(n.Kind, p)
 						if row.Matched {
-							valColor = p.Accent
+							valColor = p.Focus
 						}
 						ui.Text(c, n.Value).FontSize(12).Font("monospace").SingleLine().Selectable().TextColor(valColor)
 						ui.Text(c, n.Path).FontSize(10).Font("monospace").SingleLine().TextColor(p.Faint)

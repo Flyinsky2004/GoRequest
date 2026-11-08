@@ -387,7 +387,7 @@ func (a *App) secretEntryModal(c *ui.Context, t *ui.Theme) {
 				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.closeSecretEntry(ps)
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, a.secretEntrySaveLabel(d, m))).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, a.secretEntrySaveLabel(d, m))).Clicked() {
 					a.saveSecretEntry(ps)
 				}
 			})

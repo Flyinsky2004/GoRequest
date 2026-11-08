@@ -1153,10 +1153,24 @@ U30从e5fbb9f建立分支/worktree，经Herdr启动，终端t5j，tab tba0bfd932
 
 | 负责人 | 分支 / 实际worktree | 归属 | 状态 |
 | --- | --- | --- | --- |
-| agy Sonnet 5.5 integrator | agy/integrate-U26-U30 / /private/tmp/gorequest-u26-u30-integration-20261108/worktree | 核对来源U26 da2d613、U27 6b7358d、U28 ddc07e9、U29 05e5ee6、U30 f42f8eb，no-ff合并，公共patch与必要修正，完整验证及main快进、本批5条来源安全清理 | 待启动 |
+| Codex主agent（用户中途指定接管） | codex/integrate-U26-U30 / /private/tmp/gorequest-u26-u30-integration-20261108/worktree | 核对来源U26 da2d613、U27 6b7358d、U28 ddc07e9、U29 05e5ee6、U30 f42f8eb，no-ff合并，公共patch与必要修正，完整验证及main快进、本批5条来源安全清理 | 待启动 |
 
 从本登记提交作为集成基线。交付卡“不得merge/其他分支”仅适用于开发阶段，本轮集成人已获用户明确授权合并/快进main/清理本批来源。仅允许操作sources.json登记的5个来源会话/worktree/分支；不push、不覆盖用户已有文件，不动t1h/t2s/t4q/t5c及其他项目t4k/MyGo showcase分支，不实际读写用户Secret或安装更新。
 
 必须审阅U29-integration.patch并按合并后的U27/U28/U30精确接线，保留品牌红PrimaryButton且不泄漏Theme；重点正常输入非红/错误仍红、关于检查更新功能和设置跳转、本机密钥成功关闭失败保留、新菜单完整、树形SVG尺寸/对齐/展开搜索复制。审查U27 aboutRequested对多窗口设置生命周期及UI线程安全、U28关闭清敏状态。必要构建/vet/受影响测试与race；普通全仓测试不skip，4项已知旧失败如实记录，全仓race可只skip这4项（见§40）。不改旧失败断言掩盖。使用fake/临时项目/loopback，未实机不能标实机通过。
 
 集成报告docs/task-results/integration-U26-U30-2026-11-08.md及本节补真实提交/验证/限制/清理证据。main快进后逐条确认来源头是main祖先且worktree干净，精确tab.close id+confirmed:true，hc finished后rm；git worktree remove及branch -d均不force。集成人自己的会话和工作区保留给主agent最终复核后清理，未验证不可勾完成。
+
+
+### 42.1 主agent接管与集成接线
+
+用户明确改为“你来搞，别让agy搞，把你开的那个清掉”。精确关闭刚开的集成agy t5k / tab tbb096ecaf8f5f48d086a08303d38672f5（ok:true），hc确认finished后rm；该agy尚未产生代码/提交，工作区干净，仍在59e0f75。主agent接管原隔离worktree并将分支重命名codex/integrate-U26-U30，旧agy集成分支名已移除。
+
+主agent依次no-ff合并U26–U30，合并提交为3ed917b、8265413、001008e、272475c、620be27，无冲突。U29-integration.patch校验通过并实际接入settings/update/secret_entry/response_view；核对生产ui.PrimaryButton仅剩品牌wrapper内部构造，树形匹配色改Focus而保留U30 SVG。
+
+审查发现U27全局aboutRequested可被另一个已开设置窗口先渲染时消费，修正为UI线程目标窗口aboutHost，并在Manager选定目标后、显示/聚焦前登记；仅目标settingsBody消费，其他窗口保留自己的设置页。新增TestUpdateAboutNavigationStaysWithSelectedWindow覆盖欢迎/项目两种目标及另一窗口先渲染，专项通过。完整最终验证与清理结果待后续节登记，尚未宣称验收完成。
+
+
+### 42.2 最终验证
+
+主agent最终集成代码build/vet退出0；普通全仓go test ./... -count=1无skip，仅§40列明4项旧失败（desktop33.616s），其余通过。全仓race只skip这4项，退出0无race（desktop126.331s、uikit12.686s、core10.310s、update1.441s），包含公共patch与目标窗口隔离回归。git diff --check通过，go.mod/go.sum无改动。完整命令/限制见docs/task-results/integration-U26-U30-2026-11-08.md；未进行真实桌面/密钥/更新安装验收。5来源仍干净且头均为当前集成HEAD祖先，用户4文件SHA256不变，待提交/快进/精确清理。

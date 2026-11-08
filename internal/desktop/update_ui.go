@@ -111,7 +111,7 @@ func (u *updateController) renderAvailable(c *ui.Context, p uikit.Palette, um *u
 		if uikit.ActionCursor(ui.Button(c, um.Later)).Clicked() {
 			u.later()
 		}
-		if uikit.ActionCursor(ui.PrimaryButton(c, um.UpdateNow)).Clicked() {
+		if uikit.ActionCursor(uikit.PrimaryButton(c, um.UpdateNow)).Clicked() {
 			u.startDownload()
 		}
 	})
@@ -153,7 +153,7 @@ func (u *updateController) renderResult(c *ui.Context, t *ui.Theme, p uikit.Pale
 				u.openSettings()
 			}
 		}
-		if uikit.ActionCursor(ui.PrimaryButton(c, um.Close)).Clicked() {
+		if uikit.ActionCursor(uikit.PrimaryButton(c, um.Close)).Clicked() {
 			u.closeDialog()
 		}
 	})

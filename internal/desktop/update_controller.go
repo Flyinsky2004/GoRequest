@@ -117,9 +117,6 @@ type updateController struct {
 
 	running       atomic.Bool
 	manualPending atomic.Bool
-	// aboutRequested makes the next Settings sheet open on About, where the
-	// update controls live.
-	aboutRequested atomic.Bool
 
 	// host is the window that owns the current dialog. It is set on the UI
 	// thread before a check starts and protected by hostMu because background
@@ -128,6 +125,8 @@ type updateController struct {
 	host   window
 
 	// UI-thread fields.
+	// Only the settings window selected by Manager may consume this request.
+	aboutHost  window
 	dialogOpen bool
 	dialogKind updateDialogKind
 	candidate  *update.Candidate
@@ -533,9 +532,8 @@ func (u *updateController) downloadAndOpen(ctx context.Context, cand *update.Can
 // host window, where the user can restore automatic checks or check manually.
 func (u *updateController) openSettings() {
 	u.closeDialog()
-	u.aboutRequested.Store(true)
 	if u.mgr != nil {
-		u.mgr.openSettingsWindow()
+		u.mgr.openSettingsWindow(func(host window) { u.aboutHost = host })
 	}
 }
 

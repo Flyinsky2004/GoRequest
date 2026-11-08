@@ -523,17 +523,24 @@ func (m *Manager) updateHostWindow() window {
 
 // openSettingsWindow brings the Settings sheet forward in the host window, or
 // creates the chooser with Settings open when no window exists.
-func (m *Manager) openSettingsWindow() {
+// onOpen runs on the UI thread before the selected window is shown/focused.
+func (m *Manager) openSettingsWindow(onOpen func(window)) {
 	if m == nil {
 		return
 	}
 	if m.welcome != nil && m.welcome.win != nil && !m.welcome.win.IsDestroyed() && m.welcome.win.IsVisible() {
+		if onOpen != nil {
+			onOpen(m.welcome.win)
+		}
 		m.welcome.showSettings = true
 		m.welcome.win.Focus()
 		return
 	}
 	for _, app := range m.workspaces {
 		if app != nil && !app.closed && app.win != nil && !app.win.IsDestroyed() {
+			if onOpen != nil {
+				onOpen(app.win)
+			}
 			app.showSettings = true
 			app.win.Show()
 			app.win.Focus()
@@ -542,6 +549,9 @@ func (m *Manager) openSettingsWindow() {
 	}
 	m.showWelcome("")
 	if m.welcome != nil {
+		if onOpen != nil {
+			onOpen(m.welcome.win)
+		}
 		m.welcome.showSettings = true
 	}
 }

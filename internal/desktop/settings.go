@@ -151,7 +151,8 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 	root := ui.Column(c).Gap(12).Width(g.width).Height(g.height)
 	selected := ui.Local(root, settingsSelectionKey{}, func() int { return int(settingsCategoryAppearance) })
 	// The update dialog's Settings button asks for About, where updates live.
-	if up != nil && up.aboutRequested.Swap(false) {
+	if up != nil && host != nil && up.aboutHost == host {
+		up.aboutHost = nil
 		*selected = int(settingsCategoryAbout)
 	}
 	root.Children(func() {
@@ -169,7 +170,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 		})
 
 		ui.Row(c).Gap(8).Justify(ui.End).Shrink(0).Children(func() {
-			done := uikit.ActionCursor(ui.PrimaryButton(c, ""))
+			done := uikit.ActionCursor(uikit.PrimaryButton(c, ""))
 			done.Label(m.Done)
 			done.Children(func() {
 				if settingsIconDone != nil {
