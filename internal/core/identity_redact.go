@@ -216,10 +216,11 @@ func (r *Redactor) SanitizePlan(plan *Plan) *Plan {
 	}
 
 	cp := &Plan{
-		Method:  plan.Method,
-		URL:     red.sanitizeURL(plan.URL),
-		Timeout: plan.Timeout,
-		HasBody: plan.HasBody,
+		Method:          plan.Method,
+		URL:             red.sanitizeURL(plan.URL),
+		Timeout:         plan.Timeout,
+		TimeoutExplicit: plan.TimeoutExplicit,
+		HasBody:         plan.HasBody,
 	}
 	if len(plan.Headers) > 0 {
 		cp.Headers = make([][2]string, len(plan.Headers))
@@ -510,6 +511,7 @@ func BuildTrackedPlanWithOptions(ctx context.Context, req *Request, vars map[str
 	}
 
 	timeout := DefaultTimeout
+	timeoutExplicit := false
 	if req.Timeout != "" {
 		d, err := time.ParseDuration(req.Timeout)
 		if err != nil {
@@ -517,17 +519,19 @@ func BuildTrackedPlanWithOptions(ctx context.Context, req *Request, vars map[str
 		}
 		if d > 0 {
 			timeout = d
+			timeoutExplicit = true
 		}
 	}
 
 	return &Plan{
-		Method:  method,
-		URL:     rawURL,
-		Headers: headers,
-		Query:   query,
-		Body:    encoded.Bytes,
-		Timeout: timeout,
-		HasBody: encoded.HasBody,
+		Method:          method,
+		URL:             rawURL,
+		Headers:         headers,
+		Query:           query,
+		Body:            encoded.Bytes,
+		Timeout:         timeout,
+		TimeoutExplicit: timeoutExplicit,
+		HasBody:         encoded.HasBody,
 	}, red, nil
 }
 

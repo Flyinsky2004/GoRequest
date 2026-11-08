@@ -319,15 +319,29 @@ func (a *App) send(tab *Tab) {
 	a.attachNetworkToPlan(tab, req, plan, red)
 	a.attachConfirmedNetworkOptions(tab, plan, confirmed)
 
+	// A newer send always supersedes the tab's previous stream; its callbacks
+	// become no-ops and cannot write into this response. Cancel any request the
+	// tab still holds (for example after a forced reset) so no connection
+	// outlives the send that replaced it.
+	if tab.cancel != nil {
+		tab.cancel()
+		tab.cancel = nil
+	}
+	teardownTabStream(tab)
 	tab.cancel = cancel
 	tab.sendSeq++
 	seq := tab.sendSeq
+	win := a.win
+	stream := newTabSSEStream(a, tab, win, seq)
+	if plan != nil && plan.Network != nil {
+		plan.Network.Stream = stream.handler()
+	}
+	tab.sse = stream
 	tab.Sending = true
 	tab.RespErr = ""
 	started := time.Now()
 	a.status = translate(a.msg().Sending, req.HTTP.Method, red.SanitizePlan(plan).URL)
 
-	win := a.win
 	go func() {
 		res, err := core.Execute(ctx, plan, nil)
 		// Drop the result if the owning window is gone. IsDestroyed is the
@@ -344,8 +358,17 @@ func (a *App) send(tab *Tab) {
 			if tab.sendSeq != seq {
 				return
 			}
+			// Apply any events still buffered before deciding how the send ended.
+			stream.flush()
 			tab.Sending = false
 			lm := a.layoutMsg()
+			if stream.opened {
+				a.finishStreamSend(tab, stream, res, err, plan, red, ctx, started, lm)
+				tab.focusURL = true
+				return
+			}
+			tab.sse = nil
+			stream.close()
 			if err != nil {
 				tab.Resp = nil
 				tab.RespErr = red.RedactError(err).Error()
@@ -373,6 +396,74 @@ func (a *App) send(tab *Tab) {
 	}()
 }
 
+// finishStreamSend publishes a stream that opened, whether it completed
+// cleanly or ended with a cancel, timeout or disconnect. Everything received
+// before the end is kept and shown; the stream phase tells the user which of
+// those happened instead of replacing the content with a bare error.
+func (a *App) finishStreamSend(
+	tab *Tab,
+	stream *tabSSEStream,
+	res *core.ExecResult,
+	err error,
+	plan *core.Plan,
+	red *core.Redactor,
+	ctx context.Context,
+	started time.Time,
+	lm *layoutStatusMessages,
+) {
+	if res == nil {
+		res = &core.ExecResult{}
+	}
+	text := stream.display.String()
+	// A server may label a non-conforming body text/event-stream (for example a
+	// JSON error page). If the parser produced no event text, keep the redacted
+	// raw body instead of showing an empty response.
+	if text == "" && len(res.Body) > 0 {
+		text = string(res.Body)
+	}
+	size := stream.bytes
+	if size <= 0 {
+		size = int64(len(text))
+	}
+	// The UI, copy, save and history all use the redacted event log, never the
+	// raw wire body.
+	res.Body = []byte(text)
+	res.BodySize = size
+	res.Pretty = ""
+	res.IsBinary = false
+	if res.Stream == nil {
+		res.Stream = &core.StreamInfo{Kind: "sse"}
+	}
+	res.Stream.Kind = "sse"
+	res.Stream.Phase = stream.phase
+	res.Stream.EventCount = stream.eventCount
+	res.Stream.BytesReceived = size
+	res.Stream.Truncated = stream.truncated
+
+	tab.Resp = res
+	tab.RespErr = ""
+	tab.respVersion++
+	tab.respEditor = nil
+	tab.sse = nil
+	stream.close()
+
+	switch res.Stream.Phase {
+	case core.StreamPhaseCompleted:
+		a.status = translate(lm.SendDoneFmt, res.Status, sendMs(res.Duration))
+		a.recordHistory(tab, plan, red, res)
+	case core.StreamPhaseCanceled:
+		a.status = translate(lm.SendCanceledFmt, sendMs(time.Since(started)))
+		a.recordHistoryFailure(tab, plan, red, err, ctx.Err())
+	default:
+		reason := res.Stream.EndReason
+		if reason == "" && err != nil {
+			reason = red.RedactError(err).Error()
+		}
+		a.status = translate(lm.SendFailedFmt, sendMs(time.Since(started)), reason)
+		a.recordHistoryFailure(tab, plan, red, err, ctx.Err())
+	}
+}
+
 // sendMs formats a duration as milliseconds for the send status line.
 func sendMs(d time.Duration) float64 { return float64(d.Microseconds()) / 1000.0 }
 
@@ -392,6 +483,7 @@ func (a *App) cancelAllRequests() {
 		if tab.Sending {
 			tab.Sending = false
 		}
+		teardownTabStream(tab)
 		wsTeardownTab(tab)
 	}
 }
