@@ -198,7 +198,9 @@ func (a *App) activateDocBlock(t *ui.Theme, tab *Tab, st *docViewState, b docedi
 	be.ed = a.newDocBlockEditor(t, tab, st, be, be.base)
 	line := 0
 	if clickY > 0 {
-		line = int(clickY / a.docBlockLineHeight(t, be.kind, be.level))
+		// A click lands on the line under it: the block's line height in
+		// pixels, not the multiplier the editor state keeps.
+		line = int(clickY / a.docBlockLinePixels(t, be.kind, be.level))
 	}
 	line = max(0, min(line, strings.Count(be.base, "\n")))
 	off := docLineEndOffset(be.base, line)
@@ -208,6 +210,7 @@ func (a *App) activateDocBlock(t *ui.Theme, tab *Tab, st *docViewState, b docedi
 	lv.slashMode = 0
 	lv.slashIndex = 0
 	lv.slashDismissed = ""
+	lv.slashDismissedSet = false
 }
 
 // activateDocSynthetic opens an empty in-place block at off, the start of a
@@ -228,6 +231,7 @@ func (a *App) activateDocSynthetic(t *ui.Theme, tab *Tab, st *docViewState, off 
 	lv.slashMode = 0
 	lv.slashIndex = 0
 	lv.slashDismissed = ""
+	lv.slashDismissedSet = false
 }
 
 // docCanvasAppendOffset returns the offset at which a new final block starts,
@@ -316,6 +320,18 @@ func (a *App) docBlockLineHeight(t *ui.Theme, kind docmd.Kind, _ int) float32 {
 		return th.CodeLineHeight
 	}
 	return th.LineHeight
+}
+
+// docBlockLinePixels is one line of the block in DIPs: the font size times
+// the line-height multiplier. It is what a click's vertical offset divides
+// to find the line clicked.
+func (a *App) docBlockLinePixels(t *ui.Theme, kind docmd.Kind, level int) float32 {
+	f := a.docBlockFont(t, kind, level)
+	lh := a.docBlockLineHeight(t, kind, level)
+	if f.Size <= 0 || lh <= 0 {
+		return 20
+	}
+	return f.Size * lh
 }
 
 // docMarkdownTheme resolves the user's Markdown preferences against the
@@ -450,6 +466,7 @@ func (a *App) docBlockInput(tab *Tab, st *docViewState, be *docBlockEdit, ev ui.
 				return true
 			case ui.KeyEscape:
 				lv.slashDismissed = lv.slashQuery
+				lv.slashDismissedSet = true
 				lv.slashOpen = false
 				lv.slashMode = 0
 				return true
@@ -482,6 +499,7 @@ func (a *App) docBlockInput(tab *Tab, st *docViewState, be *docBlockEdit, ev ui.
 		case ui.KeyEscape:
 			lv.keyUpIgnore = ev.Key
 			lv.slashDismissed = lv.slashQuery
+			lv.slashDismissedSet = true
 			lv.slashOpen = false
 			lv.slashMode = 0
 			return true

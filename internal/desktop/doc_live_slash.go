@@ -25,7 +25,8 @@ func (a *App) docSlashMenu(c *ui.Context, t *ui.Theme, tab *Tab, st *docViewStat
 	}
 	p := uikit.PaletteFor(t)
 	menu := ui.Column(c).FillWidth().MaxHeight(300).Padding(4).Gap(1).Radius(8).
-		Background(p.Sidebar).Border(1, p.Hairline).Shadow(0, 4, 14, 0, p.CardShade)
+		Background(p.Sidebar).Border(1, p.Hairline).Shadow(0, 4, 14, 0, p.CardShade).
+		KeepFocus()
 	menu.Label(dm.SlashMenu)
 	menu.Children(func() {
 		ui.Row(c).FillWidth().Height(24).Padding(0, 8).AlignItems(ui.Center).Children(func() {
@@ -55,7 +56,7 @@ func (a *App) docSlashMenu(c *ui.Context, t *ui.Theme, tab *Tab, st *docViewStat
 				row.Children(func() {
 					ui.Text(c, a.docSlashLabel(cmd)).FontSize(13).TextColor(p.Text).SingleLine()
 				})
-				row.Label("doc-slash:" + cmd.ID)
+				row.Label(a.docSlashLabel(cmd))
 				if row.Clicked() {
 					lv.slashIndex = i
 					a.docSlashChoose(tab, st)
@@ -95,7 +96,10 @@ func (a *App) docSlashRequestRows(c *ui.Context, p uikit.Palette, tab *Tab, st *
 			ui.Text(c, name).FontSize(13).TextColor(p.Text).Grow(1).SingleLine()
 			ui.Text(c, docRequestDisplayPath(entry)).FontSize(11).TextColor(p.Muted).SingleLine()
 		})
-		label := "doc-slash-request:" + entry.Request.ID
+		label := method + " " + entry.Request.Name
+		if entry.Request.Name == "" {
+			label = method + " " + entry.Request.ID
+		}
 		row.Label(label)
 		if row.Clicked() {
 			lv.slashIndex = i
@@ -107,8 +111,9 @@ func (a *App) docSlashRequestRows(c *ui.Context, p uikit.Palette, tab *Tab, st *
 // --- slash menu -----------------------------------------------------------
 
 // refreshDocSlash derives the slash menu from the active block's text. It
-// opens only at the start of a block whose content is just a command query;
-// code, URLs and paths never match.
+// opens only on a logical line whose first content is a command query, judged
+// at the caret, so a new line made with Enter works without leaving the
+// block; code, URLs and paths never match.
 func (a *App) refreshDocSlash(tab *Tab, st *docViewState, blocks []docedit.Block) {
 	lv := st.live
 	if lv == nil || lv.block == nil {
@@ -124,15 +129,16 @@ func (a *App) refreshDocSlash(tab *Tab, st *docViewState, blocks []docedit.Block
 		lv.slashMode = 0
 		return
 	}
-	query, ok := docedit.SlashQuery(be.ed.Buffer.String())
+	query, ok := docedit.SlashQueryAt(be.ed.Buffer.String(), be.ed.Cursor())
 	if !ok {
 		lv.slashOpen = false
 		lv.slashMode = 0
 		lv.slashIndex = 0
 		lv.slashDismissed = ""
+		lv.slashDismissedSet = false
 		return
 	}
-	if lv.slashDismissed == query {
+	if lv.slashDismissedSet && lv.slashDismissed == query {
 		lv.slashOpen = false
 		return
 	}
@@ -214,15 +220,27 @@ func (a *App) docSlashChoose(tab *Tab, st *docViewState) {
 	a.applyDocSlashText(tab, st, res.Text, res.SelStart, res.SelEnd)
 }
 
-// applyDocSlashText replaces the active block with text in one canonical
-// transaction, then keeps editing the block that now holds the caret.
+// applyDocSlashText replaces the logical line holding the caret with text in
+// one canonical transaction, then keeps editing the block that now holds the
+// caret. The rest of the block stays byte-identical, so a slash command on a
+// new line of a paragraph does not rewrite the lines around it.
 func (a *App) applyDocSlashText(tab *Tab, st *docViewState, text string, selStart, selEnd int) {
 	lv := st.live
 	be := lv.block
 	if be == nil {
 		return
 	}
-	newText := text
+	local := be.ed.Buffer.String()
+	caret := be.ed.Cursor()
+	lineStart := docedit.LineStart(local, caret)
+	lineEnd := docedit.LineEnd(local, caret)
+	if lineEnd > lineStart && local[lineEnd-1] == '\n' {
+		lineEnd--
+		if lineEnd > lineStart && local[lineEnd-1] == '\r' {
+			lineEnd--
+		}
+	}
+	newText := local[:lineStart] + text + local[lineEnd:]
 	if !be.synthetic && be.terminator {
 		newText += "\n"
 	}
@@ -236,13 +254,14 @@ func (a *App) applyDocSlashText(tab *Tab, st *docViewState, text string, selStar
 	lv.slashMode = 0
 	lv.slashIndex = 0
 	lv.slashDismissed = ""
-	a.relocateDocBlock(tab, st, be.start+selStart)
+	lv.slashDismissedSet = false
+	// The selection is in the applied text, which begins at lineStart of the
+	// block.
+	base := be.start + lineStart
+	a.relocateDocBlock(tab, st, base+selStart)
 	if b := lv.block; b != nil {
-		b.focusPending = true
-	}
-	if b := lv.block; b != nil && selEnd > selStart {
-		s := be.start + selStart - b.start
-		e := be.start + selEnd - b.start
+		s := base + selStart - b.start
+		e := base + selEnd - b.start
 		s = max(0, min(s, len(b.base)))
 		e = max(s, min(e, len(b.base)))
 		b.ed.Select(s, e)

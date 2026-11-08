@@ -49,7 +49,10 @@ type docLiveState struct {
 	slashRequest []*core.RequestEntry
 	// slashDismissed keeps a closed menu closed for the query it was closed
 	// on, so Escape or a click outside does not reopen it on the next frame.
-	slashDismissed string
+	// slashDismissedSet tells an empty query ("/") from no dismissal, which
+	// the zero value of slashDismissed alone cannot.
+	slashDismissed    string
+	slashDismissedSet bool
 
 	canvasOpts *markdown.Options
 	// keyUpIgnore is the key whose release a handled press must not handle
@@ -323,12 +326,26 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 		return
 	}
 	a.syncDocBlockTheme(be, t)
-	view := editor.View(c, be.ed).FillWidth().Key("doc-canvas-editor")
-	if be.focusPending {
-		view.Focus()
-		be.focusPending = false
-	}
-	view.Label("doc-canvas-editor")
+	// The editor must be keyed by an element around it, not by Key on the
+	// editor itself: editor.View reads its focus at the start of its build,
+	// before a Key applied to the returned element would give it the id
+	// Focus sets. A Key after the build would leave the editor reading a
+	// different node's focus every frame, so its caret never drew. The
+	// keyed host keeps the editor's own id stable across frames, so Focus
+	// and Focused agree and the real caret shows.
+	host := ui.Column(c).FillWidth().Key("doc-canvas-editor-host")
+	host.Children(func() {
+		view := editor.View(c, be.ed).FillWidth()
+		if be.focusPending {
+			view.Focus()
+			be.focusPending = false
+			// Focus takes effect on the next frame, when the editor first
+			// paints its caret; ask for it so a click that only focuses does
+			// not wait for the next keystroke.
+			c.Invalidate()
+		}
+		view.Label("doc-canvas-editor")
+	})
 	if st.live.slashOpen {
 		a.docSlashMenu(c, t, tab, st, dm)
 	}

@@ -129,6 +129,7 @@ func (a *App) closeDocSlash(st *docViewState) {
 	}
 	if st.live.slashOpen {
 		st.live.slashDismissed = st.live.slashQuery
+		st.live.slashDismissedSet = true
 	}
 	st.live.slashOpen = false
 	st.live.slashMode = 0
