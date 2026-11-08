@@ -111,6 +111,7 @@ func (a *App) docgenExport(tab *Tab, st *derivedDocState) {
 	if err != nil {
 		st.lastErr = fmt.Sprintf(dm.Failed, err.Error())
 		st.notice = ""
+		a.notifyError(a.feedbackMsg().ExportFailed, err.Error())
 		return
 	}
 	res.Conflicts = append(res.Conflicts, st.preview.Conflicts...)
@@ -121,6 +122,7 @@ func (a *App) docgenExport(tab *Tab, st *derivedDocState) {
 		st.notice += " · " + fmt.Sprintf(dm.Skipped, len(res.Skipped))
 	}
 	st.lastErr = ""
+	a.notifySuccess(a.feedbackMsg().ExportOK)
 }
 
 // docgenPickTargetDir opens the native directory picker off the UI thread

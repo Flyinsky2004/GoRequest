@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -167,60 +168,107 @@ func (m *Manager) forgetRecent(path string) {
 
 // --- breadcrumb -----------------------------------------------------------
 
-// headerPathMessages are the strings of the top-bar path.
-type headerPathMessages struct{ NoActive string }
+// headerPathMessages holds localized labels for the top-bar path.
+type headerPathMessages struct {
+	RequestKind string
+	WSKind      string
+	DocKind     string
+	NoActive    string
+}
 
 func (a *App) headerPathMsg() headerPathMessages {
 	if a != nil && a.mgr != nil && a.mgr.cfg != nil && parseLanguage(string(a.mgr.cfg.language())) == langEnglish {
-		return headerPathMessages{NoActive: "No request or document open"}
+		return headerPathMessages{
+			RequestKind: "Request",
+			WSKind:      "WS Request",
+			DocKind:     "Document",
+			NoActive:    "No request or document open",
+		}
 	}
-	return headerPathMessages{NoActive: "未打开请求或文档"}
+	return headerPathMessages{
+		RequestKind: "请求",
+		WSKind:      "WS 请求",
+		DocKind:     "文档",
+		NoActive:    "未打开请求或文档",
+	}
 }
 
-// headerPath draws the path of the active request or document in the top
-// bar, directly after the project-name button: folders › item for a request,
-// 文档 › item for a document, and a faint hint when no tab is active. Folder
-// crumbs stay clickable sidebar targets. It is the only place the path is
-// drawn. The row shrinks and clips at narrow widths instead of pushing the
-// environment controls away, and a tooltip carries the full path.
+// headerPath draws the path of the active request or document in the top bar
+// immediately after the project-name button: Request › [folders ›] item for a
+// request, Document › [subdirs ›] item for a document, and a faint placeholder
+// when no tab is active. Folder crumbs remain clickable sidebar targets. It is
+// the sole path display (the old in-body breadcrumb was removed so the path is
+// never duplicated). At narrow widths the row shrinks, truncates with an
+// ellipsis, and clips before the environment/save/+ controls can be pushed,
+// while a tooltip exposes the full logical and file path.
 func (a *App) headerPath(c *ui.Context, t *ui.Theme, ps *projectState) {
 	if ps == nil {
 		return
 	}
 	p := uikit.PaletteFor(t)
-	m := a.msg()
+	hm := a.headerPathMsg()
 	tab := ps.activeTab()
+	sep := func() { ui.Text(c, "›").FontSize(11).TextColor(p.Faint).Shrink(0) }
+
 	if tab == nil {
-		ui.Text(c, a.headerPathMsg().NoActive).FontSize(11).TextColor(p.Faint).SingleLine().
-			Shrink(1).MinWidth(0)
+		tip := ps.name() + " › " + hm.NoActive
+		ui.Row(c).Height(22).Gap(4).AlignItems(ui.Center).Shrink(1).MinWidth(0).Clip().
+			Tooltip(tip).Children(func() {
+			sep()
+			ui.Text(c, hm.NoActive).FontSize(11).TextColor(p.Faint).SingleLine().
+				Shrink(1).MinWidth(0).Ellipsis("…").Tooltip(tip)
+		})
 		return
 	}
-	full := tab.Title
-	switch {
-	case tab.Kind == "doc":
-		full = m.DocumentsGroup + " › " + tab.Title
-	case tab.Kind == "request" && tab.Entry != nil:
-		full = strings.ReplaceAll(strings.TrimSuffix(tab.Entry.RelPath, "/"), "/", " › ")
-		if full == "" {
-			full = tab.Title
+
+	if tab.Kind == "doc" {
+		var subdirs []string
+		relClean := filepath.ToSlash(strings.TrimSpace(tab.DocRel))
+		if after, ok := strings.CutPrefix(relClean, "docs/"); ok {
+			dir := filepath.ToSlash(filepath.Dir(after))
+			if dir != "" && dir != "." {
+				subdirs = strings.Split(dir, "/")
+			}
 		}
+		parts := []string{ps.name(), hm.DocKind}
+		parts = append(parts, subdirs...)
+		parts = append(parts, tab.Title)
+		tip := strings.Join(parts, " › ")
+		if relClean != "" {
+			tip += " (" + relClean + ")"
+		}
+		ui.Row(c).Height(22).Gap(2).AlignItems(ui.Center).Shrink(1).MinWidth(0).Clip().
+			Tooltip(tip).Children(func() {
+			sep()
+			a.breadcrumbCrumb(c, p, hm.DocKind, tip, false, func() {
+				if tab.DocRel != "" {
+					ps.sel = "doc:" + tab.DocRel
+				}
+			})
+			for _, sub := range subdirs {
+				sep()
+				ui.Text(c, sub).FontSize(11).TextColor(p.Muted).SingleLine().
+					Shrink(1).MinWidth(20).Ellipsis("…").Tooltip(tip)
+			}
+			sep()
+			ui.Text(c, tab.Title).FontSize(11).FontWeight(600).TextColor(p.Text).SingleLine().
+				Shrink(1).MinWidth(0).Ellipsis("…").Tooltip(tip)
+		})
+		return
 	}
-	ui.Row(c).Height(22).Gap(2).AlignItems(ui.Center).Shrink(1).MinWidth(0).Clip().Children(func() {
-		sep := func() { ui.Text(c, "›").FontSize(11).TextColor(p.Faint).Shrink(0) }
-		if tab.Kind == "doc" {
-			sep()
-			ui.Text(c, m.DocumentsGroup).FontSize(11).TextColor(p.Muted).SingleLine().Shrink(0)
-			sep()
-			ui.Text(c, tab.Title).FontSize(11).FontWeight(600).TextColor(p.Text).SingleLine().
-				Shrink(1).MinWidth(0).Ellipsis("…").Tooltip(full)
-			return
-		}
-		if tab.Kind != "request" || tab.Entry == nil {
-			sep()
-			ui.Text(c, tab.Title).FontSize(11).FontWeight(600).TextColor(p.Text).SingleLine().
-				Shrink(1).MinWidth(0).Ellipsis("…").Tooltip(full)
-			return
-		}
+
+	kindLabel := hm.RequestKind
+	if isWebSocketTab(tab) {
+		kindLabel = hm.WSKind
+	}
+	type folderSeg struct {
+		label  string
+		target string
+	}
+	var folders []folderSeg
+	var relPath string
+	if tab.Kind == "request" && tab.Entry != nil {
+		relPath = filepath.ToSlash(tab.Entry.RelPath)
 		folder := folderRelOfPath(tab.Entry.RelPath)
 		if folder != "" {
 			rel := ""
@@ -230,28 +278,63 @@ func (a *App) headerPath(c *ui.Context, t *ui.Theme, ps *projectState) {
 				if node := findFolderInTree(ps, "collections/"+rel); node != nil && node.Name != "" {
 					label = node.Name
 				}
-				sep()
-				target := rel
-				a.breadcrumbCrumb(c, p, label, func() {
-					ps.sel = "folder:collections/" + target
-					ps.expandChain("collections/" + target)
-				})
+				folders = append(folders, folderSeg{label: label, target: rel})
 			}
+		}
+	}
+	parts := []string{ps.name(), kindLabel}
+	for _, f := range folders {
+		parts = append(parts, f.label)
+	}
+	parts = append(parts, tab.Title)
+	tip := strings.Join(parts, " › ")
+	if relPath != "" {
+		tip += " (" + relPath + ")"
+	}
+
+	ui.Row(c).Height(22).Gap(2).AlignItems(ui.Center).Shrink(1).MinWidth(0).Clip().
+		Tooltip(tip).Children(func() {
+		sep()
+		a.breadcrumbCrumb(c, p, kindLabel, tip, false, func() {
+			if tab.Entry != nil && tab.Entry.Request != nil {
+				ps.sel = "req:" + tab.Entry.Request.ID
+			}
+		})
+		for _, f := range folders {
+			sep()
+			target := f.target
+			a.breadcrumbCrumb(c, p, f.label, tip, true, func() {
+				ps.sel = "folder:collections/" + target
+				ps.expandChain("collections/" + target)
+			})
 		}
 		sep()
 		ui.Text(c, tab.Title).FontSize(11).FontWeight(600).TextColor(p.Text).SingleLine().
-			Shrink(1).MinWidth(0).Ellipsis("…").Tooltip(full)
+			Shrink(1).MinWidth(0).Ellipsis("…").Tooltip(tip)
 	})
 }
 
-// breadcrumbCrumb draws one clickable path segment with a hover wash.
-func (a *App) breadcrumbCrumb(c *ui.Context, p uikit.Palette, label string, click func()) {
+// breadcrumbCrumb draws one clickable path segment with a hover wash. When
+// shrinkable is true, narrow headers can truncate intermediate folder names
+// with an ellipsis instead of collapsing the trailing item title to zero.
+func (a *App) breadcrumbCrumb(c *ui.Context, p uikit.Palette, label, tip string, shrinkable bool, click func()) {
 	r := ui.Row(c).Height(20).Padding(0, 5).Radius(4).AlignItems(ui.Center)
+	if shrinkable {
+		r.Shrink(1).MinWidth(24).Clip()
+	} else {
+		r.Shrink(0)
+	}
+	if tip != "" {
+		r.Tooltip(tip)
+	}
 	if r.Hovered() {
 		r.Background(p.Hover)
 	}
 	r.Children(func() {
-		ui.Text(c, label).FontSize(11).TextColor(p.Muted).SingleLine()
+		txt := ui.Text(c, label).FontSize(11).TextColor(p.Muted).SingleLine()
+		if shrinkable {
+			txt.Shrink(1).MinWidth(0).Ellipsis("…")
+		}
 	})
 	if click != nil && uikit.ActionCursor(r).Clicked() {
 		click()
@@ -408,6 +491,7 @@ func (a *App) applyTransfer() {
 	rel := d.plan.TargetRel
 	a.transfer = nil
 	a.status = translate(a.msg().TransferDone, rel)
+	a.notifySuccess(a.status)
 }
 
 func (a *App) cancelTransfer() {

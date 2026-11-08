@@ -405,7 +405,9 @@ func (a *App) envEditorBody(c *ui.Context, t *ui.Theme, ps *projectState, e *env
 				}
 			}
 			if uikit.ActionCursor(uikit.PrimaryButton(c, m.Save)).Clicked() {
-				a.saveEnvironmentDraft(ps)
+				if err := a.saveEnvironmentDraft(ps); err == nil {
+					a.notifySuccess(a.feedbackMsg().SaveSuccess)
+				}
 			}
 		})
 	})

@@ -1,0 +1,38 @@
+--- a/internal/desktop/derived_docs_actions.go
++++ b/internal/desktop/derived_docs_actions.go
+@@ -111,6 +111,7 @@
+ 	if err != nil {
+ 		st.lastErr = fmt.Sprintf(dm.Failed, err.Error())
+ 		st.notice = ""
++		a.notifyError(a.feedbackMsg().ExportFailed, err.Error())
+ 		return
+ 	}
+ 	res.Conflicts = append(res.Conflicts, st.preview.Conflicts...)
+@@ -121,6 +122,7 @@
+ 		st.notice += " · " + fmt.Sprintf(dm.Skipped, len(res.Skipped))
+ 	}
+ 	st.lastErr = ""
++	a.notifySuccess(a.feedbackMsg().ExportOK)
+ }
+ 
+ // docgenPickTargetDir opens the native directory picker off the UI thread
+--- a/internal/desktop/file_sync.go
++++ b/internal/desktop/file_sync.go
+@@ -1086,6 +1086,9 @@
+ 			refreshCleanDocTab(tab, res.RelPath, res.NewDigest, res.SavedBytes)
+ 		}
+ 		a.status = translate(fm.StatusResolved, res.RelPath)
++		if kind == core.ResolutionKeepEdited || kind == core.ResolutionApplyMerged {
++			a.notifySuccess(a.feedbackMsg().SaveSuccess)
++		}
+ 
+ 	case core.ResolutionSaveAsCopy:
+ 		if conflictBefore.DiskExists {
+@@ -1109,6 +1112,7 @@
+ 			ps.sel = "doc:" + res.CopyDoc.RelPath
+ 		}
+ 		a.status = translate(fm.StatusSavedCopy, res.RelPath)
++		a.notifySuccess(a.feedbackMsg().SaveSuccess)
+ 	}
+ 
+ 	return nil

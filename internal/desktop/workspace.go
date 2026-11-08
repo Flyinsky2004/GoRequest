@@ -41,26 +41,27 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 	left, right := windowDragInsets(c, a.sidebarHidden)
 	ui.Row(c).Padding(8, right, 8, left).Gap(6).AlignItems(ui.Center).Height(46).
 		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
-		// Left: project name + switch dropdown.
-		uikit.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) })
-		// The active item's path follows the project name (U32).
+		// Left: project name + switch dropdown, followed immediately by the
+		// active request/document path (U32). Fixed chrome controls refuse to
+		// shrink so narrow windows truncate headerPath first.
+		uikit.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) }).Shrink(0)
 		a.headerPath(c, t, ps)
 		windowDragSpacer(c, 8)
 		// Environment area: a fixed single-line label (never wraps) + selector,
 		// then the active tab's save control. The save control is drawn only
 		// while the active tab has unsaved changes, so it sits right of the
 		// environment selector and disappears once the save succeeds.
-		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(p.Muted).SingleLine().Width(32)
+		ui.Text(c, m.EnvLabel).FontSize(12).TextColor(p.Muted).SingleLine().Width(32).Shrink(0)
 		a.envMenu(c, ps)
 		a.saveControl(c, p, ps.activeTab())
 		if !ps.canEditEnv() {
-			ui.Text(c, m.SelectEnvHint).FontSize(11).TextColor(p.Faint).SingleLine()
+			ui.Text(c, m.SelectEnvHint).FontSize(11).TextColor(p.Faint).SingleLine().Shrink(0)
 		}
 		// Far right: the one new-entry drop-down. The icon-only trigger keeps
 		// the original menu, its keyboard model and its drawn popover; the
 		// accessible name and the shortcut stay discoverable on hover.
 		newMenuButton(c, p, m.NewRequest, m.NewRequest+" ⌘T",
-			func(mm *ui.Menu) { a.buildNewMenu(mm, ps) })
+			func(mm *ui.Menu) { a.buildNewMenu(mm, ps) }).Shrink(0)
 	})
 }
 
@@ -92,11 +93,7 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
 	a.BuildIdentityManagementMenuItems(mm, tab)
 	mm.Separator()
 	if mm.Item(m.CopyProjectPath).Chosen() {
-		if c != nil {
-			c.WriteClipboard(ps.root)
-		}
-		a.status = m.Copied
-		a.notifyCopied(ps.root)
+		a.copyToClipboard(c, ps.root)
 	}
 	mm.Separator()
 	if mm.Item(m.CloseProject).Chosen() {
@@ -186,7 +183,7 @@ func (a *App) envMenu(c *ui.Context, ps *projectState) {
 		if mm.Item(m.NewEnv).Chosen() {
 			a.openNewEnvironment()
 		}
-	})
+	}).Shrink(0)
 }
 
 func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
@@ -347,10 +344,9 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 						tab.focusURL = false
 					}
 				})
-				if b := uikit.IconButton(c, p, uikit.IconCopy, "Copy URL"); b.Clicked() {
-					c.WriteClipboard(tab.URL)
-					a.status = m.Copied
-					a.notifyCopied(tab.URL)
+				copyURLTip := a.feedbackMsg().CopyURLTooltip
+				if b := uikit.IconButton(c, p, uikit.IconCopy, copyURLTip).Label(copyURLTip); b.Clicked() {
+					a.copyToClipboard(c, tab.URL)
 				}
 			})
 			// Focus stays visible independently of the status color. The ring
@@ -425,7 +421,7 @@ func (a *App) saveControl(c *ui.Context, p uikit.Palette, tab *Tab) {
 		return
 	}
 	m := a.msg()
-	btn := uikit.ActionCursor(ui.Button(c, m.Save)).TextColor(p.Accent).
+	btn := uikit.ActionCursor(ui.Button(c, m.Save)).TextColor(p.Accent).Shrink(0).
 		Label(m.Save + " ⌘S").Tooltip(m.Save + " ⌘S")
 	if btn.Clicked() {
 		a.saveActiveWithFeedback()

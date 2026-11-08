@@ -407,6 +407,7 @@ func (a *App) duplicateRequest(e *core.RequestEntry) {
 	ps.sel = "req:" + entry.Request.ID
 	ps.openRequest(entry)
 	a.status = translate(m.Created, entry.RelPath)
+	a.notifySuccess(a.feedbackMsg().DuplicateOK)
 }
 
 // duplicateDoc copies a document next to the original under a new file name,
@@ -440,6 +441,7 @@ func (a *App) duplicateDoc(d *core.DocEntry) {
 		return
 	}
 	a.status = translate(m.Created, de.RelPath)
+	a.notifySuccess(a.feedbackMsg().DuplicateOK)
 }
 
 // moveRequestTo moves a request into targetRel (collections-relative, "" for

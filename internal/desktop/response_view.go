@@ -228,10 +228,7 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				}
 				ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 					if b := uikit.IconButton(c, p, uikit.IconCopy, m.CopyResponse).Label(m.CopyResponse).Cursor(ui.CursorPointer); b.Clicked() {
-						txt := responseBodyText(tab.Resp, tab.RespRawIdx == 1)
-						c.WriteClipboard(txt)
-						a.status = m.Copied
-						a.notifyCopied(txt)
+						a.copyToClipboard(c, responseBodyText(tab.Resp, tab.RespRawIdx == 1))
 					}
 					if b := uikit.IconButton(c, p, uikit.IconFile, m.SaveResponse).Label(m.SaveResponse).Cursor(ui.CursorPointer); b.Clicked() {
 						a.saveResponse(tab)
@@ -710,7 +707,6 @@ func (a *App) ensureJSONTreeFor(tab *Tab) *tabNetworkState {
 // Copy Path / Copy Value actions.
 func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit.Palette) {
 	nm := a.networkMsg()
-	m := a.msg()
 	ts := a.ensureJSONTreeFor(tab)
 	if ts.jsonTreeRoot == nil {
 		editor.View(c, a.responseEditorFor(t, tab)).Grow(1).FillWidth()
@@ -786,14 +782,10 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
 						ui.Box(c).Grow(1)
 
 						if ui.Button(c, nm.CopyJSONPathBtn).Cursor(ui.CursorPointer).Clicked() {
-							c.WriteClipboard(n.Path)
-							a.status = m.Copied
-							a.notifyCopied(n.Path)
+							a.copyToClipboard(c, n.Path)
 						}
 						if ui.Button(c, nm.CopyValueBtn).Cursor(ui.CursorPointer).Clicked() {
-							c.WriteClipboard(n.RawValue)
-							a.status = m.Copied
-							a.notifyCopied(n.RawValue)
+							a.copyToClipboard(c, n.RawValue)
 						}
 					})
 				}

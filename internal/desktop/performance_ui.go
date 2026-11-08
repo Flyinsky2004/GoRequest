@@ -466,10 +466,10 @@ func (a *App) exportPerformance(format diagnostics.ExportFormat) {
 	}
 	if err := diagnostics.ExportReportFile(s.exportPath, root, format, s.report, nil); err != nil {
 		s.exportNotice = "export_error: " + err.Error()
-		a.notifyError(s.exportNotice, "")
+		a.notifyError(a.feedbackMsg().ExportFailed, err.Error())
 	} else {
 		s.exportNotice = a.perfMsg().Exported + s.exportPath
-		a.notifySuccess(s.exportNotice)
+		a.notifySuccess(a.feedbackMsg().ExportOK)
 	}
 }
 

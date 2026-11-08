@@ -172,14 +172,13 @@ func (a *App) CopySnippetToClipboard(c *ui.Context) {
 		}
 		return
 	}
-	if c != nil {
-		c.WriteClipboard(st.Result.Code)
+	if c == nil {
+		return
 	}
+	c.WriteClipboard(st.Result.Code)
 	if a != nil {
 		a.status = a.snippetMsg().CopiedStatus
-		if c != nil {
-			a.notifyCopied(st.Result.Code)
-		}
+		a.notifyCopied(st.Result.Code)
 	}
 }
 

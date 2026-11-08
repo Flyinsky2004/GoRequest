@@ -217,6 +217,7 @@ func (a *App) cookieJarModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 							cui.errMsg = ""
 							cui.editName = ""
 							cui.editValue = ""
+							a.notifySuccess(a.feedbackMsg().SaveSuccess)
 						}
 					}
 				})
