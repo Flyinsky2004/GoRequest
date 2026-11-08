@@ -999,3 +999,28 @@ build/vet、受影响Secret/菜单/欢迎专项通过；最终普通全仓只剩
 main从 `27db078` 快进至集成代码提交 `4d59451`，包含3条来源no-ff合并与集成修正/报告。确认来源头为main祖先、工作树仍干净后，精确关闭t51/t52/t53对应3个Herdr tab（全部ok:true）；关闭为异步，首次核心状态尚live时没有删除，随后复查均finished才hc rm清除记录。不带force删除3个来源worktree/分支，以及本轮临时集成worktree/分支。最终GoRequest仅main与主worktree。
 
 保留原有t1h/t4q/t3w/t2s及其他项目t31/t4k；MyGo showcase分支未操作。清理前后用户dev.yaml、document.md、现存demo-server debug产物内容摘要一致。此前桌面debug产物在本轮启动快照时已不存在，本轮未删除/恢复。未push；全部交付提交及报告保留main历史，实际限制/实机待验收范围不因清理完成改变。
+
+
+## 38. U21–U25 中文菜单/导入、重复cURL、SSE与更新（2026-11-08）
+
+用户要求继续开Claude Code完成5项。当前main `be248be`，用户dev.yaml、示例document.md与desktop/demo-server debug产物保留。本轮先读账本/现有代码并通过GitHub连接器只读核对公开Releases API：当时有 `0.0.2-dev` / `0.0.1-dev`，macOS两架构dmg、Windows两架构zip/setup.exe及SHA256SUMS，无MyGo updater签名feed。设置appVersion仍写死0.1.0(MVP)，不可据此判断更新。代码执行路径当前readBoundedChunks读完后才更新HTTP结果，未见SSE实时UI接线。均为本轮事实，不把规划当实现。
+
+| ID / 负责人 | 分支 / 实际worktree | 文件归属与验收 | 状态 |
+| --- | --- | --- | --- |
+| U21 / CC menu-zh | cc/U21-menu-zh / /private/tmp/gorequest-u21-u25-20261108/menu-zh | 项目名下拉各Build*ProjectMenuItems及其专属i18n（interop除外归U22）、基础i18n及专属测试；简中菜单/子项/相关状态完整，English保留、切换即生效 | 待启动 |
+| U22 / CC import-zh | cc/U22-import-zh / /private/tmp/gorequest-u21-u25-20261108/import-zh | import_export_ui.go/import_export_i18n.go与新diagnostic显示层；导入解析摘要/步骤/变化/冲突/警告/错误中文，稳定code与路径/协议等原始技术字段保留 | 待启动 |
+| U23 / CC curl-duplicates | cc/U23-curl-duplicates / /private/tmp/gorequest-u21-u25-20261108/curl-duplicates | core/interop_curl.go/interop_types.go必要冲突分配及测试，desktop/import_export.go的选项/默认策略；连续重复导入相同cURL默认独立副本、稳定独立ID/路径，不覆盖/丢首份 | 待启动 |
+| U24 / CC sse-stream | cc/U24-sse-stream / /private/tmp/gorequest-u21-u25-20261108/sse-stream | core/plan.go/network.go/ExecuteOptions流接线及新SSE模块，desktop/app.trySend生命周期/tab/response_view及独立翻译测试；审计并补齐event-stream实时显示/取消/界限/跨tab隔离 | 待启动 |
+| U25 / CC app-updates | cc/U25-app-updates / /private/tmp/gorequest-u21-u25-20261108/app-updates | 新update模块/持久状态、manager.Start与App.View/welcome.View更新接线、settings/config/版本获取、必要release打包设置及专属测试；启动每日检查/安装版本变化重置/4动作/设置恢复及手动检查 | 待启动 |
+
+### 38.1 验收与公共文件契约
+
+- U21依据cfg.language处理中文/英文，不用翻译API联网、不改协议标识/用户文件名。检查Runner/OpenAPI/Mock/性能/Snippet/身份/导入导出所有追加菜单源；interop菜单文案由U22负责，可交小patch，不抢文件。设置菜单由U25新增时自行提供双语。不得仅翻译项目名按钮本身或保留大部分英文子项。
+- U22以现有LossItem.Code/Severity/SourcePath/TargetPath/Field等结构化事实生成可追溯中文显示，覆盖预览/解析结果/损失/变量映射/操作动作/错误，不只加“错误:”前缀留下整段英文；保留未知错误的原始详情并有明确本地化分类，不重写用户数据或破坏脱敏。Core保持与UI语言解耦，机器报告code/JSON键不因语言变化。Core诊断模型若需扩展交U23最小patch，不直接抢interop_types.go。
+- U23同一项目/目录连续至少3次导入同一cURL（自定义同名/中文名、不同目录、预览后再次同名导入、磁盘已有但内存未刷新等）必须有安全独立ID/文件；默认cURL分配新副本，显式覆盖/跳过/失败语义保留，不把所有格式全局强制覆盖。遵守ChangeSet原子/基线摘要/undo，删除/撤销其中一份不影响另一份。UI默认策略接线归import_export.go，涉及U22 UI时交patch。不执行shell或真实cURL，不打印真实token。
+- U24先给出真实审计结论，无现成实时输出则落实实现。按Content-Type text/event-stream（含参数）自动实时呈现，不等EOF；解析CRLF/UTF8跨chunk、多data行/id/event/retry/注释等，已接收内容在取消/断流/超时后保留。沿用请求网络/鉴权/代理/策略/显式超时，普通HTTP不回归；不改WS引擎。不将原始Secret写stdout/历史，完整事件/行脱敏后再投递UI，限制缓冲/事件/正文，合并通知防逐字节重绘。App/Tab/generation及窗口释放隔离，用本地flush服务事件协调验证首事件在服务器EOF前可见、多tab不串、取消与资源释放；不靠sleep判定。
+- U25源固定 https://github.com/Flyinsky2004/GoRequest/releases ，使用公开GitHub API及实际安装包版本（MyGo App.Version/构建注入），不能用0.1.0(MVP)写死比较。SemVer含v前缀/dev/prerelease语义，匹配OS/arch实际附件；不取列表第一个随便降级、不得把成功下载等于成功安装。
+- 自动启动检查按本地日历日期每日一次（Manager/App级，不是每窗口一次），安装版本变化使日期缓存失效，同日安装V2后仍能查到V3；手动始终能触发并显示结果，跳过只对应版本、出现新版重新提示。“永远不提示”持久关闭自动提醒/检查，设置可恢复并手动检查；暂不更新本日不重复骚扰。网络失败/无Release/限流/离线/取消不阻塞启动，状态可追溯。
+- 更新弹窗至少暂不更新/更新/跳过此版本/永远不提示，显示当前/目标版本和说明；提供设置入口与中文/English。“更新”必须实际选择当前平台附件、下载/校验SHA256SUMS或GitHub digest并打开安装器/映像等可执行流程；不能只打开Releases网页冒充安装，macOS需用户完成替换时如实说明，下载/启动安装器不冒称已安装。实际下一次启动运行版本变化才重置缓存；不无条件退出有脏编辑的程序。开发/无版本/无对应产物不得假成功；本轮只用fake下载/安装接口测试，不实际更新用户应用/安装产物。当前发布无MyGo签名feed，不可直接调用未配置的Updater就声称完成；不生成或提交私钥/凭据。
+- 文件归属按函数：app.trySend/HTTP生命周期归U24，App.View更新modal接线与manager.Start/settings/config/welcome.View归U25；双方不整文件格式化对方区域，必要交patch。U21不改U22 import_export_ui/i18n、不改U24 response/App、不改U25设置；U22不改U23 core/import_export.go；新增翻译独立文件优先。公共UIKit菜单/Tab沿用，不新增原生下拉。
+- 每卡应用ui-ux-pro-max核对原生界面/主题/焦点，允许build/vet/必要受影响测试、本地commit；报告docs/task-results/U21.md–U25.md写真实基线/目录/接线/验证/限制/提交。4项旧失败见§37，遇到记录实际输出不改断言掩盖。不得改go.mod/go.sum/MyGo源码版本、总账本/其他分支/全局模型配置，不派子agent、不merge/push；实机没跑就明确未验收。
