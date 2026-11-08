@@ -1145,3 +1145,18 @@ U21-interop-i18n.patch先核对U22是否已覆盖勿重复套；U23-import_expor
 ### 41.1 实际启动句柄
 
 U30从e5fbb9f建立分支/worktree，经Herdr启动，终端t5j，tab tba0bfd93260ecf811a2f815414b00c2f9；读屏核对Claude Sonnet 5.5 · medium，确认新工作目录信任提示后hc状态working。完整prompt/session.json存本机/private/tmp/gorequest-u30-20261108/。U29 t5h已发送树形区域归属与配色patch交接通知，其余原任务继续。现为开发中，尚未交付/集成/验收。
+
+
+## 42. INT26–30：agy合并与清理（2026-11-08）
+
+用户要求所有agent交付后开agy合并代码、清理本批旧分支和agent。main起点5d0ad3e，5个来源工作区均干净；提交与精确会话快照、用户已有4个文件SHA256存本机/private/tmp/gorequest-u26-u30-integration-20261108/（不入Git）。
+
+| 负责人 | 分支 / 实际worktree | 归属 | 状态 |
+| --- | --- | --- | --- |
+| agy Sonnet 5.5 integrator | agy/integrate-U26-U30 / /private/tmp/gorequest-u26-u30-integration-20261108/worktree | 核对来源U26 da2d613、U27 6b7358d、U28 ddc07e9、U29 05e5ee6、U30 f42f8eb，no-ff合并，公共patch与必要修正，完整验证及main快进、本批5条来源安全清理 | 待启动 |
+
+从本登记提交作为集成基线。交付卡“不得merge/其他分支”仅适用于开发阶段，本轮集成人已获用户明确授权合并/快进main/清理本批来源。仅允许操作sources.json登记的5个来源会话/worktree/分支；不push、不覆盖用户已有文件，不动t1h/t2s/t4q/t5c及其他项目t4k/MyGo showcase分支，不实际读写用户Secret或安装更新。
+
+必须审阅U29-integration.patch并按合并后的U27/U28/U30精确接线，保留品牌红PrimaryButton且不泄漏Theme；重点正常输入非红/错误仍红、关于检查更新功能和设置跳转、本机密钥成功关闭失败保留、新菜单完整、树形SVG尺寸/对齐/展开搜索复制。审查U27 aboutRequested对多窗口设置生命周期及UI线程安全、U28关闭清敏状态。必要构建/vet/受影响测试与race；普通全仓测试不skip，4项已知旧失败如实记录，全仓race可只skip这4项（见§40）。不改旧失败断言掩盖。使用fake/临时项目/loopback，未实机不能标实机通过。
+
+集成报告docs/task-results/integration-U26-U30-2026-11-08.md及本节补真实提交/验证/限制/清理证据。main快进后逐条确认来源头是main祖先且worktree干净，精确tab.close id+confirmed:true，hc finished后rm；git worktree remove及branch -d均不force。集成人自己的会话和工作区保留给主agent最终复核后清理，未验证不可勾完成。
