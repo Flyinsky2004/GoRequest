@@ -481,11 +481,12 @@ func (a *App) refreshEnvSecretStatuses(ps *projectState, e *environmentEditor) {
 		return
 	}
 	out := make(map[string]core.SecretStatus, len(names))
+	kind := string(a.secretBackendKind(ps))
 	mc, err := a.managedCredentials(ps)
 	if err != nil {
 		for _, n := range names {
 			out[n] = core.SecretStatus{
-				Name: n, State: core.SecretStateUnavailable, Backend: "keychain",
+				Name: n, State: core.SecretStateUnavailable, Backend: kind,
 				Detail: err.Error(),
 			}
 		}
@@ -504,10 +505,10 @@ func (a *App) refreshEnvSecretStatuses(ps *projectState, e *environmentEditor) {
 				}
 				continue
 			}
-			st := core.SecretStatus{Name: n, State: core.SecretStateMissing, Backend: "keychain"}
+			st := core.SecretStatus{Name: n, State: core.SecretStateMissing, Backend: kind}
 			if listErr != nil {
 				st = core.SecretStatus{
-					Name: n, State: core.SecretStateUnavailable, Backend: "keychain",
+					Name: n, State: core.SecretStateUnavailable, Backend: kind,
 					Detail: listErr.Error(),
 				}
 			}

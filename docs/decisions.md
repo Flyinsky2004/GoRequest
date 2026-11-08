@@ -49,9 +49,10 @@
 状态：已确定（2026-11-07 按代码事实同步）。凭据值不进入项目文件：项目与环境只保存 secret 名称清单（`secrets:`）与 `{{secret.<name>}}` 引用，实际值从本机凭据后端或显式绑定取得。
 
 - 解析边界为 `SecretProvider` 接口；`{{secret.*}}` 是保留命名空间，不回退到同名普通变量，缺失或后端不可用即报错。secret 值与敏感运行值在预览、导出、错误信息中脱敏。
-- 桌面按 `Override(内存) → Keychain → Env` 分层解析；环境变量后端约定为 `GOREQUEST_SECRET_<NAME>`（大写、非字母数字转下划线），用于无 GUI/CI 场景。
-- 系统凭据采用 MyGo Secrets 适配（macOS Keychain / Windows Credential Manager / Linux Secret Service），项目隔离键为 `<projectSlug>:sha256(规范化项目根)[:16]`；后端缺失、锁定或不支持时零明文文件回退，并报不可用状态。
-- 实现证据：`internal/platform/secrets.go`、`internal/platform/keychain.go`、`internal/platform/keychain_management.go`；`internal/core/variables.go`、`internal/core/auth.go`、`internal/core/identity_redact.go`；`internal/desktop/manager.go`、`internal/desktop/identity_management.go`。此前 Q-03 的待决策项由本 ADR 收敛。
+- 桌面按 `Override(内存) → 选中后端 → Env` 分层解析；默认后端为系统凭据。用户可显式切换为 `~/.gorequest/secrets` 下按项目/克隆隔离的本地文件，该文件为明文存储，UI 必须如实标识，不能伪装加密。环境变量后端约定为 `GOREQUEST_SECRET_<NAME>`（大写、非字母数字转下划线），用于无 GUI/CI 场景，保持只读覆盖且不参与迁移。
+- 系统凭据采用 MyGo Secrets 适配（macOS Keychain / Windows Credential Manager / Linux Secret Service），项目隔离键为 `<projectSlug>:sha256(规范化项目根)[:16]`；默认后端缺失、锁定或不支持时报不可用，不静默降级到明文文件。本地文件方案仅在用户主动选择后使用，目录 0700、文件 0600、原子写入并拒绝符号链接。
+- 切换存储位置先枚举项目声明与持久管理清单、预读来源、复制并逐项读回校验；全部成功才持久化选择并刷新 HTTP/WS/Runner 使用的 provider 与管理缓存。失败保持旧方案并回滚本轮目标写入，来源副本始终保留；目标已有不同值时由用户显式选择保留或覆盖。Keychain 无法枚举时只覆盖声明与管理清单中的名称，不声称迁移全库。
+- 实现证据：`internal/platform/secrets.go`、`internal/platform/keychain.go`、`internal/platform/keychain_management.go`、`internal/platform/secret_store.go`、`internal/platform/secret_file.go`、`internal/platform/secret_switch.go`；`internal/core/variables.go`、`internal/core/auth.go`、`internal/core/identity_redact.go`；`internal/desktop/manager.go`、`internal/desktop/identity_management.go`。此前 Q-03 的待决策项由本 ADR 收敛。
 
 ## 2. 已整理但尚未冻结的草案
 
@@ -71,7 +72,7 @@
 | --- | --- | --- | --- |
 | Q-01 | MyGo 依赖版本、最低 OS/架构/GPU、打包签名与可访问性覆盖 | 三平台原生原型验证；依赖和许可证审查 | MVP 前 |
 | Q-02 | YAML 库、注释/字段顺序保真、格式公开 Schema 的组织 | 重复键拒绝、未知字段、不重排、中文/大文件、迁移试验 | MVP/Beta |
-| Q-03 | ~~系统凭据后端；是否使用 MyGo Secrets 的 Desktop 适配~~ **已确定，见 ADR-010** | 已满足：三平台走系统凭据、零明文降级；跨平台实际权限行为仍需验证 | 已完成（待跨平台验证） |
+| Q-03 | ~~系统凭据后端；是否使用 MyGo Secrets 的 Desktop 适配~~ **已确定，见 ADR-010** | 已满足：默认系统凭据、用户显式本地文件选项、无静默降级；跨平台实际权限行为仍需验证 | 已完成（待跨平台验证） |
 | Q-04 | 全局目录精确布局、历史数据库、保留期限与本地加密策略 | 跨平台目录/权限/备份/清除验证，与项目完全隔离 | Beta |
 | Q-05 | Git 调用系统 CLI 还是 Go 库；hook 行为与凭据集成 | 只读/提交/Pull 冲突、未知仓库 hook、不强制破坏性操作 | Beta |
 | Q-06 | 变量显式类型绑定、动态变量语法、文件夹/集合的元信息字段 | 全量格式样例与统一解析契约；不能靠个人设置改变项目语义 | 1.0-A 前 |
