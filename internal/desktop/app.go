@@ -210,6 +210,10 @@ func (a *App) View(c *ui.Context) {
 	a.expireUndo()
 	a.envEditorModal(c, t)
 	a.settingsModal(c, t)
+	// The manager-level update dialog sits above the Settings sheet it can be
+	// opened from, but below the close/send guards so a critical confirmation
+	// is never hidden by an update prompt.
+	a.mgr.updateModalFor(a.win, c, t)
 	a.closeGuardModal(c, t)
 	a.sendGuardModal(c, t)
 	a.historyClearModal(c, t)
@@ -227,9 +231,6 @@ func (a *App) View(c *ui.Context) {
 	if a.git != nil {
 		a.git.modals(c, t)
 	}
-	// The manager-level update dialog is drawn last so it sits above the
-	// Settings sheet it can be opened from.
-	a.mgr.updateModalFor(a.win, c, t)
 }
 
 func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
