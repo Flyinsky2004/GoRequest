@@ -74,9 +74,12 @@ func (f *FileSecrets) Scope() string {
 }
 
 func (f *FileSecrets) load() (fileStoreDoc, error) {
-	doc := fileStoreDoc{Version: secretStoreVersion, Scope: f.scope, Backend: "file", Plaintext: true, Secrets: map[string]string{}}
 	if f == nil || f.path == "" {
-		return doc, &core.ConfigError{Err: errors.New("local secret store unavailable")}
+		return fileStoreDoc{}, &core.ConfigError{Err: errors.New("local secret store unavailable")}
+	}
+	doc := fileStoreDoc{Version: secretStoreVersion, Scope: f.scope, Backend: "file", Plaintext: true, Secrets: map[string]string{}}
+	if err := checkPrivateRoot(f.root); err != nil {
+		return doc, err
 	}
 	err := readPrivateJSON(f.path, &doc)
 	if errors.Is(err, os.ErrNotExist) {
@@ -253,7 +256,16 @@ func (f *FileSecrets) Info() SecretBackendInfo {
 
 // Probe returns the same filesystem check as Info; it never creates or reads a
 // secret value.
-func (f *FileSecrets) Probe() SecretBackendInfo { return f.Info() }
+func (f *FileSecrets) Probe() SecretBackendInfo {
+	info := f.Info()
+	if info.Available {
+		if _, err := f.load(); err != nil {
+			info.Available = false
+			info.Detail = err.Error()
+		}
+	}
+	return info
+}
 
 // Names enumerates the values in this store. The local file can enumerate, so
 // ok is true even when the store is empty.

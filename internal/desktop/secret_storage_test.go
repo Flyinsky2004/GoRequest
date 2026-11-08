@@ -299,13 +299,11 @@ func TestSecretStorageUnavailableTargetKeepsOldScheme(t *testing.T) {
 	}
 	st := identityMgmtFor(ps)
 	a.beginSecretSwitch(ps, st, platform.SecretBackendFile)
-	if st.switchPlan == nil {
-		t.Fatalf("plan should still be built to show the reason: %s", st.switchErr)
+	// The manifest shares the replaced root. Refuse before reading it rather
+	// than following the link just to build a plan for an unavailable target.
+	if st.switchPlan != nil || !strings.Contains(st.switchErr, "symlink") {
+		t.Fatalf("symlinked manifest root was not rejected before planning: %s", st.switchErr)
 	}
-	if st.switchPlan.Target.Available {
-		t.Fatal("symlinked target must be unavailable")
-	}
-	a.confirmSecretSwitch(ps, st)
 	if st.switchErr == "" {
 		t.Fatal("switch to an unavailable target must fail")
 	}

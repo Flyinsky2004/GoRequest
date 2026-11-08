@@ -109,6 +109,12 @@ func BuildSecretSwitchPlan(scope string, source, target SecretBackend, declared,
 		Source: source.Info(),
 		Target: target.Info(),
 	}
+	if prober, ok := source.(SecretBackendProber); ok {
+		plan.Source = prober.Probe()
+	}
+	if prober, ok := target.(SecretBackendProber); ok {
+		plan.Target = prober.Probe()
+	}
 
 	names := map[string]bool{}
 	for _, n := range declared {
@@ -141,8 +147,21 @@ func BuildSecretSwitchPlan(scope string, source, target SecretBackend, declared,
 	sort.Strings(sorted)
 
 	for _, name := range sorted {
-		srcVal, srcOK := source.Get(name)
-		tgtVal, tgtOK := target.Get(name)
+		var srcVal, tgtVal string
+		var srcOK, tgtOK bool
+		var err error
+		if plan.Source.Available {
+			srcVal, srcOK, err = readSwitchSecret(source, name)
+			if err != nil {
+				return SecretSwitchPlan{}, err
+			}
+		}
+		if plan.Target.Available {
+			tgtVal, tgtOK, err = readSwitchSecret(target, name)
+			if err != nil {
+				return SecretSwitchPlan{}, err
+			}
+		}
 		entry := SecretSwitchEntry{Name: name, SourceBound: srcOK, TargetBound: tgtOK}
 		if srcOK && tgtOK && srcVal != tgtVal {
 			entry.Conflict = true
@@ -183,11 +202,24 @@ func ExecuteSecretSwitch(source, target SecretBackend, plan SecretSwitchPlan, po
 	if source == nil || target == nil {
 		return result, &core.ConfigError{Err: errors.New("secret backend unavailable")}
 	}
+	if policy != ConflictKeepTarget && policy != ConflictOverwriteTarget {
+		return result, &core.ConfigError{Err: errors.New("invalid secret conflict policy")}
+	}
 	if !plan.Source.Available {
 		return result, &core.ConfigError{Err: fmt.Errorf("source secret store unavailable: %s", plan.Source.Detail)}
 	}
 	if !plan.Target.Available {
 		return result, &core.ConfigError{Err: fmt.Errorf("target secret store unavailable: %s", plan.Target.Detail)}
+	}
+
+	// Availability may change while the user reviews the plan, even when
+	// there are no named entries to inspect.
+	for _, backend := range []SecretBackend{source, target} {
+		if prober, ok := backend.(SecretBackendProber); ok {
+			if info := prober.Probe(); !info.Available {
+				return result, &core.ConfigError{Err: fmt.Errorf("%s secret store is no longer available", info.Kind)}
+			}
+		}
 	}
 
 	var undos []switchUndo
@@ -200,11 +232,17 @@ func ExecuteSecretSwitch(source, target SecretBackend, plan SecretSwitchPlan, po
 
 	for _, entry := range plan.Entries {
 		name := entry.Name
-		srcVal, srcOK := source.Get(name)
+		srcVal, srcOK, err := readSwitchSecret(source, name)
+		if err != nil {
+			return result, rollback(err)
+		}
 		if !srcOK {
 			continue // source no longer has this value; it is not a copy source
 		}
-		tgtVal, tgtOK := target.Get(name)
+		tgtVal, tgtOK, err := readSwitchSecret(target, name)
+		if err != nil {
+			return result, rollback(err)
+		}
 		if tgtOK && tgtVal == srcVal {
 			result.Verified++
 			continue
@@ -214,10 +252,11 @@ func ExecuteSecretSwitch(source, target SecretBackend, plan SecretSwitchPlan, po
 			continue
 		}
 
+		// Journal before Set: a backend may persist and report a late error.
+		undos = append(undos, switchUndo{name: name, had: tgtOK, value: tgtVal})
 		if err := target.Set(name, srcVal); err != nil {
 			return result, rollback(&core.ConfigError{Err: fmt.Errorf("copying secret %q to the target store: %w", name, err)})
 		}
-		undos = append(undos, switchUndo{name: name, had: tgtOK, value: tgtVal})
 
 		got, ok := target.Get(name)
 		if !ok || got != srcVal {
@@ -251,4 +290,18 @@ func rollbackSwitchWrites(target SecretBackend, undos []switchUndo) error {
 		return fmt.Errorf("target rollback incomplete: %s", strings.Join(failures, "; "))
 	}
 	return nil
+}
+
+// A false Get alone cannot distinguish absence from an unreadable store.
+func readSwitchSecret(backend SecretBackend, name string) (string, bool, error) {
+	status := backend.InspectSecret(name)
+	switch status.State {
+	case core.SecretStateMissing:
+		return "", false, nil
+	case core.SecretStateBound:
+		if value, ok := backend.Get(name); ok {
+			return value, true, nil
+		}
+	}
+	return "", false, &core.ConfigError{Err: fmt.Errorf("cannot read secret %q from the %s store; switching was stopped", name, backend.Info().Kind)}
 }

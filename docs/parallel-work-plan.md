@@ -966,3 +966,29 @@ Herdr保留原有t1h/t4q/t3w/t2s及其他项目t31/t4k；MyGo showcase分支未�
 | U20 | t53 | tb0fb38384e373b99db77def7cc4fa9872 |
 
 §36表中待启动是登记时状态，以本节开发中为准。完整提示词与sessions.json仅存本机 `/private/tmp/gorequest-u18-u20-20261108/` 不入Git。三卡尚未交付/合并/验收、不勾完成；本轮主工作区仅做静态核对/派工，未跑功能构建/测试。保留用户原有示例环境、文档、两个debug产物和其他会话，未操作MyGo showcase分支。
+
+
+## 37. U18–U20 集成与清理（2026-11-08）
+
+用户要求合并全部完成agent任务、清理旧分支与agent。核对main `27db078`、3个来源工作区干净/有报告与本地提交、Herdr done。从该基线创建 `integrate/U18-U20` / `/private/tmp/gorequest-u18-u20-integration-20261108/worktree`，依次no-ff合并均无冲突（manager.go自动合并不同函数）。§36“待启动/开发中”为历史记录，本节为实际代码集成状态，不冒称实机验收。
+
+| 任务 | 来源头 | 合并提交 |
+| --- | --- | --- |
+| U18 | `c3eff83` | `67e2a15` |
+| U19 | `2d97ef7` | `db267c2` |
+| U20 | `7b205c5` | `7a5adaf` |
+
+### 37.1 接线与集成修正
+
+详见 [本轮集成报告](task-results/integration-U18-U20-2026-11-08.md)。U18 provider/界面/持久化、U19全量菜单迁移、U20窗口几何已接线，无待套用补丁。静态扫描无ui.MenuButton/ui.Select下拉残留，SelectBase仅在组件内部，U18新增选择器自动统一。系统右键/menubar单列非点击下拉范围。
+
+集成补齐迁移读取失败与缺失的区分、写入晚期失败的回滚日志、损坏/未知版本偏好的显式错误与Manager接线、读取时的符号链接根拒绝、文件枚举名称到Keychain后清单可发现性；新增回归先实际复现再修复。更早拒绝链接manifest根后相应更新U18旧测试“仍能构建计划”假设，保留原方案/值不变断言，不跳过测试。测试只用假Keychain与临时根，未操作用户真实Secret。
+
+build/vet、受影响Secret/菜单/欢迎专项通过；最终普通全仓只剩4项旧失败，已在main `27db078`实际复跑与§35一致，无新增失败、无普通skip。全仓race仅显式跳过这4项，结果下节补记。代码/任务文档diff检查通过、依赖文件不变。原始报告的“偏好异常默认Keychain”等行为以本节修正覆盖。
+
+实机窗口/Keychain锁定弹窗/三平台文件权限与视觉尚未验收；文件Secret明文、无跨进程锁、切换不持续双写；旧未声明未登记Keychain无法枚举；绘制Popover尚无表面动画，Select保留可控动效。详细边界见集成报告，主功能卡不因代码合并勾为完整实机验收。清理仅本批U18/U19/U20及临时集成分支/worktree，保留用户示例环境/文档/debug产物、其他会话与MyGo showcase分支，不push。
+
+
+### 37.2 最终验证门禁
+
+全部集成修正后build/vet通过，普通全仓仅前述4项已复现旧失败；全仓race `go test -race ./... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunnerEditorDescribeAssertions|TestRunnerEditorPatchSuiteExtract|TestEngine_PolicyBlockedAndMissingSecretPreflight)$' -count=1` 退出码0（desktop 113.071s，platform 2.339s），无race。没有跳过任何新增Secret/菜单/窗口用例。整批 `git diff --check 27db078` 通过，依赖未改；清理前再次核对3个来源头未变、工作区干净、Herdr done，用户文件摘要未变。

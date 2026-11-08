@@ -178,7 +178,7 @@ func TestFileSecretsCloneIsolation(t *testing.T) {
 func TestSecretStorePreferencePersists(t *testing.T) {
 	store, root := newTestSecretStore(t)
 	scope := "demo:abc"
-	if got := store.SelectedKind(scope); got != SecretBackendKeychain {
+	if got, err := store.SelectedKind(scope); err != nil || got != SecretBackendKeychain {
 		t.Fatalf("default kind = %q", got)
 	}
 	if err := store.SetSelectedKind(scope, SecretBackendFile); err != nil {
@@ -186,11 +186,11 @@ func TestSecretStorePreferencePersists(t *testing.T) {
 	}
 	// A fresh store at the same root is a restart.
 	reloaded := NewSecretStore(root, newMemoryKeychainDriver())
-	if got := reloaded.SelectedKind(scope); got != SecretBackendFile {
+	if got, err := reloaded.SelectedKind(scope); err != nil || got != SecretBackendFile {
 		t.Fatalf("persisted kind = %q", got)
 	}
 	// Another clone keeps its own default.
-	if got := reloaded.SelectedKind("demo:def"); got != SecretBackendKeychain {
+	if got, err := reloaded.SelectedKind("demo:def"); err != nil || got != SecretBackendKeychain {
 		t.Fatalf("unrelated scope kind = %q", got)
 	}
 	prefsInfo, err := os.Stat(filepath.Join(root, "preferences.json"))

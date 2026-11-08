@@ -127,7 +127,7 @@ func (s *SecretStore) root() (string, error) {
 // Backend builds the backend named by kind for a project clone.
 func (s *SecretStore) Backend(scope, projectID, projectRoot string, kind SecretBackendKind) (SecretBackend, error) {
 	if !kind.Valid() {
-		kind = SecretBackendKeychain
+		return nil, &core.ConfigError{Err: fmt.Errorf("unsupported secret backend %q", kind)}
 	}
 	if kind == SecretBackendFile {
 		root, err := s.root()
@@ -146,22 +146,28 @@ func (s *SecretStore) Backend(scope, projectID, projectRoot string, kind SecretB
 	return NewKeychainSecrets(driver, projectID, projectRoot)
 }
 
-// SelectedKind returns the persisted backend for scope, defaulting to the OS
-// keychain when nothing valid is recorded.
-func (s *SecretStore) SelectedKind(scope string) SecretBackendKind {
+// SelectedKind returns the persisted backend. Only an absent preference uses
+// the default; unreadable or invalid preferences never select another store.
+func (s *SecretStore) SelectedKind(scope string) (SecretBackendKind, error) {
 	root, err := s.root()
 	if err != nil {
-		return SecretBackendKeychain
+		return "", err
 	}
+	secretDocsMu.Lock()
+	defer secretDocsMu.Unlock()
 	doc, err := loadSecretPrefs(root)
 	if err != nil {
-		return SecretBackendKeychain
+		return "", err
 	}
-	kind := SecretBackendKind(doc.Scopes[scope])
+	raw := doc.Scopes[scope]
+	if raw == "" {
+		return SecretBackendKeychain, nil
+	}
+	kind := SecretBackendKind(raw)
 	if !kind.Valid() {
-		return SecretBackendKeychain
+		return "", &core.ConfigError{Err: fmt.Errorf("unsupported stored secret backend %q", raw)}
 	}
-	return kind
+	return kind, nil
 }
 
 // SetSelectedKind persists the backend choice for scope. It is called only
@@ -218,6 +224,9 @@ type secretPrefsDoc struct {
 }
 
 func loadSecretPrefs(root string) (secretPrefsDoc, error) {
+	if err := checkPrivateRoot(root); err != nil {
+		return secretPrefsDoc{}, err
+	}
 	doc := secretPrefsDoc{Version: secretStoreVersion, Scopes: map[string]string{}}
 	err := readPrivateJSON(filepath.Join(root, "preferences.json"), &doc)
 	if errors.Is(err, os.ErrNotExist) {
@@ -225,6 +234,9 @@ func loadSecretPrefs(root string) (secretPrefsDoc, error) {
 	}
 	if err != nil {
 		return doc, err
+	}
+	if doc.Version != secretStoreVersion {
+		return doc, fmt.Errorf("unsupported secret preference version %d", doc.Version)
 	}
 	if doc.Scopes == nil {
 		doc.Scopes = map[string]string{}
@@ -269,12 +281,18 @@ func (m *ManifestStore) load() (secretManifestDoc, error) {
 		}
 		return doc, &core.ConfigError{Err: errors.New("no secret manifest store")}
 	}
+	if err := checkPrivateRoot(m.root); err != nil {
+		return doc, err
+	}
 	err := readPrivateJSON(m.path(), &doc)
 	if errors.Is(err, os.ErrNotExist) {
 		return secretManifestDoc{Version: secretStoreVersion, Scopes: map[string][]string{}}, nil
 	}
 	if err != nil {
 		return doc, err
+	}
+	if doc.Version != secretStoreVersion {
+		return doc, fmt.Errorf("unsupported secret manifest version %d", doc.Version)
 	}
 	if doc.Scopes == nil {
 		doc.Scopes = map[string][]string{}
@@ -439,7 +457,8 @@ func writePrivateFileAtomic(path string, data []byte) error {
 	if err := os.Rename(tmpName, path); err != nil {
 		return err
 	}
-	return os.Chmod(path, secretStoreFilePerm)
+	// The renamed temporary file already has 0600 permissions.
+	return nil
 }
 
 func ensurePrivateDir(dir string) error {

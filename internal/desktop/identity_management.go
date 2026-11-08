@@ -783,14 +783,10 @@ func (a *App) beginSecretSwitch(ps *projectState, st *identityManagementState, k
 		st.switchErr = m.StorageNoBackend
 		return
 	}
-	a.probeSecretBackend(ps)
 	target, err := a.secretBackendForKind(ps, kind)
 	if err != nil {
 		st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error())
 		return
-	}
-	if prober, ok := target.(platform.SecretBackendProber); ok {
-		prober.Probe()
 	}
 	var managed []string
 	if a.mgr != nil && ps.secretScope != "" {
@@ -840,6 +836,21 @@ func (a *App) confirmSecretSwitch(ps *projectState, st *identityManagementState)
 		return
 	}
 	store := a.mgr.secretStoreFor()
+	// Values found by enumerating the file backend must remain discoverable
+	// after a switch to Keychain, which cannot enumerate its own entries.
+	for _, entry := range plan.Entries {
+		if !entry.SourceBound && !entry.TargetBound {
+			continue
+		}
+		if err := store.Manifest(ps.secretScope).Add(entry.Name); err != nil {
+			if rbErr := result.Rollback(); rbErr != nil {
+				err = fmt.Errorf("%w / %v", err, rbErr)
+			}
+			st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error())
+			st.switchPlan = nil
+			return
+		}
+	}
 	if err := store.SetSelectedKind(ps.secretScope, plan.Target.Kind); err != nil {
 		if rbErr := result.Rollback(); rbErr != nil {
 			st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error()+" / "+rbErr.Error())

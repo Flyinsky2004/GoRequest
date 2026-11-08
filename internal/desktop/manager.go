@@ -197,7 +197,10 @@ func (m *Manager) openProject(path string) error {
 	if err != nil {
 		return err
 	}
-	kind := store.SelectedKind(scope)
+	kind, err := store.SelectedKind(scope)
+	if err != nil {
+		return err
+	}
 	backend, err := store.Backend(scope, p.File.ID, root, kind)
 	if err != nil {
 		return err
