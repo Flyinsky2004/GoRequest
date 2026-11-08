@@ -846,3 +846,18 @@ Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t3
 - 统一使用现有Palette/SVG/MyGo动画及ui.Tester；尊重可用的减少动态效果机制，动效不以sleep/永久ticker驱动，稳定后停止重绘。若依赖缺少关闭动画钩子须查实并报告，不升级框架或宣称未实现能力。
 - 测试：每卡go build ./...及必要受影响测试；已有desktop三项TestMockEditorSuggestionsAreProjectUnique/TestRunnerEditorDescribeAssertions/TestRunnerEditorPatchSuiteExtract与diagnostics TestEngine_PolicyBlockedAndMissingSecretPreflight是§31已复现历史失败，如遇仍需记录本轮实际输出，不擅改断言掩盖。
 - 报告docs/task-results/U11.md–U15.md记录基线/实际目录/分支、实现与接线状态、完整命令及结果、限制/截图证据/本地commit。未启动真实窗口不得冒充实机验收；交付至少检查diff与暂存范围。
+
+
+### 33.2 实际启动句柄
+
+五个独立worktree均从登记提交 `9892997` 创建，经Herdr tab.new交互启动Claude Code；逐个读屏核对目录/任务/分支与bypass permissions，并通过hc get确认全部working，无信任等待。沿用默认DeepSeek V4.1 Flash 1017 (Mistral)，不指定模型/不改全局配置。
+
+| ID | Herdr终端 | tab ID |
+| --- | --- | --- |
+| U11 | t4r | tb47ed0393883f1f46882768a3406fe3d0 |
+| U12 | t4s | tb00fde6390f96c7fccc660ac39582e714 |
+| U13 | t4t | tbe6c92bb454523f048327452efb1263c2 |
+| U14 | t4v | tb53600818990606d62ab624badef5a200 |
+| U15 | t4w | tb00653120a3f4913e6c8454a5edda77fb |
+
+§33表中的待启动是派工登记时状态，以本节已启动/开发中为准；未交付/未合并/未验收，不勾完成。完整任务提示与sessions.json仅保存在本机 `/private/tmp/gorequest-u11-u15-20261108/`，不入Git。本轮主工作区仅提交账本，未运行功能build/测试；各CC已获必要验证和本地commit授权。用户dirty文件与既有其他项目/终端保留，不操作MyGo showcase分支。
