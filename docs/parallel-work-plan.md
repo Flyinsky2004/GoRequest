@@ -1219,3 +1219,16 @@ UIKit 全部测试、Tab/HistoryEndpoint/Theme/URLGroup/Send/Settings 专项、`
 文档编辑必须保留合法 Markdown、代码块/未知块的保真回退、frontmatter/引用ID/链接/撤销重做/中文输入和原始源码模式；禁止简单删掉源文本标记导致语义或保存数据丢失。以可视化编辑时内容投影/语义适配处理标题、列表、引用等常用块，并实测源码往返。U32 在 UI 线程展示真实成功/失败反馈，禁止未完成即提示成功。U35 用 fake installer/quit 和临时文件验证顺序、取消、失败、多窗口与下载期间新产生的编辑；不得绕过既有未保存保护。
 
 主代理负责交叉接线、独立审查、集成/完整验证、打包和任务状态；仅满足验收后登记完成，headless 与实机验收分别记录。
+
+### 44.1 Herdr 实际启动
+
+共同提交基线 `2039f32`。四个独立 worktree 均已创建；通过 Herdr `tab.new` 在既有 GoRequest Space `spdf881da8ac8898e94ad5193c04ff7ba9` 打开可见 agy，读屏确认均为 Claude Sonnet 5.5 · medium，批准各自工作目录信任后状态 working。启动时首次使用的 Herdr task 参数与 agy 不兼容（未修改代码）；仅本批失败 tab 已关闭，改为显式 `--prompt-interactive` 后正常运行。
+
+| 任务 | terminal | tab | 实际状态 |
+| --- | --- | --- | --- |
+| U32 | `t5t` | `tb86cd27f32612dc37a05c20a93802139e` | 开发中 |
+| U33 | `t5v` | `tbd244a869abb91ffeda6112788f43d2ae` | 开发中 |
+| U34 | `t5w` | `tbd6c6f71ccc5868ce3116ea2bed31c37a` | 开发中 |
+| U35 | `t5x` | `tb46ada74b45acabf3f9ae787688ce97ce` | 开发中 |
+
+精确 prompt、启动句柄、用户斜杠菜单参考图存 `/private/tmp/gorequest-u32-u35-20261109/`。U35 对 app.go 的退出 guard 接线交 patch，U32 已收到不要改这三处函数的通知。其余已有 Herdr 会话未改动。尚未集成或标记通过。
