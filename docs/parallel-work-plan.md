@@ -1181,3 +1181,14 @@ U30从e5fbb9f建立分支/worktree，经Herdr启动，终端t5j，tab tba0bfd932
 main已ff-only快进代码提交8a04310。确认5来源HEAD与登记一致、干净且已是main祖先后，精确关闭U26 t5d/U27 t5f/U28 t5g/U29 t5h/U30 t5j的登记tab（均ok:true），逐条hc finished后rm。非force移除5来源worktree/分支；集成分支确认干净且已并入main后，也非force移除codex/integrate-U26-U30及集成worktree。用户要求关闭的集成agy t5k在§42.1已清理，本批6个agent会话全部移除。
 
 最终只保留GoRequest main/主worktree；t1h/t2s/t4q/t5c及其他项目t4k等非本批会话未动。4个用户文件SHA256全部与初始一致；未push。完整清理句柄见集成报告，未将headless验证标记为真实桌面验收。
+
+
+## 43. U31：恢复菜单与输入交互配色（2026-11-08）
+
+用户要求让原配色代理恢复右键菜单、输入框 hover 颜色。原 U29 会话已在 §42.3 清理，复用原模型 `agy gemini-4-argon-medium` 重新接续。派工前核对当前共同代码基线 `9102ce7`，参照 U29 来源提交 `05e5ee6` 的父提交恢复相应红橙交互色；不撤销主题化菜单、绿色 Switch、图标或数据单位优化。
+
+| ID / 负责人 | 实际 worktree / 分支 | 公共文件归属与依赖 | 状态 |
+| --- | --- | --- | --- |
+| U31 / agy gemini-4-argon-medium；主代理集成 | `/private/tmp/gorequest-u31-20261108` / `agy/U31-restore-interaction-colors` | `internal/desktop/uikit/palette.go`、`components.go`、必要输入/菜单主题接线与相关测试；依赖当前 main 的 U29 集成与 9102ce7 主题化菜单；主代理仅维护总账本和最终集成/打包 | 已登记，待启动 |
+
+交付要求：代理先读 AGENTS.md、本节、U29 报告及 ui-ux-pro-max 技能；核对 MyGo 本地实际 hover/聚焦绘制路径，若输入仅有 focus 着色则明确记录，避免表面改 token。仅恢复所要求的菜单高亮及输入交互色，其余提示/错误/成功语义、品牌动作和绿色 Switch 保留；不得修改 MyGo/module 缓存、go.mod/go.sum 或用户示例数据，不派子代理、不 merge/push、不修改总账本。适配亮暗主题，相关测试及构建验证后本地提交，记录 `docs/task-results/U31.md`；未进行实机检查不得标记实机通过。集成人核验实际提交和验证后再登记交付。
