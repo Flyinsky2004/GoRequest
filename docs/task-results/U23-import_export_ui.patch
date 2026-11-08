@@ -1,0 +1,9 @@
+--- a/internal/desktop/import_export_ui.go
++++ b/internal/desktop/import_export_ui.go
+@@ -101,5 +101,6 @@
+ 					sourceLabels := []string{im.SourceCURL, im.SourcePostman, im.SourcePortableBundle}
+ 					if _, changed := uikit.SimpleSegmented(c, p, &st.ImportSourceKind, sourceLabels); changed {
++						st.ConflictPolicyIdx = defaultConflictPolicyIdx(st.ImportSourceKind)
+ 						st.StagedPlan = nil
+ 						st.ImportErr = ""
+ 					}
