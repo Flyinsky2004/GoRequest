@@ -1111,5 +1111,6 @@ func (a *App) ResolveTabConflict(tab *Tab, kind core.ResolutionKind) error {
 		a.status = translate(fm.StatusSavedCopy, res.RelPath)
 	}
 
+	a.notifySuccess(a.status)
 	return nil
 }

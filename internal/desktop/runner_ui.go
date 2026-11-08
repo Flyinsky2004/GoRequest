@@ -187,8 +187,10 @@ func (a *App) exportRunner(junit bool) {
 	}
 	if err := writeRunnerReport(s.result, s.exportPath, s.snapshotRoot, junit); err != nil {
 		s.exportNotice = "internal_error / report: " + err.Error()
+		a.notifyError(s.exportNotice, "")
 	} else {
 		s.exportNotice = a.runnerMsg().Exported
+		a.notifySuccess(s.exportNotice)
 	}
 }
 func (a *App) chooseRunnerReportPath() {
