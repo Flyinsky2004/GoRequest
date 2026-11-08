@@ -167,30 +167,58 @@ func (m *Manager) forgetRecent(path string) {
 
 // --- breadcrumb -----------------------------------------------------------
 
-// workspaceBreadcrumb draws the path of the active request or document:
-// project / folders / item. Folder crumbs are clickable targets in the sidebar,
-// so the bar is navigation, not a label. It is called once per frame from the
-// tab area.
-func (a *App) workspaceBreadcrumb(c *ui.Context, t *ui.Theme, tab *Tab) {
-	ps := a.ps
-	if ps == nil || tab == nil {
+// headerPathMessages are the strings of the top-bar path.
+type headerPathMessages struct{ NoActive string }
+
+func (a *App) headerPathMsg() headerPathMessages {
+	if a != nil && a.mgr != nil && a.mgr.cfg != nil && parseLanguage(string(a.mgr.cfg.language())) == langEnglish {
+		return headerPathMessages{NoActive: "No request or document open"}
+	}
+	return headerPathMessages{NoActive: "未打开请求或文档"}
+}
+
+// headerPath draws the path of the active request or document in the top
+// bar, directly after the project-name button: folders › item for a request,
+// 文档 › item for a document, and a faint hint when no tab is active. Folder
+// crumbs stay clickable sidebar targets. It is the only place the path is
+// drawn. The row shrinks and clips at narrow widths instead of pushing the
+// environment controls away, and a tooltip carries the full path.
+func (a *App) headerPath(c *ui.Context, t *ui.Theme, ps *projectState) {
+	if ps == nil {
 		return
 	}
 	p := uikit.PaletteFor(t)
 	m := a.msg()
-	ui.Row(c).Height(22).Padding(0, 2).Gap(2).AlignItems(ui.Center).Clip().Children(func() {
-		a.breadcrumbCrumb(c, p, ps.name(), func() {
-			ps.sel = ""
-			ps.expanded = map[string]bool{}
-		})
+	tab := ps.activeTab()
+	if tab == nil {
+		ui.Text(c, a.headerPathMsg().NoActive).FontSize(11).TextColor(p.Faint).SingleLine().
+			Shrink(1).MinWidth(0)
+		return
+	}
+	full := tab.Title
+	switch {
+	case tab.Kind == "doc":
+		full = m.DocumentsGroup + " › " + tab.Title
+	case tab.Kind == "request" && tab.Entry != nil:
+		full = strings.ReplaceAll(strings.TrimSuffix(tab.Entry.RelPath, "/"), "/", " › ")
+		if full == "" {
+			full = tab.Title
+		}
+	}
+	ui.Row(c).Height(22).Gap(2).AlignItems(ui.Center).Shrink(1).MinWidth(0).Clip().Children(func() {
+		sep := func() { ui.Text(c, "›").FontSize(11).TextColor(p.Faint).Shrink(0) }
 		if tab.Kind == "doc" {
-			ui.Text(c, "›").FontSize(11).TextColor(p.Faint)
-			ui.Text(c, m.DocumentsGroup).FontSize(11).TextColor(p.Muted).SingleLine()
-			ui.Text(c, "›").FontSize(11).TextColor(p.Faint)
-			ui.Text(c, tab.Title).FontSize(11).FontWeight(600).TextColor(p.Text).SingleLine()
+			sep()
+			ui.Text(c, m.DocumentsGroup).FontSize(11).TextColor(p.Muted).SingleLine().Shrink(0)
+			sep()
+			ui.Text(c, tab.Title).FontSize(11).FontWeight(600).TextColor(p.Text).SingleLine().
+				Shrink(1).MinWidth(0).Ellipsis("…").Tooltip(full)
 			return
 		}
 		if tab.Kind != "request" || tab.Entry == nil {
+			sep()
+			ui.Text(c, tab.Title).FontSize(11).FontWeight(600).TextColor(p.Text).SingleLine().
+				Shrink(1).MinWidth(0).Ellipsis("…").Tooltip(full)
 			return
 		}
 		folder := folderRelOfPath(tab.Entry.RelPath)
@@ -202,7 +230,7 @@ func (a *App) workspaceBreadcrumb(c *ui.Context, t *ui.Theme, tab *Tab) {
 				if node := findFolderInTree(ps, "collections/"+rel); node != nil && node.Name != "" {
 					label = node.Name
 				}
-				ui.Text(c, "›").FontSize(11).TextColor(p.Faint)
+				sep()
 				target := rel
 				a.breadcrumbCrumb(c, p, label, func() {
 					ps.sel = "folder:collections/" + target
@@ -210,8 +238,9 @@ func (a *App) workspaceBreadcrumb(c *ui.Context, t *ui.Theme, tab *Tab) {
 				})
 			}
 		}
-		ui.Text(c, "›").FontSize(11).TextColor(p.Faint)
-		ui.Text(c, tab.Title).FontSize(11).FontWeight(600).TextColor(p.Text).SingleLine().Tooltip(tab.Entry.RelPath)
+		sep()
+		ui.Text(c, tab.Title).FontSize(11).FontWeight(600).TextColor(p.Text).SingleLine().
+			Shrink(1).MinWidth(0).Ellipsis("…").Tooltip(full)
 	})
 }
 

@@ -177,6 +177,9 @@ func (a *App) CopySnippetToClipboard(c *ui.Context) {
 	}
 	if a != nil {
 		a.status = a.snippetMsg().CopiedStatus
+		if c != nil {
+			a.notifyCopied(st.Result.Code)
+		}
 	}
 }
 
@@ -211,6 +214,7 @@ func (a *App) ExecuteSnippetExportToFile() {
 	}
 	st.Notice = fmt.Sprintf(a.snippetMsg().SnippetExportSaved, targetPath)
 	a.status = st.Notice
+	a.notifySuccess(a.feedbackMsg().ExportOK)
 }
 
 func writeSnippetBytes(targetPath string, data []byte) error {
