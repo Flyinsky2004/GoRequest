@@ -1039,3 +1039,18 @@ main从 `27db078` 快进至集成代码提交 `4d59451`，包含3条来源no-ff�
 | U25 | t58 | tb35d9fc74d18ca7c969c53884259fae67 |
 
 §38表中待启动是登记时状态，以本节已启动/开发中为准；尚未交付/合并/验收，不勾完成。完整任务提示与sessions.json仅保存在本机 `/private/tmp/gorequest-u21-u25-20261108/` 不入Git。主工作区本轮仅静态审查/只读Release核对/登记派工，未跑功能构建测试，未实际更新安装App；用户原有示例环境/文档/debug产物与其他会话保留。
+
+
+## 39. INT21–25：委派agy集成与清理（2026-11-08）
+
+用户明确要求开一个agy合并U21–U25并清理旧分支和agent。当前main `97984a2`，初查5个来源worktree均干净、有提交/报告且Herdr done；来源头及句柄与用户文件摘要登记在本机 `/private/tmp/gorequest-u21-u25-integration-20261108/`，不入Git。
+
+| ID / 负责人 | 分支 / 实际worktree | 范围 | 状态 |
+| --- | --- | --- | --- |
+| INT21–25 / agy integrator | agy/integrate-U21-U25 / /private/tmp/gorequest-u21-u25-integration-20261108/worktree | 核对U21–U25完整报告/patch/当前代码，no-ff合并、补公共接线与集成回归；build/vet/普通全仓/必要race，main快进；安全删除5条已合并来源分支/worktree与精确Herdr会话 | 已登记，待启动 |
+
+来源头：U21 `7a992f7`、U22 `be2139f`、U23 `2141d04`、U24 `5c74af2`、U25 `176df3f`。从本登记提交创建独立集成worktree。旧各卡“不得merge/操作其他会话”是开发阶段限制，本次用户明确授权的集成人可merge/快进main及仅本批来源清理；不push、不重置/覆盖用户文件、不操作其他终端/项目、不得实际安装更新/请求用户公网接口/读真实Secret。
+
+U21-interop-i18n.patch先核对U22是否已覆盖勿重复套；U23-import_export_ui.patch须处理来源切换默认新副本。重点组合SSE与更新各自App/Manager接线不能覆盖回调，中文/英文切换、重复cURL与中文日志共存、更新每日限制/同日安装版本变更重置/4动作和手动设置、首SSE事件在EOF前到达UI且取消保留。测试只用临时项目/fake下载安装/loopback/fake clock。4项既有失败见§37，复核后如实记录，不改旧断言掩盖，不多skip。
+
+集成人在docs/task-results/integration-U21-U25-2026-11-08.md和本账本登记来源/merge/验证/限制/main头/实际清理证据。本批5个来源提交必须已是main祖先且worktree干净，才能逐个tab.close（精确id、confirmed:true）并等hc finished后rm，再git worktree remove/git branch -d，不用force。保留t1h/t4q/t2s和其他项目t4k/MyGo showcase分支及用户dev.yaml/document.md/debug产物。集成人自己的新会话与worktree先保留，主agent收尾核对后再清理；未验证不能标完成。
