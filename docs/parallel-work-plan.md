@@ -992,3 +992,10 @@ build/vet、受影响Secret/菜单/欢迎专项通过；最终普通全仓只剩
 ### 37.2 最终验证门禁
 
 全部集成修正后build/vet通过，普通全仓仅前述4项已复现旧失败；全仓race `go test -race ./... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunnerEditorDescribeAssertions|TestRunnerEditorPatchSuiteExtract|TestEngine_PolicyBlockedAndMissingSecretPreflight)$' -count=1` 退出码0（desktop 113.071s，platform 2.339s），无race。没有跳过任何新增Secret/菜单/窗口用例。整批 `git diff --check 27db078` 通过，依赖未改；清理前再次核对3个来源头未变、工作区干净、Herdr done，用户文件摘要未变。
+
+
+### 37.3 main与清理完成
+
+main从 `27db078` 快进至集成代码提交 `4d59451`，包含3条来源no-ff合并与集成修正/报告。确认来源头为main祖先、工作树仍干净后，精确关闭t51/t52/t53对应3个Herdr tab（全部ok:true）；关闭为异步，首次核心状态尚live时没有删除，随后复查均finished才hc rm清除记录。不带force删除3个来源worktree/分支，以及本轮临时集成worktree/分支。最终GoRequest仅main与主worktree。
+
+保留原有t1h/t4q/t3w/t2s及其他项目t31/t4k；MyGo showcase分支未操作。清理前后用户dev.yaml、document.md、现存demo-server debug产物内容摘要一致。此前桌面debug产物在本轮启动快照时已不存在，本轮未删除/恢复。未push；全部交付提交及报告保留main历史，实际限制/实机待验收范围不因清理完成改变。

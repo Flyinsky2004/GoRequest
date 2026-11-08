@@ -61,3 +61,10 @@ go test -race ./... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunne
 ```
 
 退出码0、所有包通过，无race报告（desktop 113.071s，uikit 11.417s，platform 2.339s）。仅跳过前述4项已复现旧失败，没有跳过新增Secret迁移、菜单或窗口用例。最终普通全仓与build/vet也在全部修正之后执行，结果如上。
+
+
+## main与清理结果
+
+代码集成提交 `4d59451`，main从 `27db078` 快进到该提交。再次确认来源头为main祖先、来源工作区干净，关闭3个本批Herdr tab；异步关闭完成且核心状态finished后hc rm。随后非force删除U18/U19/U20来源分支/worktree和本轮临时集成分支/worktree，最终GoRequest仅main与主worktree。
+
+原有t1h/t4q/t3w/t2s及其他项目t31/t4k保持；MyGo showcase PR分支未操作。用户示例dev.yaml/document.md/现存demo-server debug文件清理前后摘要一致。未push，用户真实Keychain/Secret未操作。清理记录另行提交到账本。
