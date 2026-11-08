@@ -73,7 +73,7 @@ func (a *App) historyEndpointToggle(c *ui.Context, p uikit.Palette) {
 	m := a.historyDisplayMsg()
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 		ui.Text(c, m.EndpointOnly).FontSize(11).TextColor(p.Muted).SingleLine()
-		sw := uikit.ActionCursor(ui.Switch(c, &a.historyUI.endpointOnly)).Shrink(0).Label(m.EndpointOnly)
+		sw := uikit.Switch(c, &a.historyUI.endpointOnly).Shrink(0).Label(m.EndpointOnly)
 		sw.Tooltip(m.EndpointOnlyHint)
 	})
 }
