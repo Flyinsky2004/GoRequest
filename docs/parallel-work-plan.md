@@ -817,3 +817,8 @@ Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t3
 - 集成复核：`git diff --check 3c8f0de..b789a49`通过；README的10处相对链接文件存在、三个页内导航匹配标题、details开闭配对通过；showcase对象JSON可解析且mode为native。报告见 `docs/task-results/DOC01.md`，首版结构说明由其中第二版修订覆盖。
 - 本次为纯文档改动，未运行Go构建/测试；未验证远端链接可达性、实际发布附件或GitHub页面渲染，不虚构截图/跑分/功能验收。
 - 用户dev.yaml、示例文档、debug产物保留，未push。DOC01的CC标签与worktree/分支保留供后续查看；未操作其他会话。
+
+
+### 32.2 DOC01 旧分支清理
+
+用户要求确认昨晚CC工作合并后删除旧分支。已核对 `b789a49` 为main祖先，README与DOC01报告在main与来源分支完全一致，来源worktree无未提交文件。精确关闭DOC01的Herdr tab `tb662187d54a907dfdaf048d7940554f90`（终端t4p），使用不带force的worktree remove与branch -d删除 `/private/tmp/gorequest-doc01-20261108` 和 `cc/DOC01-readme`。保留main与全部交付提交，未删除MyGo showcase分支、未push，用户原有示例环境/文档/debug文件保留。
