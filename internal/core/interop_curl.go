@@ -57,6 +57,12 @@ func StageCURLImport(p *Project, raw string, opts ImportOptions) (*ImportPlan, e
 	if p == nil || p.Store == nil {
 		return nil, errors.New("target project is required")
 	}
+	// Repeated cURL imports are a normal workflow: keep each import as an
+	// independent copy instead of blocking on the first one. Callers can still
+	// select fail/skip/overwrite explicitly.
+	if opts.ConflictPolicy == "" {
+		opts.ConflictPolicy = ConflictRenameNewID
+	}
 	opts = opts.normalized()
 	targetDir, err := normalizeTargetCollectionFolder(opts.TargetFolderRel)
 	if err != nil {
@@ -75,7 +81,13 @@ func StageCURLImport(p *Project, raw string, opts ImportOptions) (*ImportPlan, e
 	slug := sanitizeSlug(req.Name, "curl-request")
 	desiredID := "req-" + slug
 
-	usedIDs := make(map[string]bool)
+	// Seed the in-batch ID set from disk as well as memory so a request file
+	// that exists on disk but was not reloaded into p.Requests cannot be reused.
+	diskIDs := diskRequestIDs(p)
+	usedIDs := make(map[string]bool, len(diskIDs))
+	for id := range diskIDs {
+		usedIDs[id] = true
+	}
 	usedPaths := make(map[string]bool)
 	finalID, finalRel, action, baseline, conflictMsg := resolveEntityCollision(
 		p,

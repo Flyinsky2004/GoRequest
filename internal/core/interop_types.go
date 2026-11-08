@@ -159,7 +159,10 @@ type ImportOptions struct {
 	// TargetEnvID specifies the environment ID to create/update when importing
 	// collection variables or Postman environments.
 	TargetEnvID string
-	// ConflictPolicy controls collision handling (defaults to ConflictFail).
+	// ConflictPolicy controls collision handling. It defaults to ConflictFail for
+	// collection/environment/bundle imports and to ConflictRenameNewID for cURL
+	// imports, so repeatedly importing the same command keeps independent copies
+	// instead of being blocked by the first one.
 	ConflictPolicy ConflictPolicy
 	// ScrubSecretsToRefs converts literal inline credentials (Bearer tokens, Basic
 	// passwords, API keys, secret variables) into {{secret.<name>}} references
@@ -196,6 +199,16 @@ var ErrOpenAPIRoutedToA03 = errors.New("openapi/swagger specification conversion
 // ErrImportBlocked indicates that the staged import plan cannot be applied due
 // to conflicts, unsupported versions, or security blocks.
 var ErrImportBlocked = errors.New("import plan cannot be applied")
+
+// ErrRequestIDConflict indicates that a staged request ID is already used by a
+// different file, so applying the plan would create a duplicate ID.
+var ErrRequestIDConflict = errors.New("request ID already exists at another path")
+
+// IsStaleImportConflict reports whether err means the staged plan no longer
+// matches the current disk or in-memory state and can be re-planned safely.
+func IsStaleImportConflict(err error) bool {
+	return IsConflict(err) || errors.Is(err, ErrRequestIDConflict)
+}
 
 // ImportPlan holds a staged, previewed import backed by a B01 ChangeSet.
 // No files are written until Apply() is called.
@@ -292,6 +305,9 @@ func (p *ImportPlan) Apply() (*ImportReceipt, error) {
 			return nil, fmt.Errorf("%w: %s", ErrImportBlocked, strings.Join(p.preview.Conflicts, "; "))
 		}
 		return nil, fmt.Errorf("%w: %s", ErrImportBlocked, p.preview.Summary)
+	}
+	if err := p.validateRequestIDUniqueness(); err != nil {
+		return nil, err
 	}
 
 	projRoot := projectRootDir(p.project)
@@ -451,6 +467,9 @@ func ReloadProjectInMemory(p *Project) error {
 // the appropriate B08 staging pipeline (cURL, Postman Collection, Postman
 // Environment, Portable Bundle, or OpenAPI/Swagger A03 triage).
 func StageAutoImport(p *Project, data []byte, filename string, opts ImportOptions) (*ImportPlan, error) {
+	// Remember whether the caller asked for an explicit conflict strategy before
+	// normalized() fills in the non-cURL default.
+	requestedPolicy := opts.ConflictPolicy
 	opts = opts.normalized()
 	format, version, err := DetectInteropFormat(data, filename)
 	if err != nil {
@@ -463,6 +482,9 @@ func StageAutoImport(p *Project, data []byte, filename string, opts ImportOption
 		}
 		return buildOpenAPITriagePlan(p, format, version, filename, opts), nil
 	case FormatCURL:
+		if requestedPolicy == "" {
+			opts.ConflictPolicy = ConflictRenameNewID
+		}
 		return StageCURLImport(p, string(data), opts)
 	case FormatPostmanCollection:
 		return StagePostmanCollectionImport(p, data, opts)
@@ -639,6 +661,84 @@ func normalizeTargetCollectionFolder(raw string) (string, error) {
 	return collectionsDirOf(colRel), nil
 }
 
+// diskRequestIDs maps the IDs of every request file currently on disk to the
+// file's project-relative path. Import staging uses it as a collision guard so
+// a stale in-memory project (disk changed but not reloaded) cannot allocate an
+// ID that already exists in another folder. Unparseable files contribute their
+// filename stem, which is a conservative over-approximation of the ID.
+func diskRequestIDs(p *Project) map[string]string {
+	ids := make(map[string]string)
+	if p == nil || p.Store == nil {
+		return ids
+	}
+	files, err := p.Store.List("collections", func(name string) bool {
+		return strings.HasSuffix(name, ".request.yaml")
+	})
+	if err != nil {
+		return ids
+	}
+	for _, rel := range files {
+		data, _, readErr := p.Store.Read(rel)
+		if readErr == nil {
+			var req Request
+			if decodeStrict(data, &req) == nil && req.ID != "" {
+				ids[req.ID] = rel
+				continue
+			}
+		}
+		stem := strings.TrimSuffix(path.Base(rel), ".request.yaml")
+		if stem != "" {
+			ids[stem] = rel
+		}
+	}
+	return ids
+}
+
+// validateRequestIDUniqueness rejects a stale plan whose staged request IDs are
+// now used by a different file. Applying such a plan would reload two files with
+// the same ID and silently drop one of them.
+func (p *ImportPlan) validateRequestIDUniqueness() error {
+	if p == nil || p.project == nil {
+		return nil
+	}
+	hasRequest := false
+	for _, m := range p.preview.IDMappings {
+		if m.EntityKind == "request" {
+			hasRequest = true
+			break
+		}
+	}
+	if !hasRequest {
+		return nil
+	}
+	diskIDs := diskRequestIDs(p.project)
+	for _, m := range p.preview.IDMappings {
+		if m.EntityKind != "request" {
+			continue
+		}
+		switch m.Action {
+		case "create", "rename", "update":
+		default:
+			continue
+		}
+		target := filepath.ToSlash(m.TargetPath)
+		if target == "" {
+			continue
+		}
+		if entry, ok := p.project.Requests[m.TargetID]; ok && entry != nil {
+			if existing := filepath.ToSlash(entry.RelPath); existing != target {
+				return fmt.Errorf("%w: %q is used by %s, planned for %s", ErrRequestIDConflict, m.TargetID, existing, target)
+			}
+		}
+		if rel, ok := diskIDs[m.TargetID]; ok {
+			if existing := filepath.ToSlash(rel); existing != target {
+				return fmt.Errorf("%w: %q is used by %s, planned for %s", ErrRequestIDConflict, m.TargetID, existing, target)
+			}
+		}
+	}
+	return nil
+}
+
 // resolveEntityCollision applies the configured ConflictPolicy when a target
 // relative path or entity ID already exists in the project or current batch.
 func resolveEntityCollision(
@@ -700,6 +800,10 @@ func resolveEntityCollision(
 			if _, digest, err := p.Store.Read(rel); err == nil {
 				return true, digest
 			}
+			// The path is occupied even when the existing file cannot be read
+			// (oversized, unreadable, or a symlink). Treat it as taken so rename
+			// never reuses it; overwrite allocates a new copy instead.
+			return true, ""
 		}
 		return false, ""
 	}
@@ -736,8 +840,8 @@ func resolveEntityCollision(
 		return desiredID, rel, "skip", digest, ""
 	case ConflictOverwrite, ConflictRenameNewID:
 		for i := 2; i < 1000; i++ {
-			candidateID := fmt.Sprintf("%s-copy-%d", desiredID, i)
-			if i == 2 && !strings.HasSuffix(desiredID, "-copy") {
+			candidateID := fmt.Sprintf("%s-copy-%d", desiredID, i-1)
+			if i == 2 {
 				candidateID = desiredID + "-copy"
 			}
 			candidateRel := makeRel(candidateID)

@@ -1,0 +1,4 @@
+--- a/internal/desktop/import_export_ui.go
++++ b/internal/desktop/import_export_ui.go
+@@ -102,0 +103 @@
++						st.ConflictPolicyIdx = defaultConflictPolicyIdx(st.ImportSourceKind)

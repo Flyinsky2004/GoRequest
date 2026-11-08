@@ -124,6 +124,17 @@ func conflictPolicyFromIdx(idx int) core.ConflictPolicy {
 	}
 }
 
+// defaultConflictPolicyIdx returns the conflict strategy selected when the
+// import modal opens. cURL imports default to "Copy with New ID" so importing
+// the same command repeatedly keeps every copy; collection/environment/bundle
+// imports keep the conservative fail-on-conflict default.
+func defaultConflictPolicyIdx(sourceKind int) int {
+	if sourceKind == ImportSourceCURL {
+		return 1 // ConflictRenameNewID
+	}
+	return 0 // ConflictFail
+}
+
 // OpenImportModal opens the B08 Import modal defaulting to the selected folder.
 func (a *App) OpenImportModal(sourceKind int) {
 	if a == nil || a.ps == nil {
@@ -131,6 +142,7 @@ func (a *App) OpenImportModal(sourceKind int) {
 	}
 	st := a.Interop()
 	st.ImportSourceKind = sourceKind
+	st.ConflictPolicyIdx = defaultConflictPolicyIdx(sourceKind)
 	st.ImportTargetFolder = a.ps.selectedFolder()
 	st.ImportTargetEnv = a.ps.currentEnv()
 	st.ImportErr = ""
@@ -233,6 +245,17 @@ func (a *App) ConfirmAndApplyImport() {
 	}
 	receipt, err := st.StagedPlan.Apply()
 	if err != nil {
+		// A copy-on-conflict plan can go stale between preview and confirm when
+		// another import or an external editor creates the planned path. Re-stage
+		// against the current disk state and require a second confirmation rather
+		// than overwriting the file that appeared.
+		if core.IsStaleImportConflict(err) && st.StagedPlan.Preview().ConflictPolicy == core.ConflictRenameNewID {
+			a.StageImportPreview()
+			if st.StagedPlan != nil {
+				st.ImportNotice = a.importReplannedNotice()
+			}
+			return
+		}
 		st.ImportErr = err.Error()
 		return
 	}
@@ -633,6 +656,14 @@ func writeExportBytes(targetPath string, data []byte) error {
 		return err
 	}
 	return os.WriteFile(targetPath, data, 0o644)
+}
+
+// importReplannedNotice explains why a confirm did not apply the stale preview.
+func (a *App) importReplannedNotice() string {
+	if a != nil && a.mgr != nil && a.mgr.cfg != nil && a.mgr.cfg.language() == langSimplifiedChinese {
+		return "目标在预览后发生变化，已重新生成预览；请检查后再次确认。"
+	}
+	return "The target changed after the preview; a fresh preview was generated. Review it and confirm again."
 }
 
 func _keepSlicesRef() {
