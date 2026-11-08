@@ -1,11 +1,12 @@
 // Package brand owns the GoRequest logo bytes so the desktop app can use the
-// same immutable resource for its runtime window/Dock icon and in-app brand
-// display. The PNG is embedded: the running binary never depends on a path in
+// original artwork for in-app display and platform-sized icons. The PNGs are
+// embedded: the running binary never depends on a path in
 // the source tree, a checkout layout, or the user's Downloads folder.
 package brand
 
 import (
 	_ "embed"
+	"runtime"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -17,6 +18,12 @@ import (
 //
 //go:embed gorequest-logo.png
 var LogoPNG []byte
+
+// macOSIconPNG includes transparent optical margins for the Dock. The bundle
+// icon is generated from these same pixels by scripts/make-macos-icon.sh.
+//
+//go:embed gorequest-macos.png
+var macOSIconPNG []byte
 
 // logoImage decodes the embedded PNG once. ui.DecodeBitmap accepts PNG and
 // keeps its alpha; a nil source makes ui.Image a harmless empty element, so a
@@ -37,5 +44,8 @@ func Logo() ui.ImageSource {
 // (mygo.App.Dock.SetIcon and *mygo.Window.SetIcon), which take []byte.
 // The copy keeps callers from altering the embedded resource.
 func PNG() []byte {
+	if runtime.GOOS == "darwin" {
+		return append([]byte(nil), macOSIconPNG...)
+	}
 	return append([]byte(nil), LogoPNG...)
 }

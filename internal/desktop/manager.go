@@ -138,7 +138,7 @@ func (m *Manager) secretStoreFor() *platform.SecretStore {
 // WireApp registers application-level lifecycle hooks. Call it once from
 // App.WhenReady, before Start.
 func (m *Manager) WireApp() {
-	// Use the user-provided logo as the running application's icon. In MyGo
+	// Use the platform-sized logo as the running application's icon. In MyGo
 	// v0.7.4 App.Dock.SetIcon calls NSApplication's
 	// setApplicationIconImage: with the PNG on macOS; it also sets the default
 	// window icon on Windows/Linux. WhenReady runs after the native backend is
