@@ -1202,3 +1202,20 @@ main已ff-only快进代码提交8a04310。确认5来源HEAD与登记一致、干
 UIKit 全部测试、Tab/HistoryEndpoint/Theme/URLGroup/Send/Settings 专项、`go build ./...`、`go vet ./...` 通过。完整 desktop 测试 27.377s，仅既有 Mock/Runner 三项失败，无新增失败。亮暗菜单 hover 与输入描边、相邻绿色 Switch 进行了 headless 像素验证；真实桌面未检查。main 的 `sh scripts/make-macos-app.sh` 构建通过，更新 `bin/GoRequest.app`。
 
 确认来源 worktree 干净、提交已是 main 祖先后，结束并移除本轮 `t5n`，非 force 移除来源 worktree 与已合并分支；其他代理未动。用户示例数据和本地 debug 产物未纳入提交；未 push。
+
+## 44. U32–U35：交互布局、删除冲突、文档编辑与更新退出（2026-11-09）
+
+用户要求通过 Herdr 开 agy，模型使用 Claude Sonnet。派工前核对当前代码基线 `efcf0b7`，从本登记提交建立隔离 worktree；统一 `claude-sonnet-5-5-medium`。用户已有 dev.yaml、document.md 和 debug 产物不动。
+
+| ID / 负责人 | 分支 / 实际 worktree | 任务、公共文件归属与依赖 | 状态 |
+| --- | --- | --- | --- |
+| U32 / agy Sonnet | `agy/U32-workspace-feedback` / `/private/tmp/gorequest-u32-u35-20261109/workspace` | 用户项1、2、最后项5：响应顶部文字/按钮垂直居中；复制等功能操作提供可见反馈；当前路径移到顶栏项目名后。拥有 response_view.go、workspace.go、workspace_management.go、app.go、必要独立反馈文件及非其他卡归属的操作调用点。不得改 manager.go、update*、file_sync*、doc_live*、documentation*，交叉接线交 patch | 待启动 |
+| U33 / agy Sonnet | `agy/U33-delete-conflict-actions` / `/private/tmp/gorequest-u32-u35-20261109/delete-conflicts` | 用户项3：删除后磁盘/内存差异提示与弹窗操作配图标，明确红色危险主动作是接受删除，恢复文件为次动作；保留未保存保护/比较/真实错误反馈。拥有 file_sync_ui.go、file_sync_i18n.go、相关 file_sync 测试和独立图标按钮文件；不改 file_sync.go 的同步算法，必要接线交 patch | 待启动 |
+| U34 / agy Sonnet | `agy/U34-content-editing` / `/private/tmp/gorequest-u32-u35-20261109/docs` | 用户项4、前一项5：斜杠菜单按参考图显示组件图标；可视化编辑聚焦内容，标题等不露 Markdown 块标记。拥有 doc_live*、documentation*、doc_*必要辅助文件、internal/docedit 与必要 Markdown 适配及测试；不改 app/workspace/response/UIKit公共主题，必要共享接线交 patch | 待启动 |
+| U35 / agy Sonnet | `agy/U35-update-save-and-quit` / `/private/tmp/gorequest-u32-u35-20261109/update` | 追加更新：下载后打开安装包前处理所有窗口未保存文件，保存/放弃/取消，保存失败或取消不继续；成功打开后退出当前程序，打开失败不退出，保留校验/安全边界。拥有 update*、manager.go 必要更新退出接线与专属测试，必要 quit_guard 专属文件；不改 app.go/settings/workspace/文档文件，交叉接线交 patch | 待启动 |
+
+代理先读 AGENTS.md、本节、ui-ux-pro-max 技能和所涉现有代码，核对本地 MyGo API。不要派子代理、merge/push、改总账本或其他 worktree；不改 go.mod/go.sum/MyGo缓存/全局模型配置。不读取真实 Secret、不运行真实更新安装器或退出用户正在用的应用。每卡必要构建/专项验证、本地 commit、docs/task-results/U32.md–U35.md 报告实际基线、改动、验证、提交与限制。已知 desktop 三项旧失败及 engine policy preflight 旧失败不得修改断言掩盖。
+
+文档编辑必须保留合法 Markdown、代码块/未知块的保真回退、frontmatter/引用ID/链接/撤销重做/中文输入和原始源码模式；禁止简单删掉源文本标记导致语义或保存数据丢失。以可视化编辑时内容投影/语义适配处理标题、列表、引用等常用块，并实测源码往返。U32 在 UI 线程展示真实成功/失败反馈，禁止未完成即提示成功。U35 用 fake installer/quit 和临时文件验证顺序、取消、失败、多窗口与下载期间新产生的编辑；不得绕过既有未保存保护。
+
+主代理负责交叉接线、独立审查、集成/完整验证、打包和任务状态；仅满足验收后登记完成，headless 与实机验收分别记录。
