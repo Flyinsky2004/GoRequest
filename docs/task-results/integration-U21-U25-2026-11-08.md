@@ -77,3 +77,18 @@
 - 使用不带 `--force` 的 `git worktree remove` 删除 `/private/tmp/gorequest-u21-u25-20261108/{menu-zh,import-zh,curl-duplicates,sse-stream,app-updates}` 五个来源 worktree，并使用 `git branch -d` 删除 `cc/U21-menu-zh`、`cc/U22-import-zh`、`cc/U23-curl-duplicates`、`cc/U24-sse-stream`、`cc/U25-app-updates` 五个来源分支。
 - 保留 Herdr 原有 `t1h`、`t4q`、`t2s`、其他项目 `t4k` 及本轮集成人自身会话 `t5b`（`tb5b97af999a8b80146755e9158dbea9c4`）与集成 worktree `/private/tmp/gorequest-u21-u25-integration-20261108/worktree`（`agy/integrate-U21-U25`）供主 agent 复核收尾；未操作 MyGo showcase 分支，未执行 `git push`。
 - 主工作区用户未提交文件（`examples/sample-project/.gorequest/environments/dev.yaml`、`examples/sample-project/.gorequest/docs/document.md`、`examples/demo-server/__debug_bin457189101`）在快进与清理前后 SHA-256 摘要完全一致。
+
+## 6. 主 agent 复核与收尾补强
+
+已核对 main 与 agy 分支均在 `fdfebdb`、集成工作区干净；五条来源头已是 main 祖先，来源分支/worktree 及五个 CC 会话已清理。核查实际 diff、普通/全仓 race 日志及公共接线后，另做独立构建、vet 和受影响 race 专项。
+
+复核发现更新回调的线程边界问题：后台检测宿主窗口销毁时，原 post 会直接调用 Manager.updateHostWindow 读取 UI 线程的窗口列表。生产 controller 现通过公开 MyGo.RunOnMain 先进入应用 UI 调度，再选择宿主和修改弹窗；不依赖已关闭窗口执行回调。Headless 保留注入 Window.Update，并避免在同宿主 Update 回调内重复 Update。复核补丁的初版重复刷新阻塞已用线程栈定位并修正，过期测试二进制被精确停止，调查日志保存在本机临时目录。
+
+新增 update_dispatch_test.go 验证：UI 调度前不修改状态或重选宿主；原宿主关闭后，排队回调仍向存活窗口交付；生产 controller 确实装配应用 UI dispatcher。
+
+- `go build ./...`、`go vet ./...` 通过。
+- 更新、SSE、cURL、中文组合及新增调度用例的 race 专项通过：desktop 8.387s、core 2.000s、update 1.218s，无 race。
+- 补丁后再次完整执行 `go test ./... -count=1`，仅前述四项旧失败，无新增失败，未 skip（desktop 28.931s）。
+- agy 的全仓 race 结果属于本补丁前；本补丁后采用上述受影响 race 专项与完整普通测试，未声称重新全仓 race。
+
+未启动真实窗口或实际更新安装；原实机待验收限制保留。集成人自身分支、worktree 与会话的最终清理结果登记到账本。

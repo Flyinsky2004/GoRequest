@@ -111,6 +111,9 @@ type updateController struct {
 	installed  func() string
 	open       func(string) error
 	goos       string
+	// Production callbacks use the application dispatcher, which remains
+	// available while individual windows are closing or changing hosts.
+	runOnUI func(func())
 
 	running       atomic.Bool
 	manualPending atomic.Bool
@@ -155,8 +158,10 @@ func newRealUpdateController(m *Manager) *updateController {
 	download := &http.Client{Timeout: updateDownloadTimeout}
 	checker := &update.Checker{Client: api, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH}
 	dl := &update.Updater{Client: download}
-	return newUpdateController(m, update.NewStateStore(updateStatePathFor(m.cfg.path)), checker, dl,
+	u := newUpdateController(m, update.NewStateStore(updateStatePathFor(m.cfg.path)), checker, dl,
 		time.Now, installedVersion, update.OpenInstaller, runtime.GOOS)
+	u.runOnUI = mygo.RunOnMain
+	return u
 }
 
 func (u *updateController) today() string { return update.Today(u.now()) }
@@ -171,37 +176,36 @@ func (u *updateController) versionLabel(l language) string {
 	return v
 }
 
-// post runs fn on the host window's UI thread. Background checks and
-// downloads call it; the host is read under a mutex and MyGo's Update is
-// documented for exactly this cross-goroutine use. With no window (headless
-// construction) fn runs directly.
+// post dispatches production callbacks before inspecting any Manager window
+// state. The application dispatcher does not depend on the old host surviving.
+// Headless controllers use their injected window's Update instead.
 func (u *updateController) post(fn func()) {
 	if u == nil {
 		return
 	}
-	h := u.getHost()
-	if (h == nil || h.IsDestroyed()) && u.mgr != nil {
-		h = u.mgr.updateHostWindow()
-		u.setHost(h)
-	}
-	if h == nil || h.IsDestroyed() {
-		fn()
+	if u.runOnUI != nil {
+		u.runOnUI(func() { u.deliverUpdate(fn, nil) })
 		return
 	}
-	h.Update(func() {
-		// The host may have been hidden (a project opened over the chooser)
-		// between the request and this UI pass. Re-point the dialog at the
-		// current host and request a frame there if it changed.
-		if u.mgr != nil {
-			if nh := u.mgr.updateHostWindow(); nh != nil {
-				u.setHost(nh)
-				if nh != h {
-					nh.Update(func() {})
-				}
-			}
-		}
-		fn()
-	})
+	h := u.getHost()
+	if h == nil || h.IsDestroyed() {
+		// Only headless controllers lack an application dispatcher.
+		u.deliverUpdate(fn, nil)
+		return
+	}
+	h.Update(func() { u.deliverUpdate(fn, h) })
+}
+
+// deliverUpdate runs on the UI thread in production. Selecting a replacement
+// host and touching dialog fields must share the Manager's lifecycle thread.
+func (u *updateController) deliverUpdate(fn func(), scheduledHost window) {
+	if u.mgr != nil {
+		u.setHost(u.mgr.updateHostWindow())
+	}
+	fn()
+	if h := u.getHost(); h != nil && h != scheduledHost && !h.IsDestroyed() {
+		h.Update(func() {})
+	}
 }
 
 func (u *updateController) getHost() window {
