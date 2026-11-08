@@ -1209,10 +1209,10 @@ UIKit 全部测试、Tab/HistoryEndpoint/Theme/URLGroup/Send/Settings 专项、`
 
 | ID / 负责人 | 分支 / 实际 worktree | 任务、公共文件归属与依赖 | 状态 |
 | --- | --- | --- | --- |
-| U32 / agy Sonnet | `agy/U32-workspace-feedback` / `/private/tmp/gorequest-u32-u35-20261109/workspace` | 用户项1、2、最后项5：响应顶部文字/按钮垂直居中；复制等功能操作提供可见反馈；当前路径移到顶栏项目名后。拥有 response_view.go、workspace.go、workspace_management.go、app.go、必要独立反馈文件及非其他卡归属的操作调用点。不得改 manager.go、update*、file_sync*、doc_live*、documentation*，交叉接线交 patch | 待启动 |
-| U33 / agy Sonnet | `agy/U33-delete-conflict-actions` / `/private/tmp/gorequest-u32-u35-20261109/delete-conflicts` | 用户项3：删除后磁盘/内存差异提示与弹窗操作配图标，明确红色危险主动作是接受删除，恢复文件为次动作；保留未保存保护/比较/真实错误反馈。拥有 file_sync_ui.go、file_sync_i18n.go、相关 file_sync 测试和独立图标按钮文件；不改 file_sync.go 的同步算法，必要接线交 patch | 待启动 |
-| U34 / agy Sonnet | `agy/U34-content-editing` / `/private/tmp/gorequest-u32-u35-20261109/docs` | 用户项4、前一项5：斜杠菜单按参考图显示组件图标；可视化编辑聚焦内容，标题等不露 Markdown 块标记。拥有 doc_live*、documentation*、doc_*必要辅助文件、internal/docedit 与必要 Markdown 适配及测试；不改 app/workspace/response/UIKit公共主题，必要共享接线交 patch | 待启动 |
-| U35 / agy Sonnet | `agy/U35-update-save-and-quit` / `/private/tmp/gorequest-u32-u35-20261109/update` | 追加更新：下载后打开安装包前处理所有窗口未保存文件，保存/放弃/取消，保存失败或取消不继续；成功打开后退出当前程序，打开失败不退出，保留校验/安全边界。拥有 update*、manager.go 必要更新退出接线与专属测试，必要 quit_guard 专属文件；不改 app.go/settings/workspace/文档文件，交叉接线交 patch | 待启动 |
+| U32 / agy Sonnet | `agy/U32-workspace-feedback` / `/private/tmp/gorequest-u32-u35-20261109/workspace` | 用户项1、2、最后项5：响应顶部文字/按钮垂直居中；复制等功能操作提供可见反馈；当前路径移到顶栏项目名后。拥有 response_view.go、workspace.go、workspace_management.go、app.go、必要独立反馈文件及非其他卡归属的操作调用点。不得改 manager.go、update*、file_sync*、doc_live*、documentation*，交叉接线交 patch | 已集成，见 §44.4 |
+| U33 / agy Sonnet | `agy/U33-delete-conflict-actions` / `/private/tmp/gorequest-u32-u35-20261109/delete-conflicts` | 用户项3：删除后磁盘/内存差异提示与弹窗操作配图标，明确红色危险主动作是接受删除，恢复文件为次动作；保留未保存保护/比较/真实错误反馈。拥有 file_sync_ui.go、file_sync_i18n.go、相关 file_sync 测试和独立图标按钮文件；不改 file_sync.go 的同步算法，必要接线交 patch | 已集成，见 §44.4 |
+| U34 / agy Sonnet | `agy/U34-content-editing` / `/private/tmp/gorequest-u32-u35-20261109/docs` | 用户项4、前一项5：斜杠菜单按参考图显示组件图标；可视化编辑聚焦内容，标题等不露 Markdown 块标记。拥有 doc_live*、documentation*、doc_*必要辅助文件、internal/docedit 与必要 Markdown 适配及测试；不改 app/workspace/response/UIKit公共主题，必要共享接线交 patch | 已集成，见 §44.4 |
+| U35 / agy Sonnet | `agy/U35-update-save-and-quit` / `/private/tmp/gorequest-u32-u35-20261109/update` | 追加更新：下载后打开安装包前处理所有窗口未保存文件，保存/放弃/取消，保存失败或取消不继续；成功打开后退出当前程序，打开失败不退出，保留校验/安全边界。拥有 update*、manager.go 必要更新退出接线与专属测试，必要 quit_guard 专属文件；不改 app.go/settings/workspace/文档文件，交叉接线交 patch | 已集成，见 §44.4 |
 
 代理先读 AGENTS.md、本节、ui-ux-pro-max 技能和所涉现有代码，核对本地 MyGo API。不要派子代理、merge/push、改总账本或其他 worktree；不改 go.mod/go.sum/MyGo缓存/全局模型配置。不读取真实 Secret、不运行真实更新安装器或退出用户正在用的应用。每卡必要构建/专项验证、本地 commit、docs/task-results/U32.md–U35.md 报告实际基线、改动、验证、提交与限制。已知 desktop 三项旧失败及 engine policy preflight 旧失败不得修改断言掩盖。
 
@@ -1226,10 +1226,10 @@ UIKit 全部测试、Tab/HistoryEndpoint/Theme/URLGroup/Send/Settings 专项、`
 
 | 任务 | terminal | tab | 实际状态 |
 | --- | --- | --- | --- |
-| U32 | `t5t` | `tb86cd27f32612dc37a05c20a93802139e` | 开发中 |
-| U33 | `t5v` | `tbd244a869abb91ffeda6112788f43d2ae` | 开发中 |
-| U34 | `t5w` | `tbd6c6f71ccc5868ce3116ea2bed31c37a` | 开发中 |
-| U35 | `t5x` | `tb46ada74b45acabf3f9ae787688ce97ce` | 开发中 |
+| U32 | `t5t` | `tb86cd27f32612dc37a05c20a93802139e` | 已交付并集成，见 §44.4 |
+| U33 | `t5v` | `tbd244a869abb91ffeda6112788f43d2ae` | 已交付并集成，见 §44.4 |
+| U34 | `t5w` | `tbd6c6f71ccc5868ce3116ea2bed31c37a` | 已交付并集成，见 §44.4 |
+| U35 | `t5x` | `tb46ada74b45acabf3f9ae787688ce97ce` | 已交付并集成，见 §44.4 |
 
 精确 prompt、启动句柄、用户斜杠菜单参考图存 `/private/tmp/gorequest-u32-u35-20261109/`。U35 对 app.go 的退出 guard 接线交 patch，U32 已收到不要改这三处函数的通知。其余已有 Herdr 会话未改动。尚未集成或标记通过。
 
@@ -1239,8 +1239,8 @@ UIKit 全部测试、Tab/HistoryEndpoint/Theme/URLGroup/Send/Settings 专项、`
 
 | ID / 负责人 | 分支 / 实际 worktree | 归属 | 状态 |
 | --- | --- | --- | --- |
-| U36 / agy Sonnet | `agy/U36-local-secrets-full-history` / `/private/tmp/gorequest-u32-u35-20261109/storage` | config.go、settings*.go、history.go、i18n.go 必要项、internal/platform/secret* 默认后端与 internal/localstate/history* 策略、相关测试及专属辅助；不改 app/workspace/response/doc/update/公共UIKit | 待启动 |
-| 主代理 / 下拉配色 | main，随后集成分支 | uikit/select.go 与 Select 测试，仅恢复选中/hover 为 Accent/OnAccent，保留语义提示色 | 待实现 |
+| U36 / agy Sonnet | `agy/U36-local-secrets-full-history` / `/private/tmp/gorequest-u32-u35-20261109/storage` | config.go、settings*.go、history.go、i18n.go 必要项、internal/platform/secret* 默认后端与 internal/localstate/history* 策略、相关测试及专属辅助；不改 app/workspace/response/doc/update/公共UIKit | 已集成，见 §44.4 |
+| 主代理 / 下拉配色 | main，随后集成分支 | uikit/select.go 与 Select 测试，仅恢复选中/hover 为 Accent/OnAccent，保留语义提示色 | 已集成，见 §44.4 |
 
 U36 通过 Herdr 可见 agy，使用 `claude-sonnet-5-5-medium`，本登记提交为基线；先读本节与 §44 通用约束，必要构建/专项测试后提交并交 docs/task-results/U36.md。完整保存覆盖未脱敏 URL/头部/正文/失败信息与已捕获二进制数据（必要无损编码），不能隐性截断正文却标成全量；网络层未收到或已截断部分不能补回，明确记录界限。保留历史保留期/清理、默认脱敏方式与既有 Secret 显式选择。主代理接线与验收。
 
@@ -1253,3 +1253,18 @@ U36 已从 `9d9c724` 启动，terminal `t5y`、tab `tb22e5a2a9bb459cd71adeca6bb8
 集成人审查 U36 报告发现 SSE 聚合体与部分错误在 core 执行阶段已脱敏，需要补齐完整保存的实际端到端路径。负责人主代理，分支 `codex/raw-history-results`，worktree `/private/tmp/gorequest-u32-u35-20261109/raw-results`，从本登记提交建立。归属 internal/core/network.go、plan.go 及专属测试、desktop/network_ui.go 的选项接线与必要历史标识；其他代理已交付，停止扩展任务。
 
 实现独立“原始执行输出”选项，仅在完整本地历史模式启用；保留执行器 Redactor 对跳转敏感头、Cookie 与其他网络安全行为的作用，不直接清空它。默认行为不变。用 loopback SSE 与错误测试验证原始值，并确认跨域敏感头仍被剥离；不读真实 Secret、不发外部请求。当前集成分支的全仓 race 检查与本子工作区源码隔离，补齐后再统一验证。
+
+### 44.4 最终集成与验收
+
+用户确认沿用 Herdr 各窗口当前模型；所有来源 worktree 与可见会话保留供查阅。任务代码在 `codex/integrate-U32-U35` 完成集成，包含以下交付与集成人修正：
+
+| 任务 | 来源提交 | 最终状态 |
+| --- | --- | --- |
+| U32 布局、路径和操作反馈 | `864c3aa`、`7d66368` | 已集成，垂直对齐、面包屑裁剪、亮暗提示像素/几何/消失及点击穿透测试通过 |
+| U33 删除冲突图标与危险动作 | `c12b7cf`、`7a9063f` | 已集成，真实按钮点击/禁用/图标与未保存保护测试通过 |
+| U34 斜杠图标与内容编辑 | `266824e`、`25d1b19` | 已集成，标记投影、中文组合输入、撤销、源码往返和 CRLF 实际保存测试通过 |
+| U35 更新前保存与退出 | `03201d2`、`d8e4cfe`、`16ca903` | 已集成，取消/失败保留草稿、多窗口、文档待提交编辑及更新 guard 重入测试通过 |
+| U36 本地 Secret 默认与完整历史 | `fc35d81`、`ce8f8f9`、`119f648` | 已集成，保留显式后端、二进制/大正文持久化和真实捕获状态测试通过 |
+| 集成人修正 | `765d494`、`a036a69`、`ce7c2f4`、`8d9953c`、`c867fd7`、`d6bf54a` | 下拉品牌色；退出 guard 显式接线；文档保存状态/CRLF；完整 SSE/错误输出与跨域过滤 |
+
+详细验证、已知旧失败和人工验收限制见 [最终集成报告](task-results/integration-U32-U36-2026-11-09.md)。未声称实机验收通过；未运行真实安装器、未访问真实 Secret、未 push。用户示例数据和 debug 产物未纳入提交。
