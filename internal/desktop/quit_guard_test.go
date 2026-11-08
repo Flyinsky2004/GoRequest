@@ -192,7 +192,7 @@ func TestHandoffLaunchFailureDoesNotQuit(t *testing.T) {
 
 func TestHandoffDiscardThenLaunchFailurePreservesDirty(t *testing.T) {
 	for _, viaDirectEntry := range []bool{false, true} {
-		name := "compat_resolveCloseGuard"
+		name := "resolveCloseGuard"
 		if viaDirectEntry {
 			name = "patched_tryResolveHandoffGuard"
 		}
@@ -255,7 +255,7 @@ func TestHandoffDiscardThenLaunchFailurePreservesDirty(t *testing.T) {
 
 func TestHandoffFirstWindowDiscardSecondWindowCancelPreservesDirty(t *testing.T) {
 	for _, viaDirectEntry := range []bool{false, true} {
-		name := "compat_resolveCloseGuard"
+		name := "resolveCloseGuard"
 		if viaDirectEntry {
 			name = "patched_tryResolveHandoffGuard"
 		}

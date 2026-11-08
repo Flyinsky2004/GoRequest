@@ -3,7 +3,6 @@ package desktop
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -33,28 +32,11 @@ type installerHandoff struct {
 	canceled func()
 
 	approved map[*App]windowDirtyFingerprint
-	preGuard map[*App]*preGuardSnapshot
 }
 
 type windowDirtyFingerprint struct {
 	tabs   map[*Tab]string
 	envSig string
-}
-
-// preGuardSnapshot lets onQuitGuardSettled preserve Dirty flags even before the
-// app.go resolveCloseGuard patch is integrated. Once app.go calls
-// tryResolveHandoffGuard directly, preGuard is simply cleared unused.
-type preGuardSnapshot struct {
-	tabs       map[*Tab]preGuardTab
-	envOpen    bool
-	envVisible bool
-	envID      string
-	envPtr     *core.Environment
-}
-
-type preGuardTab struct {
-	baseline string
-	reqPtr   *core.Request
 }
 
 type kvRowSnap struct {
@@ -431,86 +413,6 @@ func (h *installerHandoff) isApproved(app *App) bool {
 	return true
 }
 
-func (h *installerHandoff) capturePreGuard(app *App) {
-	if h == nil || app == nil || app.ps == nil {
-		return
-	}
-	flushAppDocEdits(app)
-	if h.preGuard == nil {
-		h.preGuard = make(map[*App]*preGuardSnapshot)
-	}
-	snap := &preGuardSnapshot{tabs: make(map[*Tab]preGuardTab)}
-	for _, tab := range app.ps.tabs {
-		if tab != nil && tab.Dirty {
-			var reqPtr *core.Request
-			if tab.Entry != nil {
-				reqPtr = tab.Entry.Request
-			}
-			snap.tabs[tab] = preGuardTab{
-				baseline: tab.Baseline,
-				reqPtr:   reqPtr,
-			}
-		}
-	}
-	if e := app.ps.envUI; e != nil && e.open && e.dirty() {
-		snap.envOpen = true
-		snap.envVisible = e.visible
-		id := e.envID
-		if e.mode == "new" {
-			id = strings.TrimSpace(e.idText)
-		}
-		snap.envID = id
-		if app.ps.project != nil {
-			snap.envPtr = app.ps.project.Environments[id]
-		}
-	}
-	h.preGuard[app] = snap
-}
-
-func (h *installerHandoff) settleCompat(app *App) {
-	if h == nil || app == nil || app.ps == nil {
-		return
-	}
-	snap := h.preGuard[app]
-	delete(h.preGuard, app)
-	if snap == nil {
-		return
-	}
-	// If tryResolveHandoffGuard was not yet wired into app.go,
-	// resolveCloseGuard(true) called clearDirty() before onQuitGuardSettled.
-	// Detect whether saveAllDirty() actually saved or clearDirty() discarded.
-	saved := false
-	for tab, pre := range snap.tabs {
-		if tab.Baseline != pre.baseline {
-			saved = true
-			break
-		}
-		if tab.Entry != nil && tab.Entry.Request != pre.reqPtr {
-			saved = true
-			break
-		}
-	}
-	if !saved && snap.envOpen && app.ps.project != nil {
-		if app.ps.project.Environments[snap.envID] != snap.envPtr {
-			saved = true
-		}
-	}
-	if saved {
-		delete(h.approved, app)
-		return
-	}
-	// Restore the Dirty markers that clearDirty() cleared and record per-window
-	// discard approval instead, so Dirty stays intact until launch succeeds.
-	for tab := range snap.tabs {
-		tab.Dirty = true
-	}
-	if snap.envOpen && app.ps.envUI != nil {
-		app.ps.envUI.open = true
-		app.ps.envUI.visible = snap.envVisible
-	}
-	h.approveWindow(app)
-}
-
 // tryResolveHandoffGuard is the Manager entry point for app.go's
 // resolveCloseGuard when an update handoff is active. Save still runs
 // saveAllDirty(); Discard records the window's dirty fingerprint in the
@@ -524,7 +426,6 @@ func (m *Manager) tryResolveHandoffGuard(app *App, discard bool) bool {
 		return false
 	}
 	flushAppDocEdits(app)
-	delete(m.handoff.preGuard, app)
 	if !discard {
 		if err := app.saveAllDirty(); err != nil {
 			app.closeGuard.errMsg = err.Error()

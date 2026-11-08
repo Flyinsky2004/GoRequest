@@ -494,7 +494,6 @@ func (m *Manager) promptQuitGuard() {
 				continue
 			}
 			delete(m.handoff.approved, app)
-			m.handoff.capturePreGuard(app)
 		}
 		app.win.Show()
 		app.win.Focus()
@@ -514,9 +513,6 @@ func (m *Manager) promptQuitGuard() {
 // (saved or discarded).
 func (m *Manager) onQuitGuardSettled(app *App) {
 	app.closeGuard.active = false
-	if m.handoff != nil {
-		m.handoff.settleCompat(app)
-	}
 	m.promptQuitGuard()
 }
 
