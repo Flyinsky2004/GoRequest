@@ -881,3 +881,15 @@ Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t3
 - 新划归的documentation.go/doc_live*/doc_table*由本批独占；U14/U15对这些文件的Tab/下拉调用迁移交patch，不直接写。其他任务及公共uikit组件/依赖/全局配置保持；自有图标/翻译放独立文件。
 - 使用ui-ux-pro-max核对现有原生主题/焦点/键盘，不引入WebView，不升级MyGo/go.mod/go.sum。每卡go build ./...与必要受影响测试，ui.Tester可控时钟；报告真实命令/结果/限制，不拿纯模型测试冒充鼠标输入与实机绘制。保留§31已复现基线失败，不改无关断言掩盖。
 - 完成后docs/task-results/U16.md/U17.md记录实现、接线、验证、真实目录/分支、基线及本地commit；暂存仅任务文件，不改总账本、不push/merge、不派子agent/操作其他会话。未交付集成和验收前不勾完成。
+
+
+### 34.2 实际启动句柄
+
+两个worktree从登记提交 `238e426` 创建，通过Herdr tab.new交互启动Claude Code，已分别读屏核对目录/任务/bypass permissions，并用hc get确认working、无信任等待。沿用默认DeepSeek V4.1 Flash 1017 (Mistral)，未指定或改变模型。
+
+| ID | Herdr终端 | tab ID |
+| --- | --- | --- |
+| U16 | t4x | tb0df4b566da57620e0521edacda040dba |
+| U17 | t4y | tb94963fc6e67620ec6fc41887a78009ba |
+
+已通过各自现有终端通知U14/U15：documentation.go/doc_live*/doc_table*由本批独占，相关迁移交patch；未终止/替换其他任务。§34表中待启动是登记时状态，以本节已启动/开发中为准。提示词与sessions.json仅存本机 `/private/tmp/gorequest-u16-u17-20261108/`。本轮主工作区仅静态核对/登记与启动，尚未交付/合并/验收、不勾完成，未运行功能build或测试。用户示例环境、文档和debug产物保持。
