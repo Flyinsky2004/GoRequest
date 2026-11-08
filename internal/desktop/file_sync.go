@@ -413,7 +413,7 @@ func editedBytesForTab(ps *projectState, ctrl *fileSyncController, tab *Tab) ([]
 		if tab.DocEditor == nil {
 			return nil, nil
 		}
-		return []byte(tab.DocEditor.Buffer.String()), nil
+		return documentBytesForSave(tab), nil
 	}
 	baseBytes := baselineBytesForTab(ps, ctrl, tab)
 	req, err := requestForSaveFromTab(ps, tab)
@@ -702,7 +702,7 @@ func (a *App) saveTabSynced(tab *Tab) error {
 	if tab.DocEditor == nil {
 		return fmt.Errorf("document has no editor buffer")
 	}
-	content := []byte(tab.DocEditor.Buffer.String())
+	content := documentBytesForSave(tab)
 	newDigest, serr := ps.project.SaveDoc(tab.DocRel, content, tab.Baseline)
 	if serr != nil {
 		if core.IsConflict(serr) {

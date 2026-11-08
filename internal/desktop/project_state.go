@@ -368,7 +368,7 @@ func (ps *projectState) saveTab(tab *Tab) error {
 		tab.Dirty = false
 		return nil
 	}
-	content := []byte(tab.DocEditor.Buffer.String())
+	content := documentBytesForSave(tab)
 	digest, err := ps.project.SaveDoc(tab.DocRel, content, tab.Baseline)
 	if err != nil {
 		return err

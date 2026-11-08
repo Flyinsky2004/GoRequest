@@ -552,6 +552,18 @@ func TestDocCanvasChineseIMENoFinalNewlineCRLFFallbacks(t *testing.T) {
 	if got := activeBlockEditor(t, observed, crlfTab).Buffer.String(); got != "Win Heading" {
 		t.Fatalf("projected CRLF heading = %q, want %q", got, "Win Heading")
 	}
+	activeBlockEditor(t, observed, crlfTab).Buffer.Set("Edited Heading")
+	tt.Frame()
+	if err := a.saveTabSynced(crlfTab); err != nil {
+		t.Fatal(err)
+	}
+	saved, _, err := ps.project.Store.Read(crlfTab.DocRel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(saved) != "## Edited Heading\r\n\r\n> Win Quote\r\n" {
+		t.Fatalf("canvas save changed the document line endings: %q", saved)
+	}
 
 	// 3. Complex blocks (fenced code, nested list, mixed-depth quote) fall back
 	// to lossless source in the active editor.
