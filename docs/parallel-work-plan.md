@@ -1024,3 +1024,18 @@ main从 `27db078` 快进至集成代码提交 `4d59451`，包含3条来源no-ff�
 - 更新弹窗至少暂不更新/更新/跳过此版本/永远不提示，显示当前/目标版本和说明；提供设置入口与中文/English。“更新”必须实际选择当前平台附件、下载/校验SHA256SUMS或GitHub digest并打开安装器/映像等可执行流程；不能只打开Releases网页冒充安装，macOS需用户完成替换时如实说明，下载/启动安装器不冒称已安装。实际下一次启动运行版本变化才重置缓存；不无条件退出有脏编辑的程序。开发/无版本/无对应产物不得假成功；本轮只用fake下载/安装接口测试，不实际更新用户应用/安装产物。当前发布无MyGo签名feed，不可直接调用未配置的Updater就声称完成；不生成或提交私钥/凭据。
 - 文件归属按函数：app.trySend/HTTP生命周期归U24，App.View更新modal接线与manager.Start/settings/config/welcome.View归U25；双方不整文件格式化对方区域，必要交patch。U21不改U22 import_export_ui/i18n、不改U24 response/App、不改U25设置；U22不改U23 core/import_export.go；新增翻译独立文件优先。公共UIKit菜单/Tab沿用，不新增原生下拉。
 - 每卡应用ui-ux-pro-max核对原生界面/主题/焦点，允许build/vet/必要受影响测试、本地commit；报告docs/task-results/U21.md–U25.md写真实基线/目录/接线/验证/限制/提交。4项旧失败见§37，遇到记录实际输出不改断言掩盖。不得改go.mod/go.sum/MyGo源码版本、总账本/其他分支/全局模型配置，不派子agent、不merge/push；实机没跑就明确未验收。
+
+
+### 38.2 实际启动句柄
+
+5条从登记基线 `ab0967d` 创建独立worktree，经Herdr tab.new交互启动Claude Code。逐条读屏核对任务/目录/分支与bypass permissions、hc get确认working，无信任等待；沿用默认DeepSeek V4.1 Flash 1017 (Mistral)，不指定或修改模型。
+
+| ID | Herdr终端 | tab ID |
+| --- | --- | --- |
+| U21 | t54 | tb3452e6330c949cebdfcae76c70db11a4 |
+| U22 | t55 | tbebdd1157963719c9135d4de295c58476 |
+| U23 | t56 | tb9b2330e304612089e2980fa5a36f2381 |
+| U24 | t57 | tb006096415ee761f09627cd0a396c15b3 |
+| U25 | t58 | tb35d9fc74d18ca7c969c53884259fae67 |
+
+§38表中待启动是登记时状态，以本节已启动/开发中为准；尚未交付/合并/验收，不勾完成。完整任务提示与sessions.json仅保存在本机 `/private/tmp/gorequest-u21-u25-20261108/` 不入Git。主工作区本轮仅静态审查/只读Release核对/登记派工，未跑功能构建测试，未实际更新安装App；用户原有示例环境/文档/debug产物与其他会话保留。
