@@ -1127,3 +1127,16 @@ U21-interop-i18n.patch先核对U22是否已覆盖勿重复套；U23-import_expor
 | U29 | t5h | tbd6935a22b2503729ce4f525050e34a3d | gemini-4-argon-medium |
 
 以上取代登记表待启动状态，现为开发中，尚未交付/合并/验收。完整prompts与sessions.json仅存本机/private/tmp/gorequest-u26-u29-20261108/。本次主工作区只登记派工，未修改产品代码，用户已有改动和其他会话保留。
+
+
+## 41. U30：响应正文树形折叠图标（2026-11-08）
+
+用户追加一位agy Sonnet修复响应渲染区→正文→树形的折叠/展开图标过小。核对main 0c390c6和实际response_view.go：现为16px按钮/12px文字三角；旧FIX04测试约束紧凑尺寸与对齐，需按本次清晰可见的新要求合理更新，保留防超大留白/对齐/点击功能回归。
+
+| ID / 负责人 | 分支 / 实际worktree | 归属 | 状态 |
+| --- | --- | --- | --- |
+| U30 / agy claude-sonnet-5-5-medium | agy/U30-response-tree-icons / /private/tmp/gorequest-u30-20261108/worktree | response_view.go仅树形toggle度量/绘制/对应占位，相关树形专项测试，docs/task-results/U30.md | 待启动 |
+
+从本登记提交建立worktree，保持U26–U29独立开发。U29对response_view.go树形区域如需配色接线交patch，不与U30同时改该区域；U30不改共享UIKit/palette和其他卡文件。使用ui-ux-pro-max及现有SVG图标优先，图标实际可见面积、点击区域、垂直居中、同深度键对齐和叶子占位一致，适配亮暗主题/嵌套数组对象/展开折叠及键盘焦点；不把整棵树不必要放大，不只扩大按钮留白。
+
+允许本地commit，必要build/vet及树形专项验证；报告真实验证和未实机限制，不派子agent、不merge/push、不改总账本/go.mod/go.sum/MyGo源码/全局模型，不操作其他会话或真实用户数据。4项旧失败沿用§40，不改断言掩盖无关旧失败。用户已有dev.yaml/document.md和debug产物保留。尚未交付/集成/验收。
