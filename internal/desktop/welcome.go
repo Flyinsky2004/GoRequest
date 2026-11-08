@@ -1,14 +1,29 @@
 package desktop
 
 import (
+	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"gorequest/internal/brand"
+	"gorequest/internal/core"
 	"gorequest/internal/desktop/uikit"
+)
+
+// newProjectMode is the kind of project the creation sheet builds. The two
+// modes have different path rules, so the UI keeps the choice explicit instead
+// of inferring it from whether the folder happens to be empty.
+type newProjectMode int
+
+const (
+	// newProjectIndependent creates <parent>/<project name>/.gorequest.
+	newProjectIndependent newProjectMode = iota
+	// newProjectExisting creates <existing code root>/.gorequest directly.
+	newProjectExisting
 )
 
 // welcomeState is the lightweight project-chooser window: the brand, the
@@ -27,11 +42,15 @@ type welcomeState struct {
 	recentFilter string
 
 	// New-project wizard state. The parent is typed or chosen with the native
-	// folder picker; creation never overwrites an existing folder.
-	newProjOpen   bool
-	newProjName   string
-	newProjParent string
-	newProjErr    string
+	// folder picker; creation never overwrites an existing folder. The mode
+	// chooses between a new project subfolder and an existing code root.
+	newProjOpen     bool
+	newProjMode     newProjectMode
+	newProjName     string
+	newProjParent   string
+	newProjDir      string
+	newProjErr      string
+	newProjOpenPath string // existing project offered by "Open It"
 }
 
 // wire connects the welcome window's lifecycle. Closing it is always allowed;
@@ -178,13 +197,62 @@ func (w *welcomeState) settingsModal(c *ui.Context, t *ui.Theme) {
 }
 
 // openNewProject resets and shows the wizard, defaulting the location to the
-// user's home directory.
+// user's home directory. The independent mode is the default because it is the
+// safer choice for a new project; the existing-code mode is one click away.
 func (w *welcomeState) openNewProject() {
 	home, _ := os.UserHomeDir()
 	w.newProjOpen = true
+	w.newProjMode = newProjectIndependent
 	w.newProjName = ""
 	w.newProjParent = home
+	w.newProjDir = ""
 	w.newProjErr = ""
+	w.newProjOpenPath = ""
+}
+
+// newProject geometry. The sheet sizes itself from the window instead of
+// relying on a fixed width, so a 560×360 welcome window still shows both mode
+// cards and the footer: the body scrolls, the action row never does.
+const (
+	newProjectWindowInset = 80 // 40 DIPs of modal margin + 20 DIPs of padding per side
+	newProjectMaxWidth    = 640
+	newProjectMinWidth    = 360
+	newProjectMaxHeight   = 460
+	newProjectMinHeight   = 220
+)
+
+func newProjectGeometryFor(winW, winH float32) (width, height float32) {
+	width = winW - newProjectWindowInset
+	if width > newProjectMaxWidth {
+		width = newProjectMaxWidth
+	}
+	if width < newProjectMinWidth {
+		width = newProjectMinWidth
+	}
+	height = winH - newProjectWindowInset
+	if height > newProjectMaxHeight {
+		height = newProjectMaxHeight
+	}
+	if height < newProjectMinHeight {
+		height = newProjectMinHeight
+	}
+	// A window smaller than the preferred floor must still contain the sheet.
+	if room := winW - newProjectWindowInset; room > 0 && width > room {
+		width = room
+	}
+	if room := winH - newProjectWindowInset; room > 0 && height > room {
+		height = room
+	}
+	return width, height
+}
+
+func (w *welcomeState) setNewProjectMode(mode newProjectMode) {
+	if w.newProjMode == mode {
+		return
+	}
+	w.newProjMode = mode
+	w.newProjErr = ""
+	w.newProjOpenPath = ""
 }
 
 func (w *welcomeState) newProjectModal(c *ui.Context, t *ui.Theme) {
@@ -192,30 +260,45 @@ func (w *welcomeState) newProjectModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	m := w.msg()
+	pm := w.projectMsg()
 	p := uikit.PaletteFor(t)
 	open := true
 	ui.Modal(c, &open, func() {
-		ui.Column(c).Gap(10).MinWidth(460).Children(func() {
-			ui.Text(c, m.NewProjectTitle).FontSize(16).Bold().TextColor(p.Text)
-			ui.Text(c, m.NewProjectHint).FontSize(12).TextColor(p.Muted)
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, m.NameLabel).FontSize(12).TextColor(p.Muted).Width(80)
-				ui.TextInput(c, &w.newProjName).Grow(1).SingleLine().Placeholder(m.ProjectNamePlaceholder).AutoFocus()
-			})
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, m.ProjectLocationLabel).FontSize(12).TextColor(p.Muted).Width(80)
-				ui.TextInput(c, &w.newProjParent).Grow(1).SingleLine().Font("monospace")
-				if uikit.ActionCursor(ui.Button(c, m.Browse)).Clicked() {
-					w.mgr.pickDirectory(w.win, m.ChooseProjectLocation, m.ChooseProjectLocationMsg, func(path string) {
-						w.newProjParent = path
+		winW, winH := c.Size()
+		width, height := newProjectGeometryFor(winW, winH)
+		ui.Column(c).Gap(10).Width(width).Height(height).Children(func() {
+			ui.Text(c, m.NewProjectTitle).FontSize(16).Bold().TextColor(p.Text).Shrink(0)
+			ui.Text(c, m.NewProjectHint).FontSize(12).TextColor(p.Muted).Shrink(0)
+
+			ui.Scroll(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+				ui.Column(c).Gap(10).FillWidth().Children(func() {
+					ui.Text(c, pm.ModeSection).FontSize(11).FontWeight(600).TextColor(p.Muted).SingleLine()
+					ui.Row(c).Gap(10).FillWidth().AlignItems(ui.Stretch).Children(func() {
+						w.projectModeCard(c, p, newProjectIndependent, uikit.IconFolder,
+							pm.ModeIndependent, pm.ModeIndependentDesc)
+						w.projectModeCard(c, p, newProjectExisting, uikit.IconCode,
+							pm.ModeExisting, pm.ModeExistingDesc)
 					})
-				}
+
+					w.newProjectFields(c, p, m, pm)
+					w.newProjectPathPreview(c, p, pm)
+					ui.Text(c, pm.KeyboardHint).FontSize(11).TextColor(p.Faint)
+
+					if w.newProjErr != "" {
+						ui.Text(c, w.newProjErr).FontSize(12).TextColor(t.Danger)
+					}
+					if w.newProjOpenPath != "" {
+						ui.Text(c, pm.ProjectExistsHint).FontSize(11).TextColor(p.Muted)
+					}
+				})
 			})
-			ui.Text(c, m.NewProjectFolderHint).FontSize(11).TextColor(p.Faint)
-			if w.newProjErr != "" {
-				ui.Text(c, w.newProjErr).FontSize(12).TextColor(t.Danger)
-			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+
+			ui.Row(c).Gap(8).Justify(ui.End).Shrink(0).Children(func() {
+				if w.newProjOpenPath != "" {
+					if uikit.ActionCursor(ui.Button(c, pm.OpenExisting)).Clicked() {
+						w.openExistingProject()
+					}
+				}
 				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					w.newProjOpen = false
 					open = false
@@ -232,8 +315,144 @@ func (w *welcomeState) newProjectModal(c *ui.Context, t *ui.Theme) {
 	}
 }
 
+// projectModeCard draws one large, selectable mode card. Selection is shown by
+// the border, a tinted surface and a check icon (never color alone); the card
+// is a ButtonBase, so it takes keyboard focus and Enter/Space choose it, and
+// the left/right arrows switch modes while the card has focus.
+func (w *welcomeState) projectModeCard(c *ui.Context, p uikit.Palette, mode newProjectMode,
+	icon *ui.SVG, title, desc string) {
+	selected := w.newProjMode == mode
+	card := ui.ButtonBase(c).Grow(1).Shrink(1).MinWidth(0).
+		AlignItems(ui.Stretch).Justify(ui.Start).Radius(10).Padding(12).
+		BorderWidth(1).BorderColor(p.Hairline)
+	switch {
+	case selected:
+		card.BorderWidth(2).BorderColor(p.Accent).Background(p.Accent.Alpha(0.08))
+	case card.Hovered():
+		card.Background(p.Hover)
+	}
+	card.Label(title)
+	card.Children(func() {
+		ui.Column(c).Grow(1).FillWidth().Gap(6).Children(func() {
+			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+				if icon != nil {
+					ui.Icon(c, icon).FontSize(18).TextColor(p.Text)
+				}
+				ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(p.Text).SingleLine().Grow(1)
+				if selected {
+					ui.Icon(c, uikit.IconCheck).FontSize(14).TextColor(p.Accent)
+				}
+			})
+			ui.Text(c, desc).FontSize(11).TextColor(p.Muted)
+		})
+	})
+	if card.Clicked() {
+		w.setNewProjectMode(mode)
+	}
+	card.OnShortcut(0, ui.KeyLeft, func() { w.setNewProjectMode(newProjectIndependent) })
+	card.OnShortcut(0, ui.KeyRight, func() { w.setNewProjectMode(newProjectExisting) })
+}
+
+// newProjectFields draws the inputs that belong to the chosen mode. The
+// independent mode asks for a project name and a parent folder; the
+// existing-code mode asks only for the code root, because the folder name is
+// the project name and no extra folder is created.
+func (w *welcomeState) newProjectFields(c *ui.Context, p uikit.Palette, m *messages, pm *welcomeProjectMessages) {
+	if w.newProjMode == newProjectExisting {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, pm.ExistingLocationLabel).FontSize(12).TextColor(p.Muted).Width(88).Shrink(0)
+			ui.TextInput(c, &w.newProjDir).Grow(1).SingleLine().Font("monospace")
+			if uikit.ActionCursor(ui.Button(c, m.Browse)).Clicked() {
+				w.mgr.pickDirectory(w.win, pm.ChooseExistingLocation, pm.ChooseExistingLocationMsg, func(path string) {
+					w.newProjDir = path
+					w.newProjErr = ""
+					w.newProjOpenPath = ""
+					if core.HasProject(path) {
+						w.newProjOpenPath = path
+					}
+				})
+			}
+		})
+		ui.Text(c, pm.ExistingLocationHint).FontSize(11).TextColor(p.Faint)
+		if dir := strings.TrimSpace(w.newProjDir); dir != "" {
+			ui.Text(c, translate(pm.ExistingNameHint, filepath.Base(dir))).
+				FontSize(11).TextColor(p.Muted).SingleLine()
+		}
+		return
+	}
+
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, m.NameLabel).FontSize(12).TextColor(p.Muted).Width(88).Shrink(0)
+		ui.TextInput(c, &w.newProjName).Grow(1).SingleLine().
+			Placeholder(m.ProjectNamePlaceholder).AutoFocus()
+	})
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, m.ProjectLocationLabel).FontSize(12).TextColor(p.Muted).Width(88).Shrink(0)
+		ui.TextInput(c, &w.newProjParent).Grow(1).SingleLine().Font("monospace")
+		if uikit.ActionCursor(ui.Button(c, m.Browse)).Clicked() {
+			w.mgr.pickDirectory(w.win, m.ChooseProjectLocation, m.ChooseProjectLocationMsg, func(path string) {
+				w.newProjParent = path
+			})
+		}
+	})
+	ui.Text(c, m.NewProjectFolderHint).FontSize(11).TextColor(p.Faint)
+}
+
+// newProjectPathPreview shows exactly where .gorequest will be written. It is
+// the same computation the creation uses, so the preview cannot drift from the
+// real result.
+func (w *welcomeState) newProjectPathPreview(c *ui.Context, p uikit.Palette, pm *welcomeProjectMessages) {
+	path := w.newProjectFinalPath(pm)
+	ui.Column(c).Gap(3).FillWidth().Padding(8, 10).Radius(8).
+		Background(p.Sidebar).BorderWidth(1).BorderColor(p.Hairline).Children(func() {
+		ui.Text(c, pm.FinalPathLabel).FontSize(11).FontWeight(600).TextColor(p.Muted).SingleLine()
+		ui.Text(c, path).Font("monospace").FontSize(12).TextColor(p.Text).SingleLine().Tooltip(path)
+	})
+}
+
+func (w *welcomeState) newProjectFinalPath(pm *welcomeProjectMessages) string {
+	if w.newProjMode == newProjectExisting {
+		dir := strings.TrimSpace(w.newProjDir)
+		if dir == "" {
+			return pm.FinalPathExistingPlaceholder
+		}
+		return filepath.Join(dir, ".gorequest")
+	}
+	if strings.TrimSpace(w.newProjParent) == "" || strings.TrimSpace(w.newProjName) == "" {
+		return pm.FinalPathIndependentPlaceholder
+	}
+	target, err := core.ProjectDirFor(w.newProjParent, w.newProjName)
+	if err != nil {
+		return pm.FinalPathIndependentPlaceholder
+	}
+	return filepath.Join(target, ".gorequest")
+}
+
 func (w *welcomeState) createProject() {
 	m := w.msg()
+	pm := w.projectMsg()
+	w.newProjErr = ""
+	w.newProjOpenPath = ""
+
+	if w.newProjMode == newProjectExisting {
+		dir := strings.TrimSpace(w.newProjDir)
+		if dir == "" {
+			w.newProjErr = pm.ErrChooseExistingDir
+			return
+		}
+		root, err := w.mgr.createProjectInPlace(dir)
+		if err != nil {
+			w.newProjErr = translate(m.NewProjectFailed, err.Error())
+			if errors.Is(err, core.ErrProjectExists) {
+				w.newProjOpenPath = dir
+			}
+			return
+		}
+		w.newProjOpen = false
+		w.status = translate(m.CreatedProject, filepath.Base(root))
+		return
+	}
+
 	if strings.TrimSpace(w.newProjName) == "" {
 		w.newProjErr = m.ErrEnterProjectName
 		return
@@ -242,11 +461,32 @@ func (w *welcomeState) createProject() {
 		w.newProjErr = m.ErrEnterProjectLocation
 		return
 	}
-	if _, err := w.mgr.createProjectAt(w.newProjParent, w.newProjName); err != nil {
+	root, err := w.mgr.createProjectAt(w.newProjParent, w.newProjName)
+	if err != nil {
 		w.newProjErr = translate(m.NewProjectFailed, err.Error())
+		if errors.Is(err, core.ErrProjectExists) {
+			if target, terr := core.ProjectDirFor(w.newProjParent, w.newProjName); terr == nil {
+				w.newProjOpenPath = target
+			}
+		}
 		return
 	}
 	w.newProjOpen = false
 	w.newProjErr = ""
-	w.status = translate(m.CreatedProject, w.newProjName)
+	w.status = translate(m.CreatedProject, filepath.Base(root))
+}
+
+// openExistingProject opens a project the creation flow refused to overwrite.
+func (w *welcomeState) openExistingProject() {
+	path := w.newProjOpenPath
+	if path == "" {
+		return
+	}
+	if err := w.mgr.openProject(path); err != nil {
+		w.newProjErr = translate(w.msg().OpenFailed, err.Error())
+		return
+	}
+	w.newProjOpen = false
+	w.newProjErr = ""
+	w.newProjOpenPath = ""
 }

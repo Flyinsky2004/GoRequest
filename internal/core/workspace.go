@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,11 @@ import (
 	"sort"
 	"strings"
 )
+
+// ErrProjectExists reports that the chosen folder already contains a
+// .gorequest project. Callers can offer to open it instead of creating a new
+// project over it.
+var ErrProjectExists = errors.New("a GoRequest project already exists in this folder")
 
 // This file owns the B02 workspace primitives that are pure data and filesystem
 // work, so the desktop layer only renders and dispatches:
@@ -78,14 +84,10 @@ func OpenGlobalWorkspace() (*Project, error) {
 	return EnsureGlobalWorkspace(dir)
 }
 
-// CreateProjectAt creates a new project directory under parent and scaffolds
-// .gorequest inside it, then returns the project root.
-//
-// The target directory is <parent>/<slug(name)>. It must be absent or empty, and
-// an existing .gorequest is never overwritten, so pointing the wizard at a
-// folder with unrelated work cannot damage it. A failure cleans up the new
-// directory only when this call created it.
-func CreateProjectAt(parent, name string) (string, error) {
+// ProjectDirFor returns the folder CreateProjectAt would create for name under
+// parent, without touching the filesystem. It is used for the wizard's final
+// path preview, so the preview and the actual creation cannot disagree.
+func ProjectDirFor(parent, name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", configErrorf("project name is empty")
@@ -102,6 +104,22 @@ func CreateProjectAt(parent, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return filepath.Join(absParent, folder), nil
+}
+
+// CreateProjectAt creates a new project directory under parent and scaffolds
+// .gorequest inside it, then returns the project root.
+//
+// The target directory is <parent>/<slug(name)>. It must be absent or empty, and
+// an existing .gorequest is never overwritten, so pointing the wizard at a
+// folder with unrelated work cannot damage it. A failure cleans up the new
+// directory only when this call created it.
+func CreateProjectAt(parent, name string) (string, error) {
+	target, err := ProjectDirFor(parent, name)
+	if err != nil {
+		return "", err
+	}
+	absParent := filepath.Dir(target)
 	st, err := os.Stat(absParent)
 	if err != nil {
 		return "", fmt.Errorf("project location: %w", err)
@@ -109,7 +127,9 @@ func CreateProjectAt(parent, name string) (string, error) {
 	if !st.IsDir() {
 		return "", configErrorf("project location %q is not a folder", parent)
 	}
-	target := filepath.Join(absParent, folder)
+	if HasProject(target) {
+		return "", fmt.Errorf("%w: %s", ErrProjectExists, filepath.Join(target, ".gorequest"))
+	}
 
 	created := false
 	if st, err := os.Stat(target); err == nil {
@@ -141,6 +161,81 @@ func CreateProjectAt(parent, name string) (string, error) {
 			// call could have added is .gorequest/.
 			_ = os.RemoveAll(filepath.Join(target, ".gorequest"))
 		}
+		return "", err
+	}
+	return p.DirParent(), nil
+}
+
+// HasProject reports whether dir already contains a .gorequest entry. It
+// checks the entry itself, not only a valid project.yaml, because any existing
+// .gorequest must be treated as owned by the user and never overwritten.
+func HasProject(dir string) bool {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return false
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	if filepath.Base(abs) == ".gorequest" {
+		_, err := os.Lstat(abs)
+		return err == nil
+	}
+	_, err = os.Lstat(filepath.Join(abs, ".gorequest"))
+	return err == nil
+}
+
+// CreateProjectInPlace scaffolds .gorequest directly inside dir, which is the
+// root of existing code (and may contain a .git). The project name is the
+// folder's base name; no extra project subfolder is created.
+//
+// It never runs git init, never writes outside .gorequest and never modifies
+// existing files. An existing .gorequest is refused with ErrProjectExists. A
+// failure removes only the .gorequest directory this call created.
+func CreateProjectInPlace(dir string) (string, error) {
+	return createProjectInPlace(dir, NewProject)
+}
+
+func createProjectInPlace(dir string, scaffold func(string, string) (*Project, error)) (string, error) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return "", configErrorf("project location is empty")
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	st, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("project location: %w", err)
+	}
+	if !st.IsDir() {
+		return "", configErrorf("project location %q is not a folder", dir)
+	}
+	gq := filepath.Join(abs, ".gorequest")
+	if _, err := os.Lstat(gq); err == nil {
+		return "", fmt.Errorf("%w: %s", ErrProjectExists, gq)
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("checking %s: %w", gq, err)
+	}
+	// Claim .gorequest atomically. If another process created it in the
+	// meantime, os.Mkdir fails and nothing of ours is written.
+	if err := os.Mkdir(gq, 0o755); err != nil {
+		if os.IsExist(err) {
+			return "", fmt.Errorf("%w: %s", ErrProjectExists, gq)
+		}
+		return "", fmt.Errorf("creating %s: %w", gq, err)
+	}
+	name := filepath.Base(abs)
+	if name == "" || name == "." || name == string(filepath.Separator) {
+		name = "GoRequest"
+	}
+	p, err := scaffold(abs, name)
+	if err != nil {
+		// .gorequest did not exist before this call, so removing it restores
+		// the folder exactly as it was; existing code and .git are untouched.
+		_ = os.RemoveAll(gq)
 		return "", err
 	}
 	return p.DirParent(), nil
