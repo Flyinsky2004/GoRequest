@@ -81,14 +81,14 @@ func TestThemeFromPalette(t *testing.T) {
 	if th.Background != p.BG || th.Text != p.Text || th.TextMuted != p.Muted {
 		t.Fatalf("theme surfaces/text should follow the palette")
 	}
-	if th.Accent != p.Focus || th.AccentText != p.OnFocus {
-		t.Fatalf("theme interactive accent should follow palette Focus/OnFocus")
+	if th.Accent != p.Accent || th.AccentText != p.OnAccent {
+		t.Fatalf("theme interactive accent should follow palette Accent/OnAccent")
 	}
-	if th.Selection != p.Selection {
-		t.Fatalf("selection should follow palette Selection")
+	if th.Selection != p.Accent.Alpha(0.3) {
+		t.Fatalf("native selection should follow the original brand accent")
 	}
-	if th.Focus != p.FocusRing {
-		t.Fatalf("focus ring should follow palette FocusRing")
+	if th.Focus != p.Accent.Alpha(0.55) {
+		t.Fatalf("native focus ring should follow the original brand accent")
 	}
 }
 

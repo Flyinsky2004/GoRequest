@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func isCoolHue(c ui.Color) bool { return int(c.B) > int(c.R)+25 && int(c.G) > int(c.R) }
+func isCoolHue(c ui.Color) bool  { return int(c.B) > int(c.R)+25 && int(c.G) > int(c.R) }
 func isRedHue(c color.RGBA) bool { return c.R > 150 && int(c.R)-int(c.G) > 80 }
 
 func TestU29TokensAreNotRedAndContrast(t *testing.T) {
@@ -40,11 +40,11 @@ func TestU29TokensAreNotRedAndContrast(t *testing.T) {
 	}
 }
 
-func TestU29ThemeKeepsBrandOutOfInputs(t *testing.T) {
+func TestNativeThemeRestoresBrandInteractionColors(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		th, p := themeFor(dark)
-		if th.Accent != p.Focus || th.Accent == p.Accent {
-			t.Fatalf("dark=%v Theme.Accent (used by MyGo inputs) must be Focus", dark)
+		if th.Accent != p.Accent || th.AccentText != p.OnAccent {
+			t.Fatalf("dark=%v Theme.Accent (used by MyGo inputs and menus) must be the brand accent", dark)
 		}
 		if th.Danger != p.Danger || th.Success != p.Success {
 			t.Fatalf("dark=%v danger/success mismatch", dark)
@@ -52,12 +52,13 @@ func TestU29ThemeKeepsBrandOutOfInputs(t *testing.T) {
 	}
 }
 
-// focusedInputPixels renders a focused input and reports whether any border or
-// caret pixel is error-red, and whether the focus color shows up.
-func TestU29FocusedInputsNeverRed(t *testing.T) {
+// Render actual input borders so wrappers and direct MyGo inputs both restore
+// the brand accent without a later control changing their draw-time theme.
+func TestFocusedInputsRestoreBrandAccent(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		th, p := themeFor(dark)
 		v1, v2, v3 := "hello", "multi\nline", "al"
+		on := true
 		build := func(c *ui.Context) {
 			c.SetTheme(th)
 			ui.Column(c).Padding(12).Gap(10).Children(func() {
@@ -65,6 +66,7 @@ func TestU29FocusedInputsNeverRed(t *testing.T) {
 				TextArea(c, &v2).Width(200).Label("in2")
 				Autocomplete(c, &v3, []string{"alpha", "alps"}).Width(200).Label("in3")
 				ui.TextInput(c, &v1).Width(200).Label("plain")
+				Switch(c, &on).Label("enabled")
 			})
 		}
 		for _, label := range []string{"in1", "in2", "in3", "plain"} {
@@ -77,20 +79,24 @@ func TestU29FocusedInputsNeverRed(t *testing.T) {
 			}
 			r, _ := tt.Find(label)
 			im := tt.Image()
-			cool, red := 0, 0
+			cool, brand := 0, 0
 			for x := int(r.X); x < int(r.X+r.W); x++ {
 				for _, y := range []int{int(r.Y), int(r.Y + r.H - 1)} {
 					c := im.RGBAAt(x, y)
 					if isRedHue(c) {
-						red++
+						brand++
 					}
 					if int(c.B) > int(c.R)+25 {
 						cool++
 					}
 				}
 			}
-			if red > 0 || cool == 0 {
-				t.Fatalf("dark=%v %s focused border: red=%d cool=%d (focus %v)", dark, label, red, cool, p.Focus)
+			if brand == 0 || cool > 0 {
+				t.Fatalf("dark=%v %s focused border: brand=%d cool=%d (accent %v) rect=%v top=%v theme=%v", dark, label, brand, cool, p.Accent, r, im.RGBAAt(int(r.X+r.W/2), int(r.Y)), th.Accent)
+			}
+			sw, ok := tt.Find("enabled")
+			if !ok || accentPixels(tt, sw, p.Success) == 0 {
+				t.Fatalf("dark=%v enabled switch lost its green track", dark)
 			}
 		}
 	}

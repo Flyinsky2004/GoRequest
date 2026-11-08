@@ -249,13 +249,9 @@ func BrandAccentPressed(p Palette) ui.Color {
 // Theme builds a ui.Theme whose surfaces, text and semantic tokens come from
 // the palette, so built-in widgets match the kit.
 //
-// In MyGo v0.7.4, text inputs (TextInput, TextArea, Autocomplete, Combobox,
-// NumberInput) paint their focused border (inputBorder) and blinking caret
-// (paintInput) from t.Accent rather than t.Focus. Therefore Theme maps
-// t.Accent to p.Focus (and t.Selection / t.Focus to p.Selection / p.FocusRing)
-// so normal inputs never render an error-red focus border or caret, while
-// primary action controls (SendButton, SendPill, PillButton, PrimaryButton)
-// explicitly use the brand red-orange p.Accent / p.OnAccent.
+// MyGo uses Accent for menu highlights and native input focus/carets. Keep
+// those interactions in the original brand red-orange; semantic Focus/Info
+// tokens remain available to the workbench's other components and notices.
 func Theme(p Palette, dark bool) *ui.Theme {
 	p.Dark = dark
 	p = p.withDefaults()
@@ -265,9 +261,6 @@ func Theme(p Palette, dark bool) *ui.Theme {
 	} else {
 		t = ui.LightTheme()
 	}
-	black := ui.RGB(0, 0, 0)
-	white := ui.RGB(255, 255, 255)
-
 	t.Background = p.BG
 	t.Surface = p.Sidebar
 	t.SurfaceHover = p.BG.Mix(p.Text, 0.06)
@@ -275,17 +268,12 @@ func Theme(p Palette, dark bool) *ui.Theme {
 	t.Border = p.Hairline
 	t.Text = p.Text
 	t.TextMuted = p.Muted
-	t.Accent = p.Focus
-	t.AccentText = p.OnFocus
-	if dark {
-		t.AccentHover = p.Focus.Mix(white, 0.15)
-		t.AccentPressed = p.Focus.Mix(black, 0.20)
-	} else {
-		t.AccentHover = p.Focus.Mix(black, 0.12)
-		t.AccentPressed = p.Focus.Mix(black, 0.25)
-	}
-	t.Selection = p.Selection
-	t.Focus = p.FocusRing
+	t.Accent = p.Accent
+	t.AccentText = p.OnAccent
+	t.AccentHover = BrandAccentHover(p)
+	t.AccentPressed = BrandAccentPressed(p)
+	t.Selection = p.Accent.Alpha(0.3)
+	t.Focus = p.Accent.Alpha(0.55)
 	t.Danger = p.Danger
 	t.Warning = p.Warning
 	t.Success = p.Success

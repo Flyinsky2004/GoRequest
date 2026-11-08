@@ -61,6 +61,13 @@ func TestTabRightClickOpensContextMenu(t *testing.T) {
 			if got.R != want.R || got.G != want.G || got.B != want.B {
 				t.Fatalf("menu surface = %v, want theme background %v", got, want)
 			}
+			tt.Move(r.X+r.W/2, r.Y+r.H/2)
+			tt.Frame()
+			got = tt.Image().RGBAAt(int(r.X+2), int(r.Y+r.H/2))
+			want = uikit.PaletteFor(&ui.Theme{Dark: dark}).Accent
+			if got.R != want.R || got.G != want.G || got.B != want.B {
+				t.Fatalf("hovered menu item = %v, want original brand accent %v", got, want)
+			}
 			tt.Key(0, ui.KeyEscape)
 			if tt.HasText("Close Others") {
 				t.Fatal("Escape left the tab menu open")

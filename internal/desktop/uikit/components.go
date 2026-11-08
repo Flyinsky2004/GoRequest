@@ -148,12 +148,9 @@ func absf(v float32) float32 {
 	return v
 }
 
-// PrimaryButton creates a native MyGo primary action button styled with the
-// palette's brand red-orange Accent (p.Accent / p.OnAccent) while keeping the
-// active ui.Theme's Accent on the non-red Focus token for inputs and carets.
-// MyGo's styleButton captures base, hover, pressed and fg by value when the
-// button is constructed, so restoring t.Accent immediately after construction
-// keeps primary buttons in the brand color and text inputs in the focus color.
+// PrimaryButton explicitly uses the palette's brand red-orange colors even
+// when a surrounding view supplies a custom theme. Restore that theme after
+// construction: MyGo captures button colors by value.
 func PrimaryButton(c *ui.Context, label string) ui.Element {
 	t := c.Theme()
 	p := PaletteFor(t).withDefaults()
@@ -183,17 +180,17 @@ func Switch(c *ui.Context, on *bool) ui.Element {
 func syncInputTheme(c *ui.Context) {
 	t := c.Theme()
 	p := PaletteFor(t).withDefaults()
-	t.Accent = p.Focus
-	t.AccentText = p.OnFocus
-	t.Selection = p.Selection
-	t.Focus = p.FocusRing
+	t.Accent = p.Accent
+	t.AccentText = p.OnAccent
+	t.Selection = p.Accent.Alpha(0.3)
+	t.Focus = p.Accent.Alpha(0.55)
 	t.Danger = p.Danger
 	t.Warning = p.Warning
 	t.Success = p.Success
 }
 
 // TextInput creates a single-line text input whose focused border, caret and
-// selection use the palette's non-red Focus/Selection tokens (and Danger only
+// selection use the original brand accent (and Danger only
 // when marked invalid via .Error).
 func TextInput(c *ui.Context, value *string) ui.Element {
 	syncInputTheme(c)
@@ -201,14 +198,14 @@ func TextInput(c *ui.Context, value *string) ui.Element {
 }
 
 // TextArea creates a multi-line text input whose focused border, caret and
-// selection use the palette's non-red Focus/Selection tokens.
+// selection use the original brand accent.
 func TextArea(c *ui.Context, value *string) ui.Element {
 	syncInputTheme(c)
 	return ui.TextArea(c, value)
 }
 
 // Autocomplete creates an autocomplete text input whose focused border, caret,
-// selection and option highlight use the palette's non-red Focus tokens.
+// selection and option highlight use the original brand accent.
 func Autocomplete(c *ui.Context, value *string, options []string) ui.Element {
 	syncInputTheme(c)
 	return ui.Autocomplete(c, value, options)
