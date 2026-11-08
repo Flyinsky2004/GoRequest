@@ -925,3 +925,10 @@ Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t3
 ### 35.2 最终验证门禁
 
 Mock关闭顺序修正后，Mock包race连续20轮通过（15.679s）。最终build/vet通过、普通全仓只剩前述4项已复现旧失败；全仓race `go test -race ./... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunnerEditorDescribeAssertions|TestRunnerEditorPatchSuiteExtract|TestEngine_PolicyBlockedAndMissingSecretPreflight)$' -count=1` 退出码0（desktop 112.128s），无race。未额外skip Mock用例或任何新增功能用例。首次失败与调查/修正证据保留集成报告和临时日志。
+
+
+### 35.3 main与清理完成
+
+main从 `2394cce` 快进至集成代码提交 `f622ec1`，包含七条来源no-ff合并、公共接线/集成修正与验证报告。逐条确认来源头为main祖先、工作树仍干净后，精确关闭U11–U17的7个Herdr tab（t4r/t4s/t4t/t4v/t4w/t4x/t4y），全部ok:true；hc确认finished后逐个rm清除记录。随后不带force删除7个来源worktree与分支，并删除本轮临时集成worktree和 `integrate/U11-U17` 分支。最终GoRequest仅main与主worktree。
+
+Herdr保留原有t1h/t4q/t3w/t2s及其他项目t31/t4k；MyGo showcase分支未操作。清理前后用户dev.yaml、document.md、demo-server debug文件的内容摘要相同，原有改动/未跟踪状态保持。未push。全部来源提交与报告仍在main历史，功能边界/实机未验收范围保持§35.1与集成报告，不因清理完成宣称所有主功能卡验收通过。

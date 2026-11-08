@@ -59,3 +59,10 @@ go test -race ./... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunne
 ```
 
 退出码0、所有包通过（desktop 112.128s，uikit 12.033s，mockserver 2.057s），无race报告。仅跳过已有4项普通基线失败，未跳过Mock关闭用例、七卡新增用例或集成用例。失败的首次race、主分支20/100次调查输出及修正后结果均保留临时日志，不用重跑成功隐藏首次失败。
+
+
+## main与清理结果
+
+集成代码提交 `f622ec1`，main由 `2394cce` 快进到该提交。已验证7条来源提交全部为main祖先、来源工作区干净，随后逐个关闭本批7个Herdr tab，确认terminal finished后hc rm；使用非force操作删除7个来源分支/worktree及临时集成分支/worktree。最终GoRequest仅main与主工作区。
+
+保留原有t1h/t4q/t3w/t2s及其他项目t31/t4k、MyGo showcase PR分支；用户dev.yaml/document.md/demo-server debug文件前后摘要一致。未push。来源提交和报告保留在main历史；清理记录另行提交到账本。
