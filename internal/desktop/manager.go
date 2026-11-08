@@ -444,6 +444,12 @@ func (m *Manager) onWorkspaceClosed(app *App) {
 
 	if len(m.workspaces) == 0 {
 		m.showWelcome("")
+	} else if m.update != nil && m.update.getHost() == app.win {
+		nh := m.updateHostWindow()
+		m.update.setHost(nh)
+		if nh != nil && m.update.dialogOpen {
+			nh.Update(func() {})
+		}
 	}
 }
 

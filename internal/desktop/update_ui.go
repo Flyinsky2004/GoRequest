@@ -22,9 +22,12 @@ func (u *updateController) modalFor(w window, c *ui.Context, t *ui.Theme) {
 	if u == nil || !u.dialogOpen {
 		return
 	}
-	if h := u.getHost(); h != nil && h != w {
-		return
-	} else if h == nil && u.mgr != nil && u.mgr.updateHostWindow() != w {
+	h := u.getHost()
+	if (h == nil || h.IsDestroyed()) && u.mgr != nil {
+		h = u.mgr.updateHostWindow()
+		u.setHost(h)
+	}
+	if h != nil && h != w {
 		return
 	}
 	lang := defaultLanguage()

@@ -22,10 +22,14 @@ type fakeUpdateChecker struct {
 	err      error
 	calls    int
 	currents []string
+	onCall   func(call int)
 }
 
 func (f *fakeUpdateChecker) Check(ctx context.Context, current string) (*update.CheckResult, error) {
 	f.calls++
+	if f.onCall != nil {
+		f.onCall(f.calls)
+	}
 	f.currents = append(f.currents, current)
 	if f.err != nil {
 		return nil, f.err
@@ -284,26 +288,47 @@ func TestUpdateAutomaticErrorsStaySilent(t *testing.T) {
 func TestUpdateManualCheckQueuedBehindAuto(t *testing.T) {
 	installed := "0.0.1-dev"
 	clock := fixedClock()
-	checker := &fakeUpdateChecker{result: &update.CheckResult{Status: update.StatusUpToDate}}
+	autoInFlight := make(chan struct{})
+	releaseAuto := make(chan struct{})
+	autoDone := make(chan struct{})
+	checker := &fakeUpdateChecker{
+		result: &update.CheckResult{Status: update.StatusUpToDate},
+		onCall: func(call int) {
+			if call == 1 {
+				close(autoInFlight)
+				<-releaseAuto
+			}
+		},
+	}
 	m, u, _ := newUpdateTestManager(t, checker, &fakeUpdateDownloader{}, clock.Now, &installed, func(string) error { return nil })
 	m.showWelcome("")
 	u.setHost(m.welcome.win)
 
-	// Simulate an automatic check already in flight, then a manual request.
-	u.running.Store(true)
-	u.manualCheckFrom(m.welcome.win)
-	deadline := time.Now().Add(2 * time.Second)
-	for !u.manualPending.Load() && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+	// Start an automatic check in flight, then queue a manual request while it is blocked.
+	go func() {
+		u.runCheck(false)
+		close(autoDone)
+	}()
+	select {
+	case <-autoInFlight:
+	case <-time.After(3 * time.Second):
+		t.Fatal("automatic check never entered Checker.Check")
 	}
+
+	u.setHost(m.welcome.win)
+	u.runCheck(true)
 	if !u.manualPending.Load() {
 		t.Fatal("manual request was not queued behind the running check")
 	}
-	u.running.Store(false)
+	close(releaseAuto)
+	select {
+	case <-autoDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("automatic check and queued manual check did not finish")
+	}
 
-	// The next check runs the automatic body and then the queued manual body,
-	// so the user still gets a visible manual result.
-	u.runCheck(false)
+	// The queued manual body ran after the automatic check, so the user still
+	// gets a visible manual result.
 	if !u.dialogOpen || u.dialogKind != updateDialogResult || u.result != updateResultUpToDate {
 		t.Fatalf("queued manual result not shown: open=%v kind=%v result=%v", u.dialogOpen, u.dialogKind, u.result)
 	}

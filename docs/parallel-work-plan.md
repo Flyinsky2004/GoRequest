@@ -1047,10 +1047,33 @@ main从 `27db078` 快进至集成代码提交 `4d59451`，包含3条来源no-ff�
 
 | ID / 负责人 | 分支 / 实际worktree | 范围 | 状态 |
 | --- | --- | --- | --- |
-| INT21–25 / agy integrator | agy/integrate-U21-U25 / /private/tmp/gorequest-u21-u25-integration-20261108/worktree | 核对U21–U25完整报告/patch/当前代码，no-ff合并、补公共接线与集成回归；build/vet/普通全仓/必要race，main快进；安全删除5条已合并来源分支/worktree与精确Herdr会话 | 已登记，待启动 |
+| INT21–25 / agy integrator | agy/integrate-U21-U25 / /private/tmp/gorequest-u21-u25-integration-20261108/worktree | 核对U21–U25完整报告/patch/当前代码，no-ff合并、补公共接线与集成回归；build/vet/普通全仓/必要race，main快进；安全删除5条已合并来源分支/worktree与精确Herdr会话 | 代码已集成验证，待main快进与清理 |
 
 来源头：U21 `7a992f7`、U22 `be2139f`、U23 `2141d04`、U24 `5c74af2`、U25 `176df3f`。从本登记提交创建独立集成worktree。旧各卡“不得merge/操作其他会话”是开发阶段限制，本次用户明确授权的集成人可merge/快进main及仅本批来源清理；不push、不重置/覆盖用户文件、不操作其他终端/项目、不得实际安装更新/请求用户公网接口/读真实Secret。
 
 U21-interop-i18n.patch先核对U22是否已覆盖勿重复套；U23-import_export_ui.patch须处理来源切换默认新副本。重点组合SSE与更新各自App/Manager接线不能覆盖回调，中文/英文切换、重复cURL与中文日志共存、更新每日限制/同日安装版本变更重置/4动作和手动设置、首SSE事件在EOF前到达UI且取消保留。测试只用临时项目/fake下载安装/loopback/fake clock。4项既有失败见§37，复核后如实记录，不改旧断言掩盖，不多skip。
 
 集成人在docs/task-results/integration-U21-U25-2026-11-08.md和本账本登记来源/merge/验证/限制/main头/实际清理证据。本批5个来源提交必须已是main祖先且worktree干净，才能逐个tab.close（精确id、confirmed:true）并等hc finished后rm，再git worktree remove/git branch -d，不用force。保留t1h/t4q/t2s和其他项目t4k/MyGo showcase分支及用户dev.yaml/document.md/debug产物。集成人自己的新会话与worktree先保留，主agent收尾核对后再清理；未验证不能标完成。
+
+### 39.1 来源合并与公共接线
+
+从共同基线 `a12e525` 在 `/private/tmp/gorequest-u21-u25-integration-20261108/worktree`（`agy/integrate-U21-U25`）依次执行 `--no-ff` 合并，详见 [本轮集成报告](task-results/integration-U21-U25-2026-11-08.md)：
+
+| 任务 | 来源头 | 合并提交 |
+| --- | --- | --- |
+| U21 | `7a992f7` | `74341f4` |
+| U22 | `be2139f` | `d29ed89` |
+| U23 | `2141d04` | `17990e3` |
+| U24 | `5c74af2` | `4e3bc40` |
+| U25 | `176df3f` | `2d7cdcc` |
+
+- `U21-interop-i18n.patch` 经核对已由 U22 的 `interopLanguage()`/`interopMsg()` 覆盖，未重复套用。
+- `U23-import_export_ui.patch` 精确接入 `internal/desktop/import_export_ui.go` 的导入来源分段切换回调（`st.ConflictPolicyIdx = defaultConflictPolicyIdx(st.ImportSourceKind)`），使通用导入弹窗切换到 cURL 时同样默认「分配新 ID 副本」。
+- 补齐导入/导出通知横幅（`displayImportNotice`/`displayExportNotice`）与 `ImportBufferBusy` 的中英文双向热切换；补齐多项目窗口下关闭更新弹窗宿主窗口时向存活项目窗口迁移宿主的接线；将 `TestUpdateManualCheckQueuedBehindAuto` 中的 `time.Sleep` 轮询改为纯通道同步。
+- 新增 `internal/desktop/u21_u25_integration_test.go` 组合回归，覆盖中文项目菜单与导入诊断热切换、通用导入入口切 cURL 连导 3 次独立副本/撤销/陈旧预览重规划、实时 SSE（首事件先于 EOF、跨 chunk 脱敏与 UTF-8/CRLF 重组、多 Tab 隔离、取消保留）与更新弹窗共存及宿主迁移。
+
+### 39.2 验证门禁与限制
+
+- 未合并基线 `a12e525` 实际复跑确认 §37 的 4 项历史失败一致复现，未修改其断言。
+- `go build ./...`、`go vet ./...` 通过；`go test ./... -count=1` 除上述 4 项历史失败外全部通过；全仓 `go test -race ./... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunnerEditorDescribeAssertions|TestRunnerEditorPatchSuiteExtract|TestEngine_PolicyBlockedAndMissingSecretPreflight)$' -count=1` 退出码 0（`desktop` 122.357s，`core` 9.001s，`update` 1.248s），无 race，未额外 skip 任何用例。`git diff --check` 通过，`go.mod`/`go.sum` 无变化。
+- 本轮均为 headless `ui.Tester`、loopback `httptest`、fake clock/下载/安装器验证，未启动真实桌面窗口，不冒称实机窗口/输入法/安装器替换验收；各主功能卡不因代码合并勾为实机验收完成。

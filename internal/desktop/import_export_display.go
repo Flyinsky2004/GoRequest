@@ -495,7 +495,13 @@ var interopLossZH = map[string][]lossTranslation{
 // messages are translated in full; known core error prefixes get a Chinese
 // classification while the technical detail after the prefix is preserved.
 func (a *App) displayImportError(errText string) string {
-	if errText == "" || !a.interopIsZH() {
+	if errText == "" {
+		return ""
+	}
+	if !a.interopIsZH() {
+		if m := importBufferBusyZHRE.FindStringSubmatch(errText); m != nil {
+			return fmt.Sprintf(interopEN.ImportBufferBusy, m[1])
+		}
 		return errText
 	}
 	im := a.interopMsg()
@@ -518,6 +524,9 @@ func (a *App) displayImportError(errText string) string {
 	if strings.HasPrefix(errText, "请先保存或放弃编辑") {
 		return errText // already localized by ImportBufferBusy
 	}
+	if m := importBufferBusyENRE.FindStringSubmatch(errText); m != nil {
+		return fmt.Sprintf(im.ImportBufferBusy, m[1])
+	}
 	if strings.HasPrefix(errText, en.ErrorReadImportFilePrefix) {
 		return im.ErrorReadImportFilePrefix + strings.TrimPrefix(errText, en.ErrorReadImportFilePrefix)
 	}
@@ -535,6 +544,67 @@ func (a *App) displayImportError(errText string) string {
 		return fmt.Sprintf(im.ErrorUnrecognizedImportFormat, m[1])
 	}
 	return fmt.Sprintf(im.ErrorUnknownImportFmt, errText)
+}
+
+const (
+	replannedNoticeZH = "目标在预览后发生变化，已重新生成预览；请检查后再次确认。"
+	replannedNoticeEN = "The target changed after the preview; a fresh preview was generated. Review it and confirm again."
+)
+
+// displayImportNotice localizes an import status/replan/rollback notice for the
+// current UI language so hot-switching while the modal is open updates notices
+// on the next frame.
+func (a *App) displayImportNotice(notice string) string {
+	if notice == "" {
+		return ""
+	}
+	if a.interopIsZH() {
+		switch notice {
+		case replannedNoticeEN:
+			return replannedNoticeZH
+		case interopEN.ImportRolledBack:
+			return interopZH.ImportRolledBack
+		}
+		if m := importAppliedENRE.FindStringSubmatch(notice); m != nil {
+			return fmt.Sprintf("已导入 %s 项文件变更", m[1])
+		}
+		return notice
+	}
+	switch notice {
+	case replannedNoticeZH:
+		return replannedNoticeEN
+	case interopZH.ImportRolledBack:
+		return interopEN.ImportRolledBack
+	}
+	if m := importAppliedZHRE.FindStringSubmatch(notice); m != nil {
+		return fmt.Sprintf("Imported %s file change(s)", m[1])
+	}
+	return notice
+}
+
+// displayExportNotice localizes an export notice for the current UI language.
+func (a *App) displayExportNotice(notice string) string {
+	if notice == "" {
+		return ""
+	}
+	zhCopied := messagesFor(langSimplifiedChinese).Copied
+	enCopied := messagesFor(langEnglish).Copied
+	if a.interopIsZH() {
+		if notice == enCopied {
+			return zhCopied
+		}
+		if m := exportSavedENRE.FindStringSubmatch(notice); m != nil {
+			return fmt.Sprintf(interopZH.ExportSavedStatus, m[1])
+		}
+		return notice
+	}
+	if notice == zhCopied {
+		return enCopied
+	}
+	if m := exportSavedZHRE.FindStringSubmatch(notice); m != nil {
+		return fmt.Sprintf(interopEN.ExportSavedStatus, m[1])
+	}
+	return notice
 }
 
 // localizeBlockedDetail localizes the summary/conflict tail of an
@@ -590,7 +660,13 @@ var unrecognizedImportRE = regexp.MustCompile(`^unsupported or unrecognized impo
 
 // displayExportError localizes an error stored by the export flow.
 func (a *App) displayExportError(errText string) string {
-	if errText == "" || !a.interopIsZH() {
+	if errText == "" {
+		return ""
+	}
+	if !a.interopIsZH() {
+		if m := importBufferBusyZHRE.FindStringSubmatch(errText); m != nil {
+			return fmt.Sprintf(interopEN.ImportBufferBusy, m[1])
+		}
 		return errText
 	}
 	im := a.interopMsg()
@@ -608,6 +684,9 @@ func (a *App) displayExportError(errText string) string {
 	if strings.HasPrefix(errText, "请先保存或放弃编辑") {
 		return errText
 	}
+	if m := importBufferBusyENRE.FindStringSubmatch(errText); m != nil {
+		return fmt.Sprintf(im.ImportBufferBusy, m[1])
+	}
 	if m := exportTargetExistsRE.FindStringSubmatch(errText); m != nil {
 		return fmt.Sprintf(im.ErrorExportTargetExistsFmt, m[1])
 	}
@@ -624,4 +703,10 @@ var (
 	exportTargetExistsRE     = regexp.MustCompile(`^export target "([^"]*)" already exists$`)
 	unsupportedExportScopeRE = regexp.MustCompile(`^unsupported portable export scope "([^"]*)"$`)
 	targetFileExistsRE       = regexp.MustCompile(`^Target file "([^"]*)" already exists \(enable 'Allow Overwrite' to replace it\)\.$`)
+	importBufferBusyENRE     = regexp.MustCompile(`^Save or discard edits and stop any active request before changing (.+)\.$`)
+	importBufferBusyZHRE     = regexp.MustCompile(`^请先保存或放弃编辑，并停止正在执行的请求，再变更 (.+)。$`)
+	importAppliedENRE        = regexp.MustCompile(`^Imported (\d+) file change\(s\)$`)
+	importAppliedZHRE        = regexp.MustCompile(`^已导入 (\d+) 项文件变更$`)
+	exportSavedENRE          = regexp.MustCompile(`^Exported to (.+)$`)
+	exportSavedZHRE          = regexp.MustCompile(`^已导出至 (.+)$`)
 )

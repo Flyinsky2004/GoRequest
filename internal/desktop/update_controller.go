@@ -180,7 +180,11 @@ func (u *updateController) post(fn func()) {
 		return
 	}
 	h := u.getHost()
-	if h == nil {
+	if (h == nil || h.IsDestroyed()) && u.mgr != nil {
+		h = u.mgr.updateHostWindow()
+		u.setHost(h)
+	}
+	if h == nil || h.IsDestroyed() {
 		fn()
 		return
 	}

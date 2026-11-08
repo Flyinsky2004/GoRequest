@@ -100,6 +100,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 					ui.Text(c, im.SourceLabel).FontSize(12).TextColor(p.Muted)
 					sourceLabels := []string{im.SourceCURL, im.SourcePostman, im.SourcePortableBundle}
 					if _, changed := uikit.SimpleSegmented(c, p, &st.ImportSourceKind, sourceLabels); changed {
+						st.ConflictPolicyIdx = defaultConflictPolicyIdx(st.ImportSourceKind)
 						st.StagedPlan = nil
 						st.ImportErr = ""
 					}
@@ -151,7 +152,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 				ui.Text(c, a.displayImportError(st.ImportErr)).FontSize(12).TextColor(t.Danger)
 			}
 			if st.ImportNotice != "" {
-				ui.Text(c, st.ImportNotice).FontSize(12).TextColor(t.Success)
+				ui.Text(c, a.displayImportNotice(st.ImportNotice)).FontSize(12).TextColor(t.Success)
 			}
 
 			// Preview panel
@@ -314,7 +315,7 @@ func (a *App) exportModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 				ui.Text(c, a.displayExportError(st.ExportErr)).FontSize(12).TextColor(t.Danger)
 			}
 			if st.ExportNotice != "" {
-				ui.Text(c, st.ExportNotice).FontSize(12).TextColor(t.Success)
+				ui.Text(c, a.displayExportNotice(st.ExportNotice)).FontSize(12).TextColor(t.Success)
 			}
 
 			// Preview & Redaction/Loss notes
