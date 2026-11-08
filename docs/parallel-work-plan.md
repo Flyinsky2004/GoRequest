@@ -932,3 +932,24 @@ Mock关闭顺序修正后，Mock包race连续20轮通过（15.679s）。最终bu
 main从 `2394cce` 快进至集成代码提交 `f622ec1`，包含七条来源no-ff合并、公共接线/集成修正与验证报告。逐条确认来源头为main祖先、工作树仍干净后，精确关闭U11–U17的7个Herdr tab（t4r/t4s/t4t/t4v/t4w/t4x/t4y），全部ok:true；hc确认finished后逐个rm清除记录。随后不带force删除7个来源worktree与分支，并删除本轮临时集成worktree和 `integrate/U11-U17` 分支。最终GoRequest仅main与主worktree。
 
 Herdr保留原有t1h/t4q/t3w/t2s及其他项目t31/t4k；MyGo showcase分支未操作。清理前后用户dev.yaml、document.md、demo-server debug文件的内容摘要相同，原有改动/未跟踪状态保持。未push。全部来源提交与报告仍在main历史，功能边界/实机未验收范围保持§35.1与集成报告，不因清理完成宣称所有主功能卡验收通过。
+
+
+## 36. U18–U20 Secret存储选择、全量菜单统一与创建窗口增高（2026-11-08）
+
+用户明确要求再开CC：Secret支持选择当前可用存放方案（Keychain、~/.gorequest等）且切换同步复制；所有下拉统一成右上角新建按钮的窗口内菜单；项目创建窗口更高。当前main `f7aed63`，上一轮集成已完成，现有dev.yaml/示例文档和两个debug产物保留。本批从本登记提交创建3个独立worktree，沿用默认CC模型；只派工/验证启动，不把未交付记为完成。
+
+| ID / 负责人 | 分支 / 实际worktree | 文件归属与验收 | 状态 |
+| --- | --- | --- | --- |
+| U18 / CC secret-storage | cc/U18-secret-storage / /private/tmp/gorequest-u18-u20-20261108/secret-storage | platform/keychain/secrets/management及新后端/迁移文件，desktop/identity_management*/env-secret接线、projectState/manager.openProject秘密提供器与必要本机配置；可用方案选择、Keychain与home本地存储、双向复制/校验/失败回滚、多窗口生效 | 待启动 |
+| U19 / CC unified-menus | cc/U19-unified-menus / /private/tmp/gorequest-u18-u20-20261108/unified-menus | uikit/select.go及统一菜单组件、header_menus.go、全仓下拉入口迁移/测试/覆盖清单；统一新建按钮PopoverMenu样式和窗口内实现，不再以系统菜单为理由留旧下拉 | 待启动 |
+| U20 / CC project-height | cc/U20-project-height / /private/tmp/gorequest-u18-u20-20261108/project-height | welcome.go项目创建几何/布局、manager.showWelcome欢迎窗口高度及专属测试；默认窗口及大窗口创建面板实际更高，两卡/名称路径/操作可达，短屏仍滚动不越界 | 待启动 |
+
+### 36.1 实现与协作契约
+
+- U18用户已显式选择提供文件存储选项，旧“Keychain失败绝不落本地文件”约束解释为禁止静默降级，而不是禁止用户主动选本地方案；不因此再次询问。默认延续Keychain；本机偏好按项目/克隆隔离、放用户home/设备配置，不写Git项目。文件方案明确标识真实存储属性（若明文不能称加密），0700目录/0600文件、原子写/大小边界/拒绝危险链接，不以同文件保存密钥伪装加密。
+- U18切换流程是先枚举已管理/声明的现存Secret、预读来源、复制到目标、逐项读回校验，全部成功才持久化选择并刷新实际HTTP/WS/Runner使用的provider及各窗口缓存；失败保持原方案，回滚本轮目标变更，不清理来源。目标不同值不得无提示覆盖，提供冲突处理/可审查计划。保留源副本；不承诺持续双写，之后用户再切换时重新复制当前值。不能仅改UI标签而执行器仍读Keychain。
+- Keychain不支持/锁定要可见不可用原因；不要每帧探测系统凭据，不能为了探测写真实测试secret。环境变量保留既有只读优先级与行为，不当作可写迁移目标；不可枚举的旧Keychain条目采用声明+管理清单，明确覆盖边界不装作全库迁移。测试只用fake driver与临时home，绝不迁移/清理用户真实密钥。更新相应产品/决策说明中冲突的“永远仅Keychain”文案。
+- U19统一基准为右上角新建菜单的 `headerMenuButton` / MyGo `PopoverMenuButton`。必须迁移所有应用内点击展开的下拉（ui.MenuButton、uikit.Select、直接SelectBase及方法/Body/项目/环境/标签/文档/身份/Runner/Mock等），保留label/icon/Checked/Disabled/Separator/子菜单/键盘/焦点/外点/边缘翻转和Changed单次通知。使用本地MyGo公开API（包括Element.SetChanged）保持兼容，不改依赖/框架。系统菜单栏或明确右键上下文不是下拉选择器，单独列清。
+- U19交付逐文件覆盖清单及静态扫描证据，功能迁移而非只动箭头或动画；旧“框架菜单不迁移”的U15范围不能作为本任务豁免。保留已有可控动效且不破坏新建菜单参考外观；若公开API无法保持动效，报告实际范围，不以动效困难逃避菜单统一。
+- 文件交叉：U18独占identity_management*.go及Secret相关UI/配置，U20独占welcome.go与manager.showWelcome；U19对此只交最小U19-integration.patch，其他调用直接迁移。U18新增下拉调用现有uikit.Select签名，U19在组件层自动统一；必要使用新的共享菜单入口并在报告登记。U18 manager.openProject与U20 manager.showWelcome按函数归属并行，不跨区域格式化；其他公共app/config变更仅U18。
+- 使用ui-ux-pro-max核对主题/图标/焦点/键盘；每卡go build ./...与受影响测试，ui.Tester受控时钟；4项既有普通测试失败见§35，不改断言掩盖。报告docs/task-results/U18.md–U20.md记录真实实现/接线/命令/限制/提交，无实机截图不冒称实机验收。允许本地commit，不push/merge、不派子agent、不改依赖/全局模型/其他工作区/总账本，临时产物和Secret绝不入Git。
