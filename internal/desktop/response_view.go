@@ -25,8 +25,15 @@ const largeResponseThreshold = 2 << 20
 // row. Kept as constants so the container toggle and the placeholder cannot
 // drift apart.
 const (
-	jsonTreeToggleSize  float32 = 16 // square hit target (px) for ▾/▸
-	jsonTreeToggleGlyph float32 = 12 // chevron font size (px), matches row text
+	jsonTreeToggleSize  float32 = 20 // square hit target (px) for the chevron
+	jsonTreeToggleGlyph float32 = 16 // SVG chevron size (px); visibly larger than the 12px row text
+)
+
+// Accessible labels (also used by tests to locate the toggle) for the
+// expanded / collapsed state of a container row.
+const (
+	jsonTreeToggleExpandedLabel  = "json-tree-toggle:expanded"
+	jsonTreeToggleCollapsedLabel = "json-tree-toggle:collapsed"
 )
 
 // headerRow is one response header line shown read-only. Duplicate names stay
@@ -735,9 +742,9 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
 							ui.Box(c).Width(indent).Height(1)
 						}
 						if n.IsContainer() {
-							glyph := "▾"
+							label, rot := jsonTreeToggleExpandedLabel, float32(0)
 							if !row.Expanded {
-								glyph = "▸"
+								label, rot = jsonTreeToggleCollapsedLabel, -90
 							}
 							// A look-free ButtonBase keeps the pointer/keyboard
 							// behavior of Button but drops its wide theme padding,
@@ -745,9 +752,12 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
 							// floating in a large box.
 							toggle := ui.ButtonBase(c).
 								Size(jsonTreeToggleSize, jsonTreeToggleSize).
-								Radius(3).Cursor(ui.CursorPointer)
+								Radius(4).Cursor(ui.CursorPointer).Label(label)
 							toggle.Children(func() {
-								ui.Text(c, glyph).FontSize(jsonTreeToggleGlyph).TextColor(p.Muted)
+								// Shared SVG chevron (points down = expanded, rotated
+								// -90° = collapsed) centered in the hit target.
+								ui.Icon(c, uikit.IconChevron).FontSize(jsonTreeToggleGlyph).
+									TextColor(p.Text).Rotate(rot)
 							})
 							if toggle.Clicked() {
 								ts.collapsedPaths[n.Path] = row.Expanded
