@@ -34,6 +34,18 @@ var (
 
 // --- block lifecycle ------------------------------------------------------
 
+// adopt points the block editor state at parsed block b: its range, its
+// projected content text and the markers that projection hides.
+func (be *docBlockEdit) adopt(b docedit.Block) {
+	be.synthetic = false
+	be.start, be.end = b.Start, b.End
+	be.proj = docedit.NewProjection(b)
+	be.base = be.proj.Text()
+	be.srcBase = b.EditText()
+	be.terminator = b.Terminator()
+	be.kind, be.level = b.Kind, b.Level
+}
+
 // syncDocBlock reconciles the active block's transient editor with the
 // canonical buffer before a frame draws it. It commits a pending local edit,
 // adopts an external change (undo, another command), or drops a block that no
@@ -60,11 +72,7 @@ func (a *App) syncDocBlock(tab *Tab, st *docViewState) {
 		lineEnd := docedit.LineEnd(src, be.start)
 		if strings.TrimSpace(src[be.start:lineEnd]) != "" {
 			if b, ok := docedit.BlockAt(blocks, be.start); ok {
-				be.synthetic = false
-				be.start, be.end = b.Start, b.End
-				be.base = b.EditText()
-				be.terminator = b.HasTerminator()
-				be.kind, be.level = b.Kind, b.Level
+				be.adopt(b)
 				if local != be.base {
 					be.ed.Buffer.Reset(be.base)
 					be.ed.Select(0, 0)
@@ -86,8 +94,7 @@ func (a *App) syncDocBlock(tab *Tab, st *docViewState) {
 		return
 	}
 	be.start, be.end = b.Start, b.End
-	canon := b.EditText()
-	if canon == be.base {
+	if b.EditText() == be.srcBase {
 		if local != be.base {
 			a.commitDocBlock(tab, st)
 		}
@@ -97,10 +104,8 @@ func (a *App) syncDocBlock(tab *Tab, st *docViewState) {
 	// or another view. Canonical wins; the local edit was already committed
 	// when it mattered.
 	caret := be.ed.Cursor()
-	be.base = canon
-	be.terminator = b.HasTerminator()
-	be.kind, be.level = b.Kind, b.Level
-	be.synthetic = false
+	be.adopt(b)
+	canon := be.base
 	if local != canon {
 		be.ed.Buffer.Reset(canon)
 		off := max(0, min(caret, len(canon)))
@@ -109,7 +114,8 @@ func (a *App) syncDocBlock(tab *Tab, st *docViewState) {
 }
 
 // commitDocBlock writes the active editor's text back into the canonical
-// buffer as one minimal source-range edit. Untouched blocks keep every byte.
+// buffer as one minimal source-range edit. Untouched blocks keep every byte,
+// and any directional selection in the block editor is mapped across.
 func (a *App) commitDocBlock(tab *Tab, st *docViewState) {
 	lv := st.live
 	if lv == nil || lv.block == nil {
@@ -123,59 +129,70 @@ func (a *App) commitDocBlock(tab *Tab, st *docViewState) {
 	if local == be.base {
 		return
 	}
-	caret := be.ed.Cursor()
+	sel := be.ed.Selection()
+	// The editor shows content only; the projection writes the block's
+	// markers back so the saved Markdown keeps its structure.
+	srcText := be.proj.Commit(local)
+	srcAnchor := be.proj.SourceOffset(local, sel.Anchor)
+	srcHead := be.proj.SourceOffset(local, sel.Head)
 	if be.synthetic {
-		tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.start, End: be.end, Text: local})
+		tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.start, End: be.end, Text: srcText})
 	} else {
-		newText := local
-		if be.terminator {
-			newText += "\n"
-		}
+		newText := srcText + be.terminator
 		tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.start, End: be.end, Text: newText})
 	}
-	a.relocateDocBlock(tab, st, be.start+caret)
+	a.relocateDocBlockSelection(tab, st, be.start+srcAnchor, be.start+srcHead)
 }
 
 // relocateDocBlock points the active editor at the block that now holds
 // canonicalCaret, resetting its transient text when the block split, merged
 // or was replaced. A caret on a blank line becomes a synthetic empty block.
 func (a *App) relocateDocBlock(tab *Tab, st *docViewState, canonicalCaret int) {
+	a.relocateDocBlockSelection(tab, st, canonicalCaret, canonicalCaret)
+}
+
+func (a *App) relocateDocBlockSelection(tab *Tab, st *docViewState, canonicalAnchor, canonicalHead int) {
 	be := st.live.block
 	if be == nil {
 		return
 	}
 	src := tab.DocEditor.Buffer.String()
 	blocks := docLiveFor(st).blocksFor(src)
-	if b, ok := docBlockAtCaret(blocks, canonicalCaret); ok {
-		moved := be.synthetic || be.start != b.Start || be.end != b.End || be.ed.Buffer.String() != b.EditText()
-		be.synthetic = false
-		be.start, be.end = b.Start, b.End
-		be.base = b.EditText()
-		be.terminator = b.HasTerminator()
-		be.kind, be.level = b.Kind, b.Level
+	if b, ok := docBlockAtCaret(blocks, canonicalHead); ok {
+		wasSynthetic, oldStart, oldEnd := be.synthetic, be.start, be.end
+		be.adopt(b)
+		moved := wasSynthetic || oldStart != b.Start || oldEnd != b.End || be.ed.Buffer.String() != be.base
 		if be.ed.Buffer.String() != be.base {
 			be.ed.Buffer.Reset(be.base)
 		}
-		off := max(0, min(canonicalCaret-b.Start, len(be.base)))
-		be.ed.Select(off, off)
+		anchor := max(0, min(be.proj.ProjectedOffset(canonicalAnchor-b.Start), len(be.base)))
+		head := max(0, min(be.proj.ProjectedOffset(canonicalHead-b.Start), len(be.base)))
+		wantSel := editor.Selection{Anchor: anchor, Head: head}
+		if be.ed.Selection() != wantSel {
+			be.ed.SetSelections(wantSel)
+		}
 		if moved {
 			be.focusPending = true
 		}
 		return
 	}
-	off := docedit.LineStart(src, canonicalCaret)
+	off := docedit.LineStart(src, canonicalHead)
 	lineEnd := docedit.LineEnd(src, off)
 	if strings.TrimSpace(src[off:lineEnd]) == "" {
 		be.synthetic = true
 		be.start, be.end = off, off
 		be.base = ""
-		be.terminator = false
+		be.srcBase = ""
+		be.proj = docedit.Projection{}
+		be.terminator = ""
 		be.kind = docmd.Paragraph
 		be.level = 0
 		if be.ed.Buffer.String() != "" {
 			be.ed.Buffer.Reset("")
 		}
-		be.ed.Select(0, 0)
+		if be.ed.Selection() != (editor.Selection{}) {
+			be.ed.Select(0, 0)
+		}
 		be.focusPending = true
 		return
 	}
@@ -189,12 +206,8 @@ func (a *App) activateDocBlock(t *ui.Theme, tab *Tab, st *docViewState, b docedi
 	if lv.block != nil {
 		a.commitDocBlock(tab, st)
 	}
-	be := &docBlockEdit{
-		start: b.Start, end: b.End,
-		base: b.EditText(), terminator: b.HasTerminator(),
-		kind: b.Kind, level: b.Level,
-		focusPending: true,
-	}
+	be := &docBlockEdit{focusPending: true}
+	be.adopt(b)
 	be.ed = a.newDocBlockEditor(t, tab, st, be, be.base)
 	line := 0
 	if clickY > 0 {
@@ -528,6 +541,15 @@ func (a *App) docBlockInput(tab *Tab, st *docViewState, be *docBlockEdit, ev ui.
 	if ev.Mods == 0 && ev.Key == ui.KeyBackspace {
 		sel := be.ed.Selection()
 		if sel.Start() == 0 && sel.End() == 0 {
+			if be.synthetic {
+				return a.docBackspaceSynthetic(tab, st)
+			}
+			if be.proj.Active() {
+				// The hidden marker is the block's identity: Backspace at
+				// the start turns the block into plain text first, and only
+				// a second press joins it to the block before.
+				return a.docUnprojectBlock(tab, st)
+			}
 			return a.docMergePrevious(tab, st)
 		}
 	}
@@ -580,17 +602,108 @@ func (a *App) docBlockUndo(tab *Tab, st *docViewState, redo bool) {
 	src := buf.String()
 	blocks := docLiveFor(st).blocksFor(src)
 	if b, found := docedit.BlockAt(blocks, be.start); found {
-		be.synthetic = false
-		be.start, be.end = b.Start, b.End
-		be.base = b.EditText()
-		be.terminator = b.HasTerminator()
-		be.kind, be.level = b.Kind, b.Level
+		be.adopt(b)
 		be.ed.Buffer.Reset(be.base)
 		be.ed.Select(0, 0)
 		be.focusPending = true
 		return
 	}
 	st.live.block = nil
+}
+
+// docUnprojectBlock turns the active block into plain paragraph text: it
+// commits any pending edit, then replaces the block's source with its
+// content, dropping the heading, quote or list markers in one undoable edit.
+func (a *App) docUnprojectBlock(tab *Tab, st *docViewState) bool {
+	be := st.live.block
+	if be == nil || be.synthetic || !be.proj.Active() {
+		return false
+	}
+	a.commitDocBlock(tab, st)
+	be = st.live.block
+	if be == nil || !be.proj.Active() {
+		return true
+	}
+	text := be.proj.Text() + be.terminator
+	tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.start, End: be.end, Text: text})
+	a.relocateDocBlock(tab, st, be.start)
+	if st.live.block != nil {
+		st.live.block.focusPending = true
+	}
+	return true
+}
+
+// docBackspaceSynthetic collapses an empty blank-line block back into the end
+// of the preceding text block when Backspace is pressed at offset 0.
+func (a *App) docBackspaceSynthetic(tab *Tab, st *docViewState) bool {
+	be := st.live.block
+	if be == nil || !be.synthetic || be.ed.Buffer.Len() != 0 || be.start <= 0 {
+		return false
+	}
+	src := tab.DocEditor.Buffer.String()
+	blocks := docLiveFor(st).blocksFor(src)
+	prev, ok := docedit.PreviousBlock(blocks, be.start)
+	if !ok || !docCanMergeText(prev) {
+		return false
+	}
+	lineEnd := docedit.LineEnd(src, be.start)
+	if strings.TrimSpace(src[prev.End:lineEnd]) != "" {
+		return false
+	}
+	replacement := ""
+	if lineEnd < len(src) {
+		// Keep a single blank line before any block that follows.
+		replacement = "\n"
+		for lineEnd < len(src) && src[lineEnd] == '\n' {
+			lineEnd++
+		}
+	}
+	tab.DocEditor.Buffer.Edit(editor.Edit{Start: prev.End, End: lineEnd, Text: replacement})
+	caret := prev.End - len(prev.Terminator())
+	a.relocateDocBlock(tab, st, caret)
+	if st.live.block != nil {
+		st.live.block.focusPending = true
+	}
+	return true
+}
+
+// docCanMergeText reports whether two adjacent blocks can join their prose
+// without corrupting fences, tables, rules or front matter.
+func docCanMergeText(b docedit.Block) bool {
+	if b.FrontMatter {
+		return false
+	}
+	switch b.Kind {
+	case docmd.Paragraph, docmd.Heading, docmd.Quote, docmd.List:
+		return true
+	}
+	return false
+}
+
+// docMergeTextBlocks merges right onto the end of left while preserving any
+// projected markers (such as setext underlines, closing '#' or remaining list
+// items).
+func docMergeTextBlocks(left, right docedit.Block) (merged string, caretOffset int, ok bool) {
+	if !docCanMergeText(left) || !docCanMergeText(right) {
+		return "", 0, false
+	}
+	lp := docedit.NewProjection(left)
+	rp := docedit.NewProjection(right)
+	rightText := rp.Text()
+	tail := ""
+	if rp.Active() {
+		if first, _, more := strings.Cut(rightText, "\n"); more {
+			rightText = first
+			srcBody := right.EditText()
+			if nl := strings.IndexByte(srcBody, '\n'); nl >= 0 {
+				tail = "\n\n" + srcBody[nl+1:]
+			}
+		}
+	}
+	joined := lp.Text() + rightText
+	merged = lp.Commit(joined) + tail + right.Terminator()
+	caretOffset = lp.SourceOffset(joined, len(lp.Text()))
+	return merged, caretOffset, true
 }
 
 // docMergePrevious joins the active block into the block before it, as
@@ -611,12 +724,12 @@ func (a *App) docMergePrevious(tab *Tab, st *docViewState) bool {
 	if !ok {
 		return false
 	}
-	merged := prev.EditText() + cur.EditText()
-	if cur.HasTerminator() {
-		merged += "\n"
+	merged, caretOff, ok := docMergeTextBlocks(prev, cur)
+	if !ok {
+		return false
 	}
 	tab.DocEditor.Buffer.Edit(editor.Edit{Start: prev.Start, End: cur.End, Text: merged})
-	a.relocateDocBlock(tab, st, prev.Start+len(prev.EditText()))
+	a.relocateDocBlock(tab, st, prev.Start+caretOff)
 	if st.live.block != nil {
 		st.live.block.focusPending = true
 	}
@@ -641,12 +754,12 @@ func (a *App) docMergeNext(tab *Tab, st *docViewState) bool {
 	if !ok {
 		return false
 	}
-	merged := cur.EditText() + next.EditText()
-	if next.HasTerminator() {
-		merged += "\n"
+	merged, caretOff, ok := docMergeTextBlocks(cur, next)
+	if !ok {
+		return false
 	}
 	tab.DocEditor.Buffer.Edit(editor.Edit{Start: cur.Start, End: next.End, Text: merged})
-	a.relocateDocBlock(tab, st, cur.Start+len(cur.EditText()))
+	a.relocateDocBlock(tab, st, cur.Start+caretOff)
 	if st.live.block != nil {
 		st.live.block.focusPending = true
 	}
