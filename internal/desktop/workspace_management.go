@@ -36,6 +36,23 @@ func (m *Manager) createProjectAt(parent, name string) (string, error) {
 	return root, nil
 }
 
+// createProjectInPlace scaffolds .gorequest inside an existing code folder and
+// opens it. It never nests a project-name folder and never runs git init.
+func (m *Manager) createProjectInPlace(dir string) (string, error) {
+	root, err := core.CreateProjectInPlace(dir)
+	if err != nil {
+		return "", err
+	}
+	root, err = normalizeProjectPath(root)
+	if err != nil {
+		return "", err
+	}
+	if err := m.openProject(root); err != nil {
+		return "", err
+	}
+	return root, nil
+}
+
 // projectWorkspaces returns the open project windows that are not the global
 // scratch workspace, newest last. Transfers use this as their target list.
 func (m *Manager) projectWorkspaces() []*App {
