@@ -92,6 +92,11 @@ type Manager struct {
 	quitting bool
 	// pendingQuit marks a quit paused on a dirty-tab guard.
 	pendingQuit bool
+
+	// handoff is an update installer launch paused on the dirty-tab guard (see
+	// quit_guard.go). quitApp overrides mygo.App.Quit so tests never quit.
+	handoff *installerHandoff
+	quitApp func()
 }
 
 // msg returns the catalog for the manager's current language (read per frame).
@@ -152,6 +157,9 @@ func (m *Manager) WireApp() {
 		if m.quitting {
 			return // already resolved: let the quit proceed
 		}
+		// A user quit during an update handoff is an ordinary quit: it keeps
+		// its own guard and the installer is never opened behind it.
+		m.abandonHandoff()
 		if !m.anyDirty() {
 			m.quitting = true
 			return
@@ -476,9 +484,13 @@ func (m *Manager) promptQuitGuard() {
 			return
 		}
 	}
+	if m.handoff != nil {
+		m.finishHandoff()
+		return
+	}
 	m.quitting = true
 	m.pendingQuit = false
-	mygo.App.Quit()
+	m.quit()
 }
 
 // onQuitGuardSettled resumes the quit after a dirty window's guard was resolved
