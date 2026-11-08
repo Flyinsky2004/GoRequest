@@ -21,19 +21,18 @@ import (
 //   - XML tag                  = PUT blue
 //   - XML attribute            = POST amber mixed toward Muted
 func EditorTheme(t *ui.Theme) *editor.Theme {
-	p := PaletteFor(t)
+	p := PaletteFor(t).withDefaults()
 	ct := editor.DefaultTheme(t)
 
 	ct.Background = p.BG
 	ct.Text = p.Text
 	ct.LineNumber = p.Faint
 	ct.ActiveLineNumber = p.Muted
-	ct.Selection = p.Accent.Alpha(0.25)
-	ct.InactiveSelection = p.Accent.Alpha(0.14)
-	ct.Cursor = p.Accent
-	ct.Match = p.Accent.Alpha(0.25)
-	ct.CurrentMatch = p.Accent
-	ct.InactiveSelection = p.Accent.Alpha(0.14)
+	ct.Selection = p.Selection
+	ct.InactiveSelection = p.Focus.Alpha(0.14)
+	ct.Cursor = p.Focus
+	ct.Match = p.Focus.Alpha(0.25)
+	ct.CurrentMatch = p.Focus
 
 	green := MethodColor("GET", p)
 	blue := MethodColor("PUT", p)

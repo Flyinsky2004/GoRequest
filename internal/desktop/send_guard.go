@@ -94,7 +94,7 @@ func (a *App) sendGuardModal(c *ui.Context, t *ui.Theme) {
 					open = false
 					a.openEditEnvironment()
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.SendAnyway)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.SendAnyway)).Clicked() {
 					tab := a.sendGuard.tab
 					a.sendGuard = nil
 					open = false

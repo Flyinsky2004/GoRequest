@@ -390,7 +390,7 @@ func (a *App) envEditorBody(c *ui.Context, t *ui.Theme, ps *projectState, e *env
 				if uikit.ActionCursor(ui.Button(c, m.KeepEditing)).Clicked() {
 					e.confirmDiscard = false
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.Discard)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.Discard)).Clicked() {
 					e.close()
 				}
 			})
@@ -404,7 +404,7 @@ func (a *App) envEditorBody(c *ui.Context, t *ui.Theme, ps *projectState, e *env
 					e.close()
 				}
 			}
-			if uikit.ActionCursor(ui.PrimaryButton(c, m.Save)).Clicked() {
+			if uikit.ActionCursor(uikit.PrimaryButton(c, m.Save)).Clicked() {
 				a.saveEnvironmentDraft(ps)
 			}
 		})

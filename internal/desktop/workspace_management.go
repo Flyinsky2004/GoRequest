@@ -442,7 +442,7 @@ func (a *App) transferModal(c *ui.Context, t *ui.Theme) {
 					a.cancelTransfer()
 					open = false
 				}
-				confirm := ui.PrimaryButton(c, m.TransferConfirm).Disabled(d.plan.Blocked)
+				confirm := uikit.PrimaryButton(c, m.TransferConfirm).Disabled(d.plan.Blocked)
 				if uikit.ActionCursor(confirm).Clicked() {
 					a.applyTransfer()
 					// A failed apply keeps the draft (and its error) open; a

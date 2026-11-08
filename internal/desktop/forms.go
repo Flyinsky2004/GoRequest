@@ -137,7 +137,7 @@ func (a *App) newRequestModal(c *ui.Context, t *ui.Theme) {
 				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.newReqOpen = false
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.Create)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.Create)).Clicked() {
 					a.submitNewRequest()
 				}
 			})
@@ -167,7 +167,7 @@ func (a *App) newFolderModal(c *ui.Context, t *ui.Theme) {
 				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					a.newFolderOpen = false
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.CreateFolder)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.CreateFolder)).Clicked() {
 					a.submitNewFolder()
 				}
 			})
@@ -198,14 +198,14 @@ func (a *App) moveModal(c *ui.Context, t *ui.Theme) {
 					a.moveOpen = false
 				}
 				if a.moveTab.Dirty {
-					if uikit.ActionCursor(ui.PrimaryButton(c, m.SaveAndMove)).Clicked() {
+					if uikit.ActionCursor(uikit.PrimaryButton(c, m.SaveAndMove)).Clicked() {
 						a.doMove(true, false)
 					}
 					if uikit.ActionCursor(ui.Button(c, m.DiscardAndMove)).Clicked() {
 						a.doMove(false, true)
 					}
 				} else {
-					if uikit.ActionCursor(ui.PrimaryButton(c, m.MoveAction)).Clicked() {
+					if uikit.ActionCursor(uikit.PrimaryButton(c, m.MoveAction)).Clicked() {
 						a.doMove(false, false)
 					}
 				}
@@ -236,7 +236,7 @@ func (a *App) closeModal(c *ui.Context, t *ui.Theme) {
 				if uikit.ActionCursor(ui.Button(c, msgs.Discard)).Clicked() {
 					a.resolveCloseDirty(false)
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, msgs.SaveAndClose)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, msgs.SaveAndClose)).Clicked() {
 					a.resolveCloseDirty(true)
 				}
 			})

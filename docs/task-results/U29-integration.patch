@@ -1,0 +1,70 @@
+diff --git a/internal/desktop/response_view.go b/internal/desktop/response_view.go
+index a79f2e3..2fc41ef 100644
+--- a/internal/desktop/response_view.go
++++ b/internal/desktop/response_view.go
+@@ -654,7 +654,7 @@ func (a *App) responseBinaryView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit.P
+ 		ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
+ 			ui.Text(c, nm.BinaryPayloadTitle).FontSize(13).FontWeight(600).TextColor(p.Text)
+ 			ui.Box(c).Grow(1)
+-			if ui.PrimaryButton(c, nm.SaveBinaryBtn).Cursor(ui.CursorPointer).Clicked() {
++			if uikit.PrimaryButton(c, nm.SaveBinaryBtn).Cursor(ui.CursorPointer).Clicked() {
+ 				a.saveResponse(tab)
+ 			}
+ 		})
+@@ -761,7 +761,7 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
+ 						}
+ 						valColor := jsonKindColor(n.Kind, p)
+ 						if row.Matched {
+-							valColor = p.Accent
++							valColor = p.Focus
+ 						}
+ 						ui.Text(c, n.Value).FontSize(12).Font("monospace").SingleLine().Selectable().TextColor(valColor)
+ 						ui.Text(c, n.Path).FontSize(10).Font("monospace").SingleLine().TextColor(p.Faint)
+diff --git a/internal/desktop/secret_entry.go b/internal/desktop/secret_entry.go
+index 551a8d0..e0fc0a2 100644
+--- a/internal/desktop/secret_entry.go
++++ b/internal/desktop/secret_entry.go
+@@ -372,7 +372,7 @@ func (a *App) secretEntryModal(c *ui.Context, t *ui.Theme) {
+ 				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
+ 					a.closeSecretEntry(ps)
+ 				}
+-				if uikit.ActionCursor(ui.PrimaryButton(c, a.secretEntrySaveLabel(d, m))).Clicked() {
++				if uikit.ActionCursor(uikit.PrimaryButton(c, a.secretEntrySaveLabel(d, m))).Clicked() {
+ 					a.saveSecretEntry(ps)
+ 				}
+ 			})
+diff --git a/internal/desktop/settings.go b/internal/desktop/settings.go
+index 4c253bc..a0e24b6 100644
+--- a/internal/desktop/settings.go
++++ b/internal/desktop/settings.go
+@@ -165,7 +165,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
+ 		})
+ 
+ 		ui.Row(c).Gap(8).Justify(ui.End).Shrink(0).Children(func() {
+-			done := uikit.ActionCursor(ui.PrimaryButton(c, ""))
++			done := uikit.ActionCursor(uikit.PrimaryButton(c, ""))
+ 			done.Label(m.Done)
+ 			done.Children(func() {
+ 				if settingsIconDone != nil {
+diff --git a/internal/desktop/update_ui.go b/internal/desktop/update_ui.go
+index 4fa29d8..4bff89a 100644
+--- a/internal/desktop/update_ui.go
++++ b/internal/desktop/update_ui.go
+@@ -111,7 +111,7 @@ func (u *updateController) renderAvailable(c *ui.Context, p uikit.Palette, um *u
+ 		if uikit.ActionCursor(ui.Button(c, um.Later)).Clicked() {
+ 			u.later()
+ 		}
+-		if uikit.ActionCursor(ui.PrimaryButton(c, um.UpdateNow)).Clicked() {
++		if uikit.ActionCursor(uikit.PrimaryButton(c, um.UpdateNow)).Clicked() {
+ 			u.startDownload()
+ 		}
+ 	})
+@@ -153,7 +153,7 @@ func (u *updateController) renderResult(c *ui.Context, t *ui.Theme, p uikit.Pale
+ 				u.openSettings()
+ 			}
+ 		}
+-		if uikit.ActionCursor(ui.PrimaryButton(c, um.Close)).Clicked() {
++		if uikit.ActionCursor(uikit.PrimaryButton(c, um.Close)).Clicked() {
+ 			u.closeDialog()
+ 		}
+ 	})

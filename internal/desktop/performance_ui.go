@@ -104,7 +104,7 @@ func (a *App) PerformanceModals(c *ui.Context, t *ui.Theme) {
 						}
 
 						ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-							if ui.PrimaryButton(c, m.Start).Disabled(s.running || len(s.requests) == 0).Clicked() {
+							if uikit.PrimaryButton(c, m.Start).Disabled(s.running || len(s.requests) == 0).Clicked() {
 								a.StartPerformance()
 							}
 							if s.baseline != nil {

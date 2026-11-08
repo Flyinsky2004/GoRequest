@@ -61,7 +61,7 @@ func (a *App) RunnerEditorModals(c *ui.Context, t *ui.Theme) {
 					a.ReloadRunnerEditor()
 				}
 				ui.Box(c).Grow(1)
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.Save)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.Save)).Clicked() {
 					a.SaveRunnerEditor()
 				}
 			})
@@ -249,7 +249,7 @@ func (a *App) runnerEditorAssertionForm(c *ui.Context, t *ui.Theme, m runnerEdit
 			if uikit.ActionCursor(ui.Button(c, m.CancelEditButton)).Clicked() {
 				a.CancelRunnerEditorRow()
 			}
-			if uikit.ActionCursor(ui.PrimaryButton(c, m.ApplyButton)).Clicked() {
+			if uikit.ActionCursor(uikit.PrimaryButton(c, m.ApplyButton)).Clicked() {
 				a.ApplyRunnerEditorRow()
 			}
 		})
@@ -390,7 +390,7 @@ func (a *App) runnerEditorExtractForm(c *ui.Context, t *ui.Theme, m runnerEditor
 			if uikit.ActionCursor(ui.Button(c, m.CancelEditButton)).Clicked() {
 				a.CancelRunnerEditorExtract()
 			}
-			if uikit.ActionCursor(ui.PrimaryButton(c, m.ApplyButton)).Clicked() {
+			if uikit.ActionCursor(uikit.PrimaryButton(c, m.ApplyButton)).Clicked() {
 				a.ApplyRunnerEditorExtract()
 			}
 		})

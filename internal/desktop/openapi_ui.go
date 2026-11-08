@@ -244,7 +244,7 @@ func (a *App) renderOpenAPIImportSyncTab(c *ui.Context, t *ui.Theme, p uikit.Pal
 			a.StageOpenAPIPreview()
 		}
 		canApply := st.StagedPlan != nil && st.StagedPlan.Preview().CanApply
-		applyBtn := ui.PrimaryButton(c, om.ApplyButton)
+		applyBtn := uikit.PrimaryButton(c, om.ApplyButton)
 		if !canApply {
 			applyBtn.Disabled(true)
 		}
@@ -361,7 +361,7 @@ func (a *App) renderOpenAPIExportCoverageTab(c *ui.Context, t *ui.Theme, p uikit
 		if ui.Button(c, om.CopySpecButton).Clicked() {
 			a.CopyOpenAPIExportToClipboard(c)
 		}
-		if ui.PrimaryButton(c, om.SaveSpecFileButton).Clicked() {
+		if uikit.PrimaryButton(c, om.SaveSpecFileButton).Clicked() {
 			a.ExecuteOpenAPIExportToFile()
 		}
 		if ui.Button(c, om.CloseButton).Clicked() {
@@ -420,7 +420,7 @@ func (a *App) renderOpenAPIContractValidatorTab(c *ui.Context, t *ui.Theme, p ui
 		if ui.Button(c, om.AddUpdateResponseBtn).Clicked() {
 			a.StageDraftResponseContractEntry()
 		}
-		if ui.PrimaryButton(c, om.SaveContractButton).Clicked() {
+		if uikit.PrimaryButton(c, om.SaveContractButton).Clicked() {
 			a.SaveActiveRequestContract()
 		}
 	})
@@ -442,7 +442,7 @@ func (a *App) renderOpenAPIContractValidatorTab(c *ui.Context, t *ui.Theme, p ui
 		if ui.Button(c, om.UseLiveResponseBtn).Clicked() {
 			a.LoadLatestLiveResponseIntoValidator()
 		}
-		if ui.PrimaryButton(c, om.ValidateResponseBtn).Clicked() {
+		if uikit.PrimaryButton(c, om.ValidateResponseBtn).Clicked() {
 			a.ValidateActiveResponseAgainstContract()
 		}
 	})

@@ -575,7 +575,7 @@ func (a *App) closeGuardModal(c *ui.Context, t *ui.Theme) {
 					a.resolveCloseGuard(true)
 					open = false
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.SaveAll)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.SaveAll)).Clicked() {
 					a.resolveCloseGuard(false)
 					// Keep the modal open only while a save error remains.
 					open = a.closeGuard.active

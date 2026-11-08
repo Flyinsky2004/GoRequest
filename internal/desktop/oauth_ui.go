@@ -947,7 +947,7 @@ func (a *App) renderOAuthEditorMode(c *ui.Context, t *ui.Theme, tab *Tab, readOn
 			}
 		})
 		if strings.TrimSpace(clientSecret) != "" && !strings.Contains(clientSecret, "{{") {
-			ui.Text(c, om.LiteralSecretWarn).FontSize(11).TextColor(warnColor)
+			ui.Text(c, om.LiteralSecretWarn).FontSize(11).TextColor(uikit.MethodColor("POST", pal))
 		}
 
 		// 6. Scopes, Audience, Resource & Token Selection
@@ -1009,7 +1009,7 @@ func (a *App) renderOAuthEditorMode(c *ui.Context, t *ui.Theme, tab *Tab, readOn
 
 		ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
 			if !busy {
-				if ui.PrimaryButton(c, acquireLabel).Clicked() {
+				if uikit.PrimaryButton(c, acquireLabel).Clicked() {
 					a.triggerOAuthAcquireToken(ps, tab)
 				}
 			} else {

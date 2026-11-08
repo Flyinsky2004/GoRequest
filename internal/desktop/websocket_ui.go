@@ -135,7 +135,7 @@ func (a *App) wsURLRow(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m *
 					a.wsTabDisconnect(tab)
 				}
 			} else {
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.BtnConnect)).Disabled(st.busy).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.BtnConnect)).Disabled(st.busy).Clicked() {
 					a.wsTabConnect(tab)
 				}
 			}
@@ -431,7 +431,7 @@ func (a *App) wsSendArea(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m
 				hexIn := uikit.ActionCursor(ui.TextInput(c, &st.binaryDraft))
 				hexIn.FillWidth().Placeholder(m.SendBinaryHint).Disabled(!open)
 			}
-			if uikit.ActionCursor(ui.PrimaryButton(c, m.BtnSend).Disabled(!open)).Clicked() {
+			if uikit.ActionCursor(uikit.PrimaryButton(c, m.BtnSend).Disabled(!open)).Clicked() {
 				a.wsTabSend(tab)
 			}
 			if uikit.ActionCursor(ui.Button(c, m.BtnPing).Disabled(!open)).Clicked() {
