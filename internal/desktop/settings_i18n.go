@@ -18,7 +18,6 @@ const (
 	settingsCategoryWorkspace
 	settingsCategoryMarkdown
 	settingsCategoryHistory
-	settingsCategoryUpdates
 	settingsCategoryAbout
 	settingsCategoryCount
 )
@@ -34,7 +33,6 @@ func settingsCategoryTitles(l language) []string {
 			"Workspace",
 			"Markdown preview",
 			"History",
-			"Updates",
 			"About",
 		}
 	}
@@ -45,7 +43,24 @@ func settingsCategoryTitles(l language) []string {
 		"工作区偏好",
 		"Markdown 预览",
 		"历史",
-		"更新",
 		"关于",
 	}
+}
+
+// aboutTexts holds the About pane's own labels and the fixed project facts.
+type aboutTexts struct {
+	Developer, Contact, Project, Updates string
+}
+
+const (
+	aboutDeveloperName = "Flyinsky2004"
+	aboutContactEmail  = "w2084151024@gmail.com"
+	aboutProjectURL    = "https://github.com/Flyinsky2004/GoRequest"
+)
+
+func aboutTextsFor(l language) aboutTexts {
+	if l == langEnglish {
+		return aboutTexts{Developer: "Developer", Contact: "Contact email", Project: "Project", Updates: "UPDATES"}
+	}
+	return aboutTexts{Developer: "开发者", Contact: "联系邮箱", Project: "项目地址", Updates: "检查更新"}
 }

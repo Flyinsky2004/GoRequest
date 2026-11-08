@@ -196,18 +196,10 @@ func versionRow(c *ui.Context, p uikit.Palette, label, value string) {
 	})
 }
 
-// settingsUpdateContent draws the Settings "Updates" category. It shows the
-// real running version, the two persistent preferences, a manual check and the
-// last check outcome (including a raw error for traceability).
+// settingsUpdateContent draws the update controls inside Settings > About: the two persistent
+// preferences, a manual check and the last check outcome (including a raw error for traceability).
 func settingsUpdateContent(c *ui.Context, p uikit.Palette, lang language, host window, up *updateController, setStatus func(string)) {
 	um := updateMessagesFor(lang)
-	version := installedVersionLabel(lang)
-	if up != nil {
-		version = up.versionLabel(lang)
-	}
-	settingsGroup(c, p, um.VersionLabel, func() {
-		ui.Text(c, version).FontSize(12).TextColor(p.Text).SingleLine()
-	})
 	if up == nil {
 		ui.Text(c, um.UnavailableNote).FontSize(12).TextColor(p.Muted)
 		return

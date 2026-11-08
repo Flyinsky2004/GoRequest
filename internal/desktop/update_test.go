@@ -560,9 +560,12 @@ func TestUpdateSettingsCategoryHeadless(t *testing.T) {
 		t.Fatalf("open settings: %v", err)
 	}
 	tt.Frame()
-	if err := tt.Click("Updates"); err != nil {
-		t.Fatalf("open Updates category: %v", err)
+	if err := tt.Click("About"); err != nil {
+		t.Fatalf("open About category: %v", err)
 	}
+	tt.Frame()
+	// The update controls sit below the About facts; scroll the pane to them.
+	tt.Scroll(500, 300, 0, 800)
 	tt.Frame()
 
 	um := updateMessagesEn
@@ -601,7 +604,7 @@ func TestUpdateSettingsContentNarrow(t *testing.T) {
 			tt := ui.NewTester(func(c *ui.Context) {
 				p := uikit.PaletteFor(c.Theme())
 				ui.Column(c).Width(width).Children(func() {
-					settingsCategoryContentWithUpdates(c, p, messagesFor(lang), settingsCategoryUpdates,
+					settingsCategoryContentWithUpdates(c, p, messagesFor(lang), settingsCategoryAbout,
 						m.cfg, m.workspacePrefs(), u, nil, func(string) {})
 				})
 			}, width, 900)
@@ -619,7 +622,7 @@ func TestUpdateSettingsWithoutController(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if err := tt.Click("Updates"); err != nil {
+	if err := tt.Click("About"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
