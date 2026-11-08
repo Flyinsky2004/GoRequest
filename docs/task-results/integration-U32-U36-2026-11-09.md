@@ -21,7 +21,8 @@
 
 - 最终代码 `go build ./...`、`go vet ./...` 通过。
 - 最终代码 `go test ./... -count=1`：desktop 35.852s；仅下列四个基线已存在失败，没有新增失败：`TestMockEditorSuggestionsAreProjectUnique`、`TestRunnerEditorDescribeAssertions`、`TestRunnerEditorPatchSuiteExtract`、`TestEngine_PolicyBlockedAndMissingSecretPreflight`。未改旧失败断言，未将完整测试声称全绿。
-- 最终全仓 race 检查结果与本地打包结果在报告下方登记。
+- 最终代码 `go test -race ./... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunnerEditorDescribeAssertions|TestRunnerEditorPatchSuiteExtract|TestEngine_PolicyBlockedAndMissingSecretPreflight)$' -count=1` 全部通过（desktop 146.781s，UIKit 13.603s，core 9.992s），未报告数据竞争；只跳过前述四项基线失败。
+- main 已从 `9d9c724` ff-only 集成到 `4b50bfe`；在 main 执行 `sh scripts/make-macos-app.sh` 通过，更新 `bin/GoRequest.app`。没有启动安装器或重启用户程序。
 - 新增执行捕获测试以 loopback server 和假 Secret 覆盖 SSE 执行→历史保存→重载、错误原值、发送后才开启设置、跨域敏感头剥离；core 全包 race 7.312s 通过。
 - 布局/颜色/提示/斜杠图标及文档测试使用 headless ui.Tester、真实控件几何/像素与事件输入。集成人查看过亮暗工作区 PNG；没有将其视为实机人工验收。
 - 用户 dev.yaml、document.md、本地 debug 文件 SHA-256 与任务前一致；不纳入提交。未 push、未运行真实安装器、未退出用户正在运行的程序。
