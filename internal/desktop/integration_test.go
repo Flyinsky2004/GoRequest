@@ -17,7 +17,7 @@ func TestLastTabClosesThroughMergedWorkspace(t *testing.T) {
 	if len(ps.tabs) != 0 || !tt.HasText("Choose a request or document on the left.") {
 		t.Fatalf("closing the last tab should return to the workspace empty state: %v", tt.Texts())
 	}
-	if err := tt.Click("+"); err != nil {
+	if err := tt.Click(a.msg().NewRequest); err != nil {
 		t.Fatalf("open new menu: %v", err)
 	}
 	tt.Frame()

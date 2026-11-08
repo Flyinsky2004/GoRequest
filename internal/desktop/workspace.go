@@ -30,9 +30,11 @@ func (a *App) workspace(c *ui.Context, t *ui.Theme) {
 
 // workspaceHeader is the top bar (§2). It holds exactly three groups: the
 // project name with its switch dropdown on the left; the environment selector in
-// the middle-right; and the New Request pill plus the "+" new menu at the far
-// right. The project path line and the old flat row of six buttons are gone —
-// every secondary action now lives in a menu.
+// the middle-right; and the single new-entry drop-down at the far right. U26
+// removed the separate "New Request" pill, so the icon-only new menu is the one
+// creation entry; it still carries every original action and the ⌘T shortcut.
+// The project path line and the old flat row of six buttons are gone — every
+// secondary action now lives in a menu.
 func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 	m := a.msg()
 	p := uikit.PaletteFor(t)
@@ -52,17 +54,11 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 		if !ps.canEditEnv() {
 			ui.Text(c, m.SelectEnvHint).FontSize(11).TextColor(p.Faint).SingleLine()
 		}
-		// Far right: the New Request pill and the "+" new menu.
-		pill := uikit.ActionCursor(ui.ButtonBase(c)).Height(36).Radius(999).Padding(0, 18).Gap(6).AlignItems(ui.Center).Background(p.Hover)
-		pill.Children(func() {
-			ui.Icon(c, uikit.IconPlus).FontSize(14).TextColor(p.Text)
-			ui.Text(c, m.NewRequest).FontSize(14).FontWeight(600).TextColor(p.Text).SingleLine()
-		})
-		pill.Label(m.NewRequest).Tooltip(m.NewRequest + " ⌘T")
-		if pill.Clicked() {
-			a.openNewRequest()
-		}
-		headerMenuButton(c, p, "+", func(mm *ui.Menu) { a.buildNewMenu(mm, ps) })
+		// Far right: the one new-entry drop-down. The icon-only trigger keeps
+		// the original menu, its keyboard model and its drawn popover; the
+		// accessible name and the shortcut stay discoverable on hover.
+		newMenuButton(c, p, m.NewRequest, m.NewRequest+" ⌘T",
+			func(mm *ui.Menu) { a.buildNewMenu(mm, ps) })
 	})
 }
 
