@@ -9,8 +9,6 @@ import (
 	"gorequest/internal/desktop/uikit"
 )
 
-const appVersion = "0.1.0 (MVP)"
-
 // appearanceDark resolves whether the frame should use the dark palette. An
 // explicit Light/Dark choice wins; otherwise it follows the desktop's current
 // appearance, read from the theme the frame started with.
