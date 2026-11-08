@@ -3,6 +3,7 @@ package uikit
 import (
 	"image"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -87,6 +88,24 @@ func TestThemedSelectKeyboard(t *testing.T) {
 		t.Fatalf("Space chose %q, want Gamma", h.choice)
 	}
 
+	// Home and End move the highlight to the first and last option.
+	if err := tt.Click("select-trigger"); err != nil {
+		t.Fatalf("reopen trigger: %v", err)
+	}
+	tt.Key(0, ui.KeyHome)
+	tt.Key(0, ui.KeyEnter)
+	if h.choice != "Alpha" {
+		t.Fatalf("Home chose %q, want Alpha", h.choice)
+	}
+	if err := tt.Click("select-trigger"); err != nil {
+		t.Fatalf("reopen trigger: %v", err)
+	}
+	tt.Key(0, ui.KeyEnd)
+	tt.Key(0, ui.KeyEnter)
+	if h.choice != "Gamma" {
+		t.Fatalf("End chose %q, want Gamma", h.choice)
+	}
+
 	// Escape closes without choosing. The trigger now shows Gamma, so Alpha
 	// only appears while the popup is open.
 	if err := tt.Click("select-trigger"); err != nil {
@@ -122,6 +141,9 @@ func TestThemedSelectRendersIcons(t *testing.T) {
 	if err := tt.Click("select-trigger"); err != nil {
 		t.Fatalf("click trigger: %v", err)
 	}
+	// The popup fades and scales in; let the shared drop-down spring settle
+	// before sampling its pixels.
+	tt.Advance(400 * time.Millisecond)
 	img = tt.Image()
 	// An option's icon is 16 wide, 8 left of its label (gap 8). Alpha is
 	// skipped because the trigger also shows it, and Find returns the first
