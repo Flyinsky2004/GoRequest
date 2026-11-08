@@ -41,13 +41,20 @@ func applyAppearance(c *ui.Context, cfg *configStore) {
 // renderSettings shows the native settings sheet over any window (welcome or
 // project) while *open is true. It exposes configuration that actually works —
 // appearance, interface language and the startup restore preference — plus real
-// application info.
+// application info. The update controller is nil for callers that do not have
+// one (existing tests); the Updates pane then states that checking is
+// unavailable instead of pretending to work.
 func renderSettings(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspacePrefsStore, open *bool, setStatus func(string)) {
+	renderSettingsWithUpdates(c, t, cfg, prefs, nil, nil, open, setStatus)
+}
+
+func renderSettingsWithUpdates(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspacePrefsStore,
+	up *updateController, host window, open *bool, setStatus func(string)) {
 	if !*open {
 		return
 	}
 	ui.Modal(c, open, func() {
-		settingsBody(c, t, cfg, prefs, open, setStatus)
+		settingsBody(c, t, cfg, prefs, up, host, open, setStatus)
 	})
 }
 
@@ -134,7 +141,8 @@ func settingsGeometryFor(winW, winH float32) settingsGeometry {
 // larger title or Done button (theme / enlarged text) shrinks the scrollable
 // panes instead of pushing Done out of the window. Both panes scroll
 // independently and Done lives outside them, always visible.
-func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspacePrefsStore, open *bool, setStatus func(string)) {
+func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspacePrefsStore,
+	up *updateController, host window, open *bool, setStatus func(string)) {
 	m := messagesFor(cfg.language())
 	p := uikit.PaletteFor(t)
 	titles := settingsCategoryTitles(cfg.language())
@@ -152,7 +160,7 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 			ui.Scroll(c).Grow(1).FillHeight().Children(func() {
 				uikit.TabContent(c, *selected, func(int) {
 					ui.Column(c).Gap(10).FillWidth().Padding(0, 2).Children(func() {
-						settingsCategoryContent(c, p, m, settingsCategory(*selected), cfg, prefs, setStatus)
+						settingsCategoryContentWithUpdates(c, p, m, settingsCategory(*selected), cfg, prefs, up, host, setStatus)
 					})
 				})
 			})
@@ -224,8 +232,14 @@ func settingsCategoryRail(c *ui.Context, p uikit.Palette, titles []string, selec
 
 // settingsCategoryContent draws the settings belonging to one category. It
 // preserves every control's original read/write behaviour and status feedback;
-// only the surrounding layout changed.
+// only the surrounding layout changed. The update controller is nil for
+// callers that do not own one; the Updates pane handles that explicitly.
 func settingsCategoryContent(c *ui.Context, p uikit.Palette, m *messages, cat settingsCategory, cfg *configStore, prefs *workspacePrefsStore, setStatus func(string)) {
+	settingsCategoryContentWithUpdates(c, p, m, cat, cfg, prefs, nil, nil, setStatus)
+}
+
+func settingsCategoryContentWithUpdates(c *ui.Context, p uikit.Palette, m *messages, cat settingsCategory,
+	cfg *configStore, prefs *workspacePrefsStore, up *updateController, host window, setStatus func(string)) {
 	switch cat {
 	case settingsCategoryAppearance:
 		settingsGroup(c, p, m.AppearanceLabel, func() {
@@ -307,6 +321,9 @@ func settingsCategoryContent(c *ui.Context, p uikit.Palette, m *messages, cat se
 			})
 		})
 
+	case settingsCategoryUpdates:
+		settingsUpdateContent(c, p, cfg.language(), host, up, setStatus)
+
 	case settingsCategoryAbout:
 		settingsAbout(c, p, m, cfg)
 	}
@@ -326,7 +343,7 @@ func settingsAbout(c *ui.Context, p uikit.Palette, m *messages, cfg *configStore
 						ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
 					})
 				}
-				infoRow(m.VersionLabel, appVersion)
+				infoRow(m.VersionLabel, installedVersionLabel(cfg.language()))
 				infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
 				infoRow(m.GoLabel, runtime.Version())
 				infoRow(m.ConfigFileLabel, configLocation(m, cfg))

@@ -78,6 +78,11 @@ type Manager struct {
 	// writes to a real user path.
 	prefs *workspacePrefsStore
 
+	// update owns the manager-level update check, its persistent daily cache
+	// and the shared update dialog. It is nil in tests that build a Manager
+	// literal, so no test reaches the network; NewManager wires the real one.
+	update *updateController
+
 	workspaces []*App
 	welcome    *welcomeState
 
@@ -100,7 +105,7 @@ func (m *Manager) msg() *messages {
 // NewManager builds the application manager, loading the shared config once.
 // explicitProject is the -project flag value ("" when not given).
 func NewManager(explicitProject string) *Manager {
-	return &Manager{
+	m := &Manager{
 		cfg:         newConfigStore(configFilePath()),
 		watchFiles:  true,
 		secrets:     platform.NewEnvSecrets(),
@@ -109,6 +114,8 @@ func NewManager(explicitProject string) *Manager {
 		explicit:    explicitProject,
 		secretStore: platform.NewSecretStore("", nil),
 	}
+	m.update = newRealUpdateController(m)
+	return m
 }
 
 // secretStoreFor returns the manager's secret store, creating one lazily for a
@@ -159,6 +166,9 @@ func (m *Manager) WireApp() {
 // back to the welcome chooser with the error shown, never silently opening a
 // different project.
 func (m *Manager) Start() {
+	// The update check runs after the startup window exists, on its own
+	// goroutine: an offline or slow network never delays or blocks startup.
+	defer m.startUpdateCheck()
 	plan := planStartup(m.explicit, m.cfg)
 	if plan.kind == startProject {
 		if err := m.openProject(plan.path); err != nil {
@@ -234,6 +244,12 @@ func (m *Manager) openProject(path string) error {
 
 	m.cfg.addRecent(root, ps.name())
 	m.activate(app)
+	// An update dialog owned by the chooser follows the user into the project
+	// window instead of disappearing with the hidden chooser.
+	if m.update != nil && m.update.dialogOpen {
+		m.update.setHost(app.win)
+		app.win.Update(func() {})
+	}
 	// Hide (not destroy) the chooser so it can come back for "switch project";
 	// a project window is now the foreground.
 	if m.welcome != nil && m.welcome.win != nil && !m.welcome.win.IsDestroyed() {
@@ -318,6 +334,10 @@ func (m *Manager) showWelcome(status string) {
 		m.welcome.status = status
 		m.welcome.win.Show()
 		m.welcome.win.Focus()
+		if m.update != nil && m.update.dialogOpen {
+			m.update.setHost(m.welcome.win)
+			m.welcome.win.Update(func() {})
+		}
 		return
 	}
 	w := &welcomeState{mgr: m, status: status}
@@ -332,6 +352,9 @@ func (m *Manager) showWelcome(status string) {
 	})
 	w.wire()
 	w.win.Show()
+	if m.update != nil && m.update.dialogOpen {
+		m.update.setHost(w.win)
+	}
 }
 
 // pickProject shows the platform directory chooser, parented to the window that
@@ -457,6 +480,64 @@ func (m *Manager) promptQuitGuard() {
 func (m *Manager) onQuitGuardSettled(app *App) {
 	app.closeGuard.active = false
 	m.promptQuitGuard()
+}
+
+// --- update lifecycle ----------------------------------------------------
+
+// startUpdateCheck launches the once-per-day automatic check. It records the
+// host window on the UI thread first, so the dialog opens in the window the
+// user is looking at. A nil controller (test Manager literals) does nothing.
+func (m *Manager) startUpdateCheck() {
+	if m == nil || m.update == nil {
+		return
+	}
+	m.update.setHost(m.updateHostWindow())
+	go m.update.autoCheck()
+}
+
+// updateHostWindow picks the window an application-level update dialog belongs
+// to: the visible project chooser, otherwise the first live project window.
+func (m *Manager) updateHostWindow() window {
+	if m == nil {
+		return nil
+	}
+	if m.welcome != nil && m.welcome.win != nil && !m.welcome.win.IsDestroyed() && m.welcome.win.IsVisible() {
+		return m.welcome.win
+	}
+	for _, app := range m.workspaces {
+		if app != nil && app.win != nil && !app.win.IsDestroyed() {
+			return app.win
+		}
+	}
+	if m.welcome != nil && m.welcome.win != nil && !m.welcome.win.IsDestroyed() {
+		return m.welcome.win
+	}
+	return nil
+}
+
+// openSettingsWindow brings the Settings sheet forward in the host window, or
+// creates the chooser with Settings open when no window exists.
+func (m *Manager) openSettingsWindow() {
+	if m == nil {
+		return
+	}
+	if m.welcome != nil && m.welcome.win != nil && !m.welcome.win.IsDestroyed() && m.welcome.win.IsVisible() {
+		m.welcome.showSettings = true
+		m.welcome.win.Focus()
+		return
+	}
+	for _, app := range m.workspaces {
+		if app != nil && !app.closed && app.win != nil && !app.win.IsDestroyed() {
+			app.showSettings = true
+			app.win.Show()
+			app.win.Focus()
+			return
+		}
+	}
+	m.showWelcome("")
+	if m.welcome != nil {
+		m.welcome.showSettings = true
+	}
 }
 
 // --- recent-list helpers -------------------------------------------------

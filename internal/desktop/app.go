@@ -227,10 +227,14 @@ func (a *App) View(c *ui.Context) {
 	if a.git != nil {
 		a.git.modals(c, t)
 	}
+	// The manager-level update dialog is drawn last so it sits above the
+	// Settings sheet it can be opened from.
+	a.mgr.updateModalFor(a.win, c, t)
 }
 
 func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {
-	renderSettings(c, t, a.mgr.cfg, a.mgr.workspacePrefs(), &a.showSettings, func(s string) { a.status = s })
+	renderSettingsWithUpdates(c, t, a.mgr.cfg, a.mgr.workspacePrefs(), a.mgr.update, a.win,
+		&a.showSettings, func(s string) { a.status = s })
 }
 
 // --- actions -------------------------------------------------------------
