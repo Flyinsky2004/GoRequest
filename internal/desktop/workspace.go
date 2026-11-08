@@ -90,7 +90,6 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
 	a.BuildRunnerProjectMenuItems(mm)
 	a.BuildMockProjectMenuItems(mm)
 	a.BuildPerformanceProjectMenuItems(mm)
-	a.BuildWebSocketProjectMenuItems(mm)
 	mm.Separator()
 	a.BuildIdentityManagementMenuItems(mm, tab)
 	mm.Separator()
@@ -113,6 +112,9 @@ func (a *App) buildNewMenu(mm *ui.Menu, ps *projectState) {
 	if mm.Item(m.NewRequest).Chosen() {
 		a.openNewRequest()
 	}
+	if mm.Item(a.wsWorkspaceMsg().NewWebSocket).Chosen() {
+		a.openNewWebSocket()
+	}
 	if mm.Item(m.NewFolder).Chosen() {
 		a.openNewFolder()
 	}
@@ -127,6 +129,22 @@ func (a *App) buildNewMenu(mm *ui.Menu, ps *projectState) {
 		a.openNewEnvironment()
 	}
 	a.BuildInteropNewMenuItems(mm)
+}
+
+// openNewWebSocket creates a protocol: websocket request in the selected
+// folder (or the root) and opens its main-workspace tab. The tab can be renamed
+// in place like any request tab.
+func (a *App) openNewWebSocket() {
+	ps := a.ps
+	if ps == nil {
+		return
+	}
+	entry, err := ps.createWebSocketIn(ps.selectedFolder(), a.wsWorkspaceMsg().NewWebSocketDefaultName)
+	if err != nil {
+		a.status = err.Error()
+		return
+	}
+	a.status = translate(a.msg().Created, entry.RelPath)
 }
 
 // envMenu draws the environment selector. Its menu previews the current
@@ -194,9 +212,12 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 		a.fileSyncTabBanner(c, t, ps, tab)
 		a.applyEditorPrefs(tab)
 		a.workspaceBreadcrumb(c, t, tab)
-		if tab.Kind == "request" {
+		switch {
+		case isWebSocketTab(tab):
+			a.wsTabView(c, t, tab)
+		case tab.Kind == "request":
 			a.requestView(c, t, tab)
-		} else {
+		default:
 			a.docView(c, t, tab)
 		}
 	})

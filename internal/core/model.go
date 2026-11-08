@@ -67,13 +67,37 @@ func (b *Body) UnmarshalYAML(n *yaml.Node) error {
 	return nil
 }
 
-// HTTPDef is the HTTP specifics of a request.
+// Request protocols. A request without an explicit protocol is HTTP, which
+// keeps every pre-existing file valid.
+const (
+	ProtocolHTTP      = "http"
+	ProtocolWebSocket = "websocket"
+	// WebSocketMethod is the display tag stored in the shared HTTPDef.Method
+	// field for WebSocket requests. It is never sent as an HTTP method: the
+	// desktop WebSocket workspace drives internal/websocket.Session instead.
+	WebSocketMethod = "WS"
+)
+
+// HTTPDef is the HTTP specifics of a request. For protocol: websocket it
+// carries the shared request target (URL/query/headers) so the workspace,
+// variable resolution, auth and persistence paths stay identical; Method is
+// then only the "WS" display tag.
 type HTTPDef struct {
 	Method  string `yaml:"method"`
 	URL     string `yaml:"url"`
 	Query   []KV   `yaml:"query,omitempty"`
 	Headers []KV   `yaml:"headers,omitempty"`
 	Body    *Body  `yaml:"body,omitempty"`
+}
+
+// WSDef holds the WebSocket-specific options of a request with
+// protocol: websocket. The endpoint, handshake headers and auth reuse the
+// shared HTTPDef/Request fields; only options that have no HTTP meaning live
+// here. Nothing about a live session (connection, events, generations) is ever
+// serialized.
+type WSDef struct {
+	Subprotocols []string `yaml:"subprotocols,omitempty"`
+	Compression  bool     `yaml:"compression,omitempty"`
 }
 
 // AuthRef is the request/folder-level auth reference. It is either the scalar
@@ -162,6 +186,7 @@ type Request struct {
 	Tags          []string          `yaml:"tags,omitempty"`
 	Variables     map[string]string `yaml:"variables,omitempty"`
 	HTTP          *HTTPDef          `yaml:"http"`
+	WS            *WSDef            `yaml:"ws,omitempty"`
 	Auth          *AuthRef          `yaml:"auth,omitempty"`
 	Timeout       string            `yaml:"timeout,omitempty"`
 	Assert        []yaml.Node       `yaml:"assert,omitempty"`

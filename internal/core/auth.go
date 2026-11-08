@@ -133,6 +133,14 @@ func applyAuth(scheme *AuthScheme, r *Resolver, headers *[][2]string, query *[][
 	}
 }
 
+// ApplyAuthToHandshake resolves scheme against vars/secrets and appends its
+// headers and query pairs. It is the WebSocket workspace's entry point into the
+// same auth semantics HTTP requests use; the resolved values stay in memory and
+// are never written to project files.
+func ApplyAuthToHandshake(scheme *AuthScheme, vars map[string]string, secrets SecretProvider, headers *[][2]string, query *[][2]string) error {
+	return applyAuth(scheme, NewResolver(vars, secrets), headers, query)
+}
+
 func appendCookiePair(headers *[][2]string, pair string) {
 	for i := range *headers {
 		if strings.EqualFold((*headers)[i][0], "Cookie") {

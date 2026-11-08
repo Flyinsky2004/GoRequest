@@ -16,78 +16,236 @@ import (
 	gows "gorequest/internal/websocket"
 )
 
-// WebSocketModals renders the manual WebSocket session modal when open.
-// Launch entry: project menu (BuildWebSocketProjectMenuItems).
-func (a *App) WebSocketModals(c *ui.Context, t *ui.Theme) {
-	s := a.wsState(false)
-	if s == nil || !s.open {
+// websocket_ui.go renders a WebSocket request inside the same main workspace
+// as HTTP requests: the URL row, environment selector (workspace header),
+// Headers/Auth settings and the message timeline/send area all reuse the
+// existing layout language. There is no separate modal: a WebSocket tab is a
+// first-class tab beside HTTP and document tabs.
+
+// wsTabView is the WebSocket workspace for one request tab.
+func (a *App) wsTabView(c *ui.Context, t *ui.Theme, tab *Tab) {
+	st := tab.ensureWSState()
+	if st == nil {
 		return
 	}
 	m := a.websocketMsg()
+	wm := a.wsWorkspaceMsg()
 	p := uikit.PaletteFor(t)
-	winW, winH := c.Size()
-	panelW := max(float32(420), min(float32(960), float32(winW)-48))
-	panelH := max(float32(360), min(float32(820), float32(winH)-64))
+	ps := tab.Owner
+	if ps == nil {
+		ps = a.ps
+	}
+	if ps == nil {
+		// A WebSocket tab always belongs to a project; keep a defensive path so
+		// a detached tab can never panic the frame.
+		ui.Column(c).Grow(1).FillHeight().Padding(12, 16).Gap(10).Children(func() {
+			a.wsURLRow(c, t, tab, st, m, wm, p)
+		})
+		return
+	}
+	// §9 shortcuts: ⌘S saves the tab; ⌘↩ connects when disconnected.
+	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.saveActiveSynced() })
+	c.OnShortcut(ui.Cmd, ui.KeyEnter, func() {
+		if st.session == nil || st.session.State() != gows.StateOpen {
+			a.wsTabConnect(tab)
+		}
+	})
+	ui.Column(c).Grow(1).FillHeight().Padding(12, 16).Gap(10).Children(func() {
+		a.wsURLRow(c, t, tab, st, m, wm, p)
 
-	ui.Modal(c, &s.open, func() {
-		ui.Column(c).Width(panelW).Height(panelH).Gap(10).Padding(18).Background(p.BG).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Children(func() {
-			a.wsRenderHeader(c, t, s, m, p)
-			if s.confirmAsked {
-				a.wsRenderConfirm(c, t, s, m, p)
+		labels := []string{wm.SectionHeaders, wm.SectionAuth, wm.SectionSettings}
+		badges := make([]string, len(labels))
+		if n := kvCount(tab.HeaderRows); n > 0 {
+			badges[0] = badgeCount(n)
+		}
+		uikit.UnderlineTabs(c, p, &st.section, labels, badges)
+
+		// Reuse the request split preference so switching between HTTP and
+		// WebSocket tabs keeps the same build/response geometry.
+		splitHeight := float32(0)
+		eff := ps.buildPct
+		if ps != nil {
+			splitHeight = ps.splitRef.Bounds(c).H
+			eff = clampBuildPctForHeight(ps.buildPct, splitHeight)
+			ps.layoutPct = eff
+		}
+		split := ui.SplitVerticalPercent(c, &ps.layoutPct, func() {
+			ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
+				a.wsConfigSection(c, t, tab, st, m, wm, p)
+			})
+		}, func() {
+			ui.Column(c).Grow(1).FillHeight().Bind(&ps.respRef).Children(func() {
+				a.wsMessagePane(c, t, tab, st, m, wm, p)
+			})
+		}).Grow(1).FillWidth().Bind(&ps.splitRef)
+		if ps != nil {
+			if moved := ps.layoutPct; moved != eff {
+				ps.buildPct = applyBuildPctMove(ps.buildPct, eff, moved)
+				a.mgr.cfg.setBuildPct(ps.buildPct)
 			}
-			if s.session == nil {
-				a.wsRenderSetup(c, t, s, m, p)
+			if split.DoubleClicked() {
+				ps.buildPct = defaultBuildPct
+				ps.layoutPct = defaultBuildPct
+				a.mgr.cfg.setBuildPct(defaultBuildPct)
+			}
+		}
+	})
+}
+
+// wsURLRow is the WebSocket request line: protocol badge, endpoint input,
+// live state badge and the connect/disconnect control.
+func (a *App) wsURLRow(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m *wsMessages, wm *wsWorkspaceMessages, p uikit.Palette) {
+	open := st.session != nil && st.session.State() == gows.StateOpen
+	ui.Column(c).Gap(4).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			grp := ui.Row(c).Grow(1).Height(40).Radius(10).BorderWidth(1).
+				BorderColor(wsStateBorderColor(st, t, p)).
+				Background(p.BG).AlignItems(ui.Center).Clip().Label("websocket URL group")
+			var urlInput ui.Element
+			grp.Children(func() {
+				ui.Row(c).Width(108).Height(40).Padding(0, 10).Gap(4).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, wm.TabBadge).Font("monospace").FontWeight(700).FontSize(13).
+						TextColor(wsTabTagColor(p)).SingleLine()
+				})
+				ui.Box(c).Width(1).Height(40).Background(p.Faint).Label("protocol separator")
+				urlBox := ui.Row(c).Grow(1).Padding(6, 10).AlignItems(ui.Center).
+					Radius(8).Background(p.Sidebar)
+				urlBox.Children(func() {
+					urlInput = ui.TextInputBase(c, &tab.URL).Grow(1).Font("monospace").Label("websocket URL")
+					urlInput.OnShortcut(0, ui.KeyEnter, func() { a.wsTabConnect(tab) })
+					if urlInput.Changed() {
+						tab.Dirty = true
+					}
+				})
+			})
+			grp.DrawOver(func(painter *ui.Painter, r ui.Rect) {
+				if urlInput.Focused() {
+					const ring = float32(2)
+					painter.Stroke(ui.Rect{
+						X: r.X - ring - 1, Y: r.Y - ring - 1,
+						W: r.W + 2*ring + 2, H: r.H + 2*ring + 2,
+					}, p.Muted, 12, ring)
+				}
+			})
+			a.wsStateBadge(c, t, st, m, p)
+			if open {
+				if uikit.ActionCursor(ui.Button(c, m.BtnDisconnect)).Clicked() {
+					a.wsTabDisconnect(tab)
+				}
 			} else {
-				// A closed/failed session keeps its timeline and facts
-				// visible; "Clear View" returns to the setup form.
-				a.wsRenderSession(c, t, s, m, p)
+				if uikit.ActionCursor(ui.PrimaryButton(c, m.BtnConnect)).Disabled(st.busy).Clicked() {
+					a.wsTabConnect(tab)
+				}
 			}
-			if s.notice != "" {
-				ui.Text(c, s.notice).FontSize(12).TextColor(p.Muted)
+		})
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, wm.ConnectHint).FontSize(11).TextColor(p.Faint).SingleLine()
+			if st.notice != "" {
+				ui.Text(c, st.notice).FontSize(11).TextColor(p.Muted).SingleLine().Grow(1)
 			}
 		})
 	})
-	if modalDismissed(s) {
-		a.wsTerminateAndClose()
+}
+
+// wsConfigSection renders the selected configuration pane. Headers and Auth are
+// exactly the HTTP editors, so the user's mental model and validation are the
+// same across protocols.
+func (a *App) wsConfigSection(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m *wsMessages, wm *wsWorkspaceMessages, p uikit.Palette) {
+	switch st.section {
+	case 0:
+		ui.Column(c).Grow(1).FillWidth().Children(func() {
+			a.kvForm(c, t, tab, kvHeader)
+		})
+	case 1:
+		ui.Column(c).Grow(1).FillWidth().Children(func() {
+			a.authEditor(c, t, tab)
+		})
+	default:
+		a.wsSettingsSection(c, t, tab, st, m, wm, p)
 	}
-	// Modal's ui.Modal dismissal path: ui.Modal toggles open=false itself.
 }
 
-// modalDismissed is a tiny helper keeping the dismissal check in one place.
-func modalDismissed(s *wsDialog) bool { return s != nil && !s.open }
-
-// WebSocketView wraps a.View(c) and a.WebSocketModals(c, c.Theme()) so
-// headless UI tests can exercise the session dialog while shared files stay on
-// the common baseline.
-func (a *App) WebSocketView(c *ui.Context) {
-	a.View(c)
-	a.WebSocketModals(c, c.Theme())
-}
-
-// wsRenderHeader draws the title, live state badge and connection facts.
-func (a *App) wsRenderHeader(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessages, p uikit.Palette) {
-	ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, m.Title).FontSize(16).FontWeight(700).TextColor(p.Text)
-		a.wsStateBadge(c, t, s, m, p)
-		ui.Box(c).Grow(1)
-		btn := uikit.ActionCursor(ui.Button(c, m.BtnDone))
-		if btn.Clicked() {
-			a.wsTerminateAndClose()
-		}
+// wsSettingsSection holds WebSocket-only options: offered subprotocols,
+// permessage-deflate and the total session deadline (reusing Request.Timeout).
+func (a *App) wsSettingsSection(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m *wsMessages, wm *wsWorkspaceMessages, p uikit.Palette) {
+	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+		ui.Column(c).Gap(8).Children(func() {
+			ui.Text(c, m.FieldSubprotocols).FontSize(12).TextColor(p.Muted)
+			sub := uikit.ActionCursor(ui.TextInput(c, &st.subprotoDraft)).
+				Placeholder("graphql-transport-ws")
+			sub.FillWidth()
+			if sub.Changed() {
+				tab.Dirty = true
+			}
+			comp := uikit.ActionCursor(ui.Checkbox(c, &st.compress, m.CompressionLabel))
+			if comp.Changed() {
+				tab.Dirty = true
+			}
+			ui.Text(c, wm.TotalTimeoutLabel).FontSize(12).TextColor(p.Muted)
+			timeout := uikit.ActionCursor(ui.TextInput(c, &tab.Timeout)).
+				Placeholder("30s")
+			timeout.Width(160)
+			if timeout.Changed() {
+				tab.Dirty = true
+			}
+			ui.Text(c, wm.TotalTimeoutHint).FontSize(11).TextColor(p.Faint)
+		})
 	})
-	if s.session != nil {
-		a.wsRenderFacts(c, t, s, m, p)
-	}
+}
+
+// wsMessagePane is the lower half: live facts, timeline/detail and the send
+// area. It is shown even before connecting so the layout never jumps.
+func (a *App) wsMessagePane(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m *wsMessages, wm *wsWorkspaceMessages, p uikit.Palette) {
+	ui.Column(c).Grow(1).FillHeight().Gap(6).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, wm.MessagesTitle).FontSize(12).FontWeight(600).TextColor(p.Text)
+			ui.Box(c).Grow(1)
+			if st.notice != "" {
+				ui.Text(c, st.notice).FontSize(11).TextColor(p.Muted).SingleLine()
+			}
+		})
+		if st.session != nil {
+			a.wsRenderFacts(c, t, st, m, p)
+		}
+		if st.confirmAsked {
+			a.wsRenderConfirm(c, t, st, m, p)
+		}
+		if st.session == nil {
+			ui.Column(c).Grow(1).FillWidth().Center().Children(func() {
+				ui.Text(c, wm.NoSessionHint).FontSize(12).TextColor(p.Faint)
+			})
+		} else {
+			ui.Row(c).Grow(1).FillWidth().Gap(8).Children(func() {
+				ui.Column(c).Grow(1).Gap(6).Children(func() {
+					ui.Row(c).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
+						uikit.SimpleSegmented(c, p, &st.dirFilterIdx, []string{m.DirFilterAll, m.DirFilterIn, m.DirFilterOut})
+						fq := uikit.ActionCursor(ui.TextInput(c, &st.filterQuery))
+						fq.FillWidth().Placeholder(m.FilterLabel)
+					})
+					ui.Box(c).Grow(1).FillWidth().Children(func() {
+						ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+							a.wsRenderTimelineRows(c, t, st, m, p)
+						})
+					})
+				})
+				ui.Column(c).Width(320).Gap(6).Children(func() {
+					ui.Text(c, m.DetailTitle).FontSize(12).FontWeight(600).TextColor(p.Text)
+					a.wsRenderDetail(c, t, tab, st, m, p)
+				})
+			})
+		}
+		a.wsSendArea(c, t, tab, st, m, p)
+	})
 }
 
 // wsStateBadge shows the session state as text + color (never color alone).
-func (a *App) wsStateBadge(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessages, p uikit.Palette) {
+func (a *App) wsStateBadge(c *ui.Context, t *ui.Theme, st *wsTabState, m *wsMessages, p uikit.Palette) {
 	state := gows.StateDisconnected
-	if s.session != nil {
-		state = s.session.State()
-		// A terminal failure is reported as ERROR rather than a plain
-		// CLOSED badge; the underlying lifecycle state stays closed.
-		if state == gows.StateClosed && s.session.Snapshot().LastErr != "" {
+	if st != nil && st.session != nil {
+		state = st.session.State()
+		// A terminal failure is reported as ERROR rather than a plain CLOSED
+		// badge; the underlying lifecycle state stays closed.
+		if state == gows.StateClosed && st.session.Snapshot().LastErr != "" {
 			state = gows.StateError
 		}
 	}
@@ -108,10 +266,34 @@ func (a *App) wsStateBadge(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessage
 	ui.Text(c, label).FontSize(12).FontWeight(600).TextColor(color)
 }
 
+// wsStateBorderColor colors the URL group by the live session state.
+func wsStateBorderColor(st *wsTabState, t *ui.Theme, p uikit.Palette) ui.Color {
+	if st == nil || st.session == nil {
+		return p.Hairline
+	}
+	switch st.session.State() {
+	case gows.StateOpen:
+		return t.Success
+	case gows.StateConnecting, gows.StateClosing:
+		return t.Warning
+	case gows.StateClosed:
+		if st.session.Snapshot().LastErr != "" {
+			return t.Danger
+		}
+	}
+	return p.Hairline
+}
+
+// wsTabTagColor is the protocol tag color used by the URL row and tab strip.
+func wsTabTagColor(p uikit.Palette) ui.Color { return p.Text }
+
 // wsRenderFacts shows the negotiated session facts line: HTTP status,
 // subprotocol, remote, proxy, TLS, deadlines and bounds.
-func (a *App) wsRenderFacts(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessages, p uikit.Palette) {
-	sn := s.session.Snapshot()
+func (a *App) wsRenderFacts(c *ui.Context, t *ui.Theme, st *wsTabState, m *wsMessages, p uikit.Palette) {
+	if st == nil || st.session == nil {
+		return
+	}
+	sn := st.session.Snapshot()
 	ui.Column(c).FillWidth().Gap(4).Padding(8, 10).Background(p.Sidebar).Radius(8).BorderWidth(1).BorderColor(p.Hairline).Children(func() {
 		ui.Row(c).FillWidth().Gap(12).Children(func() {
 			ui.Text(c, m.FactsProxy+": "+wsNetLabel(sn)).FontSize(11).TextColor(p.Muted)
@@ -133,103 +315,28 @@ func (a *App) wsRenderFacts(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessag
 }
 
 // wsRenderConfirm renders the target-policy confirmation step.
-func (a *App) wsRenderConfirm(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessages, p uikit.Palette) {
+func (a *App) wsRenderConfirm(c *ui.Context, t *ui.Theme, st *wsTabState, m *wsMessages, p uikit.Palette) {
 	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(p.Sidebar).Radius(8).BorderWidth(1).BorderColor(t.Warning).Children(func() {
 		ui.Text(c, m.ConfirmRequired).FontSize(12).FontWeight(600).TextColor(t.Warning)
-		if s.promptFacts != "" {
-			ui.Text(c, s.promptFacts).FontSize(11).TextColor(p.Muted)
+		if st.promptFacts != "" {
+			ui.Text(c, st.promptFacts).FontSize(11).TextColor(p.Muted)
 		}
-		uikit.ActionCursor(ui.Checkbox(c, &s.confirmChecked, m.ConfirmCheckbox))
+		uikit.ActionCursor(ui.Checkbox(c, &st.confirmChecked, m.ConfirmCheckbox))
 	})
-}
-
-// wsRenderSetup renders the connection drafts and Connect action.
-func (a *App) wsRenderSetup(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessages, p uikit.Palette) {
-	ui.Column(c).FillWidth().Gap(8).Children(func() {
-		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, m.FieldURL).FontSize(12).TextColor(p.Muted).Width(150)
-			uikit.ActionCursor(ui.TextInput(c, &s.urlDraft)).Placeholder("wss://host/path").Disabled(s.busy)
-			{
-				tx := ui.TextInput(c, &s.totalDraft)
-				tx.Width(90).Disabled(s.busy)
-				tx.Tooltip(m.FieldTotalTimeout)
-				uikit.ActionCursor(tx)
-			}
-			ui.Text(c, m.FieldTotalTimeout).FontSize(11).TextColor(p.Faint)
-		})
-		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, m.FieldSubprotocols).FontSize(12).TextColor(p.Muted).Width(150)
-			uikit.ActionCursor(ui.TextInput(c, &s.subprotoDraft)).Placeholder("graphql-transport-ws").Disabled(s.busy)
-		})
-		ui.Column(c).FillWidth().Gap(4).Children(func() {
-			ui.Text(c, m.FieldHeaders+" ("+m.FieldHeadersHint+")").FontSize(12).TextColor(p.Muted)
-			a.wsHeadersEditor(c, t, s, p)
-			uikit.ActionCursor(ui.Checkbox(c, &s.compress, m.CompressionLabel).Disabled(s.busy))
-		})
-		ui.Row(c).FillWidth().Gap(8).Justify(ui.End).Children(func() {
-			connect := uikit.ActionCursor(ui.PrimaryButton(c, m.BtnConnect)).Disabled(s.busy)
-			if connect.Clicked() {
-				a.wsConnect()
-			}
-		})
-	})
-}
-
-// wsHeadersEditor keeps a small editor for header lines.
-func (a *App) wsHeadersEditor(c *ui.Context, t *ui.Theme, s *wsDialog, p uikit.Palette) {
-	if s.headersEditor == nil {
-		s.headersEditor = &editor.State{Buffer: editor.NewBuffer(s.headersDraft), Theme: uikit.EditorTheme(t)}
-		s.headersEditor.Buffer.SetLanguage(editor.LanguageNamed("text"))
-		s.headersEditorGen = a.themeGeneration()
-	}
-	a.syncEditorTheme(s.headersEditor, &s.headersEditorGen, t)
-	if got := s.headersEditor.Buffer.String(); got != s.headersDraft {
-		s.headersDraft = got
-	}
-	s.headersEditor.ReadOnly = s.busy
-	editor.View(c, s.headersEditor).Height(90).FillWidth()
-}
-
-// wsRenderSession renders the live session: timeline, filters, detail and
-// the send/close actions.
-func (a *App) wsRenderSession(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessages, p uikit.Palette) {
-	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		// 1) Timeline (left).
-		ui.Column(c).Grow(1).Gap(6).Children(func() {
-			ui.Row(c).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
-				seg, changed := uikit.SimpleSegmented(c, p, &s.dirFilterIdx, []string{m.DirFilterAll, m.DirFilterIn, m.DirFilterOut})
-				_ = seg
-				_ = changed
-				fq := uikit.ActionCursor(ui.TextInput(c, &s.filterQuery))
-				fq.FillWidth().Placeholder(m.FilterLabel)
-			})
-			ui.Box(c).Grow(1).FillWidth().Children(func() {
-				ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-					a.wsRenderTimelineRows(c, t, s, m, p)
-				})
-			})
-		})
-		// 2) Detail (right).
-		ui.Column(c).Width(320).Gap(6).Children(func() {
-			ui.Text(c, m.DetailTitle).FontSize(12).FontWeight(600).TextColor(p.Text)
-			a.wsRenderDetail(c, t, s, m, p)
-		})
-	})
-	a.wsRenderActions(c, t, s, m, p)
 }
 
 // wsRenderTimelineRows draws the bounded event window with selection.
-func (a *App) wsRenderTimelineRows(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessages, p uikit.Palette) {
-	if s.session == nil {
+func (a *App) wsRenderTimelineRows(c *ui.Context, t *ui.Theme, st *wsTabState, m *wsMessages, p uikit.Palette) {
+	if st == nil || st.session == nil {
 		return
 	}
-	events := s.session.Events().Snapshot()
-	events = wsFilterEvents(events, s)
+	events := st.session.Events().Snapshot()
+	events = wsFilterEvents(events, st)
 	start := max(0, len(events)-wsTimelineLimit)
 	events = events[start:]
 	for i := range events {
 		ev := events[i]
-		selected := s.selectedSeq != 0 && s.selectedSeq == ev.Seq
+		selected := st.selectedSeq != 0 && st.selectedSeq == ev.Seq
 		row := uikit.ActionCursor(ui.ButtonBase(c)).
 			FillWidth().Height(26).Radius(6).Padding(0, 8).
 			Background(p.BG)
@@ -247,7 +354,7 @@ func (a *App) wsRenderTimelineRows(c *ui.Context, t *ui.Theme, s *wsDialog, m *w
 			}
 		})
 		if row.Clicked() {
-			s.selectedSeq = ev.Seq
+			st.selectedSeq = ev.Seq
 		}
 	}
 	if len(events) == 0 {
@@ -257,16 +364,16 @@ func (a *App) wsRenderTimelineRows(c *ui.Context, t *ui.Theme, s *wsDialog, m *w
 
 // wsRenderDetail renders the selected event with a text/hex payload view and
 // the save action.
-func (a *App) wsRenderDetail(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessages, p uikit.Palette) {
-	if s.session == nil || s.selectedSeq == 0 {
+func (a *App) wsRenderDetail(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m *wsMessages, p uikit.Palette) {
+	if st == nil || st.session == nil || st.selectedSeq == 0 {
 		ui.Text(c, m.DetailEmpty).FontSize(11).TextColor(p.Faint)
 		return
 	}
-	item, ok := s.session.InboxFind(s.selectedSeq)
+	item, ok := st.session.InboxFind(st.selectedSeq)
 	if !ok {
 		// Facts (state/info/error/close) have no retained payload; show their
 		// summary and bounded preview from the event log instead.
-		ev, found := wsFindEvent(s, s.selectedSeq)
+		ev, found := wsFindEvent(st, st.selectedSeq)
 		if !found {
 			ui.Text(c, m.DetailEmpty).FontSize(11).TextColor(p.Faint)
 			return
@@ -290,7 +397,7 @@ func (a *App) wsRenderDetail(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessa
 			ui.Box(c).Grow(1)
 			save := uikit.ActionCursor(ui.Button(c, m.BtnSaveSelected))
 			if save.Clicked() {
-				a.wsSaveSelected(item)
+				a.wsSaveSelected(tab, item)
 			}
 		})
 		ui.Box(c).Height(1).Background(p.Hairline)
@@ -310,71 +417,64 @@ func (a *App) wsRenderDetail(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessa
 	})
 }
 
-// wsRenderActions renders the send box and close controls.
-func (a *App) wsRenderActions(c *ui.Context, t *ui.Theme, s *wsDialog, m *wsMessages, p uikit.Palette) {
-	open := s.session != nil && s.session.State() == gows.StateOpen
-	ui.Column(c).FillWidth().Gap(8).Padding(10).Background(p.Sidebar).Radius(8).BorderWidth(1).BorderColor(p.Hairline).Children(func() {
+// wsSendArea renders the text/binary composer and the session controls.
+func (a *App) wsSendArea(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m *wsMessages, p uikit.Palette) {
+	open := st.session != nil && st.session.State() == gows.StateOpen
+	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(p.Sidebar).Radius(8).BorderWidth(1).BorderColor(p.Hairline).Children(func() {
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-			seg, changed := uikit.SimpleSegmented(c, p, &s.sendModeIdx, []string{m.SendModeText, m.SendModeBinary})
-			_ = seg
-			_ = changed
-			if s.sendModeIdx == 0 {
-				a.wsSendEditor(c, t, s, p)
+			uikit.SimpleSegmented(c, p, &st.sendModeIdx, []string{m.SendModeText, m.SendModeBinary})
+			if st.sendModeIdx == 0 {
+				a.wsSendEditor(c, t, st, p)
 			} else {
-				hexIn := uikit.ActionCursor(ui.TextInput(c, &s.binaryDraft))
+				hexIn := uikit.ActionCursor(ui.TextInput(c, &st.binaryDraft))
 				hexIn.FillWidth().Placeholder(m.SendBinaryHint).Disabled(!open)
 			}
-			sendBtn := uikit.ActionCursor(ui.PrimaryButton(c, m.BtnSend).Disabled(!open))
-			if sendBtn.Clicked() {
-				a.wsSend()
+			if uikit.ActionCursor(ui.PrimaryButton(c, m.BtnSend).Disabled(!open)).Clicked() {
+				a.wsTabSend(tab)
 			}
-			pingBtn := uikit.ActionCursor(ui.Button(c, m.BtnPing).Disabled(!open))
-			if pingBtn.Clicked() {
-				a.wsPing()
-			}
-			disconnectBtn := uikit.ActionCursor(ui.Button(c, m.BtnDisconnect).Disabled(!open))
-			if disconnectBtn.Clicked() {
-				a.wsDisconnect()
+			if uikit.ActionCursor(ui.Button(c, m.BtnPing).Disabled(!open)).Clicked() {
+				a.wsTabPing(tab)
 			}
 		})
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-			codeIn := uikit.ActionCursor(ui.TextInput(c, &s.closeCodeDraft))
+			codeIn := uikit.ActionCursor(ui.TextInput(c, &st.closeCodeDraft))
 			codeIn.Width(70).Disabled(!open)
-			reasonIn := uikit.ActionCursor(ui.TextInput(c, &s.closeReasonDraft))
+			reasonIn := uikit.ActionCursor(ui.TextInput(c, &st.closeReasonDraft))
 			reasonIn.FillWidth().Width(200).Disabled(!open)
-			closeBtn := uikit.ActionCursor(ui.Button(c, m.BtnCloseSession).Disabled(!open))
-			if closeBtn.Clicked() {
-				a.wsCloseSession()
+			if uikit.ActionCursor(ui.Button(c, m.BtnCloseSession).Disabled(!open)).Clicked() {
+				a.wsTabCloseSession(tab)
 			}
-			clearBtn := uikit.ActionCursor(ui.Button(c, m.BtnClearView))
-			if clearBtn.Clicked() {
-				a.wsClearView()
+			if uikit.ActionCursor(ui.Button(c, m.BtnClearView)).Clicked() {
+				a.wsTabClear(tab)
 			}
 		})
 	})
 }
 
 // wsSendEditor keeps a JSON-flavored editor for text messages.
-func (a *App) wsSendEditor(c *ui.Context, t *ui.Theme, s *wsDialog, p uikit.Palette) {
-	if s.sendEditor == nil {
-		s.sendEditor = &editor.State{Buffer: editor.NewBuffer(s.textDraft), Theme: uikit.EditorTheme(t)}
-		s.sendEditor.Buffer.SetLanguage(editor.LanguageNamed("json"))
-		s.sendEditorGen = a.themeGeneration()
+func (a *App) wsSendEditor(c *ui.Context, t *ui.Theme, st *wsTabState, p uikit.Palette) {
+	if st == nil {
+		return
 	}
-	a.syncEditorTheme(s.sendEditor, &s.sendEditorGen, t)
-	if got := s.sendEditor.Buffer.String(); got != s.textDraft {
-		s.textDraft = got
+	if st.sendEditor == nil {
+		st.sendEditor = &editor.State{Buffer: editor.NewBuffer(st.textDraft), Theme: uikit.EditorTheme(t)}
+		st.sendEditor.Buffer.SetLanguage(editor.LanguageNamed("json"))
+		st.sendEditorGen = a.themeGeneration()
 	}
-	s.sendEditor.ReadOnly = s.session == nil || s.session.State() != gows.StateOpen
-	editor.View(c, s.sendEditor).Height(84).FillWidth()
+	a.syncEditorTheme(st.sendEditor, &st.sendEditorGen, t)
+	if got := st.sendEditor.Buffer.String(); got != st.textDraft {
+		st.textDraft = got
+	}
+	st.sendEditor.ReadOnly = st.session == nil || st.session.State() != gows.StateOpen
+	editor.View(c, st.sendEditor).Height(72).FillWidth()
 }
 
-// wsSaveSelected writes the selected message to a user-chosen local path
-// (raw bytes, exactly like response saving), off the UI thread.
-func (a *App) wsSaveSelected(item gows.InboxItem) {
-	s := a.wsState(false)
+// wsSaveSelected writes the selected message to a user-chosen local path (raw
+// bytes, exactly like response saving), off the UI thread.
+func (a *App) wsSaveSelected(tab *Tab, item gows.InboxItem) {
+	st := tab.ws
 	m := a.websocketMsg()
-	if s == nil || s.session == nil {
+	if st == nil || st.session == nil {
 		return
 	}
 	win := a.win
@@ -388,6 +488,8 @@ func (a *App) wsSaveSelected(item gows.InboxItem) {
 		name = "ws-message.bin"
 	}
 	key := weak.Make(a)
+	gen := st.generation
+	ps := tab.Owner
 	go func() {
 		if win == nil || win.IsDestroyed() {
 			return
@@ -407,7 +509,7 @@ func (a *App) wsSaveSelected(item gows.InboxItem) {
 				if owner == nil || owner.closed {
 					return
 				}
-				if d := owner.wsState(false); d != nil {
+				if d := tab.ws; d != nil && d.generation == gen && (ps == nil || ps.indexOfTab(tab) >= 0) {
 					d.notice = fmt.Sprintf(m.SaveFailedFmt, err)
 				}
 			})
@@ -418,7 +520,7 @@ func (a *App) wsSaveSelected(item gows.InboxItem) {
 			if owner == nil || owner.closed {
 				return
 			}
-			if d := owner.wsState(false); d != nil {
+			if d := tab.ws; d != nil && d.generation == gen && (ps == nil || ps.indexOfTab(tab) >= 0) {
 				d.notice = fmt.Sprintf(m.SavedToFmt, path)
 			}
 		})
@@ -426,11 +528,11 @@ func (a *App) wsSaveSelected(item gows.InboxItem) {
 }
 
 // wsFindEvent returns the retained stream event with the given Seq.
-func wsFindEvent(s *wsDialog, seq uint64) (stream.Event, bool) {
-	if s == nil || s.session == nil || seq == 0 {
+func wsFindEvent(st *wsTabState, seq uint64) (stream.Event, bool) {
+	if st == nil || st.session == nil || seq == 0 {
 		return stream.Event{}, false
 	}
-	for _, ev := range s.session.Events().Snapshot() {
+	for _, ev := range st.session.Events().Snapshot() {
 		if ev.Seq == seq {
 			return ev, true
 		}
@@ -439,11 +541,14 @@ func wsFindEvent(s *wsDialog, seq uint64) (stream.Event, bool) {
 }
 
 // wsFilterEvents applies the direction/kind/query filters.
-func wsFilterEvents(events []stream.Event, s *wsDialog) []stream.Event {
-	q := strings.ToLower(strings.TrimSpace(s.filterQuery))
+func wsFilterEvents(events []stream.Event, st *wsTabState) []stream.Event {
+	if st == nil {
+		return events
+	}
+	q := strings.ToLower(strings.TrimSpace(st.filterQuery))
 	var out []stream.Event
 	for _, ev := range events {
-		switch s.dirFilterIdx {
+		switch st.dirFilterIdx {
 		case 1:
 			if ev.Direction != stream.DirIn {
 				continue
@@ -453,7 +558,7 @@ func wsFilterEvents(events []stream.Event, s *wsDialog) []stream.Event {
 				continue
 			}
 		}
-		switch s.kindFilterIdx {
+		switch st.kindFilterIdx {
 		case 1:
 			if !(ev.Kind == stream.KindSend || ev.Kind == stream.KindReceive) {
 				continue
@@ -581,12 +686,4 @@ func wsEndLabel(sn gows.Snapshot) string {
 		parts = append(parts, sn.LastErr)
 	}
 	return strings.Join(parts, " · ")
-}
-
-// wsInboxCap exposes the dialog's inbox capacity for the bounds note.
-func wsInboxCap(s *wsDialog) int {
-	if s.session == nil {
-		return gows.DefaultInboxCapacity
-	}
-	return s.session.Snapshot().InboxCapacity
 }

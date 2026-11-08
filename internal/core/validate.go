@@ -72,14 +72,22 @@ func validateRequest(r *Request, path string, p *Project) []Issue {
 	if strings.TrimSpace(r.Name) == "" {
 		add("request-name", "request name is empty")
 	}
-	if r.Protocol != "" && r.Protocol != "http" {
-		add("protocol", fmt.Sprintf("protocol %q is not supported in the MVP (only http)", r.Protocol))
+	proto := strings.TrimSpace(r.Protocol)
+	websocket := proto == ProtocolWebSocket
+	if proto != "" && proto != ProtocolHTTP && !websocket {
+		add("protocol", fmt.Sprintf("protocol %q is not supported (supported: http, websocket)", r.Protocol))
 	}
 	if r.HTTP == nil {
 		add("http-missing", "request has no http block")
 		return issues
 	}
-	if strings.TrimSpace(r.HTTP.Method) != "" {
+	if websocket {
+		// The shared HTTPDef.Method field only carries the "WS" display tag for
+		// WebSocket requests; it is never sent as an HTTP method.
+		if m := strings.TrimSpace(r.HTTP.Method); m != "" && !strings.EqualFold(m, WebSocketMethod) {
+			add("method", fmt.Sprintf("websocket request method must be %q, got %q", WebSocketMethod, r.HTTP.Method))
+		}
+	} else if strings.TrimSpace(r.HTTP.Method) != "" {
 		if err := ValidateHTTPMethod(r.HTTP.Method); err != nil {
 			add("method", err.Error())
 		}
@@ -95,6 +103,14 @@ func validateRequest(r *Request, path string, p *Project) []Issue {
 	if r.HTTP.Body != nil {
 		if err := ValidateBody(r.HTTP.Body); err != nil {
 			add("body", err.Error())
+		}
+	}
+	if websocket && r.WS != nil {
+		for _, sp := range r.WS.Subprotocols {
+			if strings.TrimSpace(sp) == "" {
+				add("ws-subprotocol", "websocket subprotocol is empty")
+				break
+			}
 		}
 	}
 

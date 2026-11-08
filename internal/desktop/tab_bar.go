@@ -30,6 +30,16 @@ func tabDisplayLabel(tab *Tab) string {
 	return label
 }
 
+// tabStripMethodColor colors the protocol tag. WebSocket tabs use the neutral
+// text color instead of the unknown-method faint gray, so the WS tag stays
+// readable beside HTTP method tags.
+func tabStripMethodColor(tab *Tab, p uikit.Palette) ui.Color {
+	if isWebSocketTab(tab) {
+		return wsTabTagColor(p)
+	}
+	return uikit.MethodColor(tab.Method, p)
+}
+
 // tabBar draws the horizontally scrolling tab strip with a trailing "Open Tabs"
 // menu, so a narrow window never squeezes the URL/editor area and the active tab
 // stays reachable.
@@ -110,7 +120,7 @@ func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 		act.Children(func() {
 			if tab.Kind == "request" && tab.Method != "" {
 				ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(11).
-					TextColor(uikit.MethodColor(tab.Method, p)).Width(38).SingleLine()
+					TextColor(tabStripMethodColor(tab, p)).Width(38).SingleLine()
 			}
 			ui.Text(c, tab.Title).FontSize(13).TextColor(titleColor).Grow(1).SingleLine()
 		})
@@ -173,7 +183,7 @@ func (a *App) tabRenameField(c *ui.Context, p uikit.Palette, tab *Tab) {
 		AlignItems(ui.Center).MaxWidth(180).Background(p.BG).Children(func() {
 		if tab.Kind == "request" && tab.Method != "" {
 			ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(11).
-				TextColor(uikit.MethodColor(tab.Method, p)).Width(38).SingleLine()
+				TextColor(tabStripMethodColor(tab, p)).Width(38).SingleLine()
 		}
 		in := ui.TextInput(c, &tab.renameText).Grow(1).Height(24).FontSize(13).AutoFocus()
 		in.Label(a.msg().Rename)

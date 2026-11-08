@@ -56,6 +56,9 @@ func (ps *projectState) removeTab(tab *Tab) bool {
 		tab.cancel = nil
 		tab.Sending = false
 	}
+	// Closing a tab releases its live WebSocket connection and invalidates any
+	// in-flight callback, so no socket outlives its tab.
+	wsTeardownTab(tab)
 	kept := make([]*Tab, 0, len(ps.tabs)-1)
 	kept = append(kept, ps.tabs[:i]...)
 	kept = append(kept, ps.tabs[i+1:]...)

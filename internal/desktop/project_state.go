@@ -193,19 +193,39 @@ func (ps *projectState) openRequest(entry *core.RequestEntry) {
 func fillTabFromRequest(tab *Tab, entry *core.RequestEntry, p *core.Project) {
 	req := entry.Request
 	tab.Title = req.Name
-	tab.Method = req.HTTP.Method
-	tab.URL = req.HTTP.URL
+	tab.Method = ""
+	tab.URL = ""
 	tab.Timeout = req.Timeout
-	tab.QueryRows = rowsFromKV(req.HTTP.Query)
-	tab.HeaderRows = rowsFromKV(req.HTTP.Headers)
+	tab.QueryRows = nil
+	tab.HeaderRows = nil
 	tab.BodyIdx = 0
 	tab.BodyText = ""
-	if req.HTTP.Body != nil {
-		tab.BodyIdx = indexOf(bodyTypes, req.HTTP.Body.Type)
-		tab.BodyText = core.BodyEditText(req.HTTP.Body)
+	if req.HTTP != nil {
+		tab.Method = req.HTTP.Method
+		tab.URL = req.HTTP.URL
+		tab.QueryRows = rowsFromKV(req.HTTP.Query)
+		tab.HeaderRows = rowsFromKV(req.HTTP.Headers)
+		if req.HTTP.Body != nil {
+			tab.BodyIdx = indexOf(bodyTypes, req.HTTP.Body.Type)
+			tab.BodyText = core.BodyEditText(req.HTTP.Body)
+		}
 	}
 	tab.resetBodyState()
 	fillAuth(p, tab, req)
+	if strings.EqualFold(strings.TrimSpace(req.Protocol), core.ProtocolWebSocket) {
+		// Keep a live session across a discard/reload: only the persisted drafts
+		// are refreshed. The endpoint/headers/auth already live on the tab.
+		st := tab.ensureWSState()
+		st.subprotoDraft = ""
+		st.compress = false
+		if req.WS != nil {
+			st.subprotoDraft = strings.Join(req.WS.Subprotocols, ", ")
+			st.compress = req.WS.Compression
+		}
+	} else if tab.ws != nil {
+		wsTeardownTab(tab)
+		tab.ws = nil
+	}
 }
 
 func (ps *projectState) openDoc(rel string) error {
@@ -246,6 +266,21 @@ func (ps *projectState) newRequest() (*core.RequestEntry, error) {
 // revealing and selecting the target folder.
 func (ps *projectState) createRequestIn(folderRel, name string) (*core.RequestEntry, error) {
 	entry, err := ps.project.NewRequest(collectionRelOf(folderRel), name)
+	if err != nil {
+		return nil, err
+	}
+	ps.expandChain(folderRel)
+	ps.openRequest(entry)
+	ps.sel = "req:" + entry.Request.ID
+	return entry, nil
+}
+
+// createWebSocketIn creates a protocol: websocket request in folderRel ("" for
+// root) and opens its workspace tab. It is the single creation path for both the
+// "+" menu and any future tree action, so a new WebSocket request can never be
+// mistaken for an HTTP one.
+func (ps *projectState) createWebSocketIn(folderRel, name string) (*core.RequestEntry, error) {
+	entry, err := ps.project.NewWebSocketRequest(collectionRelOf(folderRel), name)
 	if err != nil {
 		return nil, err
 	}

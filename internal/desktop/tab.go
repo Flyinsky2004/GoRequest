@@ -113,6 +113,11 @@ type Tab struct {
 	// sendSeq identifies the newest send so a late result from an older one
 	// (for example after a forced reset) cannot overwrite the tab or status.
 	sendSeq int
+
+	// ws holds this tab's independent WebSocket session state. It is non-nil
+	// only for protocol: websocket request tabs, so HTTP and WebSocket tabs can
+	// coexist with separate drafts, sessions, mailboxes and generations.
+	ws *wsTabState
 }
 
 // requestFromTab builds a core.Request from the tab's edited fields.
@@ -129,6 +134,27 @@ func requestFromTab(tab *Tab) (*core.Request, error) {
 	if err != nil {
 		return nil, fmt.Errorf("headers: %w", err)
 	}
+	authRef, err := authRefFromTab(tab)
+	if err != nil {
+		return nil, fmt.Errorf("auth: %w", err)
+	}
+	if isWebSocketTab(tab) {
+		// WebSocket requests reuse the shared request target (URL/query/headers/
+		// auth) but never carry an HTTP body or method. Protocol + ws options are
+		// the only protocol-specific data written to disk.
+		httpDef := &core.HTTPDef{
+			Method:  core.WebSocketMethod,
+			URL:     tab.URL,
+			Query:   query,
+			Headers: headers,
+		}
+		base.Protocol = core.ProtocolWebSocket
+		base.HTTP = httpDef
+		base.WS = tab.wsDef()
+		base.Timeout = strings.TrimSpace(tab.Timeout)
+		base.Auth = authRef
+		return &base, nil
+	}
 	httpDef := &core.HTTPDef{
 		Method:  tab.Method,
 		URL:     tab.URL,
@@ -142,12 +168,35 @@ func requestFromTab(tab *Tab) (*core.Request, error) {
 	httpDef.Body = body
 	base.HTTP = httpDef
 	base.Timeout = strings.TrimSpace(tab.Timeout)
-	authRef, err := authRefFromTab(tab)
-	if err != nil {
-		return nil, fmt.Errorf("auth: %w", err)
-	}
 	base.Auth = authRef
 	return &base, nil
+}
+
+// isWebSocketTab reports whether a tab edits a protocol: websocket request.
+// WebSocket tabs keep Kind "request" so save/file-sync/close semantics are the
+// same as HTTP requests; only the workspace view and the session engine differ.
+func isWebSocketTab(tab *Tab) bool {
+	return tab != nil && tab.Kind == "request" && tab.Entry != nil &&
+		tab.Entry.Request != nil &&
+		strings.EqualFold(strings.TrimSpace(tab.Entry.Request.Protocol), core.ProtocolWebSocket)
+}
+
+// wsDef returns the persistable WebSocket options, or nil when there is
+// nothing to store.
+func (tab *Tab) wsDef() *core.WSDef {
+	if tab == nil || tab.ws == nil {
+		return nil
+	}
+	var subs []string
+	for _, sp := range strings.Split(tab.ws.subprotoDraft, ",") {
+		if sp = strings.TrimSpace(sp); sp != "" {
+			subs = append(subs, sp)
+		}
+	}
+	if len(subs) == 0 && !tab.ws.compress {
+		return nil
+	}
+	return &core.WSDef{Subprotocols: subs, Compression: tab.ws.compress}
 }
 
 // fillAuth copies the request's own declared auth semantics (inherit, explicit
