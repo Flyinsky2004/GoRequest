@@ -1153,7 +1153,7 @@ U30从e5fbb9f建立分支/worktree，经Herdr启动，终端t5j，tab tba0bfd932
 
 | 负责人 | 分支 / 实际worktree | 归属 | 状态 |
 | --- | --- | --- | --- |
-| Codex主agent（用户中途指定接管） | codex/integrate-U26-U30 / /private/tmp/gorequest-u26-u30-integration-20261108/worktree | 核对来源U26 da2d613、U27 6b7358d、U28 ddc07e9、U29 05e5ee6、U30 f42f8eb，no-ff合并，公共patch与必要修正，完整验证及main快进、本批5条来源安全清理 | 待启动 |
+| Codex主agent（用户中途指定接管） | codex/integrate-U26-U30 / /private/tmp/gorequest-u26-u30-integration-20261108/worktree | 核对来源U26 da2d613、U27 6b7358d、U28 ddc07e9、U29 05e5ee6、U30 f42f8eb，no-ff合并，公共patch与必要修正，完整验证及main快进、本批5条来源安全清理 | 已完成代码集成/验证/清理，实机未验收 |
 
 从本登记提交作为集成基线。交付卡“不得merge/其他分支”仅适用于开发阶段，本轮集成人已获用户明确授权合并/快进main/清理本批来源。仅允许操作sources.json登记的5个来源会话/worktree/分支；不push、不覆盖用户已有文件，不动t1h/t2s/t4q/t5c及其他项目t4k/MyGo showcase分支，不实际读写用户Secret或安装更新。
 
@@ -1174,3 +1174,10 @@ U30从e5fbb9f建立分支/worktree，经Herdr启动，终端t5j，tab tba0bfd932
 ### 42.2 最终验证
 
 主agent最终集成代码build/vet退出0；普通全仓go test ./... -count=1无skip，仅§40列明4项旧失败（desktop33.616s），其余通过。全仓race只skip这4项，退出0无race（desktop126.331s、uikit12.686s、core10.310s、update1.441s），包含公共patch与目标窗口隔离回归。git diff --check通过，go.mod/go.sum无改动。完整命令/限制见docs/task-results/integration-U26-U30-2026-11-08.md；未进行真实桌面/密钥/更新安装验收。5来源仍干净且头均为当前集成HEAD祖先，用户4文件SHA256不变，待提交/快进/精确清理。
+
+
+### 42.3 main与最终清理完成
+
+main已ff-only快进代码提交8a04310。确认5来源HEAD与登记一致、干净且已是main祖先后，精确关闭U26 t5d/U27 t5f/U28 t5g/U29 t5h/U30 t5j的登记tab（均ok:true），逐条hc finished后rm。非force移除5来源worktree/分支；集成分支确认干净且已并入main后，也非force移除codex/integrate-U26-U30及集成worktree。用户要求关闭的集成agy t5k在§42.1已清理，本批6个agent会话全部移除。
+
+最终只保留GoRequest main/主worktree；t1h/t2s/t4q/t5c及其他项目t4k等非本批会话未动。4个用户文件SHA256全部与初始一致；未push。完整清理句柄见集成报告，未将headless验证标记为真实桌面验收。
