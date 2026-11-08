@@ -18,6 +18,16 @@ import (
 // focus, Escape and click-outside behavior comes from the drawn menu itself:
 // Enter/Space/Down open it on the first item, the arrows move among the
 // choosable items, Escape closes the top level, and a press outside closes it.
+//
+// Motion boundary: this menu surface belongs to MyGo's drawn-menu runtime, not
+// to a panel this package builds. v0.7.4 exposes no open state or surface hook
+// for PopoverMenuButton (the trigger's expanded state is written after the
+// view is built and has no getter), so there is no safe way to scale, fade or
+// turn the menu without reimplementing its items, submenus, type-ahead and
+// focus handling. U15 therefore leaves the framework menu unanimated and
+// animates only the controllable uikit.Select popup; the trigger keeps its
+// existing hover/press feedback. Replacing it would require a new MyGo API,
+// which this task must not add.
 func headerMenuButton(c *ui.Context, p uikit.Palette, label string, build func(*ui.Menu)) ui.Element {
 	e := uikit.ActionCursor(ui.ButtonBase(c)).Height(30).Padding(0, 10).Gap(6).
 		Radius(8).AlignItems(ui.Center).BorderWidth(1).BorderColor(p.Hairline)

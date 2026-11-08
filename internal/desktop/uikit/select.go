@@ -27,10 +27,26 @@ func SameIcon(ic *ui.SVG) SelectIconFunc {
 // FillWidth, Grow, Label, Cursor, Disabled and Changed — exactly as with
 // ui.Select. Keyboard navigation (arrows, Home/End, Enter/Space, Escape) is
 // handled by SelectBase.
+//
+// Opening and closing play one shared spring (DropdownTransition): the popup
+// arrives from the trigger and leaves back toward it, while the chevron turns
+// to point up. Both are ordinary MyGo animations, so they settle and stop
+// requesting frames, and ReduceMotion turns them into a fade in place. The
+// popup keeps MyGo's placement, so it still flips above the trigger at the
+// window edge.
 func Select(c *ui.Context, selected *string, options []string, iconFor SelectIconFunc) ui.Element {
 	p := PaletteFor(c.Theme())
 	sel := ui.SelectBase[string](c, selected)
 	trigger := sel.Trigger
+	open := sel.Open()
+
+	// Keep the shared overlay layer built on every frame, even while this
+	// popup is closed. The popup and its enter/exit transition live in that
+	// layer; MyGo only keeps a leaving copy while its parent is still built,
+	// and the layer is otherwise rebuilt from scratch each frame. An empty
+	// overlay is a pass-through box, so this costs a node and changes no
+	// input, focus or layout behavior.
+	ui.Overlay(c, func() {})
 
 	disabled := trigger.IsDisabled()
 	bg := p.Sidebar
@@ -49,7 +65,7 @@ func Select(c *ui.Context, selected *string, options []string, iconFor SelectIco
 		Justify(ui.SpaceBetween)
 	trigger.Children(func() {
 		ui.Text(c, *selected).FontSize(13).TextColor(textColor).SingleLine()
-		ui.Icon(c, IconChevron).FontSize(IconSizeDefault).TextColor(iconColor)
+		dropdownChevron(c, open, iconColor)
 	})
 
 	// The popup is the elevated surface: white over the light page, the lighter
@@ -58,7 +74,7 @@ func Select(c *ui.Context, selected *string, options []string, iconFor SelectIco
 	if p.Dark {
 		popupBG = p.Sidebar
 	}
-	sel.Popup(func(panel ui.Element) {
+	popup := sel.Popup(func(panel ui.Element) {
 		panel.Padding(4).Gap(1).Radius(10).
 			Background(popupBG).BorderWidth(1).BorderColor(p.Hairline).
 			Shadow(0, 6, 20, 0, p.CardShade)
@@ -85,5 +101,9 @@ func Select(c *ui.Context, selected *string, options []string, iconFor SelectIco
 			})
 		}
 	})
+	// The popup arrives from its trigger and leaves back toward it. Scaling
+	// from the top-left corner keeps the surface anchored where the trigger
+	// is; the transition is a no-op while the popup is closed.
+	popup.TransformOrigin(0, 0).Transition(DropdownTransition)
 	return trigger
 }
