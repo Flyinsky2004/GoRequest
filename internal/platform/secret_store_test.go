@@ -178,20 +178,29 @@ func TestFileSecretsCloneIsolation(t *testing.T) {
 func TestSecretStorePreferencePersists(t *testing.T) {
 	store, root := newTestSecretStore(t)
 	scope := "demo:abc"
-	if got, err := store.SelectedKind(scope); err != nil || got != SecretBackendKeychain {
-		t.Fatalf("default kind = %q", got)
+	if got, err := store.SelectedKind(scope); err != nil || got != SecretBackendFile {
+		t.Fatalf("default kind = %q, err = %v; want %q", got, err, SecretBackendFile)
 	}
-	if err := store.SetSelectedKind(scope, SecretBackendFile); err != nil {
+	if got := SecretBackendKind("").String(); got != string(SecretBackendFile) {
+		t.Fatalf("empty kind String() = %q, want %q", got, SecretBackendFile)
+	}
+	if err := store.SetSelectedKind(scope, SecretBackendKeychain); err != nil {
 		t.Fatal(err)
 	}
-	// A fresh store at the same root is a restart.
+	// A fresh store at the same root is a restart: explicit keychain choice is preserved.
 	reloaded := NewSecretStore(root, newMemoryKeychainDriver())
-	if got, err := reloaded.SelectedKind(scope); err != nil || got != SecretBackendFile {
-		t.Fatalf("persisted kind = %q", got)
+	if got, err := reloaded.SelectedKind(scope); err != nil || got != SecretBackendKeychain {
+		t.Fatalf("persisted keychain kind = %q, err = %v", got, err)
 	}
-	// Another clone keeps its own default.
-	if got, err := reloaded.SelectedKind("demo:def"); err != nil || got != SecretBackendKeychain {
-		t.Fatalf("unrelated scope kind = %q", got)
+	// Another clone without an explicit preference defaults to local file.
+	if got, err := reloaded.SelectedKind("demo:def"); err != nil || got != SecretBackendFile {
+		t.Fatalf("unrelated scope kind = %q, err = %v; want %q", got, err, SecretBackendFile)
+	}
+	if err := reloaded.SetSelectedKind("demo:def", SecretBackendFile); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := reloaded.SelectedKind("demo:def"); err != nil || got != SecretBackendFile {
+		t.Fatalf("persisted file kind = %q, err = %v", got, err)
 	}
 	prefsInfo, err := os.Stat(filepath.Join(root, "preferences.json"))
 	if err != nil {
@@ -199,6 +208,70 @@ func TestSecretStorePreferencePersists(t *testing.T) {
 	}
 	if prefsInfo.Mode().Perm() != 0o600 {
 		t.Fatalf("preferences mode = %o", prefsInfo.Mode().Perm())
+	}
+}
+
+func TestSecretStoreDefaultFileDoesNotAutoMigrateOrTouchKeychain(t *testing.T) {
+	drv := newMemoryKeychainDriver()
+	root := filepath.Join(t.TempDir(), "secrets")
+	store := NewSecretStore(root, drv)
+	projectRoot := t.TempDir()
+	scope, err := store.Scope("demo", projectRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Seed an existing entry directly in the fake keychain driver without setting preferences.json.
+	scopedKey, err := ScopedSecretKey(scope, "legacyToken")
+	if err != nil {
+		t.Fatal(err)
+	}
+	drv.data[scopedKey] = "{{SECRET_legacy_kc}}"
+
+	kind, err := store.SelectedKind(scope)
+	if err != nil {
+		t.Fatalf("SelectedKind: %v", err)
+	}
+	if kind != SecretBackendFile {
+		t.Fatalf("SelectedKind = %q, want %q", kind, SecretBackendFile)
+	}
+	backend, err := store.Backend(scope, "demo", projectRoot, kind)
+	if err != nil {
+		t.Fatalf("Backend: %v", err)
+	}
+	// Default file backend has not migrated the keychain entry and does not read/delete keychain.
+	if _, ok := backend.Get("legacyToken"); ok {
+		t.Fatal("default file backend must not auto-migrate values from keychain")
+	}
+	filePath, err := store.FilePath(scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("opening default file backend must not create store file before Set: %v", err)
+	}
+	if drv.data[scopedKey] != "{{SECRET_legacy_kc}}" {
+		t.Fatal("existing keychain entry must remain untouched")
+	}
+
+	// When preferences.json explicitly selects keychain, reopening preserves keychain without migrating to file.
+	if err := store.SetSelectedKind(scope, SecretBackendKeychain); err != nil {
+		t.Fatal(err)
+	}
+	reloaded := NewSecretStore(root, drv)
+	gotKind, err := reloaded.SelectedKind(scope)
+	if err != nil || gotKind != SecretBackendKeychain {
+		t.Fatalf("explicit keychain choice lost: kind=%q err=%v", gotKind, err)
+	}
+	kcBackend, err := reloaded.Backend(scope, "demo", projectRoot, gotKind)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := kcBackend.Get("legacyToken"); !ok || v != "{{SECRET_legacy_kc}}" {
+		t.Fatalf("explicit keychain backend value = %q %v", v, ok)
+	}
+	if _, err := os.Stat(filePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("explicit keychain backend must not write local file store: %v", err)
 	}
 }
 

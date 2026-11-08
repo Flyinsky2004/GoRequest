@@ -13,7 +13,7 @@ import (
 	"gorequest/internal/core"
 )
 
-// FileSecrets is the explicit local-file secret backend. It stores plaintext
+// FileSecrets is the default local-file secret backend. It stores plaintext
 // values in a per-project-clone JSON document under the user's home directory
 // (never inside the project). The backend reports Plaintext=true so the UI can
 // say so instead of implying encryption.

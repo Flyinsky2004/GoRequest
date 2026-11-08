@@ -22,7 +22,9 @@ func TestSecretStorageCorruptPreferenceDoesNotSelectAnotherBackend(t *testing.T)
 
 func TestSecretStorageEnumeratedFileNamesSurviveSwitchToKeychain(t *testing.T) {
 	_, a, ps := openStorageProject(t, "Imported Local Secrets", t.TempDir(), newMemoryIdentityDriver())
-	switchBackend(t, a, ps, platform.SecretBackendFile)
+	if ps.secretKind != platform.SecretBackendFile {
+		t.Fatalf("default backend = %q, want %q", ps.secretKind, platform.SecretBackendFile)
+	}
 	// A file may contain entries that did not come through the management UI.
 	if err := ps.secretBackend.Set("importedSecret", "example-value"); err != nil {
 		t.Fatal(err)

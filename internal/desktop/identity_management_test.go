@@ -370,6 +370,18 @@ secrets:
 		t.Fatal(err)
 	}
 	ps.project = reopened
+	kcBackend, err := platform.NewKeychainSecrets(drv, reopened.File.ID, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps.secretKind = platform.SecretBackendKeychain
+	ps.secretBackend = kcBackend
+	layered, err := platform.NewLayeredSecrets(kcBackend, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps.secrets = layered
+	resetManagedCredentials(ps)
 	st := identityMgmtFor(ps)
 	a.openIdentityManagement(nil, 2)
 	a.refreshCredentialEntries(ps, st, true)
