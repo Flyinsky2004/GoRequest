@@ -1140,3 +1140,8 @@ U21-interop-i18n.patch先核对U22是否已覆盖勿重复套；U23-import_expor
 从本登记提交建立worktree，保持U26–U29独立开发。U29对response_view.go树形区域如需配色接线交patch，不与U30同时改该区域；U30不改共享UIKit/palette和其他卡文件。使用ui-ux-pro-max及现有SVG图标优先，图标实际可见面积、点击区域、垂直居中、同深度键对齐和叶子占位一致，适配亮暗主题/嵌套数组对象/展开折叠及键盘焦点；不把整棵树不必要放大，不只扩大按钮留白。
 
 允许本地commit，必要build/vet及树形专项验证；报告真实验证和未实机限制，不派子agent、不merge/push、不改总账本/go.mod/go.sum/MyGo源码/全局模型，不操作其他会话或真实用户数据。4项旧失败沿用§40，不改断言掩盖无关旧失败。用户已有dev.yaml/document.md和debug产物保留。尚未交付/集成/验收。
+
+
+### 41.1 实际启动句柄
+
+U30从e5fbb9f建立分支/worktree，经Herdr启动，终端t5j，tab tba0bfd93260ecf811a2f815414b00c2f9；读屏核对Claude Sonnet 5.5 · medium，确认新工作目录信任提示后hc状态working。完整prompt/session.json存本机/private/tmp/gorequest-u30-20261108/。U29 t5h已发送树形区域归属与配色patch交接通知，其余原任务继续。现为开发中，尚未交付/集成/验收。
