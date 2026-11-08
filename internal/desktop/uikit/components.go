@@ -164,17 +164,10 @@ func PrimaryButton(c *ui.Context, label string) ui.Element {
 	return btn
 }
 
-// Switch keeps MyGo's native switch behavior and animation while using the
-// palette's green Success color for the on track in both light and dark mode.
+// Switch shares the theme accent with context-menu highlights in both light
+// and dark mode, retaining MyGo's native behavior and animation.
 func Switch(c *ui.Context, on *bool) ui.Element {
-	t := c.Theme()
-	savedAccent := t.Accent
-	t.Accent = PaletteFor(t).withDefaults().Success
-	// MyGo captures the track color during construction. Restore Accent so
-	// subsequent controls retain their normal focus and selection colors.
-	sw := ui.Switch(c, on)
-	t.Accent = savedAccent
-	return ActionCursor(sw)
+	return ActionCursor(ui.Switch(c, on))
 }
 
 func syncInputTheme(c *ui.Context) {

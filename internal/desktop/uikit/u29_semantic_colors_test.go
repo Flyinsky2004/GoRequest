@@ -95,8 +95,8 @@ func TestFocusedInputsRestoreBrandAccent(t *testing.T) {
 				t.Fatalf("dark=%v %s focused border: brand=%d cool=%d (accent %v) rect=%v top=%v theme=%v", dark, label, brand, cool, p.Accent, r, im.RGBAAt(int(r.X+r.W/2), int(r.Y)), th.Accent)
 			}
 			sw, ok := tt.Find("enabled")
-			if !ok || accentPixels(tt, sw, p.Success) == 0 {
-				t.Fatalf("dark=%v enabled switch lost its green track", dark)
+			if !ok || accentPixels(tt, sw, p.Accent) == 0 {
+				t.Fatalf("dark=%v enabled switch must match the menu accent", dark)
 			}
 		}
 	}
