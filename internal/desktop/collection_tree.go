@@ -111,7 +111,7 @@ func (a *App) nameSpans(p uikit.Palette, text string, weight int, col ui.Color) 
 		}
 		spans = append(spans, ui.Span{
 			Text: text[j : j+len(q)], Size: 13, Weight: weight, Color: col,
-			Background: p.Accent.Alpha(0.20), Radius: 2,
+			Background: p.Selection, Radius: 2,
 		})
 		i = j + len(q)
 	}
@@ -190,7 +190,7 @@ func (a *App) projectContents(c *ui.Context, t *ui.Theme) {
 	// innermost accepting row (a folder) wins over this outer target.
 	list := ui.Column(c).Gap(1).FillWidth()
 	if _, ok := ui.DragOver[draggedRequest](list); ok {
-		list.Background(p.Accent.Alpha(0.10))
+		list.Background(p.Focus.Alpha(0.10))
 	}
 	if dropped, ok := ui.Drop[draggedRequest](list); ok {
 		a.moveRequestByID(dropped.id, "")
@@ -266,7 +266,7 @@ func (a *App) requestRow(c *ui.Context, t *ui.Theme, ps *projectState, e *core.R
 		row.Background(p.Press)
 	}
 	if over, ok := ui.DragOver[draggedRequest](row); ok && over.id != e.Request.ID {
-		row.Background(p.Accent.Alpha(0.16))
+		row.Background(p.Focus.Alpha(0.16))
 	}
 	if uikit.ActionCursor(row).Clicked() {
 		ps.sel = id
@@ -319,7 +319,7 @@ func (a *App) folderNode(c *ui.Context, t *ui.Theme, ps *projectState, n *core.C
 		row.Background(p.Press)
 	}
 	if _, ok := ui.DragOver[draggedRequest](row); ok {
-		row.Background(p.Accent.Alpha(0.18))
+		row.Background(p.Focus.Alpha(0.18))
 	}
 	row.Children(func() {
 		b := ui.Row(c).Grow(1).Height(30).Gap(6).AlignItems(ui.Center)

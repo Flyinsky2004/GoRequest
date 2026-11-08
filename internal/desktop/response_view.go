@@ -486,7 +486,7 @@ func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palet
 	case tab.Sending && tab.sse != nil && tab.sse.opened:
 		// The stream is connected and events are arriving: show progress by
 		// event count instead of the generic sending label.
-		ui.Text(c, translate(sm.StreamingFmt, tab.sse.eventCount)).FontSize(12).TextColor(p.Accent)
+		ui.Text(c, translate(sm.StreamingFmt, tab.sse.eventCount)).FontSize(12).TextColor(p.Info)
 	case tab.Sending:
 		ui.Text(c, m.SendingLabel).FontSize(12).TextColor(p.Muted)
 	case tab.RespErr != "":
@@ -509,7 +509,7 @@ func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palet
 		}
 		if len(tab.Resp.Redirects) > 0 {
 			ui.Text(c, fmt.Sprintf(nm.RedirectsBadgeFmt, len(tab.Resp.Redirects))).
-				FontSize(11).FontFeatures("tnum").TextColor(p.Accent)
+				FontSize(11).FontFeatures("tnum").TextColor(p.Info)
 		}
 		if tab.Resp.Trace != nil && tab.Resp.Trace.TLSInsecureSkipVerify {
 			ui.Text(c, nm.TLSInsecureBadge).
@@ -553,7 +553,7 @@ func streamPhaseText(sm *sseMessages, st *core.StreamInfo) string {
 func streamPhaseColor(phase core.StreamPhase, p uikit.Palette) ui.Color {
 	switch phase {
 	case core.StreamPhaseOpen:
-		return p.Accent
+		return p.Info
 	case core.StreamPhaseTimeout:
 		return uikit.MethodColor("POST", p)
 	case core.StreamPhaseFailed:

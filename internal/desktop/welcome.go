@@ -91,7 +91,7 @@ func (w *welcomeState) view(c *ui.Context) {
 
 		// Actions.
 		ui.Row(c).Padding(0, 24, 8, 24).Gap(10).AlignItems(ui.Center).Children(func() {
-			if uikit.ActionCursor(ui.PrimaryButton(c, m.OpenProject)).Tooltip(m.ChooseFolderTip).Clicked() {
+			if uikit.ActionCursor(uikit.PrimaryButton(c, m.OpenProject)).Tooltip(m.ChooseFolderTip).Clicked() {
 				mgr.pickProject(w.win)
 			}
 			if uikit.ActionCursor(ui.Button(c, m.NewProject)).Tooltip(m.NewProjectTip).Clicked() {
@@ -310,7 +310,7 @@ func (w *welcomeState) newProjectModal(c *ui.Context, t *ui.Theme) {
 					w.newProjOpen = false
 					open = false
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.Create)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.Create)).Clicked() {
 					w.createProject()
 					open = w.newProjOpen
 				}
@@ -334,7 +334,7 @@ func (w *welcomeState) projectModeCard(c *ui.Context, p uikit.Palette, mode newP
 		BorderWidth(1).BorderColor(p.Hairline)
 	switch {
 	case selected:
-		card.BorderWidth(2).BorderColor(p.Accent).Background(p.Accent.Alpha(0.08))
+		card.BorderWidth(2).BorderColor(p.InputBorder).Background(p.InputFill)
 	case card.Hovered():
 		card.Background(p.Hover)
 	}
@@ -347,7 +347,7 @@ func (w *welcomeState) projectModeCard(c *ui.Context, p uikit.Palette, mode newP
 				}
 				ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(p.Text).SingleLine().Grow(1)
 				if selected {
-					ui.Icon(c, uikit.IconCheck).FontSize(14).TextColor(p.Accent)
+					ui.Icon(c, uikit.IconCheck).FontSize(14).TextColor(p.Focus)
 				}
 			})
 			ui.Text(c, desc).FontSize(11).TextColor(p.Muted)

@@ -49,7 +49,7 @@ func (a *App) fileSyncTabBanner(c *ui.Context, t *ui.Theme, ps *projectState, ta
 				ui.Text(c, summary).Grow(1).FontSize(12).FontWeight(600).TextColor(p.Text)
 
 				if conflict != nil && !modalActiveForTab {
-					if uikit.ActionCursor(ui.PrimaryButton(c, fm.ResolveConflictBtn)).Clicked() {
+					if uikit.ActionCursor(uikit.PrimaryButton(c, fm.ResolveConflictBtn)).Clicked() {
 						a.OpenConflictModal(tab)
 					}
 					// Destructive resolutions must never run as a one-click silent
@@ -170,7 +170,7 @@ func (a *App) fileSyncModal(c *ui.Context, t *ui.Theme, ps *projectState) {
 			if ctrl.modalNote != "" {
 				noteCol := p.Muted
 				if ctrl.modalNoteWarn {
-					noteCol = t.Danger
+					noteCol = t.Warning
 				}
 				ui.Text(c, ctrl.modalNote).FontSize(12).TextColor(noteCol)
 			}
@@ -207,7 +207,7 @@ func (a *App) fileSyncModal(c *ui.Context, t *ui.Theme, ps *projectState) {
 				if !conflict.DiskExists {
 					primaryLabel = fm.RestoreDeleted
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, primaryLabel)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, primaryLabel)).Clicked() {
 					_ = a.ResolveTabConflict(tab, core.ResolutionApplyMerged)
 				}
 			})
@@ -255,7 +255,7 @@ func (a *App) renderThreeVersionPanes(
 
 		// 3. Edited / Merge Result (editable)
 		ui.Column(c).Grow(1).FillHeight().MinWidth(0).Radius(6).
-			BorderWidth(1).BorderColor(p.Accent).Clip().Children(func() {
+			BorderWidth(1).BorderColor(p.InputBorder).Clip().Children(func() {
 			paneTitleBar(c, p, fm.EditedPaneTitle, true)
 			if ctrl.mergeEditor != nil {
 				editor.View(c, ctrl.mergeEditor).Grow(1).FillWidth()
@@ -277,7 +277,7 @@ func (a *App) renderDiffModalPane(c *ui.Context, p uikit.Palette, heading string
 func paneTitleBar(c *ui.Context, p uikit.Palette, title string, accent bool) {
 	col := p.Muted
 	if accent {
-		col = p.Accent
+		col = p.Focus
 	}
 	ui.Row(c).FillWidth().Padding(6, 10).
 		Background(p.Hover).

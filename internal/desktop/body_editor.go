@@ -196,7 +196,7 @@ func (a *App) renderBodyEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 
 	if len(bs.unknownKeys) > 0 {
 		ui.Text(c, fmt.Sprintf(bm.UnknownFieldsWarning, strings.Join(bs.unknownKeys, ", "))).
-			FontSize(11).TextColor(danger).Padding(2, 6)
+			FontSize(11).TextColor(uikit.MethodColor("POST", p)).Padding(2, 6)
 	}
 
 	kind := bs.currentKind()

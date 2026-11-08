@@ -551,7 +551,7 @@ func (a *App) historyPanel(c *ui.Context, t *ui.Theme) {
 		})
 		a.historyFilters(c, p, m)
 		if a.historyUI.diag != "" {
-			ui.Text(c, a.historyUI.diag).FontSize(11).TextColor(p.Accent).Padding(2, 10)
+			ui.Text(c, a.historyUI.diag).FontSize(11).TextColor(uikit.MethodColor("POST", p)).Padding(2, 10)
 		}
 		records := a.visibleHistory()
 		if len(records) == 0 {
@@ -801,7 +801,7 @@ func (a *App) historyDetailModal(c *ui.Context, t *ui.Theme) {
 				if uikit.ActionCursor(ui.Button(c, m.Close)).Clicked() {
 					open = false
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.HistoryDetailOpen)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.HistoryDetailOpen)).Clicked() {
 					a.restoreHistory(r)
 					open = false
 				}
@@ -891,7 +891,7 @@ func (a *App) historyClearModal(c *ui.Context, t *ui.Theme) {
 					a.historyClearOpen = false
 					open = false
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, m.ClearHistory)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, m.ClearHistory)).Clicked() {
 					a.clearHistory()
 					a.historyClearOpen = false
 					open = false

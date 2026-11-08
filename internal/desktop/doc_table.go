@@ -387,7 +387,7 @@ func (st *docTableState) cell(c *ui.Context, p uikit.Palette, row, col int, acti
 		PaddingX(docTableCellPadX).Center()
 	switch {
 	case isActive:
-		box.Background(p.Accent.Alpha(0.07))
+		box.Background(p.InputFill)
 	case row == 0:
 		box.Background(p.Hover)
 	case box.Hovered():
@@ -412,7 +412,7 @@ func (st *docTableState) cell(c *ui.Context, p uikit.Palette, row, col int, acti
 		in.OnPaste(func(text string) bool { return st.paste(text, row, col, replace) })
 		if isActive {
 			ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).
-				BorderWidth(1.5).BorderColor(p.Accent).Radius(3).PassThrough()
+				BorderWidth(1.5).BorderColor(p.InputBorder).Radius(3).PassThrough()
 		}
 	})
 }

@@ -87,11 +87,11 @@ func Select(c *ui.Context, selected *string, options []string, iconFor SelectIco
 			item := sel.Item(option).Padding(6, 8).Gap(8).Radius(8).AlignItems(ui.Center)
 			highlighted := item.Highlighted()
 			if highlighted {
-				item.Background(p.Accent)
+				item.Background(p.Focus)
 			}
-			rowText, rowIcon, rowCheck := p.Text, p.Muted, p.Accent
+			rowText, rowIcon, rowCheck := p.Text, p.Muted, p.Focus
 			if highlighted {
-				rowText, rowIcon, rowCheck = p.OnAccent, p.OnAccent, p.OnAccent
+				rowText, rowIcon, rowCheck = p.OnFocus, p.OnFocus, p.OnFocus
 			}
 			item.Children(func() {
 				ic := IconChevron

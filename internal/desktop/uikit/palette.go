@@ -32,44 +32,131 @@ type Palette struct {
 	Hover    ui.Color // row/control hover wash
 	Press    ui.Color // row/control press wash
 
-	Accent   ui.Color // brand accent (red-orange of the reference theme)
-	OnAccent ui.Color // text on accent
+	Accent   ui.Color // brand accent (red-orange of the reference theme, for primary actions)
+	OnAccent ui.Color // text on brand accent
+
+	// Interactive focus & selection tokens (non-red cyan/blue semantics so
+	// normal inputs, carets, active cells and selections never read as errors).
+	Focus       ui.Color // focused input border, caret, active indicator
+	OnFocus     ui.Color // text/icon on a solid Focus fill
+	FocusRing   ui.Color // outer keyboard focus ring wash
+	Selection   ui.Color // text selection and filter match wash
+	InputBorder ui.Color // focused input / active cell border
+	InputFill   ui.Color // subtle active input / cell / card surface tint
+
+	// Semantic feedback tokens.
+	Info    ui.Color // informational / active-neutral hint text and badges
+	Success ui.Color // positive / completed / bound status
+	Warning ui.Color // caution / non-fatal warning status
+	Danger  ui.Color // error / destructive action / invalid input status
 
 	// CardShade is the single shadow color; shadows are always soft and use
 	// only this (never colored/hard shadows).
 	CardShade ui.Color
 }
 
-// Light palette values, copied verbatim from §1.1.
+var (
+	lightFocusColor = ui.Oklch(0.51, 0.14, 230)
+	darkFocusColor  = ui.Oklch(0.73, 0.13, 220)
+)
+
+// Light palette values, copied verbatim from §1.1 with U29 semantic tokens.
 var lightPalette = Palette{
-	Dark:      false,
-	BG:        ui.Hex("#ffffff"),
-	Sidebar:   ui.Hex("#f4f4f6"),
-	Text:      ui.Hex("#1d1d1f"),
-	Muted:     ui.RGBA(60, 60, 67, 0.62),
-	Faint:     ui.RGBA(60, 60, 67, 0.32),
-	Hairline:  ui.RGBA(0, 0, 0, 0.07),
-	Hover:     ui.RGBA(0, 0, 0, 0.04),
-	Press:     ui.RGBA(0, 0, 0, 0.08),
-	Accent:    ui.Oklch(0.6, 0.21, 24),
-	OnAccent:  ui.Hex("#ffffff"),
-	CardShade: ui.RGBA(0, 0, 0, 0.16),
+	Dark:        false,
+	BG:          ui.Hex("#ffffff"),
+	Sidebar:     ui.Hex("#f4f4f6"),
+	Text:        ui.Hex("#1d1d1f"),
+	Muted:       ui.RGBA(60, 60, 67, 0.62),
+	Faint:       ui.RGBA(60, 60, 67, 0.32),
+	Hairline:    ui.RGBA(0, 0, 0, 0.07),
+	Hover:       ui.RGBA(0, 0, 0, 0.04),
+	Press:       ui.RGBA(0, 0, 0, 0.08),
+	Accent:      ui.Oklch(0.6, 0.21, 24),
+	OnAccent:    ui.Hex("#ffffff"),
+	Focus:       lightFocusColor,
+	OnFocus:     ui.Hex("#ffffff"),
+	FocusRing:   lightFocusColor.Alpha(0.55),
+	Selection:   lightFocusColor.Alpha(0.24),
+	InputBorder: lightFocusColor,
+	InputFill:   lightFocusColor.Alpha(0.08),
+	Info:        lightFocusColor,
+	Success:     ui.Oklch(0.51, 0.15, 155),
+	Warning:     ui.Oklch(0.51, 0.14, 65),
+	Danger:      ui.Oklch(0.51, 0.19, 18),
+	CardShade:   ui.RGBA(0, 0, 0, 0.16),
 }
 
-// Dark palette values, copied verbatim from §1.1.
+// Dark palette values, copied verbatim from §1.1 with U29 semantic tokens.
 var darkPalette = Palette{
-	Dark:      true,
-	BG:        ui.Hex("#141416"),
-	Sidebar:   ui.Hex("#1c1c1f"),
-	Text:      ui.Hex("#f5f5f7"),
-	Muted:     ui.RGBA(235, 235, 245, 0.56),
-	Faint:     ui.RGBA(235, 235, 245, 0.30),
-	Hairline:  ui.RGBA(255, 255, 255, 0.07),
-	Hover:     ui.RGBA(255, 255, 255, 0.06),
-	Press:     ui.RGBA(255, 255, 255, 0.10),
-	Accent:    ui.Oklch(0.66, 0.2, 22),
-	OnAccent:  ui.Hex("#ffffff"),
-	CardShade: ui.RGBA(0, 0, 0, 0.45),
+	Dark:        true,
+	BG:          ui.Hex("#141416"),
+	Sidebar:     ui.Hex("#1c1c1f"),
+	Text:        ui.Hex("#f5f5f7"),
+	Muted:       ui.RGBA(235, 235, 245, 0.56),
+	Faint:       ui.RGBA(235, 235, 245, 0.30),
+	Hairline:    ui.RGBA(255, 255, 255, 0.07),
+	Hover:       ui.RGBA(255, 255, 255, 0.06),
+	Press:       ui.RGBA(255, 255, 255, 0.10),
+	Accent:      ui.Oklch(0.66, 0.2, 22),
+	OnAccent:    ui.Hex("#ffffff"),
+	Focus:       darkFocusColor,
+	OnFocus:     ui.Hex("#141416"),
+	FocusRing:   darkFocusColor.Alpha(0.55),
+	Selection:   darkFocusColor.Alpha(0.30),
+	InputBorder: darkFocusColor,
+	InputFill:   darkFocusColor.Alpha(0.14),
+	Info:        darkFocusColor,
+	Success:     ui.Oklch(0.68, 0.16, 155),
+	Warning:     ui.Oklch(0.72, 0.16, 75),
+	Danger:      ui.Oklch(0.64, 0.19, 15),
+	CardShade:   ui.RGBA(0, 0, 0, 0.45),
+}
+
+// withDefaults fills any zero semantic tokens from the matching appearance
+// palette so callers constructing a partial Palette in tests still get valid
+// focus and status colors.
+func (p Palette) withDefaults() Palette {
+	base := lightPalette
+	if p.Dark {
+		base = darkPalette
+	}
+	if p.Accent == (ui.Color{}) {
+		p.Accent = base.Accent
+	}
+	if p.OnAccent == (ui.Color{}) {
+		p.OnAccent = base.OnAccent
+	}
+	if p.Focus == (ui.Color{}) {
+		p.Focus = base.Focus
+	}
+	if p.OnFocus == (ui.Color{}) {
+		p.OnFocus = base.OnFocus
+	}
+	if p.FocusRing == (ui.Color{}) {
+		p.FocusRing = base.FocusRing
+	}
+	if p.Selection == (ui.Color{}) {
+		p.Selection = base.Selection
+	}
+	if p.InputBorder == (ui.Color{}) {
+		p.InputBorder = base.InputBorder
+	}
+	if p.InputFill == (ui.Color{}) {
+		p.InputFill = base.InputFill
+	}
+	if p.Info == (ui.Color{}) {
+		p.Info = base.Info
+	}
+	if p.Success == (ui.Color{}) {
+		p.Success = base.Success
+	}
+	if p.Warning == (ui.Color{}) {
+		p.Warning = base.Warning
+	}
+	if p.Danger == (ui.Color{}) {
+		p.Danger = base.Danger
+	}
+	return p
 }
 
 // PaletteFor returns the palette for a theme's appearance. A nil theme is
@@ -141,11 +228,37 @@ func StatusPillColor(code int, p Palette) (ui.Color, bool) {
 	return p.Faint, false
 }
 
-// Theme builds a ui.Theme whose surfaces, text and accent come from the
-// palette, so built-in widgets match the kit. Radius is left at the workbench
-// weight (8) and Spacing at 4; component-specific radii are set explicitly by
-// the components, never inherited from here.
+// BrandAccentHover returns the hover fill for brand-accent primary controls.
+func BrandAccentHover(p Palette) ui.Color {
+	p = p.withDefaults()
+	if p.Dark {
+		return p.Accent.Mix(ui.RGB(255, 255, 255), 0.15)
+	}
+	return p.Accent.Mix(ui.RGB(0, 0, 0), 0.12)
+}
+
+// BrandAccentPressed returns the pressed fill for brand-accent primary controls.
+func BrandAccentPressed(p Palette) ui.Color {
+	p = p.withDefaults()
+	if p.Dark {
+		return p.Accent.Mix(ui.RGB(0, 0, 0), 0.20)
+	}
+	return p.Accent.Mix(ui.RGB(0, 0, 0), 0.25)
+}
+
+// Theme builds a ui.Theme whose surfaces, text and semantic tokens come from
+// the palette, so built-in widgets match the kit.
+//
+// In MyGo v0.7.4, text inputs (TextInput, TextArea, Autocomplete, Combobox,
+// NumberInput) paint their focused border (inputBorder) and blinking caret
+// (paintInput) from t.Accent rather than t.Focus. Therefore Theme maps
+// t.Accent to p.Focus (and t.Selection / t.Focus to p.Selection / p.FocusRing)
+// so normal inputs never render an error-red focus border or caret, while
+// primary action controls (SendButton, SendPill, PillButton, PrimaryButton)
+// explicitly use the brand red-orange p.Accent / p.OnAccent.
 func Theme(p Palette, dark bool) *ui.Theme {
+	p.Dark = dark
+	p = p.withDefaults()
 	var t *ui.Theme
 	if dark {
 		t = ui.DarkTheme()
@@ -162,20 +275,20 @@ func Theme(p Palette, dark bool) *ui.Theme {
 	t.Border = p.Hairline
 	t.Text = p.Text
 	t.TextMuted = p.Muted
-	t.Accent = p.Accent
-	t.AccentText = p.OnAccent
+	t.Accent = p.Focus
+	t.AccentText = p.OnFocus
 	if dark {
-		t.AccentHover = p.Accent.Mix(white, 0.15)
-		t.AccentPressed = p.Accent.Mix(black, 0.20)
+		t.AccentHover = p.Focus.Mix(white, 0.15)
+		t.AccentPressed = p.Focus.Mix(black, 0.20)
 	} else {
-		t.AccentHover = p.Accent.Mix(black, 0.12)
-		t.AccentPressed = p.Accent.Mix(black, 0.25)
+		t.AccentHover = p.Focus.Mix(black, 0.12)
+		t.AccentPressed = p.Focus.Mix(black, 0.25)
 	}
-	t.Selection = p.Accent.Alpha(0.3) // §1.1
-	t.Focus = p.Accent.Alpha(0.55)
-	t.Danger = MethodColor("DELETE", p)
-	t.Warning = MethodColor("POST", p)
-	t.Success = MethodColor("GET", p)
+	t.Selection = p.Selection
+	t.Focus = p.FocusRing
+	t.Danger = p.Danger
+	t.Warning = p.Warning
+	t.Success = p.Success
 	t.Radius = 8
 	t.Spacing = 4
 	return t

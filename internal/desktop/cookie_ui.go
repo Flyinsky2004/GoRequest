@@ -200,7 +200,7 @@ func (a *App) cookieJarModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 					uikit.ActionCursor(ui.Checkbox(c, &cui.editSecure, "Secure"))
 					uikit.ActionCursor(ui.Checkbox(c, &cui.editHttpOnly, "HttpOnly"))
 					ui.Box(c).Grow(1)
-					if uikit.ActionCursor(ui.PrimaryButton(c, nm.CookieSaveBtn)).Clicked() {
+					if uikit.ActionCursor(uikit.PrimaryButton(c, nm.CookieSaveBtn)).Clicked() {
 						err := jar.Upsert(core.CookieEntry{
 							Domain:   cui.editDomain,
 							Path:     cui.editPath,

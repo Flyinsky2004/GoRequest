@@ -235,7 +235,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 					a.StageImportPreview()
 				}
 				canApply := st.StagedPlan != nil && st.StagedPlan.Preview().CanApply
-				applyBtn := ui.PrimaryButton(c, im.ConfirmApplyButton)
+				applyBtn := uikit.PrimaryButton(c, im.ConfirmApplyButton)
 				if !canApply {
 					applyBtn.Disabled(true)
 				}
@@ -345,7 +345,7 @@ func (a *App) exportModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 				if uikit.ActionCursor(ui.Button(c, im.CopyClipboardButton)).Clicked() {
 					a.CopyExportPreviewToClipboard(c)
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, im.SaveToFileButton)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, im.SaveToFileButton)).Clicked() {
 					a.ExecuteExportToFile()
 				}
 				if uikit.ActionCursor(ui.Button(c, im.CloseButton)).Clicked() {

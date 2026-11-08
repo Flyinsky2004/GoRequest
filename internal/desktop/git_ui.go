@@ -217,7 +217,7 @@ func (g *gitController) entryRow(c *ui.Context, t *ui.Theme, p uikit.Palette, m 
 		col := p.Muted
 		switch badge {
 		case "A", "?":
-			col = p.Accent
+			col = t.Success
 		case "D", "U":
 			col = t.Danger
 		}
@@ -264,7 +264,7 @@ func (g *gitController) commitModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, translate(m.SelectedCount, len(g.selectedPaths()))).FontSize(12).TextColor(p.Muted)
 			if g.status != nil {
 				if n := g.status.StagedCount(); n > 0 {
-					ui.Text(c, translate(m.StagedWarn, n)).FontSize(11).TextColor(t.Danger)
+					ui.Text(c, translate(m.StagedWarn, n)).FontSize(11).TextColor(t.Warning)
 				}
 			}
 			ui.Text(c, m.CommitMessage).FontSize(12).TextColor(p.Text)
@@ -286,7 +286,7 @@ func (g *gitController) commitModal(c *ui.Context, t *ui.Theme) {
 					g.commitOpen = false
 					open = false
 				}
-				commit := ui.PrimaryButton(c, m.CommitAction).
+				commit := uikit.PrimaryButton(c, m.CommitAction).
 					Disabled(g.busy != "" || g.commitMessage() == "" || len(g.selectedPaths()) == 0)
 				if uikit.ActionCursor(commit).Clicked() {
 					g.asyncCommit()
@@ -406,7 +406,7 @@ func (g *gitController) confirmModal(c *ui.Context, t *ui.Theme) {
 					g.confirmOpen = false
 					open = false
 				}
-				primary := ui.PrimaryButton(c, action).
+				primary := uikit.PrimaryButton(c, action).
 					Disabled(g.busy != "" || g.confirmErr != "" || g.confirmTarget == nil)
 				if uikit.ActionCursor(primary).Clicked() {
 					if g.confirmKind == "pull" {

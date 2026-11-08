@@ -131,7 +131,7 @@ func (a *App) b03CustomMethodModal(c *ui.Context, t *ui.Theme) {
 				if uikit.ActionCursor(ui.Button(c, m.Cancel)).Clicked() {
 					st.open = false
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, bm.ApplyMethod)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, bm.ApplyMethod)).Clicked() {
 					a.submitCustomMethodDialog()
 				}
 			})

@@ -279,7 +279,7 @@ func (a *App) renderMockRuleEditor(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 					a.CloseMockRuleEditor()
 				}
 			}
-			saveBtn := ui.PrimaryButton(c, mockT(a, "mock.edit.action.save")).Disabled(ed.hasErrors())
+			saveBtn := uikit.PrimaryButton(c, mockT(a, "mock.edit.action.save")).Disabled(ed.hasErrors())
 			uikit.ActionCursor(saveBtn)
 			if saveBtn.Clicked() {
 				a.SaveMockRuleDraft()

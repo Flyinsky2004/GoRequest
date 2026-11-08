@@ -443,7 +443,7 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 		refID := strings.TrimSpace(tab.AuthRefID)
 		switch {
 		case refID == "":
-			ui.Text(c, im.SchemeEmptyHint).FontSize(12).TextColor(uikit.MethodColor("DELETE", pal))
+			ui.Text(c, im.SchemeEmptyHint).FontSize(12).TextColor(t.TextMuted)
 		case proj != nil && proj.AuthSchemes[refID] != nil:
 			ui.Text(c, translate(im.SchemeResolvedPrefix, summarizeAuthScheme(proj.AuthSchemes[refID]))).
 				FontSize(12).TextColor(t.TextMuted)

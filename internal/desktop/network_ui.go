@@ -892,7 +892,7 @@ func (a *App) networkSettingsModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 					st.netErrMsg = ""
 					st.netModalOpen = false
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, nm.SaveNetworkSettingsBtn)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, nm.SaveNetworkSettingsBtn)).Clicked() {
 					// FIX08: an invalid stage-timeout draft must not be
 					// silently ignored. Route its feedback to the field; keep
 					// the modal open so the user can correct or cancel.

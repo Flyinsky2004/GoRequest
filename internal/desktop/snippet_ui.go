@@ -170,7 +170,7 @@ func (a *App) snippetModal(c *ui.Context, t *ui.Theme, st *SnippetState) {
 				if uikit.ActionCursor(ui.Button(c, sm.CopyButton)).Clicked() {
 					a.CopySnippetToClipboard(c)
 				}
-				if uikit.ActionCursor(ui.PrimaryButton(c, sm.ExportButton)).Clicked() {
+				if uikit.ActionCursor(uikit.PrimaryButton(c, sm.ExportButton)).Clicked() {
 					a.ExecuteSnippetExportToFile()
 				}
 				if uikit.ActionCursor(ui.Button(c, sm.CloseButton)).Clicked() {

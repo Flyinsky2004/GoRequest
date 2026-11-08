@@ -147,3 +147,104 @@ func absf(v float32) float32 {
 	}
 	return v
 }
+
+// PrimaryButton creates a native MyGo primary action button styled with the
+// palette's brand red-orange Accent (p.Accent / p.OnAccent) while keeping the
+// active ui.Theme's Accent on the non-red Focus token for inputs and carets.
+// MyGo's styleButton captures base, hover, pressed and fg by value when the
+// button is constructed, so restoring t.Accent immediately after construction
+// keeps primary buttons in the brand color and text inputs in the focus color.
+func PrimaryButton(c *ui.Context, label string) ui.Element {
+	t := c.Theme()
+	p := PaletteFor(t).withDefaults()
+	savedAccent, savedHover, savedPressed, savedText := t.Accent, t.AccentHover, t.AccentPressed, t.AccentText
+	t.Accent = p.Accent
+	t.AccentHover = BrandAccentHover(p)
+	t.AccentPressed = BrandAccentPressed(p)
+	t.AccentText = p.OnAccent
+	btn := ui.PrimaryButton(c, label)
+	t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = savedAccent, savedHover, savedPressed, savedText
+	return btn
+}
+
+func syncInputTheme(c *ui.Context) {
+	t := c.Theme()
+	p := PaletteFor(t).withDefaults()
+	t.Accent = p.Focus
+	t.AccentText = p.OnFocus
+	t.Selection = p.Selection
+	t.Focus = p.FocusRing
+	t.Danger = p.Danger
+	t.Warning = p.Warning
+	t.Success = p.Success
+}
+
+// TextInput creates a single-line text input whose focused border, caret and
+// selection use the palette's non-red Focus/Selection tokens (and Danger only
+// when marked invalid via .Error).
+func TextInput(c *ui.Context, value *string) ui.Element {
+	syncInputTheme(c)
+	return ui.TextInput(c, value)
+}
+
+// TextArea creates a multi-line text input whose focused border, caret and
+// selection use the palette's non-red Focus/Selection tokens.
+func TextArea(c *ui.Context, value *string) ui.Element {
+	syncInputTheme(c)
+	return ui.TextArea(c, value)
+}
+
+// Autocomplete creates an autocomplete text input whose focused border, caret,
+// selection and option highlight use the palette's non-red Focus tokens.
+func Autocomplete(c *ui.Context, value *string, options []string) ui.Element {
+	syncInputTheme(c)
+	return ui.Autocomplete(c, value, options)
+}
+
+// NoticeTone classifies helper text, status badges and notice blocks by
+// semantic intent so normal hints and warnings never masquerade as errors.
+type NoticeTone int
+
+const (
+	NoticeNeutral NoticeTone = iota
+	NoticeInfo
+	NoticeSuccess
+	NoticeWarning
+	NoticeDanger
+)
+
+// NoticeColors returns the foreground text color, subtle container fill and
+// container border color for a semantic tone in the given palette.
+func NoticeColors(p Palette, tone NoticeTone) (fg, bg, border ui.Color) {
+	p = p.withDefaults()
+	switch tone {
+	case NoticeInfo:
+		return p.Info, p.InputFill, p.InputBorder.Alpha(0.35)
+	case NoticeSuccess:
+		return p.Success, p.Success.Alpha(0.10), p.Success.Alpha(0.35)
+	case NoticeWarning:
+		return p.Warning, p.Warning.Alpha(0.10), p.Warning.Alpha(0.35)
+	case NoticeDanger:
+		return p.Danger, p.Danger.Alpha(0.10), p.Danger.Alpha(0.35)
+	default:
+		return p.Muted, p.Hover, p.Hairline
+	}
+}
+
+// HintText renders single- or multi-line helper/status text in the semantic
+// foreground color of tone.
+func HintText(c *ui.Context, p Palette, tone NoticeTone, text string) ui.Element {
+	fg, _, _ := NoticeColors(p, tone)
+	return ui.Text(c, text).FontSize(12).TextColor(fg)
+}
+
+// NoticeBanner renders a bordered semantic notice block (fill + border + text).
+func NoticeBanner(c *ui.Context, p Palette, tone NoticeTone, text string) ui.Element {
+	fg, bg, border := NoticeColors(p, tone)
+	box := ui.Row(c).FillWidth().Padding(8, 10).Gap(8).Radius(6).
+		AlignItems(ui.Center).Background(bg).BorderWidth(1).BorderColor(border)
+	box.Children(func() {
+		ui.Text(c, text).FontSize(12).TextColor(fg).Grow(1)
+	})
+	return box
+}

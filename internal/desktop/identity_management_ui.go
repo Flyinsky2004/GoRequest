@@ -180,7 +180,7 @@ func (a *App) renderSchemeSection(c *ui.Context, t *ui.Theme, ps *projectState, 
 				label := info.ID + " · " + info.Type
 				b := ui.Button(c, label)
 				if info.ID == st.selectedID {
-					b = b.TextColor(p.Accent)
+					b = b.TextColor(p.Focus)
 				}
 				if b.Clicked() {
 					a.selectAuthScheme(ps, st, info.ID)
@@ -244,7 +244,7 @@ func (a *App) renderSchemeSection(c *ui.Context, t *ui.Theme, ps *projectState, 
 				if st.isNew {
 					label = m.SchemeCreate
 				}
-				if ui.PrimaryButton(c, label).Clicked() {
+				if uikit.PrimaryButton(c, label).Clicked() {
 					a.saveSchemeDraft(ps, st)
 				}
 			}
@@ -386,7 +386,7 @@ func (a *App) renderFolderSection(c *ui.Context, t *ui.Theme, ps *projectState, 
 		ui.Text(c, fmt.Sprintf(m.FolderDirtyConfirm, strings.Join(st.folderDirty, ", "))).FontSize(12).TextColor(t.Danger)
 	}
 	ui.Row(c).Gap(8).Children(func() {
-		if ui.PrimaryButton(c, m.FolderSave).Clicked() {
+		if uikit.PrimaryButton(c, m.FolderSave).Clicked() {
 			a.requestSaveFolderAuth(ps, st, false)
 		}
 		if ui.Button(c, m.FolderClear).Clicked() {
@@ -525,7 +525,7 @@ func (a *App) renderSecretSwitchPlan(c *ui.Context, t *ui.Theme, ps *projectStat
 		if plan.HasConflicts() && st.switchPolicy == platform.ConflictOverwriteTarget {
 			label = m.StorageConfirmOverwrite
 		}
-		confirm := ui.PrimaryButton(c, label)
+		confirm := uikit.PrimaryButton(c, label)
 		if !plan.Source.Available || !plan.Target.Available {
 			confirm = confirm.Disabled(true)
 		}
@@ -564,7 +564,7 @@ func (a *App) renderCredentialSection(c *ui.Context, t *ui.Theme, ps *projectSta
 		ui.Text(c, m.CredValue).FontSize(12).FontWeight(600).TextColor(p.Muted)
 		ui.TextInput(c, &st.credValue).Grow(1).Password().Placeholder("{{PASTE_CREDENTIAL}}")
 		ui.Text(c, m.CredValueHint).FontSize(11).TextColor(p.Muted)
-		if ui.PrimaryButton(c, m.CredSave).Clicked() {
+		if uikit.PrimaryButton(c, m.CredSave).Clicked() {
 			a.saveCredential(ps, st)
 		}
 	})
@@ -588,13 +588,14 @@ func (a *App) renderCredentialRow(c *ui.Context, t *ui.Theme, ps *projectState, 
 	sm := a.secretEntryMessages()
 	p := uikit.PaletteFor(t)
 	status := m.CredStatusMissing
-	col := uikit.MethodColor("DELETE", p)
+	col := uikit.MethodColor("POST", p)
 	switch entry.Status.State {
 	case core.SecretStateBound:
 		status = fmt.Sprintf(m.CredStatusBound, a.secretBackendStatusLabel(entry.Status.Backend))
 		col = p.Muted
 	case core.SecretStateUnavailable:
 		status = fmt.Sprintf(m.CredStatusUnavail, a.secretBackendStatusLabel(entry.Status.Backend))
+		col = t.Danger
 	}
 	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, "{{secret."+entry.Name+"}}").FontSize(12).Font("monospace").TextColor(p.Text).Width(220).SingleLine()
@@ -666,7 +667,7 @@ func (a *App) productionPolicyModal(c *ui.Context, t *ui.Theme) {
 					a.cancelPolicyPrompt(st)
 					open = false
 				}
-				if ui.PrimaryButton(c, m.PolicyConfirmSend).Clicked() {
+				if uikit.PrimaryButton(c, m.PolicyConfirmSend).Clicked() {
 					a.acceptPolicyPrompt(ps, st)
 					open = false
 					// Confirm and send through the exact public integration
