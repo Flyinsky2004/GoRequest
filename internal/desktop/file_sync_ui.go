@@ -28,13 +28,18 @@ func (a *App) fileSyncTabBanner(c *ui.Context, t *ui.Theme, ps *projectState, ta
 
 	fm := a.fileSyncMsg()
 	p := uikit.PaletteFor(t)
-	warnColor := t.Danger
+	// A plain on-disk deletion is expected unsaved-edit protection, not an
+	// error: use the warning tint. Only real Git conflict markers use danger.
+	warnColor := t.Warning
+	if gitConflictOnDisk || (conflict != nil && conflict.HasGitConflict) {
+		warnColor = t.Danger
+	}
 
 	ui.Column(c).FillWidth().Padding(8, 14).Gap(6).
 		Background(warnColor.Alpha(0.10)).
 		BorderWidth(0, 0, 1, 0).BorderColor(warnColor.Alpha(0.35)).
 		Children(func() {
-			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 				var summary string
 				switch {
 				case conflict == nil:
@@ -46,40 +51,65 @@ func (a *App) fileSyncTabBanner(c *ui.Context, t *ui.Theme, ps *projectState, ta
 				default:
 					summary = translate(fm.BannerModified, conflict.RelPath)
 				}
-				ui.Text(c, summary).Grow(1).FontSize(12).FontWeight(600).TextColor(p.Text)
+				ui.Text(c, summary).Grow(1).MinWidth(180).FontSize(12).FontWeight(600).TextColor(p.Text)
 
 				if conflict != nil && !modalActiveForTab {
-					if uikit.ActionCursor(uikit.PrimaryButton(c, fm.ResolveConflictBtn)).Clicked() {
-						a.OpenConflictModal(tab)
-					}
-					// Destructive resolutions must never run as a one-click silent
-					// shortcut from the banner while unsaved edits exist: route the
-					// user through the three-version modal so they can compare the
-					// reading baseline, disk version, and current edit before
-					// discarding anything. Only the non-destructive "Save As Copy"
-					// stays inline.
-					if conflict.DiskExists {
-						if conflict.ParseErr == "" && !conflict.HasGitConflict {
-							if uikit.ActionCursor(ui.Button(c, fm.ReloadDiskBtn)).Clicked() {
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+						if fileSyncButton(c, t, fileSyncBtnSecondary, fm.ResolveConflictBtn, fileSyncIconCompare, true, false).Clicked() {
+							a.OpenConflictModal(tab)
+						}
+						// Destructive resolutions must never run as a one-click
+						// silent shortcut from the banner while unsaved edits
+						// exist: route the user through the three-version modal.
+						// Only the non-destructive "Save As Copy" stays inline.
+						if conflict.DiskExists {
+							if conflict.ParseErr == "" && !conflict.HasGitConflict {
+								if fileSyncButton(c, t, fileSyncBtnSecondary, fm.ReloadDiskBtn, fileSyncIconReload, true, false).Clicked() {
+									a.OpenConflictModal(tab)
+								}
+							}
+						}
+						if fileSyncButton(c, t, fileSyncBtnSecondary, fm.SaveAsCopyBtn, fileSyncIconCopy, true, false).Clicked() {
+							if err := a.ResolveTabConflict(tab, core.ResolutionSaveAsCopy); err != nil {
+								setFileSyncBannerErr(tab, err.Error())
+							} else {
+								setFileSyncBannerErr(tab, "")
+							}
+						}
+						if !conflict.DiskExists {
+							if fileSyncButton(c, t, fileSyncBtnDanger, fm.AcceptDeleteReviewBtn, fileSyncIconTrash, true, false).Clicked() {
 								a.OpenConflictModal(tab)
 							}
 						}
-					} else {
-						if uikit.ActionCursor(ui.Button(c, fm.AcceptDeleteBtn)).Clicked() {
-							a.OpenConflictModal(tab)
-						}
-					}
-					if uikit.ActionCursor(ui.Button(c, fm.SaveAsCopyBtn)).Clicked() {
-						_ = a.ResolveTabConflict(tab, core.ResolutionSaveAsCopy)
-					}
+					})
 				}
 			})
 
 			if conflict != nil && conflict.HasGitConflict {
-				ui.Text(c, fm.BannerGitConflict).FontSize(11).TextColor(warnColor)
+				ui.Text(c, fm.BannerGitConflict).FontSize(11).TextColor(t.Danger)
+			}
+			if msg := fileSyncBannerErr(tab); msg != "" && conflict != nil {
+				ui.Text(c, msg).FontSize(11).TextColor(t.Danger)
 			}
 		})
 }
+
+// Banner-level resolution errors (Save As Copy runs inline, outside the modal
+// whose modalErr line would otherwise show them). UI-thread only.
+var fileSyncBannerErrs = map[*Tab]string{}
+
+func setFileSyncBannerErr(tab *Tab, msg string) {
+	if tab == nil {
+		return
+	}
+	if msg == "" {
+		delete(fileSyncBannerErrs, tab)
+		return
+	}
+	fileSyncBannerErrs[tab] = msg
+}
+
+func fileSyncBannerErr(tab *Tab) string { return fileSyncBannerErrs[tab] }
 
 func (a *App) tabHasDiskGitConflict(ps *projectState, tab *Tab) bool {
 	if ps == nil || ps.project == nil || tab == nil {
@@ -120,7 +150,10 @@ func (a *App) fileSyncModal(c *ui.Context, t *ui.Theme, ps *projectState) {
 	tab := ctrl.modalTab
 
 	modal := ui.Modal(c, &ctrl.modalOpen, func() {
-		ui.Column(c).Width(960).Height(600).Gap(10).Padding(16).Children(func() {
+		winW, winH := c.Size()
+		panelW := max(float32(320), min(float32(960), float32(winW)-48))
+		panelH := max(float32(360), min(float32(600), float32(winH)-48))
+		ui.Column(c).Width(panelW).Height(panelH).Gap(10).Padding(16).Children(func() {
 			// Header: conflict title + view mode selector.
 			ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
 				title := fm.ModalTitleModified
@@ -144,6 +177,9 @@ func (a *App) fileSyncModal(c *ui.Context, t *ui.Theme, ps *projectState) {
 			} else {
 				ui.Text(c, translate(fm.PathSummary, conflict.RelPath)).
 					FontSize(12).TextColor(p.Muted)
+			}
+			if conflict.ConflictKind == core.ConflictDeleted && !conflict.DiskExists {
+				ui.Text(c, fm.DeletedHint).FontSize(12).TextColor(t.Warning)
 			}
 			if strings.TrimSpace(conflict.ParseErr) != "" {
 				ui.Text(c, translate(fm.DiskParseWarning, conflict.ParseErr)).
@@ -178,37 +214,39 @@ func (a *App) fileSyncModal(c *ui.Context, t *ui.Theme, ps *projectState) {
 				ui.Text(c, ctrl.modalErr).FontSize(12).TextColor(t.Danger)
 			}
 
-			// Action bar.
-			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-				if uikit.ActionCursor(ui.Button(c, fm.KeepEditingLater)).Clicked() {
+			// Action bar: wraps in narrow windows. The red primary action is only
+			// "Accept Delete"; "Restore File" is a secondary action.
+			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+				if fileSyncButton(c, t, fileSyncBtnGhost, fm.KeepEditingLater, fileSyncIconLater, false, false).Clicked() {
 					a.CloseConflictModal()
 				}
 				if conflict.DiskExists {
-					if uikit.ActionCursor(ui.Button(c, fm.AutoMergeThreeWay)).Clicked() {
+					if fileSyncButton(c, t, fileSyncBtnSecondary, fm.AutoMergeThreeWay, fileSyncIconMerge, false, false).Clicked() {
 						a.RunThreeWayMergeInModal()
 					}
 				}
 				ui.Box(c).Grow(1)
 				if conflict.DiskExists {
 					if conflict.ParseErr == "" && !conflict.HasGitConflict {
-						if uikit.ActionCursor(ui.Button(c, fm.ReloadDiskBtn)).Clicked() {
+						if fileSyncButton(c, t, fileSyncBtnSecondary, fm.ReloadDiskBtn, fileSyncIconReload, false, false).Clicked() {
 							_ = a.ResolveTabConflict(tab, core.ResolutionReloadDisk)
 						}
 					}
-				} else {
-					if uikit.ActionCursor(ui.Button(c, fm.AcceptDeleteBtn)).Clicked() {
-						_ = a.ResolveTabConflict(tab, core.ResolutionAcceptDelete)
-					}
 				}
-				if uikit.ActionCursor(ui.Button(c, fm.SaveAsCopyBtn)).Clicked() {
+				if fileSyncButton(c, t, fileSyncBtnSecondary, fm.SaveAsCopyBtn, fileSyncIconCopy, false, false).Clicked() {
 					_ = a.ResolveTabConflict(tab, core.ResolutionSaveAsCopy)
 				}
-				primaryLabel := fm.SaveResolution
-				if !conflict.DiskExists {
-					primaryLabel = fm.RestoreDeleted
-				}
-				if uikit.ActionCursor(uikit.PrimaryButton(c, primaryLabel)).Clicked() {
-					_ = a.ResolveTabConflict(tab, core.ResolutionApplyMerged)
+				if conflict.DiskExists {
+					if fileSyncButton(c, t, fileSyncBtnAccent, fm.SaveResolution, fileSyncIconSave, false, false).Clicked() {
+						_ = a.ResolveTabConflict(tab, core.ResolutionApplyMerged)
+					}
+				} else {
+					if fileSyncButton(c, t, fileSyncBtnSecondary, fm.RestoreDeleted, fileSyncIconRestore, false, false).Clicked() {
+						_ = a.ResolveTabConflict(tab, core.ResolutionApplyMerged)
+					}
+					if fileSyncButton(c, t, fileSyncBtnDanger, fm.AcceptDeleteBtn, fileSyncIconTrash, false, false).Clicked() {
+						_ = a.ResolveTabConflict(tab, core.ResolutionAcceptDelete)
+					}
 				}
 			})
 		})
