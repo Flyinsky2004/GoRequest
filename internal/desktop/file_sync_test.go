@@ -718,15 +718,15 @@ func TestDirtyExternalDeleteNeverResurrectsOnAutoSaveOrSaveUntilExplicitRestore(
 		t.Fatalf("expected deletion modal; texts=%v", tt.Texts())
 	}
 
-	// Choose Accept Delete & Close on request tab -> tab closes, file stays absent.
-	if err := tt.Click("Accept Delete & Close"); err != nil {
+	// Choose Accept Delete on request tab -> tab closes, file stays absent.
+	if err := tt.Click("Accept Delete"); err != nil {
 		t.Fatal(err)
 	}
 	if ps.indexOfTab(reqTab) >= 0 {
-		t.Fatal("request tab should close on Accept Delete & Close")
+		t.Fatal("request tab should close on Accept Delete")
 	}
 	if _, err := os.Stat(reqAbs); !os.IsNotExist(err) {
-		t.Fatal("Accept Delete & Close resurrected deleted request file!")
+		t.Fatal("Accept Delete resurrected deleted request file!")
 	}
 
 	// Remaining active tab is docTab: open modal and click explicit Restore File.
