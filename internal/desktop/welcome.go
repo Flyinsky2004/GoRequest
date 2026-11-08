@@ -213,11 +213,16 @@ func (w *welcomeState) openNewProject() {
 // newProject geometry. The sheet sizes itself from the window instead of
 // relying on a fixed width, so a 560×360 welcome window still shows both mode
 // cards and the footer: the body scrolls, the action row never does.
+//
+// The height cap is deliberately generous: the default 720×640 welcome window
+// already yields a 560-DIP sheet, and a user-enlarged window grows the sheet to
+// 600 DIPs so the two mode cards, the fields, the final-path preview and the
+// footer all keep comfortable spacing instead of being compressed.
 const (
 	newProjectWindowInset = 80 // 40 DIPs of modal margin + 20 DIPs of padding per side
 	newProjectMaxWidth    = 640
 	newProjectMinWidth    = 360
-	newProjectMaxHeight   = 460
+	newProjectMaxHeight   = 600
 	newProjectMinHeight   = 220
 )
 
@@ -266,12 +271,12 @@ func (w *welcomeState) newProjectModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &open, func() {
 		winW, winH := c.Size()
 		width, height := newProjectGeometryFor(winW, winH)
-		ui.Column(c).Gap(10).Width(width).Height(height).Children(func() {
+		ui.Column(c).Gap(12).Width(width).Height(height).Children(func() {
 			ui.Text(c, m.NewProjectTitle).FontSize(16).Bold().TextColor(p.Text).Shrink(0)
 			ui.Text(c, m.NewProjectHint).FontSize(12).TextColor(p.Muted).Shrink(0)
 
 			ui.Scroll(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
-				ui.Column(c).Gap(10).FillWidth().Children(func() {
+				ui.Column(c).Gap(12).FillWidth().Children(func() {
 					ui.Text(c, pm.ModeSection).FontSize(11).FontWeight(600).TextColor(p.Muted).SingleLine()
 					ui.Row(c).Gap(10).FillWidth().AlignItems(ui.Stretch).Children(func() {
 						w.projectModeCard(c, p, newProjectIndependent, uikit.IconFolder,

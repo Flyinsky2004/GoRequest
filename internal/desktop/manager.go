@@ -305,6 +305,11 @@ func (m *Manager) findWorkspace(root string) *App {
 // showWelcome opens (or re-shows) the small welcome/project-chooser window. It
 // never renders the editor workspace, so starting with no project shows only
 // this light window instead of a large empty editor window.
+//
+// The default height leaves the new-project sheet room for both mode cards,
+// the name/location fields, the final-path preview and the footer without
+// scrolling. MinHeight stays small so the window still fits short screens,
+// where the sheet body scrolls and the footer remains reachable.
 func (m *Manager) showWelcome(status string) {
 	if m.welcome != nil && m.welcome.win != nil && !m.welcome.win.IsDestroyed() {
 		m.welcome.status = status
@@ -317,7 +322,7 @@ func (m *Manager) showWelcome(status string) {
 	w.win = m.newWindow(windowSpec{
 		Title:     "GoRequest",
 		Width:     720,
-		Height:    480,
+		Height:    640,
 		MinWidth:  560,
 		MinHeight: 360,
 		View:      w.view,
