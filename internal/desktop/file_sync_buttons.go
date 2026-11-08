@@ -78,7 +78,7 @@ func fileSyncButton(c *ui.Context, t *ui.Theme, kind fileSyncBtnKind, label stri
 	if compact {
 		h, padX, fs = 28, 10, 12
 	}
-	e := ui.ButtonBase(c).Height(h).Radius(8).Padding(0, padX).Gap(6).AlignItems(ui.Center)
+	e := ui.ButtonBase(c).Label(label).Height(h).Radius(8).Padding(0, padX).Gap(6).AlignItems(ui.Center)
 	if disabled {
 		e = e.Disabled(true)
 	}
@@ -87,13 +87,13 @@ func fileSyncButton(c *ui.Context, t *ui.Theme, kind fileSyncBtnKind, label stri
 		e = e.BorderWidth(1).BorderColor(border)
 	}
 	cur := bg
-	if !disabled && e.Hovered() {
+	if !disabled && (e.Hovered() || e.Pressed()) {
 		cur = hover
 	}
 	e.Background(cur)
 	e.Children(func() {
 		if ic != nil {
-			ui.Icon(c, ic).FontSize(14).TextColor(fg)
+			ui.Icon(c, ic).FontSize(14).TextColor(fg).Shrink(0)
 		}
 		ui.Text(c, label).FontSize(fs).FontWeight(600).TextColor(fg).SingleLine()
 	})
