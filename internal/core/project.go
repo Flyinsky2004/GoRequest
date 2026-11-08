@@ -367,13 +367,27 @@ func (p *Project) SaveRequest(entry *RequestEntry, r *Request, baseline string) 
 	return d, nil
 }
 
-// NewRequest creates and saves a new request in a collection directory
+// NewRequest creates and saves a new HTTP request in a collection directory
 // (relative to collections, may be empty for the root) and keeps the in-memory
 // collection tree, index and inherited collection variables in sync.
 func (p *Project) NewRequest(collectionRel, name string) (*RequestEntry, error) {
 	if strings.TrimSpace(name) == "" {
 		name = "New Request"
 	}
+	return p.newRequestWith(collectionRel, name, ProtocolHTTP)
+}
+
+// NewWebSocketRequest creates and saves a new WebSocket request. Its endpoint,
+// handshake headers and auth reuse the shared request target fields; only the
+// protocol and WebSocket options differ from NewRequest.
+func (p *Project) NewWebSocketRequest(collectionRel, name string) (*RequestEntry, error) {
+	if strings.TrimSpace(name) == "" {
+		name = "New WebSocket"
+	}
+	return p.newRequestWith(collectionRel, name, ProtocolWebSocket)
+}
+
+func (p *Project) newRequestWith(collectionRel, name, protocol string) (*RequestEntry, error) {
 	colRel, err := sanitizeCollectionRel(collectionRel)
 	if err != nil {
 		return nil, err
@@ -399,8 +413,12 @@ func (p *Project) NewRequest(collectionRel, name string) (*RequestEntry, error) 
 		SchemaVersion: SupportedSchemaVersion,
 		ID:            id,
 		Name:          name,
-		Protocol:      "http",
+		Protocol:      protocol,
 		HTTP:          &HTTPDef{Method: "GET", URL: "{{baseUrl}}"},
+	}
+	if protocol == ProtocolWebSocket {
+		req.HTTP = &HTTPDef{Method: WebSocketMethod, URL: "{{wsUrl}}"}
+		req.WS = &WSDef{}
 	}
 	data, err := p.EncodeRequest(req)
 	if err != nil {

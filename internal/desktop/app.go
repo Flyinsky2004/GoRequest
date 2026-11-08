@@ -223,7 +223,6 @@ func (a *App) View(c *ui.Context) {
 	a.RunnerModals(c, t)
 	a.MockModals(c, t)
 	a.PerformanceModals(c, t)
-	a.WebSocketModals(c, t)
 	a.IdentityManagementModals(c, t)
 	if a.git != nil {
 		a.git.modals(c, t)
@@ -292,6 +291,11 @@ func (a *App) clearDirty() {
 func (a *App) send(tab *Tab) {
 	ps := a.ps
 	if tab == nil || tab.Sending {
+		return
+	}
+	if isWebSocketTab(tab) {
+		// WebSocket tabs are driven by internal/websocket.Session; they must
+		// never be sent through the HTTP executor.
 		return
 	}
 	if tab.Owner != nil {
@@ -374,8 +378,12 @@ func sendMs(d time.Duration) float64 { return float64(d.Microseconds()) / 1000.0
 
 // cancelAllRequests cancels every in-flight request owned by this window and
 // marks its tabs idle. Called when the window is destroyed, so late results are
-// ignored and no callback touches a dead window.
+// ignored and no callback touches a dead window. Live WebSocket sessions are
+// terminated here too: no socket outlives its window.
 func (a *App) cancelAllRequests() {
+	if a == nil || a.ps == nil {
+		return
+	}
 	for _, tab := range a.ps.tabs {
 		if tab.cancel != nil {
 			tab.cancel()
@@ -384,6 +392,7 @@ func (a *App) cancelAllRequests() {
 		if tab.Sending {
 			tab.Sending = false
 		}
+		wsTeardownTab(tab)
 	}
 }
 

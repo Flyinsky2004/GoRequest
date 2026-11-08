@@ -493,6 +493,11 @@ func BuildPlanWithOptions(ctx context.Context, req *Request, vars map[string]str
 	if req == nil || req.HTTP == nil {
 		return nil, configErrorf("request has no http definition")
 	}
+	if strings.EqualFold(strings.TrimSpace(req.Protocol), ProtocolWebSocket) {
+		// WebSocket requests share the request target fields but are driven by
+		// internal/websocket.Session; they must never be sent as HTTP.
+		return nil, configErrorf("request %q is a WebSocket request and cannot be executed as HTTP", req.Name)
+	}
 	if err := checkUploadContext(ctx); err != nil {
 		return nil, err
 	}
