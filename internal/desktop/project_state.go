@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 
 	"gorequest/internal/core"
+	"gorequest/internal/platform"
 )
 
 // projectState holds everything that belongs to one opened project: the loaded
@@ -16,14 +17,22 @@ import (
 // for that project. Keeping it per project means switching projects never
 // discards another project's open tabs or dirty editors.
 type projectState struct {
-	root     string // normalized project root (the folder containing .gorequest/)
-	project  *core.Project
-	secrets  core.SecretProvider
-	tabs     []*Tab
-	active   int
-	envSel   string
-	sel      string // sidebar selection id within this project ("req:..."/"doc:..."/"folder:...")
-	docSplit float32
+	root    string // normalized project root (the folder containing .gorequest/)
+	project *core.Project
+	secrets core.SecretProvider
+	// secretScope is the clone-isolated "<slug>:<hash>" namespace shared by the
+	// selected backend, its management manifest and the persisted preference.
+	secretScope string
+	// secretKind is the backend the user selected for this project clone.
+	secretKind platform.SecretBackendKind
+	// secretBackend is the live backend object behind ps.secrets. Switching
+	// replaces it and rebuilds ps.secrets so HTTP/WS/Runner reads the new store.
+	secretBackend platform.SecretBackend
+	tabs          []*Tab
+	active        int
+	envSel        string
+	sel           string // sidebar selection id within this project ("req:..."/"doc:..."/"folder:...")
+	docSplit      float32
 	// buildPct is the build/response split percentage (build pane share) for
 	// request tabs, 55 by default (§7) and adjusted when the user drags it.
 	// It is the user's preference; a temporary height clamp is never stored

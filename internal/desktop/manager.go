@@ -3,6 +3,7 @@ package desktop
 import (
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/egoist/mygo"
 
@@ -66,6 +67,11 @@ type Manager struct {
 	history    *historyStore
 	newWindow  windowFactory
 	explicit   string // -project flag value, "" when none
+	// secretStore resolves the per-project-clone secret backend, its persisted
+	// preference and the managed-name manifest. It is created lazily so a
+	// Manager literal in a test can supply its own temp root.
+	secretStore   *platform.SecretStore
+	secretStoreMu sync.Mutex
 	// prefs holds the B02 workspace preferences (editor, auto-save, shortcut
 	// toggles and pinned recents) in their own local file. It is created on
 	// first use from the config directory, so a config-less test or run never
@@ -95,13 +101,31 @@ func (m *Manager) msg() *messages {
 // explicitProject is the -project flag value ("" when not given).
 func NewManager(explicitProject string) *Manager {
 	return &Manager{
-		cfg:        newConfigStore(configFilePath()),
-		watchFiles: true,
-		secrets:    platform.NewEnvSecrets(),
-		history:    newHistoryStore(),
-		newWindow:  newRealWindow,
-		explicit:   explicitProject,
+		cfg:         newConfigStore(configFilePath()),
+		watchFiles:  true,
+		secrets:     platform.NewEnvSecrets(),
+		history:     newHistoryStore(),
+		newWindow:   newRealWindow,
+		explicit:    explicitProject,
+		secretStore: platform.NewSecretStore("", nil),
 	}
+}
+
+// secretStoreFor returns the manager's secret store, creating one lazily for a
+// Manager literal. When the config lives in a temp directory (tests), the
+// secret documents stay beside it instead of touching the real user home.
+func (m *Manager) secretStoreFor() *platform.SecretStore {
+	m.secretStoreMu.Lock()
+	defer m.secretStoreMu.Unlock()
+	if m.secretStore != nil {
+		return m.secretStore
+	}
+	root := ""
+	if m.cfg != nil && m.cfg.path != "" {
+		root = filepath.Join(filepath.Dir(m.cfg.path), "secrets")
+	}
+	m.secretStore = platform.NewSecretStore(root, identityKeychainDriverFactory())
+	return m.secretStore
 }
 
 // WireApp registers application-level lifecycle hooks. Call it once from
@@ -168,7 +192,20 @@ func (m *Manager) openProject(path string) error {
 		return err
 	}
 	ps := newProjectState(root, p)
-	ps.secrets, err = platform.NewProjectSecrets(nil, p.File.ID, root, nil)
+	store := m.secretStoreFor()
+	scope, err := store.Scope(p.File.ID, root)
+	if err != nil {
+		return err
+	}
+	kind := store.SelectedKind(scope)
+	backend, err := store.Backend(scope, p.File.ID, root, kind)
+	if err != nil {
+		return err
+	}
+	ps.secretScope = scope
+	ps.secretKind = kind
+	ps.secretBackend = backend
+	ps.secrets, err = platform.NewLayeredSecrets(backend, nil)
 	if err != nil {
 		return err
 	}
@@ -208,6 +245,40 @@ func (m *Manager) openProject(path string) error {
 		app.status += " · " + syncErr.Error()
 	}
 	return nil
+}
+
+// refreshSecretBackend rebuilds the live provider and every cached status for
+// all windows that share scope. It is called only after a switch has copied and
+// verified all values and the new preference has been persisted, so HTTP, WS,
+// Runner and the management pages all read the same backend immediately.
+func (m *Manager) refreshSecretBackend(scope string, kind platform.SecretBackendKind) error {
+	store := m.secretStoreFor()
+	var firstErr error
+	for _, app := range m.workspaces {
+		ps := app.ps
+		if ps == nil || ps.secretScope != scope || ps.project == nil || ps.project.File == nil {
+			continue
+		}
+		backend, err := store.Backend(scope, ps.project.File.ID, ps.root, kind)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		layered, err := platform.NewLayeredSecrets(backend, nil)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		ps.secretKind = kind
+		ps.secretBackend = backend
+		ps.secrets = layered
+		app.resetSecretCaches()
+	}
+	return firstErr
 }
 
 // activate makes app the foreground project: it focuses the window and records

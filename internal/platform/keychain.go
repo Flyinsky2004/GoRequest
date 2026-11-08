@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/egoist/mygo"
 
@@ -135,10 +136,16 @@ func ScopedSecretKey(scope, secretName string) (string, error) {
 }
 
 // KeychainSecrets binds project-scoped secrets in the OS credential store with
-// zero plaintext file fallback.
+// no implicit plaintext fallback. A local file is used only when the user
+// explicitly selects the file backend; this type never writes one.
 type KeychainSecrets struct {
-	driver KeychainDriver
-	scope  string
+	driver  KeychainDriver
+	scope   string
+	service string
+
+	probeMu   sync.Mutex
+	probed    bool
+	probeInfo SecretBackendInfo
 }
 
 // NewKeychainSecrets creates a project-isolated KeychainSecrets adapter.
@@ -148,10 +155,94 @@ func NewKeychainSecrets(driver KeychainDriver, projectID, projectRoot string) (*
 		return nil, err
 	}
 	return &KeychainSecrets{
-		driver: driver,
-		scope:  scope,
+		driver:  driver,
+		scope:   scope,
+		service: keychainServiceOf(driver),
 	}, nil
 }
+
+func keychainServiceOf(driver KeychainDriver) string {
+	switch d := driver.(type) {
+	case MyGoKeychainDriver:
+		if strings.TrimSpace(d.Service) != "" {
+			return strings.TrimSpace(d.Service)
+		}
+	case *MyGoKeychainDriver:
+		if d != nil && strings.TrimSpace(d.Service) != "" {
+			return strings.TrimSpace(d.Service)
+		}
+	}
+	return DefaultKeychainService
+}
+
+// Info describes the real OS credential namespace and whether a driver exists.
+// A locked or unsupported store is reported by Probe (called on explicit user
+// actions) and cached; Info never probes by itself.
+func (k *KeychainSecrets) Info() SecretBackendInfo {
+	if k == nil {
+		return SecretBackendInfo{Kind: SecretBackendKeychain, Label: "System Keychain", Detail: "no OS keychain driver configured"}
+	}
+	k.probeMu.Lock()
+	probed, info := k.probed, k.probeInfo
+	k.probeMu.Unlock()
+	if probed {
+		return info
+	}
+	return k.staticInfo()
+}
+
+func (k *KeychainSecrets) staticInfo() SecretBackendInfo {
+	info := SecretBackendInfo{
+		Kind:  SecretBackendKeychain,
+		Label: "System Keychain",
+	}
+	if k == nil || k.driver == nil {
+		info.Detail = "no OS keychain driver configured"
+		return info
+	}
+	info.Path = k.service
+	info.Available = true
+	return info
+}
+
+// Probe reads a sentinel key (never a real secret, never a write) to learn
+// whether the OS credential store is reachable, then caches the answer for
+// Info. It re-probes on each explicit user action so unlocking the store is
+// reflected without a restart; it is never called every frame.
+func (k *KeychainSecrets) Probe() SecretBackendInfo {
+	if k == nil {
+		return SecretBackendInfo{Kind: SecretBackendKeychain, Label: "System Keychain", Detail: "no OS keychain driver configured"}
+	}
+	info := k.staticInfo()
+	if k.driver != nil {
+		if key, err := ScopedSecretKey(k.scope, "__gorequest_probe__"); err != nil {
+			info.Available = false
+			info.Detail = err.Error()
+		} else {
+			_, getErr := k.driver.Get(key)
+			switch {
+			case getErr == nil:
+				// The sentinel exists; the store is reachable.
+			case errors.Is(getErr, ErrSecretNotFound) || errors.Is(getErr, os.ErrNotExist):
+				// Reachable and the sentinel is simply absent.
+			case errors.Is(getErr, errors.ErrUnsupported):
+				info.Available = false
+				info.Detail = "system credential store unsupported or D-Bus Secret Service unavailable"
+			default:
+				info.Available = false
+				info.Detail = fmt.Sprintf("system credential store error: %v", getErr)
+			}
+		}
+	}
+	k.probeMu.Lock()
+	k.probed = true
+	k.probeInfo = info
+	k.probeMu.Unlock()
+	return info
+}
+
+// Names reports that the OS credential store cannot enumerate its items.
+func (k *KeychainSecrets) Names() ([]string, bool) { return nil, false }
 
 // Scope returns the "<slug>:<hash>" namespace used for this project clone.
 func (k *KeychainSecrets) Scope() string {
@@ -298,13 +389,43 @@ func (k *KeychainSecrets) Delete(name string) error {
 	return nil
 }
 
-// LayeredSecrets resolves secrets across explicit memory overrides, OS
-// KeychainSecrets, and process EnvSecrets (GOREQUEST_SECRET_<NAME>) in strict
-// order without any plaintext file fallback.
+// LayeredSecrets resolves secrets across explicit memory overrides, the
+// user-selected backend (OS keychain or the explicit local-file store), and
+// process EnvSecrets (GOREQUEST_SECRET_<NAME>) in strict order. Switching the
+// backend changes only the middle layer; the environment override stays
+// read-only and keeps its existing priority.
 type LayeredSecrets struct {
 	Override core.MapSecrets
+	Backend  SecretBackend
+	// Keychain is retained for callers that build the keychain layer directly;
+	// Backend takes precedence when both are set.
 	Keychain *KeychainSecrets
 	Env      EnvSecrets
+}
+
+// NewLayeredSecrets builds a provider over an explicit backend.
+func NewLayeredSecrets(backend SecretBackend, override core.MapSecrets) (*LayeredSecrets, error) {
+	if backend == nil {
+		return nil, &core.ConfigError{Err: errors.New("no secret backend configured")}
+	}
+	return &LayeredSecrets{
+		Override: override,
+		Backend:  backend,
+		Env:      NewEnvSecrets(),
+	}, nil
+}
+
+func (l *LayeredSecrets) selectedBackend() SecretBackend {
+	if l == nil {
+		return nil
+	}
+	if l.Backend != nil {
+		return l.Backend
+	}
+	if l.Keychain != nil {
+		return l.Keychain
+	}
+	return nil
 }
 
 // NewProjectSecrets constructs a LayeredSecrets provider for a specific project
@@ -319,12 +440,13 @@ func NewProjectSecrets(driver KeychainDriver, projectID, projectRoot string, ove
 	}
 	return &LayeredSecrets{
 		Override: override,
+		Backend:  kc,
 		Keychain: kc,
 		Env:      NewEnvSecrets(),
 	}, nil
 }
 
-// Get returns the secret from Override -> Keychain -> Env.
+// Get returns the secret from Override -> selected backend -> Env.
 func (l *LayeredSecrets) Get(name string) (string, bool) {
 	if l == nil {
 		return "", false
@@ -334,8 +456,8 @@ func (l *LayeredSecrets) Get(name string) (string, bool) {
 			return v, true
 		}
 	}
-	if l.Keychain != nil {
-		if v, ok := l.Keychain.Get(name); ok {
+	if backend := l.selectedBackend(); backend != nil {
+		if v, ok := backend.Get(name); ok {
 			return v, true
 		}
 	}
@@ -346,8 +468,9 @@ func (l *LayeredSecrets) Get(name string) (string, bool) {
 }
 
 // InspectSecret returns non-sensitive resolution diagnostics. If neither
-// Override nor Env supplies the secret and Keychain is unavailable/locked, it
-// surfaces SecretStateUnavailable so callers receive an actionable error.
+// Override nor Env supplies the secret and the selected backend is
+// unavailable/locked, it surfaces SecretStateUnavailable so callers receive an
+// actionable error.
 func (l *LayeredSecrets) InspectSecret(name string) core.SecretStatus {
 	trimmed := strings.TrimSpace(name)
 	if l == nil {
@@ -363,23 +486,28 @@ func (l *LayeredSecrets) InspectSecret(name string) core.SecretStatus {
 			return core.SecretStatus{Name: trimmed, State: core.SecretStateBound, Backend: "memory"}
 		}
 	}
-	var kcStatus core.SecretStatus
-	if l.Keychain != nil {
-		kcStatus = l.Keychain.InspectSecret(trimmed)
-		if kcStatus.State == core.SecretStateBound {
-			return kcStatus
+	backend := l.selectedBackend()
+	var backendStatus core.SecretStatus
+	if backend != nil {
+		backendStatus = backend.InspectSecret(trimmed)
+		if backendStatus.State == core.SecretStateBound {
+			return backendStatus
 		}
 	}
 	envStatus := l.Env.InspectSecret(trimmed)
 	if envStatus.State == core.SecretStateBound {
 		return envStatus
 	}
-	if kcStatus.State == core.SecretStateUnavailable {
-		return kcStatus
+	if backendStatus.State == core.SecretStateUnavailable {
+		return backendStatus
+	}
+	kind := "none"
+	if backend != nil {
+		kind = string(backend.Info().Kind)
 	}
 	return core.SecretStatus{
 		Name:    trimmed,
 		State:   core.SecretStateMissing,
-		Backend: "keychain+env",
+		Backend: kind + "+env",
 	}
 }

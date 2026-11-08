@@ -9,6 +9,7 @@ import (
 
 	"gorequest/internal/core"
 	"gorequest/internal/desktop/uikit"
+	"gorequest/internal/platform"
 )
 
 // schemeReadOnlyNotice explains why an unsupported scheme type is shown
@@ -113,6 +114,8 @@ func (a *App) identityManagementModal(c *ui.Context, t *ui.Theme) {
 				case 1:
 					a.openFolderAuthEditor(ps, st, ps.activeTab())
 				case 2:
+					a.probeSecretBackend(ps)
+					a.resetStorageUI(ps, st)
 					a.refreshCredentialEntries(ps, st, true)
 				case 3:
 					a.refreshDiagnostics(ps, st, true)
@@ -401,11 +404,144 @@ func maxInt(a, b int) int {
 
 // --- credentials view ------------------------------------------------------
 
+// renderStorageSection shows the real backend, its exact path, whether it is
+// plaintext, why it is unavailable, and the in-window selector used to switch.
+// The switch itself is only planned here; values are copied and verified after
+// the user confirms the listed plan.
+func (a *App) renderStorageSection(c *ui.Context, t *ui.Theme, ps *projectState, st *identityManagementState) {
+	m := a.identityManagementMsg()
+	p := uikit.PaletteFor(t)
+	info := a.secretBackendInfo(ps)
+	if st.storageChoice == "" {
+		st.storageChoice = a.secretBackendLabel(a.secretBackendKind(ps))
+	}
+
+	ui.Text(c, m.StorageTitle).FontSize(13).FontWeight(600).TextColor(p.Text)
+	col := p.Text
+	if !info.Available {
+		col = t.Danger
+	}
+	ui.Text(c, fmt.Sprintf(m.StorageCurrentFmt, a.secretBackendLabel(info.Kind))).FontSize(12).TextColor(col)
+	if info.Path != "" {
+		ui.Text(c, fmt.Sprintf(m.StoragePathFmt, info.Path)).FontSize(11).Font("monospace").TextColor(p.Muted).SingleLine()
+	}
+	if info.Plaintext {
+		ui.Text(c, m.StoragePlaintext).FontSize(11).TextColor(t.Warning)
+	}
+	if !info.Available && info.Detail != "" {
+		ui.Text(c, fmt.Sprintf(m.StorageUnavailableFmt, info.Detail)).FontSize(11).TextColor(t.Danger)
+	}
+	ui.Text(c, m.StorageEnvNote).FontSize(11).TextColor(p.Muted)
+
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		options := []string{m.StorageKeychain, m.StorageFile}
+		sel := uikit.Select(c, &st.storageChoice, options, uikit.IconMap(map[string]*ui.SVG{
+			m.StorageKeychain: uikit.IconKey,
+			m.StorageFile:     uikit.IconFile,
+		}))
+		uikit.ActionCursor(sel).Width(220)
+		if sel.Changed() {
+			st.switchPlan = nil
+			st.switchErr = ""
+			st.switchNotice = ""
+		}
+		if uikit.ActionCursor(ui.Button(c, m.StorageSwitch)).Clicked() {
+			a.beginSecretSwitch(ps, st, a.secretBackendKindForLabel(st.storageChoice))
+		}
+	})
+	if st.switchErr != "" {
+		ui.Text(c, st.switchErr).FontSize(11).TextColor(t.Danger)
+	}
+	if st.switchNotice != "" {
+		ui.Text(c, st.switchNotice).FontSize(11).TextColor(t.Success)
+	}
+	if st.switchPlan != nil {
+		a.renderSecretSwitchPlan(c, t, ps, st)
+	}
+	ui.Box(c).Height(1).Background(t.Border)
+}
+
+// renderSecretSwitchPlan is the reviewable copy plan: source and target paths,
+// every covered name with its binding state, explicit conflict handling, and
+// the enumeration limit that stops the UI from claiming a full-store migration.
+func (a *App) renderSecretSwitchPlan(c *ui.Context, t *ui.Theme, ps *projectState, st *identityManagementState) {
+	m := a.identityManagementMsg()
+	p := uikit.PaletteFor(t)
+	plan := st.switchPlan
+
+	ui.Text(c, m.StoragePlanTitle).FontSize(12).FontWeight(600).TextColor(p.Text)
+	ui.Text(c, fmt.Sprintf(m.StoragePlanSummaryFmt, a.secretBackendLabel(plan.Source.Kind), a.secretBackendLabel(plan.Target.Kind))).FontSize(11).TextColor(p.Muted)
+	if plan.Target.Path != "" {
+		ui.Text(c, fmt.Sprintf(m.StoragePlanTargetPathFmt, plan.Target.Path)).FontSize(11).Font("monospace").TextColor(p.Muted).SingleLine()
+	}
+	if plan.Target.Plaintext {
+		ui.Text(c, m.StoragePlaintext).FontSize(11).TextColor(t.Warning)
+	}
+	if !plan.SourceEnumerated {
+		ui.Text(c, m.StoragePlanEnumLimit).FontSize(11).TextColor(t.Warning)
+	}
+	if !plan.Target.Available {
+		ui.Text(c, fmt.Sprintf(m.StorageUnavailableFmt, plan.Target.Detail)).FontSize(11).TextColor(t.Danger)
+	}
+	if len(plan.Entries) == 0 {
+		ui.Text(c, m.StoragePlanEmpty).FontSize(11).TextColor(p.Muted)
+	}
+	for _, entry := range plan.Entries {
+		label, entryCol := m.StoragePlanMissingBoth, p.Muted
+		switch {
+		case entry.Conflict:
+			label, entryCol = m.StoragePlanConflict, t.Danger
+		case entry.SourceBound && entry.TargetBound:
+			label, entryCol = m.StoragePlanSame, p.Muted
+		case entry.SourceBound:
+			label, entryCol = m.StoragePlanCopy, p.Text
+		case entry.TargetBound:
+			label, entryCol = m.StoragePlanTargetOnly, p.Muted
+		}
+		ui.Text(c, "{{secret."+entry.Name+"}} · "+label).FontSize(11).TextColor(entryCol).SingleLine()
+	}
+	if plan.HasConflicts() {
+		ui.Text(c, fmt.Sprintf(m.StorageConflictHintFmt, plan.ConflictCount())).FontSize(11).TextColor(t.Warning)
+		ui.Row(c).Gap(8).Children(func() {
+			if ui.Button(c, m.StorageKeepTarget).Clicked() {
+				st.switchPolicy = platform.ConflictKeepTarget
+			}
+			if ui.Button(c, m.StorageOverwriteTarget).TextColor(t.Danger).Clicked() {
+				st.switchPolicy = platform.ConflictOverwriteTarget
+			}
+		})
+		policy := m.StoragePolicyKeepFmt
+		if st.switchPolicy == platform.ConflictOverwriteTarget {
+			policy = m.StoragePolicyOverwriteFmt
+		}
+		ui.Text(c, policy).FontSize(11).TextColor(p.Muted)
+	}
+	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+		if ui.Button(c, m.StorageCancel).Clicked() {
+			st.switchPlan = nil
+			st.switchErr = ""
+		}
+		label := m.StorageConfirm
+		if plan.HasConflicts() && st.switchPolicy == platform.ConflictOverwriteTarget {
+			label = m.StorageConfirmOverwrite
+		}
+		confirm := ui.PrimaryButton(c, label)
+		if !plan.Source.Available || !plan.Target.Available {
+			confirm = confirm.Disabled(true)
+		}
+		if confirm.Clicked() {
+			a.confirmSecretSwitch(ps, st)
+		}
+	})
+}
+
 func (a *App) renderCredentialSection(c *ui.Context, t *ui.Theme, ps *projectState, st *identityManagementState) {
 	m := a.identityManagementMsg()
 	p := uikit.PaletteFor(t)
 	a.refreshCredentialEntries(ps, st, false)
 	entries := st.credEntries
+
+	a.renderStorageSection(c, t, ps, st)
 
 	ui.Text(c, m.CredDeclared).FontSize(13).FontWeight(600).TextColor(p.Text)
 	ui.Text(c, m.CredSecretHint).FontSize(11).TextColor(p.Muted)
@@ -455,10 +591,10 @@ func (a *App) renderCredentialRow(c *ui.Context, t *ui.Theme, ps *projectState, 
 	col := uikit.MethodColor("DELETE", p)
 	switch entry.Status.State {
 	case core.SecretStateBound:
-		status = fmt.Sprintf(m.CredStatusBound, entry.Status.Backend)
+		status = fmt.Sprintf(m.CredStatusBound, a.secretBackendStatusLabel(entry.Status.Backend))
 		col = p.Muted
 	case core.SecretStateUnavailable:
-		status = fmt.Sprintf(m.CredStatusUnavail, entry.Status.Backend)
+		status = fmt.Sprintf(m.CredStatusUnavail, a.secretBackendStatusLabel(entry.Status.Backend))
 	}
 	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, "{{secret."+entry.Name+"}}").FontSize(12).Font("monospace").TextColor(p.Text).Width(220).SingleLine()

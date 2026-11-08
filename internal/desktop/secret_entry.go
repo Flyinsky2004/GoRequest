@@ -122,6 +122,7 @@ func (a *App) openSecretEntry(ps *projectState, name string) {
 	d.lastAction = ""
 	d.notice = ""
 	d.errMsg = ""
+	a.probeSecretBackend(ps)
 	a.refreshSecretEntryStatus(ps, d)
 }
 
@@ -131,33 +132,34 @@ func (a *App) openSecretEntry(ps *projectState, name string) {
 // closed with no plaintext fallback.
 func (a *App) refreshSecretEntryStatus(ps *projectState, d *secretEntryDialog) {
 	name := strings.TrimSpace(d.name)
+	kind := a.secretBackendKind(ps)
 	if name == "" {
-		d.status = core.SecretStatus{Name: name, State: core.SecretStateMissing, Backend: "keychain"}
+		d.status = core.SecretStatus{Name: name, State: core.SecretStateMissing, Backend: string(kind)}
 		return
 	}
 	mc, err := a.managedCredentials(ps)
 	if err != nil {
 		d.status = core.SecretStatus{
-			Name: name, State: core.SecretStateUnavailable, Backend: "keychain",
+			Name: name, State: core.SecretStateUnavailable, Backend: string(kind),
 			Detail: err.Error(),
 		}
 		return
 	}
-	d.status = secretStatusFromManaged(mc, name)
+	d.status = secretStatusFromManaged(mc, name, kind)
 }
 
 // secretStatusFromManaged reuses the project-scoped ManagedCredentials port's
 // existing non-sensitive List surface. It returns only a state/backend/detail
 // triple; no secret value is ever read, returned or rendered.
-func secretStatusFromManaged(mc *platform.ManagedCredentials, name string) core.SecretStatus {
+func secretStatusFromManaged(mc *platform.ManagedCredentials, name string, kind platform.SecretBackendKind) core.SecretStatus {
 	trimmed := strings.TrimSpace(name)
 	if mc == nil || trimmed == "" {
-		return core.SecretStatus{Name: trimmed, State: core.SecretStateMissing, Backend: "keychain"}
+		return core.SecretStatus{Name: trimmed, State: core.SecretStateMissing, Backend: string(kind)}
 	}
 	records, err := mc.List([]string{trimmed})
 	if err != nil {
 		return core.SecretStatus{
-			Name: trimmed, State: core.SecretStateUnavailable, Backend: "keychain",
+			Name: trimmed, State: core.SecretStateUnavailable, Backend: string(kind),
 			Detail: err.Error(),
 		}
 	}
@@ -168,7 +170,7 @@ func secretStatusFromManaged(mc *platform.ManagedCredentials, name string) core.
 			}
 		}
 	}
-	return core.SecretStatus{Name: trimmed, State: core.SecretStateMissing, Backend: "keychain"}
+	return core.SecretStatus{Name: trimmed, State: core.SecretStateMissing, Backend: string(kind)}
 }
 
 // closeSecretEntry clears every temporary value and returns the single overlay
@@ -223,7 +225,7 @@ func (a *App) saveSecretEntry(ps *projectState) {
 	change, err := mc.Set(name, value)
 	if err != nil {
 		d.errMsg = fmt.Sprintf(m.BackendFailed, err.Error())
-		d.status = secretStatusFromManaged(mc, d.name)
+		d.status = secretStatusFromManaged(mc, d.name, a.secretBackendKind(ps))
 		return
 	}
 	d.name = change.Name
@@ -232,7 +234,7 @@ func (a *App) saveSecretEntry(ps *projectState) {
 	d.errMsg = ""
 	d.confirmDelete = false
 	d.generation++
-	d.status = secretStatusFromManaged(mc, d.name)
+	d.status = secretStatusFromManaged(mc, d.name, a.secretBackendKind(ps))
 	a.invalidateIdentityDiagnostics(ps)
 	// The system credentials page caches a keyed list; force its next render to
 	// re-inspect so "Bound" appears there without a manual reload.
@@ -279,7 +281,7 @@ func (a *App) confirmDeleteSecretEntry(ps *projectState) {
 	d.notice = fmt.Sprintf(m.DeletedFmt, name)
 	d.errMsg = ""
 	d.generation++
-	d.status = secretStatusFromManaged(mc, d.name)
+	d.status = secretStatusFromManaged(mc, d.name, a.secretBackendKind(ps))
 	a.invalidateIdentityDiagnostics(ps)
 	if st := identityMgmtFor(ps); st != nil {
 		st.credEntriesKey = ""
@@ -339,6 +341,7 @@ func (a *App) secretEntryModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, m.ValueHint).FontSize(11).TextColor(p.Muted)
 
 			a.secretEntryStatus(c, t, d, m, p)
+			a.secretEntryBackend(c, t, ps, m, p)
 
 			if d.lastAction != "" && d.notice != "" {
 				ui.Text(c, d.notice).FontSize(12).TextColor(t.Success)
@@ -393,10 +396,10 @@ func (a *App) secretEntryStatus(c *ui.Context, t *ui.Theme, d *secretEntryDialog
 	label, col := m.StatusMissing, t.Warning
 	switch d.status.State {
 	case core.SecretStateBound:
-		label = fmt.Sprintf(m.StatusBoundFmt, d.status.Backend)
+		label = fmt.Sprintf(m.StatusBoundFmt, a.secretBackendStatusLabel(d.status.Backend))
 		col = t.Success
 	case core.SecretStateUnavailable:
-		label = fmt.Sprintf(m.StatusUnavailFmt, d.status.Backend)
+		label = fmt.Sprintf(m.StatusUnavailFmt, a.secretBackendStatusLabel(d.status.Backend))
 		col = t.Danger
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -406,4 +409,32 @@ func (a *App) secretEntryStatus(c *ui.Context, t *ui.Theme, d *secretEntryDialog
 	if d.status.State == core.SecretStateUnavailable && d.status.Detail != "" {
 		ui.Text(c, d.status.Detail).FontSize(11).TextColor(t.Danger)
 	}
+}
+
+// secretEntryBackend shows the real storage location behind this dialog. The
+// local-file backend is labelled plaintext; an unavailable backend shows its
+// reason. "Change storage" closes this dialog and opens the credentials page's
+// storage section, where the copy-and-verify switch is reviewed.
+func (a *App) secretEntryBackend(c *ui.Context, t *ui.Theme, ps *projectState, m *secretEntryMessages, p uikit.Palette) {
+	info := a.secretBackendInfo(ps)
+	col := p.Muted
+	if !info.Available {
+		col = t.Danger
+	}
+	ui.Text(c, fmt.Sprintf(m.BackendFmt, a.secretBackendLabel(info.Kind))).FontSize(11).TextColor(col)
+	if info.Path != "" {
+		ui.Text(c, fmt.Sprintf(m.BackendPathFmt, info.Path)).FontSize(11).Font("monospace").TextColor(p.Muted).SingleLine()
+	}
+	if info.Plaintext {
+		ui.Text(c, m.BackendPlaintext).FontSize(11).TextColor(t.Warning)
+	}
+	if !info.Available && info.Detail != "" {
+		ui.Text(c, fmt.Sprintf(m.BackendUnavailableFmt, info.Detail)).FontSize(11).TextColor(t.Danger)
+	}
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		if uikit.ActionCursor(ui.Button(c, m.ChangeStorage)).Clicked() {
+			a.closeSecretEntry(ps)
+			a.openIdentityManagement(nil, 2)
+		}
+	})
 }

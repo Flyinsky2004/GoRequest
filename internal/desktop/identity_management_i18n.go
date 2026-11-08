@@ -79,6 +79,38 @@ type identityManagementMessages struct {
 	CredBackendFailed string
 	CredSecretHint    string
 
+	StorageTitle              string
+	StorageCurrentFmt         string
+	StoragePathFmt            string
+	StorageUnavailableFmt     string
+	StoragePlaintext          string
+	StorageEnvNote            string
+	StorageKeychain           string
+	StorageFile               string
+	StorageSwitch             string
+	StorageSame               string
+	StorageNoBackend          string
+	StoragePlanTitle          string
+	StoragePlanSummaryFmt     string
+	StoragePlanTargetPathFmt  string
+	StoragePlanEnumLimit      string
+	StoragePlanEmpty          string
+	StoragePlanConflict       string
+	StoragePlanCopy           string
+	StoragePlanSame           string
+	StoragePlanTargetOnly     string
+	StoragePlanMissingBoth    string
+	StorageConflictHintFmt    string
+	StorageKeepTarget         string
+	StorageOverwriteTarget    string
+	StoragePolicyKeepFmt      string
+	StoragePolicyOverwriteFmt string
+	StorageConfirm            string
+	StorageConfirmOverwrite   string
+	StorageCancel             string
+	StorageSwitchedFmt        string
+	StorageSwitchFailedFmt    string
+
 	DiagEmpty   string
 	DiagRefresh string
 
@@ -94,13 +126,13 @@ type identityManagementMessages struct {
 var identityManagementMessagesZh = identityManagementMessages{
 	ManageSchemes:       "管理鉴权方案",
 	ManageFolderAuth:    "文件夹鉴权",
-	ManageCredentials:   "系统凭据",
+	ManageCredentials:   "秘密与存储",
 	ManageDiagnostics:   "诊断",
 	IdentityManageTitle: "身份与凭据管理",
 
 	SchemesSection: "可复用方案",
 	FolderSection:  "文件夹鉴权",
-	CredSection:    "系统凭据",
+	CredSection:    "秘密与存储",
 	DiagSection:    "诊断",
 
 	SchemeListEmpty:   "尚未创建可复用鉴权方案。",
@@ -150,8 +182,8 @@ var identityManagementMessagesZh = identityManagementMessages{
 
 	CredDeclared:      "项目声明的秘密（不含值）",
 	CredName:          "秘密名称",
-	CredValue:         "秘密值（仅写入系统凭据存储）",
-	CredValueHint:     "值不会写入项目文件；系统凭据不可用时保存会失败，不会降级为明文。",
+	CredValue:         "秘密值（写入当前所选存储位置）",
+	CredValueHint:     "值不会写入项目文件；写入当前所选存储位置。系统凭据不可用且未选择本地文件时保存会失败，不会静默降级。",
 	CredSources:       "来源",
 	CredStatusBound:   "已绑定（%s）",
 	CredStatusMissing: "未绑定",
@@ -159,12 +191,44 @@ var identityManagementMessagesZh = identityManagementMessages{
 	CredSave:          "写入/更新凭据",
 	CredDelete:        "删除凭据",
 	CredDeleteConfirm: "确认删除凭据 %q？",
-	CredSaved:         "凭据已写入系统凭据存储。",
+	CredSaved:         "凭据已写入所选存储位置。",
 	CredDeleted:       "凭据已删除。",
 	CredEmpty:         "请输入秘密名称和值。",
 	CredNoDeclared:    "项目尚未声明秘密；请先在环境或鉴权方案中使用 {{secret.name}}。",
-	CredBackendFailed: "无法访问系统凭据存储：%s",
+	CredBackendFailed: "无法访问所选存储位置：%s",
 	CredSecretHint:    "只显示绑定状态，不读取或展示已保存的值。",
+
+	StorageTitle:              "秘密存储位置",
+	StorageCurrentFmt:         "当前存储位置：%s",
+	StoragePathFmt:            "实际路径/服务：%s",
+	StorageUnavailableFmt:     "不可用原因：%s",
+	StoragePlaintext:          "本地文件为明文存储，未加密；仅依赖 0700 目录与 0600 文件权限保护。",
+	StorageEnvNote:            "环境变量 GOREQUEST_SECRET_<NAME> 仍是只读覆盖，优先级高于所选存储位置，不会被迁移或改写。",
+	StorageKeychain:           "系统 Keychain",
+	StorageFile:               "本地文件（明文）",
+	StorageSwitch:             "切换存储位置",
+	StorageSame:               "当前已使用该存储位置。",
+	StorageNoBackend:          "没有可用的秘密存储后端。",
+	StoragePlanTitle:          "切换计划（确认前不会写入）",
+	StoragePlanSummaryFmt:     "从 %s 切换到 %s",
+	StoragePlanTargetPathFmt:  "目标路径/服务：%s",
+	StoragePlanEnumLimit:      "来源后端无法枚举全部条目：只覆盖项目声明与已管理清单中的名称，不声称迁移来源中的其他条目。",
+	StoragePlanEmpty:          "没有需要复制的秘密名称。",
+	StoragePlanConflict:       "两边值不同（需选择处理方式）",
+	StoragePlanCopy:           "将复制并读回校验",
+	StoragePlanSame:           "两边值相同",
+	StoragePlanTargetOnly:     "仅目标已有（保留）",
+	StoragePlanMissingBoth:    "两边均未设置",
+	StorageConflictHintFmt:    "有 %d 个名称在两边值不同。默认保留目标值；选择覆盖才会替换。",
+	StorageKeepTarget:         "保留目标值",
+	StorageOverwriteTarget:    "覆盖目标值",
+	StoragePolicyKeepFmt:      "冲突处理：保留目标值（不覆盖）。",
+	StoragePolicyOverwriteFmt: "冲突处理：用来源值覆盖目标值。",
+	StorageConfirm:            "开始切换",
+	StorageConfirmOverwrite:   "覆盖并切换",
+	StorageCancel:             "取消",
+	StorageSwitchedFmt:        "已切换到 %s；复制并逐项校验 %d 个秘密，来源副本保留。",
+	StorageSwitchFailedFmt:    "切换失败，仍使用原存储位置：%s",
 
 	DiagEmpty:   "没有发现缺失鉴权引用或未绑定秘密。",
 	DiagRefresh: "重新检查",
@@ -181,13 +245,13 @@ var identityManagementMessagesZh = identityManagementMessages{
 var identityManagementMessagesEn = identityManagementMessages{
 	ManageSchemes:       "Manage auth schemes",
 	ManageFolderAuth:    "Folder auth",
-	ManageCredentials:   "Credentials",
+	ManageCredentials:   "Secrets & storage",
 	ManageDiagnostics:   "Diagnostics",
 	IdentityManageTitle: "Identity & credential management",
 
 	SchemesSection: "Reusable schemes",
 	FolderSection:  "Folder auth",
-	CredSection:    "System credentials",
+	CredSection:    "Secrets & storage",
 	DiagSection:    "Diagnostics",
 
 	SchemeListEmpty:   "No reusable auth schemes yet.",
@@ -237,8 +301,8 @@ var identityManagementMessagesEn = identityManagementMessages{
 
 	CredDeclared:      "Secrets declared by this project (names only)",
 	CredName:          "Secret name",
-	CredValue:         "Secret value (written only to the system credential store)",
-	CredValueHint:     "Values never go into project files; if the system store is unavailable saving fails instead of falling back to plaintext.",
+	CredValue:         "Secret value (written to the selected storage location)",
+	CredValueHint:     "Values never go into project files; they are written to the selected storage location. If the system store is unavailable and no local file is selected, saving fails instead of falling back silently.",
 	CredSources:       "Sources",
 	CredStatusBound:   "Bound (%s)",
 	CredStatusMissing: "Not bound",
@@ -246,12 +310,44 @@ var identityManagementMessagesEn = identityManagementMessages{
 	CredSave:          "Write / update credential",
 	CredDelete:        "Delete credential",
 	CredDeleteConfirm: "Delete credential %q?",
-	CredSaved:         "Credential written to the system store.",
+	CredSaved:         "Credential written to the selected storage location.",
 	CredDeleted:       "Credential deleted.",
 	CredEmpty:         "Enter a secret name and value.",
 	CredNoDeclared:    "No secrets are declared yet; use {{secret.name}} in an environment or auth scheme first.",
-	CredBackendFailed: "Cannot access the system credential store: %s",
+	CredBackendFailed: "Cannot access the selected secret store: %s",
 	CredSecretHint:    "Only binding status is shown; stored values are never read back for display.",
+
+	StorageTitle:              "Secret storage location",
+	StorageCurrentFmt:         "Current location: %s",
+	StoragePathFmt:            "Actual path/service: %s",
+	StorageUnavailableFmt:     "Unavailable: %s",
+	StoragePlaintext:          "The local file stores plaintext, not ciphertext; protection is the 0700 directory and 0600 file permissions only.",
+	StorageEnvNote:            "GOREQUEST_SECRET_<NAME> stays a read-only override with higher priority than the selected location; it is never migrated or rewritten.",
+	StorageKeychain:           "System Keychain",
+	StorageFile:               "Local file (plaintext)",
+	StorageSwitch:             "Change storage location",
+	StorageSame:               "This storage location is already selected.",
+	StorageNoBackend:          "No secret storage backend is available.",
+	StoragePlanTitle:          "Switch plan (nothing is written until you confirm)",
+	StoragePlanSummaryFmt:     "%s → %s",
+	StoragePlanTargetPathFmt:  "Target path/service: %s",
+	StoragePlanEnumLimit:      "The source backend cannot enumerate every item: only project-declared and managed-manifest names are covered. This is not a full-store migration.",
+	StoragePlanEmpty:          "No secret names need copying.",
+	StoragePlanConflict:       "Values differ (choose how to resolve)",
+	StoragePlanCopy:           "Will copy and read back to verify",
+	StoragePlanSame:           "Values already match",
+	StoragePlanTargetOnly:     "Target only (kept)",
+	StoragePlanMissingBoth:    "Unset in both stores",
+	StorageConflictHintFmt:    "%d name(s) differ between the stores. Target values are kept by default; choose overwrite to replace them.",
+	StorageKeepTarget:         "Keep target values",
+	StorageOverwriteTarget:    "Overwrite target values",
+	StoragePolicyKeepFmt:      "Conflict handling: keep target values (no overwrite).",
+	StoragePolicyOverwriteFmt: "Conflict handling: overwrite target values with source values.",
+	StorageConfirm:            "Start switch",
+	StorageConfirmOverwrite:   "Overwrite and switch",
+	StorageCancel:             "Cancel",
+	StorageSwitchedFmt:        "Switched to %s; copied and verified %d secret(s). Source copies were kept.",
+	StorageSwitchFailedFmt:    "Switch failed; the previous storage location is still active: %s",
 
 	DiagEmpty:   "No missing auth references or unbound secrets found.",
 	DiagRefresh: "Check again",
@@ -310,6 +406,12 @@ type secretEntryMessages struct {
 	EnvHint          string
 	// Credentials-page entry point.
 	CredSetValue string
+	// Storage location shown inside the value dialog.
+	BackendFmt            string
+	BackendPathFmt        string
+	BackendPlaintext      string
+	BackendUnavailableFmt string
+	ChangeStorage         string
 }
 
 func secretEntryMessagesFor(lang string) *secretEntryMessages {
@@ -321,13 +423,13 @@ func secretEntryMessagesFor(lang string) *secretEntryMessages {
 
 var secretEntryMessagesZh = secretEntryMessages{
 	Title:            "设置本机密钥值",
-	ProjectFmt:       "项目：%s（值仅保存到此项目隔离的本机系统凭据存储）",
+	ProjectFmt:       "项目：%s（值保存到此项目隔离的本机存储位置）",
 	RefFmt:           "引用：{{secret.%s}}",
 	SourceHint:       "项目文件只保存名称与 {{secret.名称}} 引用；真实值不会写入项目 yaml、普通变量或导出内容。",
-	ADRHint:          "请求发送时从本机系统凭据读取；凭据后端不可用或锁定时会明确报错，不会降级为明文。",
+	ADRHint:          "请求发送时从所选本机存储位置读取；存储不可用或锁定时会明确报错，不会静默降级。环境变量 GOREQUEST_SECRET_<NAME> 仍为只读覆盖。",
 	NameLabel:        "密钥名称",
 	NamePlaceholder:  "密钥名称（例如 apiToken）",
-	ValueLabel:       "真实值（仅写入系统凭据）",
+	ValueLabel:       "真实值（写入所选存储位置）",
 	ValuePlaceholder: "粘贴或输入真实值",
 	ValueHint:        "密码输入，不会回显；保存后立即清空临时输入。",
 	StatusLabel:      "绑定状态：",
@@ -338,9 +440,9 @@ var secretEntryMessagesZh = secretEntryMessages{
 	UpdateValue:      "更新本机值",
 	Delete:           "删除本机值",
 	DeleteConfirmFmt: "确认删除本机值 %q？项目中的名称声明不会被删除。",
-	SavedFmt:         "已把 %q 的值写入本机系统凭据。",
+	SavedFmt:         "已把 %q 的值写入所选本机存储位置。",
 	DeletedFmt:       "已删除 %q 的本机值。",
-	BackendFailed:    "无法访问系统凭据存储：%s",
+	BackendFailed:    "无法访问所选存储位置：%s",
 	InvalidName:      "密钥名称无效：%s",
 	Empty:            "请输入密钥名称和值。",
 	Cancel:           "取消",
@@ -349,19 +451,25 @@ var secretEntryMessagesZh = secretEntryMessages{
 	EnvStatusBound:   "已绑定",
 	EnvStatusMissing: "未设置",
 	EnvStatusUnavail: "后端不可用",
-	EnvHint:          "每个名称旁点“设置值/更新本机值”填写真实值；只写本机系统凭据，不写入项目文件。",
+	EnvHint:          "每个名称旁点“设置值/更新本机值”填写真实值；只写所选本机存储位置，不写入项目文件。",
 	CredSetValue:     "设置/更新值",
+
+	BackendFmt:            "存储位置：%s",
+	BackendPathFmt:        "实际路径/服务：%s",
+	BackendPlaintext:      "本地文件为明文存储，未加密。",
+	BackendUnavailableFmt: "存储不可用：%s",
+	ChangeStorage:         "更改存储位置",
 }
 
 var secretEntryMessagesEn = secretEntryMessages{
 	Title:            "Set local secret value",
-	ProjectFmt:       "Project: %s (the value is stored only in this project's isolated system credential store)",
+	ProjectFmt:       "Project: %s (the value is stored in this project's isolated local storage location)",
 	RefFmt:           "Reference: {{secret.%s}}",
 	SourceHint:       "Project files keep only names and {{secret.name}} references; real values never go into project YAML, ordinary variables or exports.",
-	ADRHint:          "Requests read the value from the local system credential store at send time; an unavailable or locked backend reports an error instead of falling back to plaintext.",
+	ADRHint:          "Requests read the value from the selected local storage location at send time; an unavailable or locked store reports an error instead of falling back silently. GOREQUEST_SECRET_<NAME> stays a read-only override.",
 	NameLabel:        "Secret name",
 	NamePlaceholder:  "Secret name (e.g. apiToken)",
-	ValueLabel:       "Real value (written only to the system credential store)",
+	ValueLabel:       "Real value (written to the selected storage location)",
 	ValuePlaceholder: "Paste or type the real value",
 	ValueHint:        "Password input is never echoed; the temporary value is cleared immediately after saving.",
 	StatusLabel:      "Binding status:",
@@ -372,9 +480,9 @@ var secretEntryMessagesEn = secretEntryMessages{
 	UpdateValue:      "Update local value",
 	Delete:           "Delete local value",
 	DeleteConfirmFmt: "Delete the local value of %q? The declared name in the project is not removed.",
-	SavedFmt:         "Saved the value of %q to the local system credential store.",
+	SavedFmt:         "Saved the value of %q to the selected local storage location.",
 	DeletedFmt:       "Deleted the local value of %q.",
-	BackendFailed:    "Cannot access the system credential store: %s",
+	BackendFailed:    "Cannot access the selected storage location: %s",
 	InvalidName:      "Invalid secret name: %s",
 	Empty:            "Enter a secret name and value.",
 	Cancel:           "Cancel",
@@ -383,6 +491,12 @@ var secretEntryMessagesEn = secretEntryMessages{
 	EnvStatusBound:   "Bound",
 	EnvStatusMissing: "Not set",
 	EnvStatusUnavail: "Backend unavailable",
-	EnvHint:          "Use “Set value / Update local value” beside each declared name to enter the real value; only the local system store is written, never a project file.",
+	EnvHint:          "Use “Set value / Update local value” beside each declared name to enter the real value; only the selected local storage location is written, never a project file.",
 	CredSetValue:     "Set / update value",
+
+	BackendFmt:            "Storage location: %s",
+	BackendPathFmt:        "Actual path/service: %s",
+	BackendPlaintext:      "The local file stores plaintext, not ciphertext.",
+	BackendUnavailableFmt: "Storage unavailable: %s",
+	ChangeStorage:         "Change storage location",
 }

@@ -95,6 +95,11 @@ func newTestManagerAt(t *testing.T, cfgPath string) (*Manager, *fakeFactory) {
 		cfg:       newConfigStore(cfgPath),
 		secrets:   platform.NewEnvSecrets(),
 		newWindow: ff.new,
+		// Keep secret preferences, the management manifest and any local-file
+		// store under the test's temp directory. The keychain driver comes from
+		// the same test-overridable factory the credential tests install, so no
+		// automated run touches the host's real credential store.
+		secretStore: platform.NewSecretStore(t.TempDir(), identityKeychainDriverFactory()),
 	}
 	// Most tests assert the English wording that predates the i18n catalog. The
 	// real product default is Simplified Chinese (see i18n tests); tests opt into

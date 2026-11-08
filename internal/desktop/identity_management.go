@@ -50,6 +50,15 @@ type identityManagementState struct {
 	credEntries     []credentialView
 	credEntriesKey  string
 
+	// Secret storage location (U18). storageChoice is the label shown in the
+	// in-window dropdown; switchPlan is the reviewable copy plan and is cleared
+	// as soon as the user cancels or the switch completes.
+	storageChoice string
+	switchPlan    *platform.SecretSwitchPlan
+	switchPolicy  platform.ConflictPolicy
+	switchErr     string
+	switchNotice  string
+
 	// Diagnostics.
 	diagKey   string
 	diagItems []core.IdentityDiagnostic
@@ -168,6 +177,8 @@ func (a *App) openIdentityManagement(tab *Tab, section int) {
 	case 1:
 		a.openFolderAuthEditor(ps, st, tab)
 	case 2:
+		a.probeSecretBackend(ps)
+		a.resetStorageUI(ps, st)
 		a.refreshCredentialEntries(ps, st, true)
 	case 3:
 		a.refreshDiagnostics(ps, st, true)
@@ -576,9 +587,10 @@ func dirtyTabsInFolder(ps *projectState, folderRel string) []string {
 
 // --- credentials -----------------------------------------------------------
 
-// managedCredentials returns the project-scoped ManagedCredentials store. The
-// driver factory can inject an in-memory backend in tests; no plaintext files
-// are ever involved.
+// managedCredentials returns the project-scoped ManagedCredentials store for
+// the backend the user selected. The driver factory can inject an in-memory
+// backend in tests; no plaintext files are involved unless the user explicitly
+// chose the local-file backend.
 func (a *App) managedCredentials(ps *projectState) (*platform.ManagedCredentials, error) {
 	if ps == nil || ps.project == nil || ps.project.File == nil {
 		return nil, fmt.Errorf("no project")
@@ -589,7 +601,20 @@ func (a *App) managedCredentials(ps *projectState) (*platform.ManagedCredentials
 	if mc, ok := managedCredsByWeak[key]; ok && mc != nil {
 		return mc, nil
 	}
-	mc, err := platform.NewManagedCredentials(identityKeychainDriverFactory(), ps.project.File.ID, ps.root)
+	var (
+		mc  *platform.ManagedCredentials
+		err error
+	)
+	if ps.secretBackend != nil {
+		var manifest *platform.ManifestStore
+		if a.mgr != nil && ps.secretScope != "" {
+			manifest = a.mgr.secretStoreFor().Manifest(ps.secretScope)
+		}
+		mc, err = platform.NewManagedCredentialsWithBackend(ps.secretBackend, manifest)
+	} else {
+		// Legacy fallback for a projectState built without manager wiring.
+		mc, err = platform.NewManagedCredentials(identityKeychainDriverFactory(), ps.project.File.ID, ps.root)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -600,6 +625,249 @@ func (a *App) managedCredentials(ps *projectState) (*platform.ManagedCredentials
 		managedCredsMu.Unlock()
 	}, key)
 	return mc, nil
+}
+
+// resetManagedCredentials drops the cached store so the next call rebuilds it
+// against the newly selected backend.
+func resetManagedCredentials(ps *projectState) {
+	if ps == nil {
+		return
+	}
+	managedCredsMu.Lock()
+	delete(managedCredsByWeak, weak.Make(ps))
+	managedCredsMu.Unlock()
+}
+
+// --- secret storage location ----------------------------------------------
+
+// secretBackendInfo describes the project's live backend without reading any
+// secret value. It is safe to call every frame.
+func (a *App) secretBackendInfo(ps *projectState) platform.SecretBackendInfo {
+	if ps != nil && ps.secretBackend != nil {
+		return ps.secretBackend.Info()
+	}
+	return platform.SecretBackendInfo{
+		Kind:   platform.SecretBackendKeychain,
+		Label:  "System Keychain",
+		Detail: "no secret backend configured",
+	}
+}
+
+func (a *App) secretBackendKind(ps *projectState) platform.SecretBackendKind {
+	if ps != nil && ps.secretKind.Valid() {
+		return ps.secretKind
+	}
+	return platform.SecretBackendKeychain
+}
+
+// probeSecretBackend asks the live backend to confirm availability. It is
+// called on explicit user actions only, so a locked or unsupported OS store can
+// show its reason without probing every frame.
+func (a *App) probeSecretBackend(ps *projectState) {
+	if ps == nil || ps.secretBackend == nil {
+		return
+	}
+	if prober, ok := ps.secretBackend.(platform.SecretBackendProber); ok {
+		prober.Probe()
+	}
+}
+
+func (a *App) secretBackendLabel(kind platform.SecretBackendKind) string {
+	m := a.identityManagementMsg()
+	if kind == platform.SecretBackendFile {
+		return m.StorageFile
+	}
+	return m.StorageKeychain
+}
+
+// secretBackendStatusLabel localizes the backend string carried by a
+// non-sensitive SecretStatus ("keychain"/"file"/"env"/"memory").
+func (a *App) secretBackendStatusLabel(backend string) string {
+	switch platform.SecretBackendKind(backend) {
+	case platform.SecretBackendFile:
+		return a.identityManagementMsg().StorageFile
+	case platform.SecretBackendKeychain:
+		return a.identityManagementMsg().StorageKeychain
+	}
+	return backend
+}
+
+func (a *App) secretBackendKindForLabel(label string) platform.SecretBackendKind {
+	if label == a.identityManagementMsg().StorageFile {
+		return platform.SecretBackendFile
+	}
+	return platform.SecretBackendKeychain
+}
+
+// resetStorageUI clears the transient switch plan when the credentials section
+// is (re)opened, so a stale plan from another project or an older state never
+// appears as if it were current.
+func (a *App) resetStorageUI(ps *projectState, st *identityManagementState) {
+	if st == nil {
+		return
+	}
+	st.storageChoice = a.secretBackendLabel(a.secretBackendKind(ps))
+	st.switchPlan = nil
+	st.switchPolicy = platform.ConflictKeepTarget
+	st.switchErr = ""
+	st.switchNotice = ""
+}
+
+// resetSecretCaches drops every non-sensitive status cache that depends on the
+// selected backend. Called after a successful switch for every window sharing
+// the project scope; values are re-inspected on the next render, never read
+// back for display.
+func (a *App) resetSecretCaches() {
+	ps := a.ps
+	if ps == nil {
+		return
+	}
+	resetManagedCredentials(ps)
+	secretEntryMu.Lock()
+	if d, ok := secretEntryByWeak[weak.Make(ps)]; ok && d != nil {
+		d.generation++
+		d.status = core.SecretStatus{}
+		d.lastAction = ""
+		d.notice = ""
+	}
+	secretEntryMu.Unlock()
+	if ps.envUI != nil {
+		ps.envUI.secretStatusKey = ""
+	}
+	st := identityMgmtFor(ps)
+	st.credEntriesKey = ""
+	st.diagKey = ""
+	for _, tab := range ps.tabs {
+		if tab != nil {
+			tab.authDiagKey = ""
+			tab.authDiagItems = nil
+		}
+	}
+}
+
+func secretReferenceNames(ps *projectState) []string {
+	if ps == nil || ps.project == nil {
+		return nil
+	}
+	refs := ps.project.SecretReferences(nil)
+	names := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		names = append(names, ref.Name)
+	}
+	return names
+}
+
+func (a *App) secretBackendForKind(ps *projectState, kind platform.SecretBackendKind) (platform.SecretBackend, error) {
+	if a.mgr == nil || ps == nil || ps.project == nil || ps.project.File == nil {
+		return nil, fmt.Errorf("no project secret store")
+	}
+	return a.mgr.secretStoreFor().Backend(ps.secretScope, ps.project.File.ID, ps.root, kind)
+}
+
+// beginSecretSwitch pre-reads the source, lists every covered name, and builds
+// the reviewable plan. Nothing is written here.
+func (a *App) beginSecretSwitch(ps *projectState, st *identityManagementState, kind platform.SecretBackendKind) {
+	if ps == nil || st == nil {
+		return
+	}
+	m := a.identityManagementMsg()
+	st.switchErr = ""
+	st.switchNotice = ""
+	st.switchPlan = nil
+	if kind == a.secretBackendKind(ps) {
+		st.switchErr = m.StorageSame
+		return
+	}
+	source := ps.secretBackend
+	if source == nil {
+		st.switchErr = m.StorageNoBackend
+		return
+	}
+	a.probeSecretBackend(ps)
+	target, err := a.secretBackendForKind(ps, kind)
+	if err != nil {
+		st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error())
+		return
+	}
+	if prober, ok := target.(platform.SecretBackendProber); ok {
+		prober.Probe()
+	}
+	var managed []string
+	if a.mgr != nil && ps.secretScope != "" {
+		names, err := a.mgr.secretStoreFor().Manifest(ps.secretScope).Names()
+		if err != nil {
+			// Without the manifest we cannot know which undeclared names were
+			// managed; refusing is safer than silently under-copying.
+			st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error())
+			return
+		}
+		managed = names
+	}
+	plan, err := platform.BuildSecretSwitchPlan(ps.secretScope, source, target, secretReferenceNames(ps), managed)
+	if err != nil {
+		st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error())
+		return
+	}
+	st.switchPlan = &plan
+	st.switchPolicy = platform.ConflictKeepTarget
+}
+
+// confirmSecretSwitch copies and verifies every value, then persists the
+// choice and refreshes the live providers. Any failure leaves the previous
+// backend selected and rolls back the target writes made this round.
+func (a *App) confirmSecretSwitch(ps *projectState, st *identityManagementState) {
+	if ps == nil || st == nil || st.switchPlan == nil {
+		return
+	}
+	m := a.identityManagementMsg()
+	plan := *st.switchPlan
+	source := ps.secretBackend
+	target, err := a.secretBackendForKind(ps, plan.Target.Kind)
+	if err != nil {
+		st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error())
+		st.switchPlan = nil
+		return
+	}
+	result, err := platform.ExecuteSecretSwitch(source, target, plan, st.switchPolicy)
+	if err != nil {
+		st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error())
+		st.switchPlan = nil
+		return
+	}
+	if a.mgr == nil {
+		st.switchErr = m.StorageNoBackend
+		st.switchPlan = nil
+		return
+	}
+	store := a.mgr.secretStoreFor()
+	if err := store.SetSelectedKind(ps.secretScope, plan.Target.Kind); err != nil {
+		if rbErr := result.Rollback(); rbErr != nil {
+			st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error()+" / "+rbErr.Error())
+		} else {
+			st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, err.Error())
+		}
+		st.switchPlan = nil
+		return
+	}
+	if err := a.mgr.refreshSecretBackend(ps.secretScope, plan.Target.Kind); err != nil {
+		// The preference was written but the live provider could not switch:
+		// restore the old preference, roll the target back, and rebuild the old
+		// backend so the running app keeps its previous behavior.
+		_ = store.SetSelectedKind(ps.secretScope, plan.Source.Kind)
+		rbErr := result.Rollback()
+		_ = a.mgr.refreshSecretBackend(ps.secretScope, plan.Source.Kind)
+		detail := err.Error()
+		if rbErr != nil {
+			detail += " / " + rbErr.Error()
+		}
+		st.switchErr = fmt.Sprintf(m.StorageSwitchFailedFmt, detail)
+		st.switchPlan = nil
+		return
+	}
+	st.switchPlan = nil
+	st.switchErr = ""
+	st.switchNotice = fmt.Sprintf(m.StorageSwitchedFmt, a.secretBackendLabel(plan.Target.Kind), len(result.Copied))
+	st.storageChoice = a.secretBackendLabel(plan.Target.Kind)
 }
 
 func (a *App) refreshCredentialEntries(ps *projectState, st *identityManagementState, force bool) {

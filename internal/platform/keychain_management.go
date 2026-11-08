@@ -38,20 +38,30 @@ type CredentialChange struct {
 	Action string // "created" | "updated" | "deleted" | "unchanged"
 }
 
-// ManagedCredentials binds a project-scoped OS credential store with a small
-// inventory surface for the native UI. It deliberately rejects plaintext file
-// fallback: a nil/unavailable driver is an error, never a downgrade.
+// ManagedCredentials binds a project-scoped secret backend with a small
+// inventory surface for the native UI. It never silently falls back to a
+// different backend: the selected backend is whatever the user chose, and an
+// unavailable backend is an error.
 type ManagedCredentials struct {
-	writer CredentialWriter
-	insp   CredentialInspector
-	mu     sync.Mutex
+	writer   CredentialWriter
+	insp     CredentialInspector
+	names    SecretNameLister
+	manifest *ManifestStore
+	mu       sync.Mutex
 	// known remembers names the UI has successfully written or observed so a
 	// backend that cannot enumerate keys can still show and delete entries.
 	known map[string]bool
 }
 
-// NewManagedCredentials builds a project-isolated managed credential store.
-// driver may be a fake for tests; passing nil uses the real MyGo OS backend.
+// SecretNameLister is implemented by backends that can enumerate entries. The
+// OS keychain deliberately cannot; the local-file backend can.
+type SecretNameLister interface {
+	Names() ([]string, bool)
+}
+
+// NewManagedCredentials builds a project-isolated managed credential store on
+// the OS keychain. driver may be a fake for tests; passing nil uses the real
+// MyGo OS backend.
 func NewManagedCredentials(driver KeychainDriver, projectID, projectRoot string) (*ManagedCredentials, error) {
 	if driver == nil {
 		driver = NewMyGoKeychainDriver("")
@@ -61,6 +71,32 @@ func NewManagedCredentials(driver KeychainDriver, projectID, projectRoot string)
 		return nil, err
 	}
 	return NewManagedCredentialsFrom(kc, kc)
+}
+
+// NewManagedCredentialsWithBackend adapts the user-selected backend. manifest
+// may be nil; when present, names the user manages are persisted so they can
+// be found again even behind a non-enumerable keychain.
+func NewManagedCredentialsWithBackend(backend SecretBackend, manifest *ManifestStore) (*ManagedCredentials, error) {
+	if backend == nil {
+		return nil, &core.ConfigError{Err: errors.New("credential backend unavailable")}
+	}
+	mc := &ManagedCredentials{
+		writer:   backend,
+		insp:     backend,
+		manifest: manifest,
+		known:    map[string]bool{},
+	}
+	if lister, ok := backend.(SecretNameLister); ok {
+		mc.names = lister
+	}
+	if manifest != nil {
+		if names, err := manifest.Names(); err == nil {
+			for _, name := range names {
+				mc.known[name] = true
+			}
+		}
+	}
+	return mc, nil
 }
 
 // NewManagedCredentialsFrom adapts any writer/inspector pair. Both must be
@@ -94,7 +130,8 @@ func (m *ManagedCredentials) Observe(name string) error {
 	return nil
 }
 
-// List returns non-sensitive status records for observed/declared names.
+// List returns non-sensitive status records for observed/declared names plus
+// every name the backend or the persistent manifest can enumerate.
 func (m *ManagedCredentials) List(names []string) ([]CredentialRecord, error) {
 	if m == nil {
 		return nil, &core.ConfigError{Err: errors.New("credential backend unavailable")}
@@ -106,6 +143,30 @@ func (m *ManagedCredentials) List(names []string) ([]CredentialRecord, error) {
 			m.known[trimmed] = true
 		}
 	}
+	lister := m.names
+	manifest := m.manifest
+	m.mu.Unlock()
+
+	if lister != nil {
+		if listed, ok := lister.Names(); ok {
+			m.mu.Lock()
+			for _, name := range listed {
+				m.known[name] = true
+			}
+			m.mu.Unlock()
+		}
+	}
+	if manifest != nil {
+		if listed, err := manifest.Names(); err == nil {
+			m.mu.Lock()
+			for _, name := range listed {
+				m.known[name] = true
+			}
+			m.mu.Unlock()
+		}
+	}
+
+	m.mu.Lock()
 	seen := make([]string, 0, len(m.known))
 	for name := range m.known {
 		seen = append(seen, name)
@@ -127,8 +188,9 @@ func (m *ManagedCredentials) List(names []string) ([]CredentialRecord, error) {
 }
 
 // Set writes or updates one credential. It refuses empty/NUL/too-long values
-// via KeychainSecrets; errors from the OS backend are returned verbatim (wrapped
-// for context) and never cause a local plaintext file to be written.
+// via the selected backend. When a manifest is configured the name is recorded
+// before the value is written, so a value can always be found again; a manifest
+// failure aborts before the backend is touched.
 func (m *ManagedCredentials) Set(name, value string) (CredentialChange, error) {
 	if m == nil {
 		return CredentialChange{}, &core.ConfigError{Err: errors.New("credential backend unavailable")}
@@ -141,8 +203,13 @@ func (m *ManagedCredentials) Set(name, value string) (CredentialChange, error) {
 		return CredentialChange{}, &core.ConfigError{Err: fmt.Errorf("secret %q value cannot be empty", trimmed)}
 	}
 	before := m.insp.InspectSecret(trimmed)
+	if m.manifest != nil {
+		if err := m.manifest.Add(trimmed); err != nil {
+			return CredentialChange{}, &core.ConfigError{Err: fmt.Errorf("recording managed secret %q: %w", trimmed, err)}
+		}
+	}
 	if err := m.writer.Set(trimmed, value); err != nil {
-		return CredentialChange{}, &core.ConfigError{Err: fmt.Errorf("writing credential %q to system store: %w", trimmed, err)}
+		return CredentialChange{}, &core.ConfigError{Err: fmt.Errorf("writing credential %q to the selected store: %w", trimmed, err)}
 	}
 	m.mu.Lock()
 	m.known[trimmed] = true
@@ -165,10 +232,16 @@ func (m *ManagedCredentials) Delete(name string) (CredentialChange, error) {
 		return CredentialChange{}, err
 	}
 	if err := m.writer.Delete(trimmed); err != nil {
-		return CredentialChange{}, &core.ConfigError{Err: fmt.Errorf("deleting credential %q from system store: %w", trimmed, err)}
+		return CredentialChange{}, &core.ConfigError{Err: fmt.Errorf("deleting credential %q from the selected store: %w", trimmed, err)}
 	}
 	m.mu.Lock()
 	delete(m.known, trimmed)
 	m.mu.Unlock()
+	if m.manifest != nil {
+		// The value is already gone; a manifest cleanup failure only leaves a
+		// name listed as missing, never a recoverable secret, so it is not
+		// reported as a failed delete.
+		_ = m.manifest.Remove(trimmed)
+	}
 	return CredentialChange{Name: trimmed, Action: "deleted"}, nil
 }
