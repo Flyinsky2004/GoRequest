@@ -54,34 +54,32 @@ func (a *App) fileSyncTabBanner(c *ui.Context, t *ui.Theme, ps *projectState, ta
 				ui.Text(c, summary).Grow(1).MinWidth(180).FontSize(12).FontWeight(600).TextColor(p.Text)
 
 				if conflict != nil && !modalActiveForTab {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						if fileSyncButton(c, t, fileSyncBtnSecondary, fm.ResolveConflictBtn, fileSyncIconCompare, true, false).Clicked() {
-							a.OpenConflictModal(tab)
-						}
-						// Destructive resolutions must never run as a one-click
-						// silent shortcut from the banner while unsaved edits
-						// exist: route the user through the three-version modal.
-						// Only the non-destructive "Save As Copy" stays inline.
-						if conflict.DiskExists {
-							if conflict.ParseErr == "" && !conflict.HasGitConflict {
-								if fileSyncButton(c, t, fileSyncBtnSecondary, fm.ReloadDiskBtn, fileSyncIconReload, true, false).Clicked() {
-									a.OpenConflictModal(tab)
-								}
-							}
-						}
-						if fileSyncButton(c, t, fileSyncBtnSecondary, fm.SaveAsCopyBtn, fileSyncIconCopy, true, false).Clicked() {
-							if err := a.ResolveTabConflict(tab, core.ResolutionSaveAsCopy); err != nil {
-								setFileSyncBannerErr(tab, err.Error())
-							} else {
-								setFileSyncBannerErr(tab, "")
-							}
-						}
-						if !conflict.DiskExists {
-							if fileSyncButton(c, t, fileSyncBtnDanger, fm.AcceptDeleteReviewBtn, fileSyncIconTrash, true, false).Clicked() {
+					if fileSyncButton(c, t, fileSyncBtnSecondary, fm.ResolveConflictBtn, fileSyncIconCompare, true, false).Clicked() {
+						a.OpenConflictModal(tab)
+					}
+					// Destructive resolutions must never run as a one-click
+					// silent shortcut from the banner while unsaved edits
+					// exist: route the user through the three-version modal.
+					// Only the non-destructive "Save As Copy" stays inline.
+					if conflict.DiskExists {
+						if conflict.ParseErr == "" && !conflict.HasGitConflict {
+							if fileSyncButton(c, t, fileSyncBtnSecondary, fm.ReloadDiskBtn, fileSyncIconReload, true, false).Clicked() {
 								a.OpenConflictModal(tab)
 							}
 						}
-					})
+					}
+					if fileSyncButton(c, t, fileSyncBtnSecondary, fm.SaveAsCopyBtn, fileSyncIconCopy, true, false).Clicked() {
+						if err := a.ResolveTabConflict(tab, core.ResolutionSaveAsCopy); err != nil {
+							setFileSyncBannerErr(tab, err.Error())
+						} else {
+							setFileSyncBannerErr(tab, "")
+						}
+					}
+					if !conflict.DiskExists {
+						if fileSyncButton(c, t, fileSyncBtnDanger, fm.AcceptDeleteReviewBtn, fileSyncIconTrash, true, false).Clicked() {
+							a.OpenConflictModal(tab)
+						}
+					}
 				}
 			})
 
