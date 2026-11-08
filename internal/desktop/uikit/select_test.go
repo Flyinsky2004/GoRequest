@@ -51,6 +51,16 @@ func TestThemedSelectOpensInWindowPopup(t *testing.T) {
 	if menu := tt.Menu(); len(menu) != 0 {
 		t.Fatalf("the themed select opened a platform menu: %v", menu)
 	}
+	tt.Advance(time.Second)
+	r, ok := tt.Find("Beta")
+	if !ok {
+		t.Fatal("option missing")
+	}
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Frame()
+	if accentPixels(tt, r, PaletteFor(&ui.Theme{}).Accent) == 0 {
+		t.Fatal("hovered option must use the original menu accent")
+	}
 	if err := tt.Click("Beta"); err != nil {
 		t.Fatalf("click option: %v", err)
 	}
