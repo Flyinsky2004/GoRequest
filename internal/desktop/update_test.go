@@ -41,10 +41,14 @@ type fakeUpdateDownloader struct {
 	downloaded *update.Downloaded
 	err        error
 	calls      int
+	onDownload func()
 }
 
 func (f *fakeUpdateDownloader) Download(ctx context.Context, cand *update.Candidate, progress func(done, total int64)) (*update.Downloaded, error) {
 	f.calls++
+	if f.onDownload != nil {
+		f.onDownload()
+	}
 	if progress != nil {
 		progress(50, 100)
 	}
@@ -82,6 +86,8 @@ func newUpdateTestManager(t *testing.T, checker releaseChecker, downloader updat
 	u := newUpdateController(m, update.NewStateStore(statePath), checker, downloader, now,
 		func() string { return *installed }, open, "darwin")
 	m.update = u
+	// No test may quit the developer's real application.
+	m.quitApp = func() { t.Errorf("unexpected application quit") }
 	return m, u, ff
 }
 
@@ -366,6 +372,8 @@ func TestUpdateDownloadVerifiedAndOpened(t *testing.T) {
 		opened = path
 		return nil
 	})
+	quits := 0
+	m.quitApp = func() { quits++ }
 	m.showWelcome("")
 	u.setHost(m.welcome.win)
 	u.candidate = cand
@@ -373,6 +381,9 @@ func TestUpdateDownloadVerifiedAndOpened(t *testing.T) {
 	u.dialogOpen = true
 
 	u.downloadAndOpen(context.Background(), cand)
+	if quits != 1 {
+		t.Fatalf("quits after successful installer launch = %d, want 1", quits)
+	}
 	if dl.calls != 1 {
 		t.Fatalf("download calls = %d", dl.calls)
 	}

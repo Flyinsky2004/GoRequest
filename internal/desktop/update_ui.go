@@ -13,6 +13,7 @@ func (m *Manager) updateModalFor(w window, c *ui.Context, t *ui.Theme) {
 	if m == nil || m.update == nil {
 		return
 	}
+	m.reconcileHandoff()
 	m.update.modalFor(w, c, t)
 }
 
@@ -142,7 +143,7 @@ func (u *updateController) renderResult(c *ui.Context, t *ui.Theme, p uikit.Pale
 			bodyText.TextColor(p.Muted)
 		}
 	}
-	if u.result == updateResultDownloaded {
+	if u.result == updateResultDownloaded || u.result == updateResultHandoffCanceled {
 		ui.Text(c, um.VerifiedNote).FontSize(11).TextColor(p.Faint)
 	}
 	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
@@ -173,6 +174,8 @@ func (u *updateController) resultText(um *updateMessages) (title, body string) {
 		return um.OfflineTitle, um.OfflineBody
 	case updateResultCanceled:
 		return um.CanceledTitle, um.CanceledBody
+	case updateResultHandoffCanceled:
+		return um.HandoffCanceledTitle, translate(um.HandoffCanceledBody, u.detail)
 	case updateResultDownloaded:
 		switch u.goos {
 		case "darwin":

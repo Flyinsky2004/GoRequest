@@ -85,6 +85,10 @@ const (
 	updateResultError
 	updateResultCanceled
 	updateResultDownloaded
+	// updateResultHandoffCanceled: the package is verified but the user
+	// canceled the save prompt (or a save failed and was canceled), so the
+	// installer was not opened and the app keeps running.
+	updateResultHandoffCanceled
 )
 
 // updateDialogKind selects which update modal is shown.
@@ -504,28 +508,7 @@ func (u *updateController) downloadAndOpen(ctx context.Context, cand *update.Can
 		})
 		return
 	}
-	if err := u.open(dl.Path); err != nil {
-		u.post(func() {
-			u.dialogKind = updateDialogResult
-			u.result = updateResultError
-			u.detail = err.Error()
-			u.dialogOpen = true
-			u.cancel = nil
-		})
-		return
-	}
-	u.post(func() {
-		u.state.Mutate(func(st *update.State) {
-			st.LastCheckedAt = u.now().UTC().Format(time.RFC3339)
-			st.LastResult = update.ResultDownloaded
-			st.LastError = ""
-		})
-		u.dialogKind = updateDialogResult
-		u.result = updateResultDownloaded
-		u.detail = dl.Path
-		u.dialogOpen = true
-		u.cancel = nil
-	})
+	u.post(func() { u.handOffInstaller(ctx, dl) })
 }
 
 // openSettings closes the update dialog and opens the Settings sheet on About in the
