@@ -61,13 +61,22 @@ secrets:
 		t.Fatal(err)
 	}
 	ps.project = reloaded
-	// Route the send path's secret resolution through the same fake project-
-	// scoped keychain backend the dialog writes to. This mirrors
-	// identity_management_test.go and never touches the real OS keychain.
+	// Route both the dialog/management backend and the send path's secret
+	// resolution through the same fake project-scoped keychain backend so the
+	// FIX09 keychain driver suite tests keychain read/write/lock deterministically
+	// without touching the real OS keychain.
 	kc, err := platform.NewKeychainSecrets(identityKeychainDriverFactory(), reloaded.File.ID, ps.root)
 	if err != nil {
 		t.Fatal(err)
 	}
+	ps.secretKind = platform.SecretBackendKeychain
+	ps.secretBackend = kc
+	layered, err := platform.NewLayeredSecrets(kc, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps.secrets = layered
+	resetManagedCredentials(ps)
 	a.mgr.secrets = kc
 	return ps.root
 }
@@ -486,6 +495,14 @@ secrets:
 		if err != nil {
 			t.Fatal(err)
 		}
+		pair.ps.secretKind = platform.SecretBackendKeychain
+		pair.ps.secretBackend = kc
+		layered, err := platform.NewLayeredSecrets(kc, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pair.ps.secrets = layered
+		resetManagedCredentials(pair.ps)
 		pair.a.mgr.secrets = kc
 	}
 

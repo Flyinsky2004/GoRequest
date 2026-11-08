@@ -16,11 +16,39 @@ import (
 
 // openStorageProject opens a project with an isolated secret root and an
 // injected fake OS credential driver. No real keychain or user home is used.
+// Without a persisted preference, this opens on the default local-file backend.
 func openStorageProject(t *testing.T, name, secretRoot string, drv *memoryIdentityDriver) (*Manager, *App, *projectState) {
 	t.Helper()
 	m, _ := newTestManager(t)
 	m.secretStore = platform.NewSecretStore(secretRoot, drv)
 	if err := m.openProject(writeProject(t, name)); err != nil {
+		t.Fatalf("openProject: %v", err)
+	}
+	a := m.workspaces[0]
+	return m, a, a.ps
+}
+
+// openKeychainStorageProject opens a project whose scope explicitly selected
+// SecretBackendKeychain in preferences.json before opening, exercising both
+// preservation of explicit keychain preferences and Keychain -> File transitions.
+func openKeychainStorageProject(t *testing.T, name, secretRoot string, drv *memoryIdentityDriver) (*Manager, *App, *projectState) {
+	t.Helper()
+	dir := writeProject(t, name)
+	proj, err := core.OpenProject(dir)
+	if err != nil {
+		t.Fatalf("OpenProject: %v", err)
+	}
+	store := platform.NewSecretStore(secretRoot, drv)
+	scope, err := store.Scope(proj.File.ID, dir)
+	if err != nil {
+		t.Fatalf("Scope: %v", err)
+	}
+	if err := store.SetSelectedKind(scope, platform.SecretBackendKeychain); err != nil {
+		t.Fatalf("SetSelectedKind: %v", err)
+	}
+	m, _ := newTestManager(t)
+	m.secretStore = store
+	if err := m.openProject(dir); err != nil {
 		t.Fatalf("openProject: %v", err)
 	}
 	a := m.workspaces[0]
@@ -90,10 +118,106 @@ func switchBackend(t *testing.T, a *App, ps *projectState, kind platform.SecretB
 	return st
 }
 
+func TestSecretStorageDefaultsToFileAndPreservesExplicitKeychain(t *testing.T) {
+	drv := withIdentityFakeBackend(t)
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	secretRoot := filepath.Join(t.TempDir(), "secrets")
+
+	// 1. Fresh project without preferences.json defaults to SecretBackendFile
+	// and never touches the OS keychain driver.
+	m, a, ps := openStorageProject(t, "DefaultFileStorage", secretRoot, drv)
+	if ps.secretKind != platform.SecretBackendFile {
+		t.Fatalf("default secretKind = %q, want %q", ps.secretKind, platform.SecretBackendFile)
+	}
+	declareStorageSecret(t, ps, "dev", "apiToken")
+	a.openSecretEntry(ps, "apiToken")
+	d := secretEntryFor(ps)
+	d.value = "{{SECRET_default_file}}"
+	a.saveSecretEntry(ps)
+	if d.open {
+		t.Fatalf("saveSecretEntry on default file backend failed: %s", d.errMsg)
+	}
+	drv.mu.Lock()
+	kcGets, kcSets := drv.gets, drv.sets
+	drv.mu.Unlock()
+	if kcGets != 0 || kcSets != 0 {
+		t.Fatalf("default file backend must not touch keychain driver: gets=%d sets=%d", kcGets, kcSets)
+	}
+	filePath, err := m.secretStore.FilePath(ps.secretScope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawFile, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("expected local secret file at %s: %v", filePath, err)
+	}
+	if !strings.Contains(string(rawFile), "{{SECRET_default_file}}") {
+		t.Fatalf("local secret file did not store value: %s", rawFile)
+	}
+	assertNoRealValueInProject(t, ps.root, "{{SECRET_default_file}}")
+	assertSecretSendUsesValue(t, a, ps, "OrdersDefaultFile", "{{SECRET_default_file}}")
+
+	// 2. Another project with an explicit Keychain preference keeps Keychain
+	// across restart and does NOT auto-migrate its keychain value into a file.
+	kcDir := writeProject(t, "ExplicitKeychain")
+	kcProj, err := core.OpenProject(kcDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store1 := platform.NewSecretStore(secretRoot, drv)
+	kcScope, err := store1.Scope(kcProj.File.ID, kcDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store1.SetSelectedKind(kcScope, platform.SecretBackendKeychain); err != nil {
+		t.Fatal(err)
+	}
+	kcKey, err := platform.ScopedSecretKey(kcScope, "apiToken")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := drv.Set(kcKey, "{{SECRET_explicit_kc}}"); err != nil {
+		t.Fatal(err)
+	}
+
+	m1, _ := newTestManagerAt(t, cfgPath)
+	m1.secretStore = store1
+	if err := m1.openProject(kcDir); err != nil {
+		t.Fatal(err)
+	}
+	a1 := m1.workspaces[0]
+	if a1.ps.secretKind != platform.SecretBackendKeychain {
+		t.Fatalf("explicit keychain project opened as %q", a1.ps.secretKind)
+	}
+	if v, ok := a1.ps.secrets.Get("apiToken"); !ok || v != "{{SECRET_explicit_kc}}" {
+		t.Fatalf("explicit keychain value = %q %v", v, ok)
+	}
+	kcFilePath, err := store1.FilePath(kcScope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(kcFilePath); !os.IsNotExist(err) {
+		t.Fatalf("opening explicit keychain project must not auto-migrate to local file: %v", err)
+	}
+
+	// Simulated app restart preserves the explicit Keychain choice.
+	m2, _ := newTestManagerAt(t, cfgPath)
+	m2.secretStore = platform.NewSecretStore(secretRoot, drv)
+	if err := m2.openProject(kcDir); err != nil {
+		t.Fatal(err)
+	}
+	a2 := m2.workspaces[0]
+	if a2.ps.secretKind != platform.SecretBackendKeychain {
+		t.Fatalf("restart lost explicit keychain choice: %q", a2.ps.secretKind)
+	}
+	declareStorageSecret(t, a2.ps, "dev", "apiToken")
+	assertSecretSendUsesValue(t, a2, a2.ps, "OrdersExplicitKC", "{{SECRET_explicit_kc}}")
+}
+
 func TestSecretStorageSwitchUpdatesProviderAndKeepsSource(t *testing.T) {
 	drv := withIdentityFakeBackend(t)
 	secretRoot := filepath.Join(t.TempDir(), "secrets")
-	m, a, ps := openStorageProject(t, "StorageSwitch", secretRoot, drv)
+	m, a, ps := openKeychainStorageProject(t, "StorageSwitch", secretRoot, drv)
 	declareStorageSecret(t, ps, "dev", "apiToken")
 
 	mc, err := a.managedCredentials(ps)
@@ -181,6 +305,9 @@ func TestSecretStorageChoicePersistsAcrossRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	a1 := m1.workspaces[0]
+	if a1.ps.secretKind != platform.SecretBackendFile {
+		t.Fatalf("initial default backend = %q, want %q", a1.ps.secretKind, platform.SecretBackendFile)
+	}
 	declareStorageSecret(t, a1.ps, "dev", "apiToken")
 	mc, err := a1.managedCredentials(a1.ps)
 	if err != nil {
@@ -189,7 +316,7 @@ func TestSecretStorageChoicePersistsAcrossRestart(t *testing.T) {
 	if _, err := mc.Set("apiToken", "{{SECRET_restart}}"); err != nil {
 		t.Fatal(err)
 	}
-	switchBackend(t, a1, a1.ps, platform.SecretBackendFile)
+	switchBackend(t, a1, a1.ps, platform.SecretBackendKeychain)
 
 	// A second manager at the same config and secret root is a restart.
 	m2, _ := newTestManagerAt(t, cfgPath)
@@ -198,8 +325,8 @@ func TestSecretStorageChoicePersistsAcrossRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	a2 := m2.workspaces[0]
-	if a2.ps.secretKind != platform.SecretBackendFile {
-		t.Fatalf("restart lost the selected backend: %q", a2.ps.secretKind)
+	if a2.ps.secretKind != platform.SecretBackendKeychain {
+		t.Fatalf("restart lost the selected keychain backend: %q", a2.ps.secretKind)
 	}
 	if v, ok := a2.ps.secrets.Get("apiToken"); !ok || v != "{{SECRET_restart}}" {
 		t.Fatalf("restart provider = %q %v", v, ok)
@@ -209,7 +336,7 @@ func TestSecretStorageChoicePersistsAcrossRestart(t *testing.T) {
 func TestSecretStorageConflictKeepsTargetByDefault(t *testing.T) {
 	drv := withIdentityFakeBackend(t)
 	secretRoot := filepath.Join(t.TempDir(), "secrets")
-	_, a, ps := openStorageProject(t, "StorageConflict", secretRoot, drv)
+	_, a, ps := openKeychainStorageProject(t, "StorageConflict", secretRoot, drv)
 	declareStorageSecret(t, ps, "dev", "apiToken")
 
 	mc, err := a.managedCredentials(ps)
@@ -280,7 +407,7 @@ func TestSecretStorageConflictKeepsTargetByDefault(t *testing.T) {
 func TestSecretStorageUnavailableTargetKeepsOldScheme(t *testing.T) {
 	drv := withIdentityFakeBackend(t)
 	secretRoot := filepath.Join(t.TempDir(), "secrets")
-	_, a, ps := openStorageProject(t, "StorageUnavailable", secretRoot, drv)
+	_, a, ps := openKeychainStorageProject(t, "StorageUnavailable", secretRoot, drv)
 	declareStorageSecret(t, ps, "dev", "apiToken")
 	mc, err := a.managedCredentials(ps)
 	if err != nil {
@@ -345,11 +472,11 @@ func TestSecretStorageMultipleWindowsStayIsolated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	switchBackend(t, a, a.ps, platform.SecretBackendFile)
-	if a.ps.secretKind != platform.SecretBackendFile {
+	switchBackend(t, a, a.ps, platform.SecretBackendKeychain)
+	if a.ps.secretKind != platform.SecretBackendKeychain {
 		t.Fatalf("window A kind = %q", a.ps.secretKind)
 	}
-	if b.ps.secretKind != platform.SecretBackendKeychain {
+	if b.ps.secretKind != platform.SecretBackendFile {
 		t.Fatalf("window B kind changed: %q", b.ps.secretKind)
 	}
 	if v, ok := b.ps.secrets.Get("apiToken"); !ok || v != "{{SECRET_B}}" {
@@ -372,7 +499,6 @@ func TestSecretStorageEnvOverrideStillWins(t *testing.T) {
 	if _, err := mc.Set("apiToken", "{{SECRET_stored}}"); err != nil {
 		t.Fatal(err)
 	}
-	switchBackend(t, a, ps, platform.SecretBackendFile)
 	t.Setenv("GOREQUEST_SECRET_APITOKEN", "{{SECRET_env}}")
 	if v, ok := a.secretsProvider().Get("apiToken"); !ok || v != "{{SECRET_env}}" {
 		t.Fatalf("environment override no longer wins: %q %v", v, ok)
@@ -382,7 +508,7 @@ func TestSecretStorageEnvOverrideStillWins(t *testing.T) {
 func TestSecretStorageReferenceNamesAndManifestSurviveSwitch(t *testing.T) {
 	drv := withIdentityFakeBackend(t)
 	secretRoot := filepath.Join(t.TempDir(), "secrets")
-	_, a, ps := openStorageProject(t, "StorageRefs", secretRoot, drv)
+	_, a, ps := openKeychainStorageProject(t, "StorageRefs", secretRoot, drv)
 	declareStorageSecret(t, ps, "dev", "apiToken")
 	mc, err := a.managedCredentials(ps)
 	if err != nil {
@@ -434,7 +560,6 @@ func TestSecretEntryShowsActualBackendPath(t *testing.T) {
 	if _, err := mc.Set("apiToken", "{{SECRET_ui}}"); err != nil {
 		t.Fatal(err)
 	}
-	switchBackend(t, a, ps, platform.SecretBackendFile)
 
 	a.openSecretEntry(ps, "apiToken")
 	tt := ui.NewTester(a.View, 1280, 900)
@@ -468,7 +593,6 @@ func TestSecretStorageUIShowsUnavailableReason(t *testing.T) {
 	if _, err := mc.Set("apiToken", "{{SECRET_ui_unavail}}"); err != nil {
 		t.Fatal(err)
 	}
-	switchBackend(t, a, ps, platform.SecretBackendFile)
 
 	// The selected file backend becomes unavailable (for example a planted
 	// symlink); the UI must show the real reason instead of pretending it works.
@@ -506,7 +630,7 @@ func TestCredentialsPageShowsStoragePlanAndSwitches(t *testing.T) {
 
 	a.openIdentityManagement(nil, 2)
 	st := identityMgmtFor(ps)
-	st.storageChoice = a.identityManagementMsg().StorageFile
+	st.storageChoice = a.identityManagementMsg().StorageKeychain
 	tt := ui.NewTester(a.View, 1280, 900)
 	tt.Frame()
 	m := a.identityManagementMsg()
@@ -527,10 +651,10 @@ func TestCredentialsPageShowsStoragePlanAndSwitches(t *testing.T) {
 		t.Fatalf("click confirm: %v; texts=%v", err, tt.Texts())
 	}
 	tt.Frame()
-	if ps.secretKind != platform.SecretBackendFile {
+	if ps.secretKind != platform.SecretBackendKeychain {
 		t.Fatalf("switch not applied: %q err=%s", ps.secretKind, st.switchErr)
 	}
-	if !tt.HasText(m.StorageFile) {
+	if !tt.HasText(m.StorageKeychain) {
 		t.Fatalf("new location not shown; texts=%v", tt.Texts())
 	}
 }

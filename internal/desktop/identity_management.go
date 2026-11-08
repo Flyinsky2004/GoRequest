@@ -647,9 +647,10 @@ func (a *App) secretBackendInfo(ps *projectState) platform.SecretBackendInfo {
 		return ps.secretBackend.Info()
 	}
 	return platform.SecretBackendInfo{
-		Kind:   platform.SecretBackendKeychain,
-		Label:  "System Keychain",
-		Detail: "no secret backend configured",
+		Kind:      platform.SecretBackendFile,
+		Label:     "Local File",
+		Plaintext: true,
+		Detail:    "no secret backend configured",
 	}
 }
 
@@ -657,7 +658,7 @@ func (a *App) secretBackendKind(ps *projectState) platform.SecretBackendKind {
 	if ps != nil && ps.secretKind.Valid() {
 		return ps.secretKind
 	}
-	return platform.SecretBackendKeychain
+	return platform.SecretBackendFile
 }
 
 // probeSecretBackend asks the live backend to confirm availability. It is

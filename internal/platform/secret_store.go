@@ -13,10 +13,12 @@ import (
 	"gorequest/internal/core"
 )
 
-// SecretBackendKind names a user-selectable secret storage backend. The
-// default is the OS credential store. The local-file backend is an explicit
-// opt-in: it stores plaintext under the user's home directory and never
-// pretends to be encrypted.
+// SecretBackendKind names a user-selectable secret storage backend. When no
+// explicit preference is persisted for a project scope, the default is the
+// local-file backend (SecretBackendFile), which stores plaintext under the
+// user's home directory with 0700/0600 permissions and never pretends to be
+// encrypted. SecretBackendKeychain remains available as an explicit opt-in and
+// existing persisted keychain choices are preserved.
 type SecretBackendKind string
 
 const (
@@ -29,12 +31,12 @@ func (k SecretBackendKind) Valid() bool {
 	return k == SecretBackendKeychain || k == SecretBackendFile
 }
 
-// String returns the stable identifier, defaulting to keychain.
+// String returns the stable identifier, defaulting to file.
 func (k SecretBackendKind) String() string {
 	if k.Valid() {
 		return string(k)
 	}
-	return string(SecretBackendKeychain)
+	return string(SecretBackendFile)
 }
 
 // SecretBackendInfo is the non-sensitive description shown in the UI: which
@@ -161,7 +163,7 @@ func (s *SecretStore) SelectedKind(scope string) (SecretBackendKind, error) {
 	}
 	raw := doc.Scopes[scope]
 	if raw == "" {
-		return SecretBackendKeychain, nil
+		return SecretBackendFile, nil
 	}
 	kind := SecretBackendKind(raw)
 	if !kind.Valid() {
