@@ -162,13 +162,17 @@ func (a *App) renderFeedbackViewport(c *ui.Context, t *ui.Theme) {
 	}
 	maxW := min(float32(420), max(float32(180), winW-40))
 
+	// Because the pill uses an inverse fill (dark in light mode, light in dark
+	// mode), resolve semantic icon colors for that inverse surface so contrast
+	// stays crisp in both appearances.
 	fill, fg := p.Text, p.BG
 	subFG := p.BG.Alpha(0.78)
-	okColor, hasOK := uikit.StatusPillColor(200, p)
+	invPalette := uikit.PaletteFor(&ui.Theme{Dark: !t.Dark})
+	okColor, hasOK := uikit.StatusPillColor(200, invPalette)
 	if !hasOK {
-		okColor = t.Accent
+		okColor = fg
 	}
-	errColor := t.Danger
+	errColor := uikit.MethodColor("DELETE", invPalette)
 
 	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
 		viewport.Padding(0, 16, 36, 16).AlignItems(ui.Center).Gap(8)

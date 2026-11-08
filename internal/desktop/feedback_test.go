@@ -41,75 +41,88 @@ func rectPixelsChanged(before, after []byte, stride int, r ui.Rect) bool {
 }
 
 func TestU32ToastRendersPixelsDedupesExpiresAndIdleBudget(t *testing.T) {
-	for _, lang := range []language{langSimplifiedChinese, langEnglish} {
-		t.Run(string(lang), func(t *testing.T) {
-			a, ps := openTestProject(t, "ToastPixels")
-			a.mgr.cfg.cfg.Language = string(lang)
-			tab := openRequestTabs(t, ps, "ToastReq")[0]
-			tab.URL = "https://api.example.com/v1/orders"
-			tab.Resp = &core.ExecResult{
-				Status:   200,
-				Proto:    "HTTP/1.1",
-				Body:     []byte(`{"copied":true}`),
-				Pretty:   "{\n  \"copied\": true\n}",
-				BodySize: 15,
-			}
-			tab.respVersion = 1
-
-			tt := ui.NewTester(a.View, 1200, 820)
-			tt.Frame()
-			before := append([]byte(nil), tt.Image().Pix...)
-
-			// Click Copy Response on the toolbar.
-			if err := tt.Click(a.msg().CopyResponse); err != nil {
-				t.Fatalf("click CopyResponse: %v", err)
-			}
-			if got := tt.Clipboard(); got != tab.Resp.Pretty {
-				t.Fatalf("clipboard = %q, want %q", got, tab.Resp.Pretty)
-			}
-
-			wantToast := a.feedbackMsg().CopySuccess
-			toastRect, ok := tt.Find(wantToast)
-			if !ok {
-				t.Fatalf("missing toast %q on click frame; texts=%v", wantToast, tt.Texts())
-			}
-			// Toast must sit in the floating bottom-center toast viewport above
-			// the bottom status bar (which is at X≈12 on the far left), not be
-			// mistaken for a.status.
-			if toastRect.X < 200 || toastRect.Y > 820-28 {
-				t.Fatalf("toast %q not positioned in floating viewport above status bar: %+v", wantToast, toastRect)
-			}
-			after := tt.Image()
-			if !rectPixelsChanged(before, after.Pix, after.Stride, toastRect) {
-				t.Fatalf("toast %q was added to tree (%+v) but painted zero pixels on frame 0", wantToast, toastRect)
-			}
-
-			// Rapid repeated clicks must replace in-place (never stack) and keep
-			// pixels visible on every click.
-			for i := 0; i < 4; i++ {
-				if err := tt.Click(a.feedbackMsg().CopyURLTooltip); err != nil {
-					t.Fatalf("repeat click Copy URL #%d: %v", i, err)
+	for _, dark := range []bool{false, true} {
+		mode := "light"
+		if dark {
+			mode = "dark"
+		}
+		for _, lang := range []language{langSimplifiedChinese, langEnglish} {
+			t.Run(mode+"/"+string(lang), func(t *testing.T) {
+				a, ps := openTestProject(t, "ToastPixels")
+				a.mgr.cfg.cfg.Language = string(lang)
+				tab := openRequestTabs(t, ps, "ToastReq")[0]
+				tab.URL = "https://api.example.com/v1/orders"
+				tab.Resp = &core.ExecResult{
+					Status:   200,
+					Proto:    "HTTP/1.1",
+					Body:     []byte(`{"copied":true}`),
+					Pretty:   "{\n  \"copied\": true\n}",
+					BodySize: 15,
 				}
-				if got := u32CountText(tt.Texts(), wantToast); got != 1 {
-					t.Fatalf("repeat click #%d stacked %d toasts; texts=%v", i, got, tt.Texts())
-				}
-				cur := tt.Image()
-				if !rectPixelsChanged(before, cur.Pix, cur.Stride, toastRect) {
-					t.Fatalf("repeat click #%d blanked toast pixels", i)
-				}
-			}
+				tab.respVersion = 1
 
-			// After timeout + fade, the toast closes and requests zero idle frames.
-			tt.Advance(feedbackToastTimeout + 500*time.Millisecond)
-			tt.Frame()
-			if tt.HasText(wantToast) {
-				t.Fatalf("toast %q did not expire after timeout; texts=%v", wantToast, tt.Texts())
-			}
-			tt.Frame()
-			if tt.FramePending() {
-				t.Fatal("expired toast viewport still requests animation frames while idle")
-			}
-		})
+				tt := ui.NewTester(a.View, 1200, 820)
+				tt.SetDark(dark)
+				tt.Frame()
+				before := append([]byte(nil), tt.Image().Pix...)
+
+				// Click Copy Response on the toolbar.
+				if err := tt.Click(a.msg().CopyResponse); err != nil {
+					t.Fatalf("click CopyResponse: %v", err)
+				}
+				if got := tt.Clipboard(); got != tab.Resp.Pretty {
+					t.Fatalf("clipboard = %q, want %q", got, tab.Resp.Pretty)
+				}
+
+				wantToast := a.feedbackMsg().CopySuccess
+				toastRect, ok := tt.Find(wantToast)
+				if !ok {
+					t.Fatalf("missing toast %q on click frame; texts=%v", wantToast, tt.Texts())
+				}
+				// Toast must sit in the floating bottom-center toast viewport above
+				// the bottom status bar (which is at X≈12 on the far left), not be
+				// mistaken for a.status.
+				if toastRect.X < 200 || toastRect.Y > 820-28 {
+					t.Fatalf("toast %q not positioned in floating viewport above status bar: %+v", wantToast, toastRect)
+				}
+				after := tt.Image()
+				if !rectPixelsChanged(before, after.Pix, after.Stride, toastRect) {
+					t.Fatalf("toast %q was added to tree (%+v) but painted zero pixels on frame 0", wantToast, toastRect)
+				}
+				// Also verify toast remains visibly painted at +500ms steady state.
+				tt.Advance(500 * time.Millisecond)
+				mid := tt.Image()
+				if !rectPixelsChanged(before, mid.Pix, mid.Stride, toastRect) {
+					t.Fatalf("toast %q not painted at +500ms", wantToast)
+				}
+
+				// Rapid repeated clicks must replace in-place (never stack) and keep
+				// pixels visible on every click.
+				for i := 0; i < 4; i++ {
+					if err := tt.Click(a.feedbackMsg().CopyURLTooltip); err != nil {
+						t.Fatalf("repeat click Copy URL #%d: %v", i, err)
+					}
+					if got := u32CountText(tt.Texts(), wantToast); got != 1 {
+						t.Fatalf("repeat click #%d stacked %d toasts; texts=%v", i, got, tt.Texts())
+					}
+					cur := tt.Image()
+					if !rectPixelsChanged(before, cur.Pix, cur.Stride, toastRect) {
+						t.Fatalf("repeat click #%d blanked toast pixels", i)
+					}
+				}
+
+				// After timeout + fade, the toast closes and requests zero idle frames.
+				tt.Advance(feedbackToastTimeout + 500*time.Millisecond)
+				tt.Frame()
+				if tt.HasText(wantToast) {
+					t.Fatalf("toast %q did not expire after timeout; texts=%v", wantToast, tt.Texts())
+				}
+				tt.Frame()
+				if tt.FramePending() {
+					t.Fatal("expired toast viewport still requests animation frames while idle")
+				}
+			})
+		}
 	}
 }
 
