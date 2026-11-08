@@ -1189,6 +1189,16 @@ main已ff-only快进代码提交8a04310。确认5来源HEAD与登记一致、干
 
 | ID / 负责人 | 实际 worktree / 分支 | 公共文件归属与依赖 | 状态 |
 | --- | --- | --- | --- |
-| U31 / agy gemini-4-argon-medium；主代理集成 | `/private/tmp/gorequest-u31-20261108` / `agy/U31-restore-interaction-colors` | `internal/desktop/uikit/palette.go`、`components.go`、必要输入/菜单主题接线与相关测试；依赖当前 main 的 U29 集成与 9102ce7 主题化菜单；主代理仅维护总账本和最终集成/打包 | 已登记，待启动 |
+| U31 / agy gemini-4-argon-medium 配额受限；主代理接手实现与集成 | `/private/tmp/gorequest-u31-20261108` / `agy/U31-restore-interaction-colors`（交付后已清理） | `internal/desktop/uikit/palette.go`、`components.go`、必要输入/菜单主题接线与相关测试；依赖当前 main 的 U29 集成与 9102ce7 主题化菜单 | `abc4b16` 已集成并完成必要验证，实机未验收 |
 
 交付要求：代理先读 AGENTS.md、本节、U29 报告及 ui-ux-pro-max 技能；核对 MyGo 本地实际 hover/聚焦绘制路径，若输入仅有 focus 着色则明确记录，避免表面改 token。仅恢复所要求的菜单高亮及输入交互色，其余提示/错误/成功语义、品牌动作和绿色 Switch 保留；不得修改 MyGo/module 缓存、go.mod/go.sum 或用户示例数据，不派子代理、不 merge/push、不修改总账本。适配亮暗主题，相关测试及构建验证后本地提交，记录 `docs/task-results/U31.md`；未进行实机检查不得标记实机通过。集成人核验实际提交和验证后再登记交付。
+
+### 43.1 交付与集成
+
+从登记提交 `c492aae` 建立实际 worktree，读屏确认 `t5n` 为 Gemini 4 Argon (Medium)。模型读取初始资料后报告 Individual quota reached（约 138 小时后重置），未产生改动；主代理已告知用户并接手。此前逐文件授权启动的 `t5m` 也仅做读取，已结束移除。
+
+主代理在该 worktree 完成 `abc4b16`，核验 diff 后 main ff-only 集成。恢复原生菜单 hover 高亮和输入 focus/caret/selection 的原品牌红橙色，纯 hover 的中性输入边框未被 U29 修改；保留独立主题化菜单、绿色 Switch 与其他语义色。报告见 [U31](task-results/U31.md)。
+
+UIKit 全部测试、Tab/HistoryEndpoint/Theme/URLGroup/Send/Settings 专项、`go build ./...`、`go vet ./...` 通过。完整 desktop 测试 27.377s，仅既有 Mock/Runner 三项失败，无新增失败。亮暗菜单 hover 与输入描边、相邻绿色 Switch 进行了 headless 像素验证；真实桌面未检查。main 的 `sh scripts/make-macos-app.sh` 构建通过，更新 `bin/GoRequest.app`。
+
+确认来源 worktree 干净、提交已是 main 祖先后，结束并移除本轮 `t5n`，非 force 移除来源 worktree 与已合并分支；其他代理未动。用户示例数据和本地 debug 产物未纳入提交；未 push。
