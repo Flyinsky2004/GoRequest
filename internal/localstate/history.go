@@ -8,8 +8,10 @@
 package localstate
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +42,12 @@ const (
 	DefaultMaxRecordBytes  = 512 << 10
 	DefaultRetention       = 90 * 24 * time.Hour
 	DefaultMaxSnapshotBody = 64 << 10 // 64 KiB per captured body
+
+	// FullMaxRecordBytes and FullMaxBytes size local persistence when the user
+	// opts into full unredacted capture so large text and base64-encoded binary
+	// request/response bodies are not silently stripped down to metadata.
+	FullMaxRecordBytes = 256 << 20 // 256 MiB per full-capture record
+	FullMaxBytes       = 512 << 20 // 512 MiB per project history file
 )
 
 // Outcome values describe how a send ended. "ok" means a response was received;
@@ -56,21 +65,47 @@ const (
 	OmitLarge     = "large"
 	OmitBinary    = "binary"
 	OmitTruncated = "truncated"
+	OmitStream    = "stream"
 )
 
-// Snapshot is a redacted request or response capture. Headers are stored in
-// order so duplicate headers round-trip. Body is empty unless the user opted
-// into body capture and the body passed the size/text checks; Omitted says why
-// an absent body was left out.
+// Snapshot body encodings on disk.
+const (
+	BodyEncodingUTF8   = ""
+	BodyEncodingBase64 = "base64"
+)
+
+// Snapshot is a request or response capture. Headers are stored in order so
+// duplicate headers round-trip. In default redacted mode Body is empty unless
+// the user opted into body capture and the body passed the size/text checks;
+// in full unredacted mode raw UTF-8 text is stored directly and binary or
+// non-UTF-8 payloads are stored losslessly with BodyEncoding="base64".
 type Snapshot struct {
-	Headers  [][2]string `json:"headers,omitempty"`
-	Body     string      `json:"body,omitempty"`
-	BodySize int64       `json:"bodySize,omitempty"`
-	Omitted  string      `json:"omitted,omitempty"`
-	Redacted bool        `json:"redacted,omitempty"`
-	// Truncated means the executor itself truncated the response, so the full
-	// body was never available to store.
+	Headers      [][2]string `json:"headers,omitempty"`
+	Body         string      `json:"body,omitempty"`
+	BodyEncoding string      `json:"bodyEncoding,omitempty"`
+	BodySize     int64       `json:"bodySize,omitempty"`
+	Omitted      string      `json:"omitted,omitempty"`
+	Redacted     bool        `json:"redacted,omitempty"`
+	// Truncated means the executor or transport layer truncated the payload, so
+	// the complete wire body was never available to store.
 	Truncated bool `json:"truncated,omitempty"`
+}
+
+// IsBinaryBody reports whether s stores lossless base64-encoded binary bytes.
+func (s *Snapshot) IsBinaryBody() bool {
+	return s != nil && s.BodyEncoding == BodyEncodingBase64
+}
+
+// BodyBytes decodes and returns the exact captured payload bytes stored in s.
+// It returns nil, nil when no body bytes are present.
+func (s *Snapshot) BodyBytes() ([]byte, error) {
+	if s == nil || s.Body == "" {
+		return nil, nil
+	}
+	if s.BodyEncoding == BodyEncodingBase64 {
+		return base64.StdEncoding.DecodeString(s.Body)
+	}
+	return []byte(s.Body), nil
 }
 
 // Record is one local history entry. The JSON field names for the metadata
@@ -93,8 +128,46 @@ type Record struct {
 	SizeBytes     int64     `json:"size,omitempty"`
 	Outcome       string    `json:"outcome,omitempty"`
 	Error         string    `json:"error,omitempty"`
-	Request       *Snapshot `json:"request,omitempty"`
-	Response      *Snapshot `json:"response,omitempty"`
+	// Unredacted is true only when captured under full unredacted history mode.
+	// Legacy records and default redacted entries leave it false so they never
+	// claim to hold raw original values.
+	Unredacted bool `json:"unredacted,omitempty"`
+	// SnapshotTrimmed is true when Store.Append had to drop Request/Response
+	// snapshots to fit an explicit MaxRecordBytes cap.
+	SnapshotTrimmed bool      `json:"snapshotTrimmed,omitempty"`
+	Request         *Snapshot `json:"request,omitempty"`
+	Response        *Snapshot `json:"response,omitempty"`
+}
+
+// IsUnredacted reports whether r was recorded in full unredacted mode and
+// neither snapshot carries a redaction marker. Legacy records always report false.
+func (r Record) IsUnredacted() bool {
+	if !r.Unredacted {
+		return false
+	}
+	if r.Request != nil && r.Request.Redacted {
+		return false
+	}
+	if r.Response != nil && r.Response.Redacted {
+		return false
+	}
+	return true
+}
+
+// HasFullSnapshots reports whether r is an unredacted capture whose snapshots
+// were neither trimmed by a record-size bound nor incomplete due to network
+// truncation or an unbuffered upload stream.
+func (r Record) HasFullSnapshots() bool {
+	if !r.IsUnredacted() || r.SnapshotTrimmed {
+		return false
+	}
+	if r.Request != nil && (r.Request.Truncated || r.Request.Omitted != "") {
+		return false
+	}
+	if r.Response != nil && (r.Response.Truncated || r.Response.Omitted != "") {
+		return false
+	}
+	return true
 }
 
 // OutcomeValue returns the stored outcome, deriving it for records written by
@@ -142,6 +215,10 @@ type Policy struct {
 	Snapshots    bool
 	Bodies       bool
 	MaxBodyBytes int64
+	// Unredacted opts into full, unredacted local capture of URLs, headers,
+	// bodies (including lossless binary and large payloads without the default
+	// 64 KiB cap), and failure messages.
+	Unredacted bool
 }
 
 // DefaultPolicy captures redacted metadata snapshots (headers) but never
@@ -149,6 +226,13 @@ type Policy struct {
 // redacted snapshot; sensitive or large bodies may be left out".
 func DefaultPolicy() Policy {
 	return Policy{Snapshots: true, Bodies: false, MaxBodyBytes: DefaultMaxSnapshotBody}
+}
+
+// FullPolicy captures complete, unredacted request/response snapshots and
+// bodies (including binary and large payloads) without redacting secrets or
+// applying DefaultMaxSnapshotBody.
+func FullPolicy() Policy {
+	return Policy{Snapshots: true, Bodies: true, Unredacted: true}
 }
 
 // Input is the transport-neutral port the desktop (and later the Runner) uses
@@ -175,9 +259,13 @@ type HistoryInput struct {
 
 	// Request snapshot inputs. Headers are the fully resolved request headers
 	// (including auth and body content type); Body is the encoded request body.
-	RequestHeaders     [][2]string
-	RequestBody        []byte
-	RequestContentType string
+	RequestHeaders      [][2]string
+	RequestBody         []byte
+	RequestHasBody      bool  // true when a request body was sent on the wire
+	RequestBodySize     int64 // known upload size when streamed (0 if unknown)
+	RequestBodyStreamed bool  // true when upload body was streamed, not buffered in RequestBody
+	RequestTruncated    bool  // true when only a prefix of RequestBody was captured
+	RequestContentType  string
 
 	// Response snapshot inputs.
 	ResponseHeaders   [][2]string
@@ -185,29 +273,84 @@ type HistoryInput struct {
 	ResponseTruncated bool
 
 	// Redactor carries the secrets discovered while building the plan. It is
-	// applied to every string and structured field before persistence.
+	// applied to every string and structured field before persistence unless
+	// Policy.Unredacted is enabled.
 	Redactor *core.Redactor
 	Policy   Policy
 }
 
-// BuildRecord redacts in and applies p. It never returns a record containing a
-// registered raw secret or one of its encoded variants; when a body is not
-// captured the record still carries its byte size and the omission reason.
+// BuildRecord applies p to in. Under default policy it redacts every string and
+// structured slot through Redactor and enforces body policy/size/text checks.
+// Under Policy.Unredacted it preserves raw URLs, headers, lossless text/binary
+// bodies of arbitrary captured size, and raw failure messages, while honestly
+// recording network-truncated or unbuffered-stream boundaries.
 func BuildRecord(in HistoryInput, p Policy) Record {
 	// A caller may pass the policy either explicitly or through the port. An
 	// explicit zero-value policy is only meaningful when HistoryInput.Policy is
 	// also unset; otherwise the port's policy wins so callers cannot lose their
 	// opt-in by forgetting the second argument.
-	if !p.Snapshots && !p.Bodies && p.MaxBodyBytes == 0 && (in.Policy != Policy{}) {
+	if !p.Snapshots && !p.Bodies && p.MaxBodyBytes == 0 && !p.Unredacted && (in.Policy != Policy{}) {
 		p = in.Policy
-	}
-	red := in.Redactor
-	if red == nil {
-		red = core.NewRedactor()
 	}
 	ts := in.Ts
 	if ts.IsZero() {
 		ts = time.Now()
+	}
+	method := strings.ToUpper(strings.TrimSpace(in.Method))
+
+	if p.Unredacted {
+		rec := Record{
+			SchemaVersion: SchemaVersion,
+			ID:            newID(),
+			Ts:            ts,
+			ProjectKey:    in.ProjectKey,
+			ProjectName:   in.ProjectName,
+			RequestID:     in.RequestID,
+			RequestName:   in.RequestName,
+			Env:           in.Environment,
+			Method:        method,
+			URL:           in.URL,
+			Status:        in.Status,
+			Proto:         in.Proto,
+			DurationMs:    in.Duration.Microseconds() / 1000,
+			SizeBytes:     in.SizeBytes,
+			Outcome:       normalizeOutcome(in),
+			Error:         in.Error,
+			Unredacted:    true,
+		}
+		reqSnap := &Snapshot{
+			Headers:   cloneHeaders(in.RequestHeaders),
+			Redacted:  false,
+			Truncated: in.RequestTruncated,
+		}
+		if requestStreamedUncaptured(in) {
+			reqSnap.Omitted = OmitStream
+			reqSnap.BodySize = requestExpectedSize(in)
+		} else if len(in.RequestBody) > 0 {
+			reqSnap.Body, reqSnap.BodyEncoding, reqSnap.BodySize = encodeFullBody(in.RequestBody, in.RequestContentType)
+		}
+		rec.Request = reqSnap
+
+		if in.Status > 0 || len(in.ResponseHeaders) > 0 || in.ResponseBody != nil || in.ResponseTruncated {
+			resSnap := &Snapshot{
+				Headers:   cloneHeaders(in.ResponseHeaders),
+				Redacted:  false,
+				Truncated: in.ResponseTruncated,
+			}
+			if len(in.ResponseBody) > 0 {
+				resSnap.Body, resSnap.BodyEncoding, resSnap.BodySize = encodeFullBody(in.ResponseBody, contentTypeOf(in.ResponseHeaders))
+			} else if in.ResponseTruncated {
+				resSnap.Omitted = OmitTruncated
+				resSnap.BodySize = in.SizeBytes
+			}
+			rec.Response = resSnap
+		}
+		return rec
+	}
+
+	red := in.Redactor
+	if red == nil {
+		red = core.NewRedactor()
 	}
 	rec := Record{
 		SchemaVersion: SchemaVersion,
@@ -218,7 +361,7 @@ func BuildRecord(in HistoryInput, p Policy) Record {
 		RequestID:     in.RequestID,
 		RequestName:   red.RedactString(in.RequestName),
 		Env:           red.RedactString(in.Environment),
-		Method:        strings.ToUpper(strings.TrimSpace(in.Method)),
+		Method:        method,
 		URL:           red.RedactString(in.URL),
 		Status:        in.Status,
 		Proto:         in.Proto,
@@ -239,24 +382,94 @@ func BuildRecord(in HistoryInput, p Policy) Record {
 		p.MaxBodyBytes = DefaultMaxSnapshotBody
 	}
 	if p.Snapshots {
-		reqSnap := &Snapshot{Headers: sanPlan.Headers, Redacted: true}
-		if body, size, omitted := snapshotBody(red, in.RequestBody, in.RequestContentType, p, false); omitted != "" || body != "" {
+		reqSnap := &Snapshot{Headers: sanPlan.Headers, Redacted: true, Truncated: in.RequestTruncated}
+		if requestStreamedUncaptured(in) {
+			reqSnap.BodySize = requestExpectedSize(in)
+			if p.Bodies {
+				reqSnap.Omitted = OmitStream
+			} else {
+				reqSnap.Omitted = OmitPolicy
+			}
+		} else if body, size, omitted := snapshotBody(red, in.RequestBody, in.RequestContentType, p, in.RequestTruncated); omitted != "" || body != "" {
 			reqSnap.Body, reqSnap.BodySize, reqSnap.Omitted = body, size, omitted
 		} else if size > 0 {
 			reqSnap.BodySize = size
 		}
 		rec.Request = reqSnap
 
-		if in.Status > 0 || len(in.ResponseHeaders) > 0 || in.ResponseBody != nil {
+		if in.Status > 0 || len(in.ResponseHeaders) > 0 || in.ResponseBody != nil || in.ResponseTruncated {
 			resSnap := &Snapshot{Redacted: true, Truncated: in.ResponseTruncated}
 			sanRes := red.SanitizeExecResult(&core.ExecResult{Headers: in.ResponseHeaders})
 			resSnap.Headers = sanRes.Headers
 			body, size, omitted := snapshotBody(red, in.ResponseBody, contentTypeOf(in.ResponseHeaders), p, in.ResponseTruncated)
 			resSnap.Body, resSnap.BodySize, resSnap.Omitted = body, size, omitted
+			if resSnap.BodySize == 0 && in.ResponseTruncated && in.SizeBytes > 0 {
+				resSnap.BodySize = in.SizeBytes
+			}
 			rec.Response = resSnap
 		}
 	}
 	return rec
+}
+
+func cloneHeaders(headers [][2]string) [][2]string {
+	if len(headers) == 0 {
+		return nil
+	}
+	out := make([][2]string, len(headers))
+	copy(out, headers)
+	return out
+}
+
+func requestStreamedUncaptured(in HistoryInput) bool {
+	if len(in.RequestBody) > 0 {
+		return false
+	}
+	if in.RequestBodyStreamed {
+		return true
+	}
+	// A Plan whose HasBody is true while Body is nil (as opposed to an empty
+	// []byte{} literal body) indicates an unbuffered upload stream.
+	if in.RequestHasBody && in.RequestBody == nil {
+		return true
+	}
+	return false
+}
+
+func requestExpectedSize(in HistoryInput) int64 {
+	if in.RequestBodySize > 0 {
+		return in.RequestBodySize
+	}
+	if cl := contentLengthOf(in.RequestHeaders); cl > 0 {
+		return cl
+	}
+	return 0
+}
+
+func contentLengthOf(headers [][2]string) int64 {
+	for _, kv := range headers {
+		if strings.EqualFold(kv[0], "Content-Length") {
+			if n, err := strconv.ParseInt(strings.TrimSpace(kv[1]), 10, 64); err == nil && n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+// encodeFullBody encodes raw losslessly for JSON persistence. Valid UTF-8
+// textual payloads without NUL bytes stay plain strings; binary, NUL-containing,
+// or non-UTF-8 payloads use standard base64 so json.Marshal never replaces
+// bytes with U+FFFD.
+func encodeFullBody(raw []byte, contentType string) (body, encoding string, size int64) {
+	size = int64(len(raw))
+	if size == 0 {
+		return "", BodyEncodingUTF8, 0
+	}
+	if !utf8.Valid(raw) || bytes.IndexByte(raw, 0) >= 0 || !isTextual(contentType, raw) {
+		return base64.StdEncoding.EncodeToString(raw), BodyEncodingBase64, size
+	}
+	return string(raw), BodyEncodingUTF8, size
 }
 
 func normalizeOutcome(in HistoryInput) string {
@@ -405,31 +618,57 @@ type Limits struct {
 	MaxBytes       int64
 	MaxRecordBytes int64
 	Retention      time.Duration
+
+	// defaultMaxBytes / defaultMaxRecordBytes remember that the caller used the
+	// built-in redacted defaults rather than an explicit custom cap, allowing
+	// Unredacted full-capture records to use FullMaxRecordBytes / FullMaxBytes
+	// instead of silently trimming large bodies at 512 KiB / 2 MiB.
+	defaultMaxBytes       bool
+	defaultMaxRecordBytes bool
 }
 
 // DefaultLimits returns the built-in bounds.
 func DefaultLimits() Limits {
 	return Limits{
+		MaxRecords:            DefaultMaxRecords,
+		MaxBytes:              DefaultMaxBytes,
+		MaxRecordBytes:        DefaultMaxRecordBytes,
+		Retention:             DefaultRetention,
+		defaultMaxBytes:       true,
+		defaultMaxRecordBytes: true,
+	}
+}
+
+// FullLimits returns store bounds sized for full unredacted history mode so
+// large text and lossless base64 binary bodies persist intact across Append,
+// Load, and Cleanup while still enforcing count and retention cleanup.
+func FullLimits() Limits {
+	return Limits{
 		MaxRecords:     DefaultMaxRecords,
-		MaxBytes:       DefaultMaxBytes,
-		MaxRecordBytes: DefaultMaxRecordBytes,
+		MaxBytes:       FullMaxBytes,
+		MaxRecordBytes: FullMaxRecordBytes,
 		Retention:      DefaultRetention,
 	}
 }
 
 func (l Limits) normalized() Limits {
-	d := DefaultLimits()
 	if l.MaxRecords <= 0 {
-		l.MaxRecords = d.MaxRecords
+		l.MaxRecords = DefaultMaxRecords
 	}
 	if l.MaxBytes <= 0 {
-		l.MaxBytes = d.MaxBytes
+		l.MaxBytes = DefaultMaxBytes
+		l.defaultMaxBytes = true
+	} else if l.MaxBytes == DefaultMaxBytes && l.defaultMaxBytes {
+		l.defaultMaxBytes = true
 	}
 	if l.MaxRecordBytes <= 0 {
-		l.MaxRecordBytes = d.MaxRecordBytes
+		l.MaxRecordBytes = DefaultMaxRecordBytes
+		l.defaultMaxRecordBytes = true
+	} else if l.MaxRecordBytes == DefaultMaxRecordBytes && l.defaultMaxRecordBytes {
+		l.defaultMaxRecordBytes = true
 	}
 	if l.Retention == 0 {
-		l.Retention = d.Retention
+		l.Retention = DefaultRetention
 	}
 	if l.Retention < 0 {
 		l.Retention = 0 // explicit forever
@@ -438,6 +677,24 @@ func (l Limits) normalized() Limits {
 		l.MaxRecordBytes = l.MaxBytes
 	}
 	return l
+}
+
+func (l Limits) maxRecordBytesFor(r Record) int64 {
+	if r.Unredacted && l.defaultMaxRecordBytes && l.MaxRecordBytes < FullMaxRecordBytes {
+		return FullMaxRecordBytes
+	}
+	return l.MaxRecordBytes
+}
+
+func (l Limits) maxBytesFor(recs []Record) int64 {
+	if l.defaultMaxBytes && l.MaxBytes < FullMaxBytes {
+		for _, r := range recs {
+			if r.Unredacted {
+				return FullMaxBytes
+			}
+		}
+	}
+	return l.MaxBytes
 }
 
 // Diagnostics describes what a load found. It is intentionally data, not a
@@ -634,13 +891,24 @@ func (s *Store) loadLocked(key string) (LoadResult, error) {
 		res.Diagnostics.ReadError = err.Error()
 		return res, &ReadError{Path: p, Err: err}
 	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
+	// Scan newline-delimited JSON directly over the byte slice without
+	// bufio.Scanner's 64 KiB token limit or duplicating multi-MiB payloads.
+	rest := data
+	for len(rest) > 0 {
+		var rawLine []byte
+		if nl := bytes.IndexByte(rest, '\n'); nl >= 0 {
+			rawLine = rest[:nl]
+			rest = rest[nl+1:]
+		} else {
+			rawLine = rest
+			rest = nil
+		}
+		rawLine = bytes.TrimSpace(rawLine)
+		if len(rawLine) == 0 {
 			continue
 		}
 		var r Record
-		if err := json.Unmarshal([]byte(line), &r); err != nil || isCorrupt(r) {
+		if err := json.Unmarshal(rawLine, &r); err != nil || isCorrupt(r) {
 			res.Diagnostics.CorruptLines++
 			continue
 		}
@@ -694,16 +962,18 @@ func (s *Store) Append(key string, rec Record) (AppendResult, error) {
 		return AppendResult{Record: rec}, &WriteError{Path: p, Err: err}
 	}
 	res := AppendResult{Record: rec}
-	if int64(len(line))+1 > s.limits.MaxRecordBytes {
+	maxRecBytes := s.limits.maxRecordBytesFor(rec)
+	if int64(len(line))+1 > maxRecBytes {
 		rec.Request, rec.Response = nil, nil
+		rec.SnapshotTrimmed = true
 		res.Record = rec
 		res.Trimmed = true
 		line, err = json.Marshal(rec)
 		if err != nil {
 			return res, &WriteError{Path: p, Err: err}
 		}
-		if int64(len(line))+1 > s.limits.MaxRecordBytes {
-			return res, fmt.Errorf("%w: %d bytes > %d", ErrRecordTooLarge, len(line)+1, s.limits.MaxRecordBytes)
+		if int64(len(line))+1 > maxRecBytes {
+			return res, fmt.Errorf("%w: %d bytes > %d", ErrRecordTooLarge, len(line)+1, maxRecBytes)
 		}
 	}
 
@@ -834,6 +1104,7 @@ func (s *Store) prepare(recs []Record, now time.Time) ([]Record, int) {
 		kept = append(kept, r)
 	}
 	// Byte budget: keep the newest records until the file would exceed it.
+	maxBytes := s.limits.maxBytesFor(kept)
 	out := make([]Record, 0, len(kept))
 	var total int64
 	for _, r := range kept {
@@ -843,7 +1114,7 @@ func (s *Store) prepare(recs []Record, now time.Time) ([]Record, int) {
 			continue
 		}
 		size := int64(len(b)) + 1
-		if total+size > s.limits.MaxBytes && len(out) > 0 {
+		if total+size > maxBytes && len(out) > 0 {
 			removed++
 			continue
 		}
@@ -860,15 +1131,6 @@ func (s *Store) writeAllLocked(p string, recs []Record) error {
 		}
 		return nil
 	}
-	var b strings.Builder
-	for _, r := range recs {
-		line, err := json.Marshal(r)
-		if err != nil {
-			return &WriteError{Path: p, Err: err}
-		}
-		b.Write(line)
-		b.WriteByte('\n')
-	}
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return &WriteError{Path: s.dir, Err: err}
 	}
@@ -882,9 +1144,21 @@ func (s *Store) writeAllLocked(p string, recs []Record) error {
 		tmp.Close()
 		return &WriteError{Path: tmpName, Err: err}
 	}
-	if _, err := tmp.WriteString(b.String()); err != nil {
-		tmp.Close()
-		return &WriteError{Path: tmpName, Err: err}
+	nl := []byte{'\n'}
+	for _, r := range recs {
+		line, err := json.Marshal(r)
+		if err != nil {
+			tmp.Close()
+			return &WriteError{Path: p, Err: err}
+		}
+		if _, err := tmp.Write(line); err != nil {
+			tmp.Close()
+			return &WriteError{Path: tmpName, Err: err}
+		}
+		if _, err := tmp.Write(nl); err != nil {
+			tmp.Close()
+			return &WriteError{Path: tmpName, Err: err}
+		}
 	}
 	if err := tmp.Sync(); err != nil {
 		tmp.Close()

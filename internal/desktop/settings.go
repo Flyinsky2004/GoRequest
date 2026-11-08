@@ -299,8 +299,10 @@ func settingsCategoryContentWithUpdates(c *ui.Context, p uikit.Palette, m *messa
 	case settingsCategoryHistory:
 		settingsGroup(c, p, m.HistorySettingsLabel, func() {
 			ui.Column(c).Gap(8).Children(func() {
+				full := cfg.historyFullCapture()
 				snap := cfg.historySaveSnapshots()
-				if uikit.ActionCursor(ui.Checkbox(c, &snap, m.HistorySaveSnapshots)).Changed() {
+				snapCB := uikit.ActionCursor(ui.Checkbox(c, &snap, m.HistorySaveSnapshots).Disabled(full))
+				if !full && snapCB.Changed() {
 					cfg.setHistorySaveSnapshots(snap)
 					if !snap {
 						// Bodies cannot be captured when snapshots are off.
@@ -308,9 +310,19 @@ func settingsCategoryContentWithUpdates(c *ui.Context, p uikit.Palette, m *messa
 					}
 				}
 				bodies := cfg.historySaveBodies()
-				cb := uikit.ActionCursor(ui.Checkbox(c, &bodies, m.HistorySaveBodies).Disabled(!snap))
-				if snap && cb.Changed() {
+				cb := uikit.ActionCursor(ui.Checkbox(c, &bodies, m.HistorySaveBodies).Disabled(full || !snap))
+				if !full && snap && cb.Changed() {
 					cfg.setHistorySaveBodies(bodies)
+				}
+				if uikit.ActionCursor(ui.Checkbox(c, &full, m.HistoryFullCapture)).Changed() {
+					cfg.setHistoryFullCapture(full)
+					if setStatus != nil {
+						if full {
+							setStatus(m.HistoryFullCaptureOn)
+						} else {
+							setStatus(m.HistoryFullCaptureOff)
+						}
+					}
 				}
 				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, m.HistoryRetentionLabel).Grow(1).FontSize(12).TextColor(p.Muted).SingleLine()
@@ -320,6 +332,9 @@ func settingsCategoryContentWithUpdates(c *ui.Context, p uikit.Palette, m *messa
 						cfg.setHistoryRetentionDays(historyRetentionValue(choices, choice))
 					}
 				})
+				if full {
+					ui.Text(c, m.HistoryFullCaptureNote).FontSize(11).TextColor(p.Muted)
+				}
 				ui.Text(c, m.HistorySettingsNote).FontSize(11).TextColor(p.Faint)
 			})
 		})
