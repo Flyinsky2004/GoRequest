@@ -258,7 +258,7 @@ var openAPIZH = openAPIMessages{
 }
 
 func (a *App) openAPIMsg() openAPIMessages {
-	if a != nil && a.mgr != nil && a.mgr.cfg != nil && a.mgr.cfg.language() == "zh" {
+	if a != nil && a.mgr != nil && a.mgr.cfg != nil && parseLanguage(string(a.mgr.cfg.language())) == langSimplifiedChinese {
 		return openAPIZH
 	}
 	return openAPIEN

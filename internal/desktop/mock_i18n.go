@@ -365,7 +365,7 @@ var mockListZH = map[string]string{
 }
 
 func mockT(a *App, key string) string {
-	if a != nil && a.mgr != nil && a.mgr.cfg != nil && a.mgr.cfg.language() == "zh" {
+	if a != nil && a.mgr != nil && a.mgr.cfg != nil && parseLanguage(string(a.mgr.cfg.language())) == langSimplifiedChinese {
 		for _, cat := range []map[string]string{mockZH, mockEditZH, mockListZH} {
 			if v, ok := cat[key]; ok {
 				return v
