@@ -1092,3 +1092,24 @@ U21-interop-i18n.patch先核对U22是否已覆盖勿重复套；U23-import_expor
 补丁后build/vet通过；更新/SSE/cURL/中文组合及新增调度的race专项通过（desktop 8.387s、core 2.000s、update 1.218s），普通全仓再次完整执行仅4项旧失败，无新增失败/无skip。agy全仓race发生在本补丁之前，不冒称补丁后重跑过全仓race。详细过程及初版补丁重复刷新重入的定位/修正在集成报告§6；未实机窗口/真实安装更新，原限制保留。
 
 确认集成分支已为main祖先、工作区干净后，精确关闭agy的tab `tb5b97af999a8b80146755e9158dbea9c4` / t5b，返回ok:true；hc确认finished后rm。非force删除最后的集成worktree与 `agy/integrate-U21-U25` 分支。GoRequest最终只剩main/主worktree。Herdr保留t1h、用户新会话t5c、t4q、t2s和其他项目t4k；未操作MyGo showcase分支。原dev.yaml/document.md/demo-server debug摘要不变，当前新出现的desktop debug产物也保留。未push，未读写真实Secret或安装更新。
+
+
+## 40. U26–U29：新建入口、关于、密钥关窗与语义配色（2026-11-08）
+
+用户明确指定一位agy Gemini 4 Argon、一位agy Sonnet 5.5，其余由CC完成。核对main起点33d6a24及当前代码后派工；从本登记提交建立共同基线，独立worktree，尚未交付/集成/验收。
+
+| ID / 负责人 | 分支 / 实际worktree | 范围与公共文件归属 | 状态 |
+| --- | --- | --- | --- |
+| U26 / CC默认模型 | cc/U26-new-menu / /private/tmp/gorequest-u26-u29-20261108/new-menu | workspace.go顶栏新建按钮合并到现有+菜单，真实新建图标/标签/菜单动作；必要辅助函数独立文件，勿改UIKit公共组件 | 待启动 |
+| U27 / agy claude-sonnet-5-5-medium | agy/U27-about-updates / /private/tmp/gorequest-u26-u29-20261108/about-updates | settings*.go及更新设置导航引用，更新归入关于，开发者/邮箱/项目地址，中英文/分类图标/滚动/现有更新控制保留 | 待启动 |
+| U28 / CC默认模型 | cc/U28-secret-autoclose / /private/tmp/gorequest-u26-u29-20261108/secret-autoclose | secret_entry.go及专项测试，设置本机密钥成功自动关窗，失败保留输入/窗口，清敏与上下文刷新 | 待启动 |
+| U29 / agy gemini-4-argon-medium | agy/U29-semantic-colors / /private/tmp/gorequest-u26-u29-20261108/semantic-colors | uikit/palette.go及公共输入/提示主题、非其他卡归属的调用点；正常焦点/提示改绿/蓝/中性，保留品牌红主动作及真实错误/危险红 | 待启动 |
+
+### 40.1 交付约束
+
+- U26删掉独立“新建请求”按钮，将新建图标放入原仅+的菜单入口；保留完整创建菜单、快捷键和可访问名称，复用已有popover/bounce机制，不重新添加另一个入口。
+- U27检查更新内容移至关于，原独立更新分类移除并同步枚举/图标/测试及更新弹窗设置跳转；声明开发者Flyinsky2004、联系邮箱w2084151024@gmail.com、项目地址https://github.com/Flyinsky2004/GoRequest。现有手动检查/自动提醒开关/恢复永远不提示/版本与结果反馈不丢失，适配中文与English、长内容滚动与返回。
+- U28仅写入成功关闭弹窗；失败不丢待重试输入，保存成功清敏并刷新必要缓存/状态，不破坏环境草稿、当前请求和原关闭/改存储流程。只用fake或临时目录，不碰真实Keychain/密钥。
+- U29从实际MyGo输入绘制路径审计（输入可能用Accent而非Focus），不能仅改Focus假装所有输入已修，也不能把全局Accent改绿导致品牌主动作全部变绿。统一语义token，覆盖正常输入边框/填充/提示/成功及亮暗主题，保留错误与危险红、HTTP方法/代码语义。其他卡文件的接线交独立.patch供集成人处理，报告明确未接线项；不改U26 workspace.go、U27 settings*/update_ui.go、U28 secret_entry.go。其余卡也不得改共享palette/组件，所需扩展独立文件或patch。
+- 每位先读AGENTS.md、本节及ui-ux-pro-max技能，使用现有原生MyGo组件。允许build/vet/必要专项测试、本地commit；报告docs/task-results/U26.md–U29.md记录真实基线/改动/验证/限制/待集成patch。不改go.mod/go.sum/MyGo源码/总账本/其他分支/全局模型配置，不派子agent、不merge/push、不操作其他会话。实机未跑明确未验收。
+- 已知4项旧失败见§37及§39：TestMockEditorSuggestionsAreProjectUnique、TestRunnerEditorDescribeAssertions、TestRunnerEditorPatchSuiteExtract、TestEngine_PolicyBlockedAndMissingSecretPreflight；遇到如实记录，不改旧断言掩盖。主工作区用户dev.yaml/document.md及两个debug产物全部保留。使用临时测试数据/fake网络，不实际安装更新。
