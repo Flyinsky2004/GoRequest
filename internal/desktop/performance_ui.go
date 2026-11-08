@@ -425,7 +425,7 @@ func perfValue(s string) string {
 func perfSelect(c *ui.Context, label string, selected *string, choices []string, empty string) {
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, label).FontSize(12)
-		ui.MenuButton(c, perfValue(*selected), func(mm *ui.Menu) {
+		uikit.MenuButton(c, perfValue(*selected), func(mm *ui.Menu) {
 			if len(choices) == 0 {
 				mm.Item(empty).Disabled(true)
 			}

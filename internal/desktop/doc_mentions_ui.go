@@ -52,9 +52,9 @@ func (a *App) renderDocMentionTools(c *ui.Context, t *ui.Theme, root ui.Element,
 			if label == "" {
 				label = ref.ID
 			}
-			uikit.ActionCursor(ui.MenuButton(c, fmt.Sprintf(dm.RepickFor, label), func(mm *ui.Menu) {
+			uikit.MenuButton(c, fmt.Sprintf(dm.RepickFor, label), func(mm *ui.Menu) {
 				a.docMentionRepickMenu(mm, tab, ed, ref)
-			}))
+			})
 		}
 	})
 }

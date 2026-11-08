@@ -430,14 +430,14 @@ func (a *App) renderAuthEditor(c *ui.Context, t *ui.Theme, tab *Tab) {
 				tab.Dirty = true
 			}
 			if len(schemeIDs) > 0 {
-				uikit.ActionCursor(ui.MenuButton(c, im.ChooseScheme, func(mm *ui.Menu) {
+				uikit.MenuButton(c, im.ChooseScheme, func(mm *ui.Menu) {
 					for _, id := range schemeIDs {
 						if mm.Item(id).Checked(strings.TrimSpace(tab.AuthRefID) == id).Chosen() {
 							tab.AuthRefID = id
 							tab.Dirty = true
 						}
 					}
-				}))
+				})
 			}
 		})
 		refID := strings.TrimSpace(tab.AuthRefID)

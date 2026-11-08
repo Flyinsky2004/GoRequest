@@ -382,10 +382,10 @@ func (a *App) docHeader(c *ui.Context, t *ui.Theme, p uikit.Palette, root ui.Ele
 		}
 		ui.Box(c).Grow(1)
 		a.docgenExportButton(c, p, root, tab)
-		uikit.ActionCursor(ui.MenuButton(c, dm.Insert, func(mm *ui.Menu) {
+		uikit.MenuButton(c, dm.Insert, func(mm *ui.Menu) {
 			a.closeDocSlash(st)
 			a.docInsertMenu(mm, tab, st, dm)
-		}))
+		})
 	})
 }
 

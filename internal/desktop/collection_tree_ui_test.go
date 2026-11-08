@@ -111,13 +111,21 @@ func TestOpenedTabsMenuSwitchThroughView(t *testing.T) {
 	if err := tt.Click("Open Tabs (7)"); err != nil {
 		t.Fatalf("open tabs menu: %v", err)
 	}
-	items := tt.Menu()
-	if len(items) == 0 {
-		t.Fatal("the Open Tabs menu should list items")
+	tt.Frame()
+	if items := tt.Menu(); len(items) != 0 {
+		t.Fatalf("the Open Tabs menu asked the system for a native menu: %v", items)
 	}
-	if err := tt.ChooseMenuItem(tabDisplayLabel(tabs[1]), "Switch"); err != nil {
-		t.Fatalf("switch to Beta through menu: %v; menu=%v", err, items)
+	if !tt.HasText("Close All") {
+		t.Fatalf("the drawn Open Tabs menu should list items; texts=%v", tt.Texts())
 	}
+	// Each tab is a submenu. The keyboard walks to Beta, opens its submenu
+	// and chooses Switch, which also proves the submenu and Checked state
+	// survive the drawn menu.
+	tt.Key(0, ui.KeyDown)  // Alpha
+	tt.Key(0, ui.KeyDown)  // Beta
+	tt.Key(0, ui.KeyRight) // open Beta's submenu on Switch
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
 	if ps.activeTab() != tabs[1] {
 		t.Fatal("menu switch should activate Beta")
 	}
@@ -126,9 +134,12 @@ func TestOpenedTabsMenuSwitchThroughView(t *testing.T) {
 	if err := tt.Click("Open Tabs (7)"); err != nil {
 		t.Fatalf("reopen tabs menu: %v", err)
 	}
-	if err := tt.ChooseMenuItem(tabDisplayLabel(tabs[0]), "Close"); err != nil {
-		t.Fatalf("close Alpha through menu: %v", err)
-	}
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)  // Alpha
+	tt.Key(0, ui.KeyRight) // open Alpha's submenu on Switch
+	tt.Key(0, ui.KeyDown)  // Close
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
 	if ps.indexOfTab(tabs[0]) != -1 {
 		t.Fatal("menu close should remove Alpha")
 	}
@@ -160,7 +171,8 @@ func TestMoveThroughView(t *testing.T) {
 	if err := tt.Click("Demo"); err != nil {
 		t.Fatalf("open project menu: %v", err)
 	}
-	if err := tt.ChooseMenuItem("Move…"); err != nil {
+	tt.Frame()
+	if err := tt.Click("Move…"); err != nil {
 		t.Fatalf("choose Move…: %v", err)
 	}
 	if !tt.HasText("Move Request") {

@@ -241,8 +241,8 @@ func TestDocMentionStaleStripRepicksDestinationOnly(t *testing.T) {
 		t.Fatalf("open re-pick menu: %v", err)
 	}
 	tt.Frame()
-	if err := tt.ChooseMenuItem("@auth/用户登录 · " + req.Request.ID); err != nil {
-		t.Fatalf("choose replacement: %v (menu %v)", err, tt.Menu())
+	if err := tt.Click("@auth/用户登录 · " + req.Request.ID); err != nil {
+		t.Fatalf("choose replacement: %v (texts %v)", err, tt.Texts())
 	}
 	tt.Frame()
 	want := "See [@auth/用户登录](gorequest://request/" + req.Request.ID + ").\n"

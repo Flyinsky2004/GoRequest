@@ -75,7 +75,8 @@ func dropdownChevron(c *ui.Context, open bool, color ui.Color) (ui.Element, floa
 	if open {
 		target = DropdownChevronTurn
 	}
-	ic := ui.Icon(c, IconChevron).FontSize(IconSizeDefault).TextColor(color)
+	// 11 DIP matches the chevron of MenuButton, the shared drop-down trigger.
+	ic := ui.Icon(c, IconChevron).FontSize(11).TextColor(color)
 	angle := ic.AnimateTo("dropdown-chevron", target, SpringDropdownChevron)
 	return ic.Rotate(angle).TransformOrigin(0.5, 0.5), angle
 }
