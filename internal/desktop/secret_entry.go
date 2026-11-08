@@ -20,7 +20,9 @@ import (
 // requests. It deliberately holds only a *temporary* plaintext value typed by
 // the user; the value is never written to a project file, never read back from
 // the store for display, and is cleared as soon as the dialog is dismissed or
-// the value has been handed to the credential backend.
+// the value has been handed to the credential backend. A successful write
+// closes the dialog on its own (setting a value needs no extra "Cancel" click);
+// a failed write keeps the dialog and the typed value so the user can retry.
 //
 // The dialog lives for as long as its projectState (weak key), so switching or
 // closing a project can never apply one project's draft to another, exactly
@@ -190,11 +192,15 @@ func (a *App) closeSecretEntry(ps *projectState) {
 }
 
 // saveSecretEntry validates the name, then hands the value to the project-
-// scoped OS credential store. On success the temporary plaintext is cleared
-// unconditionally (including on error paths that could leave it in memory),
-// the backend error is surfaced verbatim (a locked/unsupported backend never
-// degrades to a plaintext file), and the non-sensitive binding status is
-// refreshed. a.invalidateIdentityDiagnostics keeps the diagnostics page honest.
+// scoped OS credential store. A successful write clears the temporary
+// plaintext, refreshes the non-sensitive binding status/caches and closes the
+// dialog, so setting a value needs no extra "Cancel" click. A failed write
+// keeps the dialog open with the typed value intact, so the user can correct
+// the name or backend and retry without pasting the secret again; nothing is
+// written and the value is still cleared when the dialog is dismissed. The
+// backend error is surfaced verbatim (a locked/unsupported backend never
+// degrades to a plaintext file). a.invalidateIdentityDiagnostics keeps the
+// diagnostics page honest.
 func (a *App) saveSecretEntry(ps *projectState) {
 	if ps == nil || ps.project == nil {
 		return
@@ -203,12 +209,10 @@ func (a *App) saveSecretEntry(ps *projectState) {
 	m := a.secretEntryMessages()
 	name := strings.TrimSpace(d.name)
 	value := d.value
-	// Clear the temporary plaintext immediately after capturing it, before any
-	// validation/backend call that can return. A secret value must never linger
-	// in dialog state on an error path (empty/invalid name, locked backend,
-	// failed write); the user simply retypes it. Only the local `value` is
-	// handed to the OS credential store, and only on a successful path.
-	d.value = ""
+	// The typed value is kept on every failure path so it can be retried; it is
+	// cleared on success below and on every dismissal path in closeSecretEntry.
+	// Only the local `value` is handed to the OS credential store, and only on
+	// a successful path.
 	if name == "" || value == "" {
 		d.errMsg = m.Empty
 		return
@@ -228,6 +232,10 @@ func (a *App) saveSecretEntry(ps *projectState) {
 		d.status = secretStatusFromManaged(mc, d.name, a.secretBackendKind(ps))
 		return
 	}
+	// Success: clear the sensitive input first, then refresh the shared
+	// non-sensitive caches so the environment editor badge and the system
+	// credentials page both show "Bound" on their next render.
+	d.value = ""
 	d.name = change.Name
 	d.lastAction = change.Action
 	d.notice = fmt.Sprintf(m.SavedFmt, change.Name)
@@ -241,6 +249,13 @@ func (a *App) saveSecretEntry(ps *projectState) {
 	if st := identityMgmtFor(ps); st != nil {
 		st.credEntriesKey = ""
 	}
+	// Auto-close: the write succeeded, so the dialog has nothing left to do.
+	// Only the overlay closes; the unsaved environment draft, the active
+	// request and the surface that opened the dialog are untouched. The
+	// non-sensitive confirmation moves to the status line the dialog used to
+	// cover, so the close is not silent.
+	d.open = false
+	a.status = d.notice
 }
 
 func (a *App) requestDeleteSecretEntry(ps *projectState) {
