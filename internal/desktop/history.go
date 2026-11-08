@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 
@@ -127,6 +129,9 @@ func historyKey(ps *projectState) string {
 func (a *App) historyPolicy() localstate.Policy {
 	p := localstate.DefaultPolicy()
 	if a.mgr != nil && a.mgr.cfg != nil {
+		if a.mgr.cfg.historyFullCapture() {
+			return localstate.FullPolicy()
+		}
 		p.Snapshots = a.mgr.cfg.historySaveSnapshots()
 		p.Bodies = p.Snapshots && a.mgr.cfg.historySaveBodies()
 	}
@@ -136,6 +141,9 @@ func (a *App) historyPolicy() localstate.Policy {
 func (a *App) historyLimits() localstate.Limits {
 	l := localstate.DefaultLimits()
 	if a.mgr != nil && a.mgr.cfg != nil {
+		if a.mgr.cfg.historyFullCapture() {
+			l = localstate.FullLimits()
+		}
 		days := a.mgr.cfg.historyRetentionDays()
 		if days < 0 {
 			l.Retention = -1 // keep until the record/byte cap removes it
@@ -249,6 +257,7 @@ func (a *App) historyInput(tab *Tab, plan *core.Plan, red *core.Redactor, outcom
 		Outcome:            outcome,
 		RequestHeaders:     plan.Headers,
 		RequestBody:        plan.Body,
+		RequestHasBody:     plan.HasBody,
 		RequestContentType: headerValue(plan.Headers, "Content-Type"),
 		Redactor:           red,
 		Policy:             a.historyPolicy(),
@@ -262,9 +271,28 @@ func effectivePlanURL(plan *core.Plan) string {
 	if plan == nil {
 		return ""
 	}
-	u, err := url.Parse(plan.URL)
-	if err != nil || len(plan.Query) == 0 {
+	if len(plan.Query) == 0 {
 		return plan.URL
+	}
+	u, err := url.Parse(plan.URL)
+	if err != nil {
+		q := make(url.Values, len(plan.Query))
+		for _, kv := range plan.Query {
+			q.Add(kv[0], kv[1])
+		}
+		enc := q.Encode()
+		if enc == "" {
+			return plan.URL
+		}
+		base, frag, hasFrag := strings.Cut(plan.URL, "#")
+		sep := "?"
+		if strings.Contains(base, "?") {
+			sep = "&"
+		}
+		if hasFrag {
+			return base + sep + enc + "#" + frag
+		}
+		return base + sep + enc
 	}
 	q := u.Query()
 	for _, kv := range plan.Query {
@@ -575,7 +603,11 @@ func (a *App) historyPanel(c *ui.Context, t *ui.Theme) {
 				})
 			})
 		}
-		ui.Text(c, m.HistoryPrivacyNote).FontSize(10).TextColor(p.Faint).Padding(4, 10, 8, 10)
+		privacyNote := m.HistoryPrivacyNote
+		if a.historyPolicy().Unredacted {
+			privacyNote = m.HistoryPrivacyFullNote
+		}
+		ui.Text(c, privacyNote).FontSize(10).TextColor(p.Faint).Padding(4, 10, 8, 10)
 	})
 }
 
@@ -782,6 +814,7 @@ func (a *App) historyDetailModal(c *ui.Context, t *ui.Theme) {
 			detailRow(m.Projects, r.ProjectName)
 			detailRow(m.EnvLabel, r.Env)
 			detailRow(m.HistoryDetailResult, fmt.Sprintf("%s · %s · %s", resultSummary(m, r), formatDurationMs(float64(r.DurationMs)), formatByteSize(r.SizeBytes)))
+			detailRow(m.HistoryDetailCapture, historyCaptureSummary(m, r))
 			detailRow("URL", r.URL)
 			detailRow(m.Error, r.Error)
 
@@ -791,7 +824,20 @@ func (a *App) historyDetailModal(c *ui.Context, t *ui.Theme) {
 					a.historySnapshot(c, p, m, m.HistoryDetailResponse, r.Response)
 				})
 			})
-			ui.Text(c, m.HistoryRedactedNote).FontSize(11).TextColor(p.Faint)
+			if r.IsUnredacted() {
+				ui.Text(c, m.HistoryUnredactedNote).FontSize(11).TextColor(p.Muted)
+				if r.SnapshotTrimmed {
+					ui.Text(c, m.HistorySnapshotTrimmed).FontSize(11).TextColor(p.Faint)
+				}
+				if r.Response != nil && r.Response.Truncated {
+					ui.Text(c, m.HistoryTruncatedBoundaryNote).FontSize(11).TextColor(p.Faint)
+				}
+				if r.Request != nil && (r.Request.Omitted == localstate.OmitStream || r.Request.Truncated) {
+					ui.Text(c, m.HistoryStreamBoundaryNote).FontSize(11).TextColor(p.Faint)
+				}
+			} else {
+				ui.Text(c, m.HistoryRedactedNote).FontSize(11).TextColor(p.Faint)
+			}
 
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if uikit.ActionCursor(ui.Button(c, m.HistoryDetailDelete)).Clicked() {
@@ -825,14 +871,73 @@ func (a *App) historySnapshot(c *ui.Context, p uikit.Palette, m *messages, title
 	})
 }
 
+const maxSnapshotPreviewBytes = 16 << 10
+
+func historyCaptureSummary(m *messages, r historyRecord) string {
+	if !r.IsUnredacted() {
+		return m.HistoryCaptureRedacted
+	}
+	if r.SnapshotTrimmed {
+		return m.HistoryCaptureTrimmed
+	}
+	if (r.Response != nil && r.Response.Truncated) ||
+		(r.Request != nil && (r.Request.Truncated || r.Request.Omitted == localstate.OmitStream)) {
+		return m.HistoryCapturePartial
+	}
+	return m.HistoryCaptureFull
+}
+
 func snapshotLines(s *localstate.Snapshot, m *messages) []string {
 	var lines []string
 	for _, kv := range s.Headers {
 		lines = append(lines, kv[0]+": "+kv[1])
 	}
+	if s.IsBinaryBody() {
+		lines = append(lines, "")
+		size := s.BodySize
+		raw, err := s.BodyBytes()
+		if err == nil && size <= 0 {
+			size = int64(len(raw))
+		}
+		lines = append(lines, translate(m.HistoryBinarySavedFmt, formatByteSize(size)))
+		if err == nil && len(raw) > 0 {
+			n := len(raw)
+			suffix := ""
+			if n > 64 {
+				n = 64
+				suffix = "…"
+			}
+			lines = append(lines, "hex: "+hex.EncodeToString(raw[:n])+suffix)
+		}
+		if s.Truncated {
+			lines = append(lines, translate(m.HistoryBodyTruncatedSavedFmt, formatByteSize(size)))
+		}
+		return lines
+	}
 	if s.Body != "" {
 		lines = append(lines, "")
-		lines = append(lines, strings.Split(s.Body, "\n")...)
+		preview := s.Body
+		shortened := false
+		if len(preview) > maxSnapshotPreviewBytes {
+			preview = truncateUTF8(preview, maxSnapshotPreviewBytes)
+			shortened = true
+		}
+		bodyLines := strings.Split(preview, "\n")
+		if len(bodyLines) > 380 {
+			bodyLines = bodyLines[:380]
+			shortened = true
+		}
+		lines = append(lines, bodyLines...)
+		size := s.BodySize
+		if size <= 0 {
+			size = int64(len(s.Body))
+		}
+		if shortened {
+			lines = append(lines, translate(m.HistoryPreviewShortenedFmt, formatByteSize(size)))
+		}
+		if s.Truncated {
+			lines = append(lines, translate(m.HistoryBodyTruncatedSavedFmt, formatByteSize(size)))
+		}
 	} else if s.Omitted != "" {
 		lines = append(lines, translate(m.HistoryBodyOmitted, historyOmitReason(m, s.Omitted)))
 	}
@@ -840,6 +945,17 @@ func snapshotLines(s *localstate.Snapshot, m *messages) []string {
 		lines = lines[:400]
 	}
 	return lines
+}
+
+func truncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	cut := s[:maxBytes]
+	for len(cut) > 0 && !utf8.ValidString(cut) {
+		cut = cut[:len(cut)-1]
+	}
+	return cut
 }
 
 func historyOmitReason(m *messages, reason string) string {
@@ -852,6 +968,8 @@ func historyOmitReason(m *messages, reason string) string {
 		return m.HistoryOmitBinary
 	case localstate.OmitTruncated:
 		return m.HistoryOmitTruncated
+	case localstate.OmitStream:
+		return m.HistoryOmitStream
 	default:
 		return reason
 	}

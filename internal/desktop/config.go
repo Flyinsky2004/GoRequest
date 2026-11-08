@@ -66,10 +66,13 @@ type appConfig struct {
 }
 
 // historyPrefs are optional; an absent block keeps the safe defaults (redacted
-// metadata snapshots on, bodies off, 90-day retention).
+// metadata snapshots on, bodies off, full unredacted capture off, 90-day retention).
 type historyPrefs struct {
 	Snapshots *bool `json:"snapshots,omitempty"`
 	Bodies    *bool `json:"bodies,omitempty"`
+	// FullCapture opts into saving complete, unredacted request/response data
+	// (URLs, headers, lossless binary & large bodies, and error messages).
+	FullCapture *bool `json:"fullCapture,omitempty"`
 	// RetentionDays is 30, 90 or 365, or -1 for "keep until the record/byte
 	// cap removes it". An absent or invalid value means 90 days.
 	RetentionDays int `json:"retentionDays,omitempty"`
@@ -226,6 +229,21 @@ func (s *configStore) historySaveBodies() bool {
 func (s *configStore) setHistorySaveBodies(v bool) {
 	b := v
 	s.cfg.History.Bodies = &b
+	_ = s.save()
+}
+
+// historyFullCapture reports whether unredacted, full-size request/response
+// history capture is enabled. Absent or false keeps the safe redacted default.
+func (s *configStore) historyFullCapture() bool {
+	return s != nil && s.cfg.History.FullCapture != nil && *s.cfg.History.FullCapture
+}
+
+func (s *configStore) setHistoryFullCapture(v bool) {
+	if s == nil {
+		return
+	}
+	b := v
+	s.cfg.History.FullCapture = &b
 	_ = s.save()
 }
 

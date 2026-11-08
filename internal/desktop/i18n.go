@@ -348,45 +348,58 @@ type messages struct {
 	Yesterday           string
 
 	// History filters, preview and diagnostics (§3).
-	HistoryThisProject       string
-	HistoryAllProjects       string
-	HistoryFilterPlaceholder string
-	HistoryTimeAll           string
-	HistoryTimeToday         string
-	HistoryTimeWeek          string
-	HistoryTimeMonth         string
-	HistoryResultAll         string
-	HistoryResultSuccess     string
-	HistoryResultClient      string
-	HistoryResultServer      string
-	HistoryResultNetwork     string
-	HistoryResultCanceled    string
-	HistoryNoMatch           string
-	HistoryUnavailable       string
-	HistoryPrivacyNote       string
-	HistoryDetailTitle       string
-	HistoryDetailSummary     string
-	HistoryDetailResult      string
-	HistoryDetailRequest     string
-	HistoryDetailResponse    string
-	HistoryDetailOpen        string
-	HistoryDetailDelete      string
-	HistoryRedactedNote      string
-	HistoryRequestGone       string
-	HistoryProjectNotOpen    string
-	HistoryBodyOmitted       string // %s
-	HistoryOmitPolicy        string
-	HistoryOmitLarge         string
-	HistoryOmitBinary        string
-	HistoryOmitTruncated     string
-	HistorySnapshotTrimmed   string
-	HistoryDiagCorrupt       string // %d
-	HistoryDiagRead          string // %s
-	HistoryWriteFailed       string // %s
-	HistoryReadFailed        string // %s
-	HistoryOutcomeError      string
-	HistoryOutcomeCanceled   string
-	HistoryOutcomeTimeout    string
+	HistoryThisProject           string
+	HistoryAllProjects           string
+	HistoryFilterPlaceholder     string
+	HistoryTimeAll               string
+	HistoryTimeToday             string
+	HistoryTimeWeek              string
+	HistoryTimeMonth             string
+	HistoryResultAll             string
+	HistoryResultSuccess         string
+	HistoryResultClient          string
+	HistoryResultServer          string
+	HistoryResultNetwork         string
+	HistoryResultCanceled        string
+	HistoryNoMatch               string
+	HistoryUnavailable           string
+	HistoryPrivacyNote           string
+	HistoryPrivacyFullNote       string
+	HistoryDetailTitle           string
+	HistoryDetailSummary         string
+	HistoryDetailResult          string
+	HistoryDetailCapture         string
+	HistoryCaptureRedacted       string
+	HistoryCaptureFull           string
+	HistoryCapturePartial        string
+	HistoryCaptureTrimmed        string
+	HistoryDetailRequest         string
+	HistoryDetailResponse        string
+	HistoryDetailOpen            string
+	HistoryDetailDelete          string
+	HistoryRedactedNote          string
+	HistoryUnredactedNote        string
+	HistoryTruncatedBoundaryNote string
+	HistoryStreamBoundaryNote    string
+	HistoryRequestGone           string
+	HistoryProjectNotOpen        string
+	HistoryBodyOmitted           string // %s
+	HistoryOmitPolicy            string
+	HistoryOmitLarge             string
+	HistoryOmitBinary            string
+	HistoryOmitTruncated         string
+	HistoryOmitStream            string
+	HistoryBinarySavedFmt        string // %s
+	HistoryPreviewShortenedFmt   string // %s
+	HistoryBodyTruncatedSavedFmt string // %s
+	HistorySnapshotTrimmed       string
+	HistoryDiagCorrupt           string // %d
+	HistoryDiagRead              string // %s
+	HistoryWriteFailed           string // %s
+	HistoryReadFailed            string // %s
+	HistoryOutcomeError          string
+	HistoryOutcomeCanceled       string
+	HistoryOutcomeTimeout        string
 
 	// Settings sheet.
 	SettingsTitle       string
@@ -436,6 +449,10 @@ type messages struct {
 	HistorySettingsLabel    string
 	HistorySaveSnapshots    string
 	HistorySaveBodies       string
+	HistoryFullCapture      string
+	HistoryFullCaptureNote  string
+	HistoryFullCaptureOn    string
+	HistoryFullCaptureOff   string
 	HistoryRetentionLabel   string
 	HistoryRetention30      string
 	HistoryRetention90      string
@@ -712,45 +729,58 @@ var messagesZh = messages{
 	Today:               "今天",
 	Yesterday:           "昨天",
 
-	HistoryThisProject:       "本项目",
-	HistoryAllProjects:       "全部项目",
-	HistoryFilterPlaceholder: "筛选接口 / URL",
-	HistoryTimeAll:           "全部时间",
-	HistoryTimeToday:         "今天",
-	HistoryTimeWeek:          "最近 7 天",
-	HistoryTimeMonth:         "最近 30 天",
-	HistoryResultAll:         "全部结果",
-	HistoryResultSuccess:     "成功",
-	HistoryResultClient:      "客户端错误",
-	HistoryResultServer:      "服务端错误",
-	HistoryResultNetwork:     "网络/配置错误",
-	HistoryResultCanceled:    "已取消",
-	HistoryNoMatch:           "没有符合筛选条件的历史",
-	HistoryUnavailable:       "本机没有可用的配置目录，历史已禁用",
-	HistoryPrivacyNote:       "历史只保存在本机；默认仅保存脱敏元数据，正文需在设置中显式开启。",
-	HistoryDetailTitle:       "历史详情",
-	HistoryDetailSummary:     "概要",
-	HistoryDetailResult:      "结果",
-	HistoryDetailRequest:     "请求快照",
-	HistoryDetailResponse:    "响应快照",
-	HistoryDetailOpen:        "打开请求",
-	HistoryDetailDelete:      "删除此记录",
-	HistoryRedactedNote:      "已脱敏；恢复时将使用脱敏后的 URL。",
-	HistoryRequestGone:       "请求已不存在，无法打开",
-	HistoryProjectNotOpen:    "该项目未打开，请先打开项目再恢复此请求",
-	HistoryBodyOmitted:       "正文未保存：%s",
-	HistoryOmitPolicy:        "默认策略",
-	HistoryOmitLarge:         "超过大小上限",
-	HistoryOmitBinary:        "非文本内容",
-	HistoryOmitTruncated:     "响应已被截断",
-	HistorySnapshotTrimmed:   "快照超出单条记录上限，仅保留元数据",
-	HistoryDiagCorrupt:       "%d 行历史记录已损坏并被跳过",
-	HistoryDiagRead:          "读取历史失败：%s",
-	HistoryWriteFailed:       "无法写入历史：%s",
-	HistoryReadFailed:        "无法读取历史：%s",
-	HistoryOutcomeError:      "错误",
-	HistoryOutcomeCanceled:   "已取消",
-	HistoryOutcomeTimeout:    "超时",
+	HistoryThisProject:           "本项目",
+	HistoryAllProjects:           "全部项目",
+	HistoryFilterPlaceholder:     "筛选接口 / URL",
+	HistoryTimeAll:               "全部时间",
+	HistoryTimeToday:             "今天",
+	HistoryTimeWeek:              "最近 7 天",
+	HistoryTimeMonth:             "最近 30 天",
+	HistoryResultAll:             "全部结果",
+	HistoryResultSuccess:         "成功",
+	HistoryResultClient:          "客户端错误",
+	HistoryResultServer:          "服务端错误",
+	HistoryResultNetwork:         "网络/配置错误",
+	HistoryResultCanceled:        "已取消",
+	HistoryNoMatch:               "没有符合筛选条件的历史",
+	HistoryUnavailable:           "本机没有可用的配置目录，历史已禁用",
+	HistoryPrivacyNote:           "历史只保存在本机；默认仅保存脱敏元数据，正文需在设置中显式开启。",
+	HistoryPrivacyFullNote:       "当前为完整未脱敏保存模式：新记录在本机保留原始凭据与正文；旧脱敏记录仍保持脱敏。",
+	HistoryDetailTitle:           "历史详情",
+	HistoryDetailSummary:         "概要",
+	HistoryDetailResult:          "结果",
+	HistoryDetailCapture:         "记录模式",
+	HistoryCaptureRedacted:       "已脱敏",
+	HistoryCaptureFull:           "完整未脱敏",
+	HistoryCapturePartial:        "未脱敏（受网络截断或流式上传界限限制）",
+	HistoryCaptureTrimmed:        "未脱敏（仅保留元数据，快照已裁剪）",
+	HistoryDetailRequest:         "请求快照",
+	HistoryDetailResponse:        "响应快照",
+	HistoryDetailOpen:            "打开请求",
+	HistoryDetailDelete:          "删除此记录",
+	HistoryRedactedNote:          "已脱敏；恢复时将使用脱敏后的 URL。",
+	HistoryUnredactedNote:        "完整未脱敏记录（含原始凭据与参数）；打开请求将填入原始 URL。",
+	HistoryTruncatedBoundaryNote: "响应在网络接收上限处已截断：仅保存已捕获字节，网络层未收到的尾部无法补回。",
+	HistoryStreamBoundaryNote:    "请求正文通过流式上传发送，未在内存中完整缓存，历史无法补回未捕获部分。",
+	HistoryRequestGone:           "请求已不存在，无法打开",
+	HistoryProjectNotOpen:        "该项目未打开，请先打开项目再恢复此请求",
+	HistoryBodyOmitted:           "正文未保存：%s",
+	HistoryOmitPolicy:            "默认策略",
+	HistoryOmitLarge:             "超过大小上限",
+	HistoryOmitBinary:            "非文本内容",
+	HistoryOmitTruncated:         "响应已被截断",
+	HistoryOmitStream:            "流式上传未缓存正文",
+	HistoryBinarySavedFmt:        "[二进制内容已无损保存（Base64），共 %s]",
+	HistoryPreviewShortenedFmt:   "[界面仅预览前部内容；完整 %s 已无损保存在本地历史中]",
+	HistoryBodyTruncatedSavedFmt: "[网络接收上限处已截断：已保存捕获到的 %s，未接收尾部无法补回]",
+	HistorySnapshotTrimmed:       "快照超出单条记录上限，仅保留元数据",
+	HistoryDiagCorrupt:           "%d 行历史记录已损坏并被跳过",
+	HistoryDiagRead:              "读取历史失败：%s",
+	HistoryWriteFailed:           "无法写入历史：%s",
+	HistoryReadFailed:            "无法读取历史：%s",
+	HistoryOutcomeError:          "错误",
+	HistoryOutcomeCanceled:       "已取消",
+	HistoryOutcomeTimeout:        "超时",
 
 	SettingsTitle:       "设置",
 	AppearanceLabel:     "外观",
@@ -797,6 +827,10 @@ var messagesZh = messages{
 	HistorySettingsLabel:    "本地历史",
 	HistorySaveSnapshots:    "保存脱敏的请求/响应快照",
 	HistorySaveBodies:       "快照包含正文（已脱敏、有大小上限）",
+	HistoryFullCapture:      "保存完整未脱敏数据（含二进制与大正文）",
+	HistoryFullCaptureNote:  "已开启完整未脱敏保存：原始 URL、请求/响应头、无损二进制与大正文、失败信息将原样写入本机历史（网络层已截断或流式未缓存部分会如实标注）。旧脱敏记录仍保持脱敏。",
+	HistoryFullCaptureOn:    "已启用历史完整未脱敏保存",
+	HistoryFullCaptureOff:   "已恢复历史默认脱敏策略",
 	HistoryRetentionLabel:   "保留期限",
 	HistoryRetention30:      "30 天",
 	HistoryRetention90:      "90 天",
@@ -1072,45 +1106,58 @@ var messagesEn = messages{
 	Today:               "Today",
 	Yesterday:           "Yesterday",
 
-	HistoryThisProject:       "This project",
-	HistoryAllProjects:       "All projects",
-	HistoryFilterPlaceholder: "Filter by request or URL",
-	HistoryTimeAll:           "All time",
-	HistoryTimeToday:         "Today",
-	HistoryTimeWeek:          "Last 7 days",
-	HistoryTimeMonth:         "Last 30 days",
-	HistoryResultAll:         "All results",
-	HistoryResultSuccess:     "Success",
-	HistoryResultClient:      "Client error",
-	HistoryResultServer:      "Server error",
-	HistoryResultNetwork:     "Network/config error",
-	HistoryResultCanceled:    "Canceled",
-	HistoryNoMatch:           "No history matches these filters",
-	HistoryUnavailable:       "No local config directory is available, so history is disabled",
-	HistoryPrivacyNote:       "History stays on this device. Only redacted metadata is saved by default; bodies require an explicit opt-in.",
-	HistoryDetailTitle:       "History Detail",
-	HistoryDetailSummary:     "Summary",
-	HistoryDetailResult:      "Result",
-	HistoryDetailRequest:     "Request snapshot",
-	HistoryDetailResponse:    "Response snapshot",
-	HistoryDetailOpen:        "Open request",
-	HistoryDetailDelete:      "Delete this record",
-	HistoryRedactedNote:      "Redacted. Opening the request uses the redacted URL.",
-	HistoryRequestGone:       "The request no longer exists, so it cannot be opened",
-	HistoryProjectNotOpen:    "Open that project first to reopen this request from history",
-	HistoryBodyOmitted:       "Body not stored: %s",
-	HistoryOmitPolicy:        "default policy",
-	HistoryOmitLarge:         "over the size limit",
-	HistoryOmitBinary:        "non-text content",
-	HistoryOmitTruncated:     "the response was truncated",
-	HistorySnapshotTrimmed:   "The snapshot exceeded the per-record limit, so only metadata was kept",
-	HistoryDiagCorrupt:       "%d history line(s) were corrupt and skipped",
-	HistoryDiagRead:          "Could not read history: %s",
-	HistoryWriteFailed:       "Could not write history: %s",
-	HistoryReadFailed:        "Could not read history: %s",
-	HistoryOutcomeError:      "Error",
-	HistoryOutcomeCanceled:   "Canceled",
-	HistoryOutcomeTimeout:    "Timed out",
+	HistoryThisProject:           "This project",
+	HistoryAllProjects:           "All projects",
+	HistoryFilterPlaceholder:     "Filter by request or URL",
+	HistoryTimeAll:               "All time",
+	HistoryTimeToday:             "Today",
+	HistoryTimeWeek:              "Last 7 days",
+	HistoryTimeMonth:             "Last 30 days",
+	HistoryResultAll:             "All results",
+	HistoryResultSuccess:         "Success",
+	HistoryResultClient:          "Client error",
+	HistoryResultServer:          "Server error",
+	HistoryResultNetwork:         "Network/config error",
+	HistoryResultCanceled:        "Canceled",
+	HistoryNoMatch:               "No history matches these filters",
+	HistoryUnavailable:           "No local config directory is available, so history is disabled",
+	HistoryPrivacyNote:           "History stays on this device. Only redacted metadata is saved by default; bodies require an explicit opt-in.",
+	HistoryPrivacyFullNote:       "Full unredacted capture is active: new records keep raw credentials and bodies locally; older redacted entries remain redacted.",
+	HistoryDetailTitle:           "History Detail",
+	HistoryDetailSummary:         "Summary",
+	HistoryDetailResult:          "Result",
+	HistoryDetailCapture:         "Capture mode",
+	HistoryCaptureRedacted:       "Redacted",
+	HistoryCaptureFull:           "Full unredacted",
+	HistoryCapturePartial:        "Unredacted (bounded by network truncation or streamed upload)",
+	HistoryCaptureTrimmed:        "Unredacted (metadata only; snapshots trimmed)",
+	HistoryDetailRequest:         "Request snapshot",
+	HistoryDetailResponse:        "Response snapshot",
+	HistoryDetailOpen:            "Open request",
+	HistoryDetailDelete:          "Delete this record",
+	HistoryRedactedNote:          "Redacted. Opening the request uses the redacted URL.",
+	HistoryUnredactedNote:        "Full unredacted record (contains raw credentials/params). Opening the request uses the raw URL.",
+	HistoryTruncatedBoundaryNote: "Response truncated at the network capture limit: only received bytes were saved; unreceived tail data cannot be reconstructed.",
+	HistoryStreamBoundaryNote:    "Request body was sent as an unbuffered stream; uncaptured upload bytes cannot be reconstructed in history.",
+	HistoryRequestGone:           "The request no longer exists, so it cannot be opened",
+	HistoryProjectNotOpen:        "Open that project first to reopen this request from history",
+	HistoryBodyOmitted:           "Body not stored: %s",
+	HistoryOmitPolicy:            "default policy",
+	HistoryOmitLarge:             "over the size limit",
+	HistoryOmitBinary:            "non-text content",
+	HistoryOmitTruncated:         "the response was truncated",
+	HistoryOmitStream:            "streamed upload was not buffered",
+	HistoryBinarySavedFmt:        "[Binary body stored losslessly (base64), %s]",
+	HistoryPreviewShortenedFmt:   "[UI preview shortened; full %s is stored losslessly in local history]",
+	HistoryBodyTruncatedSavedFmt: "[Truncated at network limit: saved %s captured; unreceived tail cannot be reconstructed]",
+	HistorySnapshotTrimmed:       "The snapshot exceeded the per-record limit, so only metadata was kept",
+	HistoryDiagCorrupt:           "%d history line(s) were corrupt and skipped",
+	HistoryDiagRead:              "Could not read history: %s",
+	HistoryWriteFailed:           "Could not write history: %s",
+	HistoryReadFailed:            "Could not read history: %s",
+	HistoryOutcomeError:          "Error",
+	HistoryOutcomeCanceled:       "Canceled",
+	HistoryOutcomeTimeout:        "Timed out",
 
 	SettingsTitle:       "Settings",
 	AppearanceLabel:     "Appearance",
@@ -1157,6 +1204,10 @@ var messagesEn = messages{
 	HistorySettingsLabel:    "Local history",
 	HistorySaveSnapshots:    "Save redacted request/response snapshots",
 	HistorySaveBodies:       "Include bodies in snapshots (redacted, size-limited)",
+	HistoryFullCapture:      "Save full unredacted data (raw & binary)",
+	HistoryFullCaptureNote:  "Full unredacted capture is active: raw URLs, headers, lossless binary and large bodies, and error details are stored locally as-is (network-truncated or unbuffered streamed bodies are marked honestly). Previously redacted records remain redacted.",
+	HistoryFullCaptureOn:    "Full unredacted history capture enabled",
+	HistoryFullCaptureOff:   "Restored default redacted history policy",
 	HistoryRetentionLabel:   "Keep history",
 	HistoryRetention30:      "30 days",
 	HistoryRetention90:      "90 days",
