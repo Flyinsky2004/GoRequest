@@ -101,7 +101,7 @@ func (a *App) runnerEditorRequestPicker(c *ui.Context, m runnerEditorMessages, p
 		current += "—"
 	}
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.MenuButton(c, current, func(mm *ui.Menu) {
+		uikit.MenuButton(c, current, func(mm *ui.Menu) {
 			if len(labels) == 0 {
 				mm.Item(m.NoRequest).Disabled(true)
 			}
@@ -123,7 +123,7 @@ func (a *App) runnerEditorAssertionSection(c *ui.Context, t *ui.Theme, m runnerE
 	ui.Scroll(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		ui.Column(c).FillWidth().Gap(6).Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
-				ui.MenuButton(c, m.NewAssertion, func(mm *ui.Menu) {
+				uikit.MenuButton(c, m.NewAssertion, func(mm *ui.Menu) {
 					for _, kind := range []string{runner.TargetStatus, runner.TargetHeader, runner.TargetJSONPath, runner.TargetBody} {
 						kind := kind
 						if mm.Item(m.TargetLabel(kind)).Chosen() {
@@ -232,7 +232,7 @@ func (a *App) runnerEditorAssertionForm(c *ui.Context, t *ui.Theme, m runnerEdit
 					}
 				})
 			}
-			ui.MenuButton(c, m.AddMatcher, func(mm *ui.Menu) {
+			uikit.MenuButton(c, m.AddMatcher, func(mm *ui.Menu) {
 				kindOrder := []string{runner.MatcherExists, runner.MatcherEquals, runner.MatcherNotEquals, runner.MatcherIn, runner.MatcherContains, runner.MatcherNotContain, runner.MatcherRegex, runner.MatcherType}
 				for _, kind := range kindOrder {
 					kind := kind
@@ -274,7 +274,7 @@ func (a *App) runnerEditorExtractionSection(c *ui.Context, t *ui.Theme, m runner
 	}
 	ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
 		ui.Text(c, m.SuiteTargetLabel+":").FontSize(12).TextColor(p.Muted)
-		ui.MenuButton(c, target.label, func(mm *ui.Menu) {
+		uikit.MenuButton(c, target.label, func(mm *ui.Menu) {
 			for i := range s.targets {
 				i := i
 				if mm.Item(s.targets[i].label).Chosen() {

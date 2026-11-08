@@ -168,7 +168,7 @@ func runnerValue(s string) string {
 func runnerSelect(c *ui.Context, label string, selected *string, choices []string, empty string) {
 	ui.Row(c).Gap(10).Children(func() {
 		ui.Text(c, label).FontSize(12)
-		ui.MenuButton(c, runnerValue(*selected), func(mm *ui.Menu) {
+		uikit.MenuButton(c, runnerValue(*selected), func(mm *ui.Menu) {
 			if len(choices) == 0 {
 				mm.Item(empty).Disabled(true)
 			}

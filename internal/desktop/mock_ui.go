@@ -105,7 +105,7 @@ func (a *App) MockModals(c *ui.Context, t *ui.Theme) {
 					ui.Box(c).Grow(1)
 
 					ui.Text(c, mockT(a, "mock.field.scenario")).FontSize(12).TextColor(p.Muted)
-					scenBtn := ui.MenuButton(c, s.scenario, func(mm *ui.Menu) {
+					uikit.MenuButton(c, s.scenario, func(mm *ui.Menu) {
 						choices := s.availableScenarios
 						if len(choices) == 0 {
 							choices = []string{"default"}
@@ -117,7 +117,6 @@ func (a *App) MockModals(c *ui.Context, t *ui.Theme) {
 							}
 						}
 					})
-					uikit.ActionCursor(scenBtn)
 
 					ui.Text(c, mockT(a, "mock.field.seed")).FontSize(12).TextColor(p.Muted)
 					ui.TextInput(c, &s.seedText).Width(68).Disabled(s.running || s.suiteRunning)
@@ -457,7 +456,7 @@ func (a *App) renderMockSuiteControlTab(c *ui.Context, t *ui.Theme, p uikit.Pale
 
 		ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, mockT(a, "mock.suite.select_label")).FontSize(12).TextColor(p.Text)
-			suiteBtn := ui.MenuButton(c, runnerValue(s.selectedSuite), func(mm *ui.Menu) {
+			uikit.MenuButton(c, runnerValue(s.selectedSuite), func(mm *ui.Menu) {
 				if len(s.suites) == 0 {
 					mm.Item(mockT(a, "mock.suite.empty")).Disabled(true)
 					return
@@ -469,7 +468,6 @@ func (a *App) renderMockSuiteControlTab(c *ui.Context, t *ui.Theme, p uikit.Pale
 					}
 				}
 			}).Disabled(s.suiteRunning)
-			uikit.ActionCursor(suiteBtn)
 
 			ui.Text(c, mockT(a, "mock.field.target_var")).FontSize(12).TextColor(p.Muted)
 			ui.TextInput(c, &s.targetVar).Width(110).Disabled(s.suiteRunning)

@@ -136,7 +136,7 @@ func (a *App) openedMenu(c *ui.Context, t *ui.Theme, ps *projectState) {
 	}
 	labels := uniqueTabLabels(ps)
 	msgs := a.msg()
-	ui.MenuButton(c, fmt.Sprintf(msgs.OpenTabsMenu, len(ps.tabs)), func(m *ui.Menu) {
+	uikit.MenuButton(c, fmt.Sprintf(msgs.OpenTabsMenu, len(ps.tabs)), func(m *ui.Menu) {
 		for i, tab := range ps.tabs {
 			label := labels[i]
 			activeTab := ps.tabs[ps.active]
@@ -159,7 +159,7 @@ func (a *App) openedMenu(c *ui.Context, t *ui.Theme, ps *projectState) {
 		if m.Item(msgs.CloseAll).Chosen() {
 			a.closeAll()
 		}
-	}).Cursor(ui.CursorPointer)
+	})
 }
 
 // uniqueTabLabels returns one menu label per tab, disambiguating duplicate

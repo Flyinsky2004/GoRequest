@@ -40,7 +40,7 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 	ui.Row(c).Padding(8, right, 8, left).Gap(6).AlignItems(ui.Center).Height(46).
 		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
 		// Left: project name + switch dropdown.
-		uikit.ActionCursor(ui.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) }))
+		uikit.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) })
 		windowDragSpacer(c, 8)
 		// Environment area: a fixed single-line label (never wraps) + selector,
 		// then the active tab's save control. The save control is drawn only

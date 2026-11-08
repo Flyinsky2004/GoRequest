@@ -6,43 +6,18 @@ import (
 	"gorequest/internal/desktop/uikit"
 )
 
-// headerMenuButton draws a themed header menu trigger whose menu MyGo renders
-// inside the window (ui.PopoverMenuButton) instead of asking the system for a
-// native menu. The trigger follows the palette like uikit.Select's trigger:
-// the sidebar face at rest, the existing hover/press washes, the hairline ring
-// and the muted chevron. The drawn menu uses the app theme, which uikit.Theme
-// derives from the same palette, so light and dark match.
+// headerMenuButton draws the workspace header's menu trigger. It is the
+// reference drop-down of the workbench: the trigger follows the palette and
+// the menu is drawn inside the window (ui.PopoverMenuButton) instead of asking
+// the system for a native menu.
 //
-// The build function is the same one a native ui.MenuButton takes, so every
-// item, separator, Disabled and Checked state is preserved. The keyboard,
-// focus, Escape and click-outside behavior comes from the drawn menu itself:
-// Enter/Space/Down open it on the first item, the arrows move among the
-// choosable items, Escape closes the top level, and a press outside closes it.
-//
-// Motion boundary: this menu surface belongs to MyGo's drawn-menu runtime, not
-// to a panel this package builds. v0.7.4 exposes no open state or surface hook
-// for PopoverMenuButton (the trigger's expanded state is written after the
-// view is built and has no getter), so there is no safe way to scale, fade or
-// turn the menu without reimplementing its items, submenus, type-ahead and
-// focus handling. U15 therefore leaves the framework menu unanimated and
-// animates only the controllable uikit.Select popup; the trigger keeps its
-// existing hover/press feedback. Replacing it would require a new MyGo API,
-// which this task must not add.
+// Since U19 this is a thin wrapper over uikit.MenuButtonWithPalette, the one
+// entry point every other in-app drop-down uses (project/environment
+// switchers, tab overflow, runner, mock, identity, document insert). Keeping
+// the header on the same helper means the reference cannot drift from the
+// menus it defines: one trigger geometry, one surface, one keyboard and
+// dismissal model. Right-click context menus (ui.PopoverMenu) and the macOS
+// top-level menu bar are not drop-down selectors and stay outside this scope.
 func headerMenuButton(c *ui.Context, p uikit.Palette, label string, build func(*ui.Menu)) ui.Element {
-	e := uikit.ActionCursor(ui.ButtonBase(c)).Height(30).Padding(0, 10).Gap(6).
-		Radius(8).AlignItems(ui.Center).BorderWidth(1).BorderColor(p.Hairline)
-	switch {
-	case e.Pressed():
-		e.Background(p.Press)
-	case e.Hovered():
-		e.Background(p.Hover)
-	default:
-		e.Background(p.Sidebar)
-	}
-	e.Label(label)
-	e.Children(func() {
-		ui.Text(c, label).FontSize(13).TextColor(p.Text).SingleLine()
-		ui.Icon(c, uikit.IconChevron).FontSize(11).TextColor(p.Muted)
-	})
-	return e.PopoverMenuButton(build)
+	return uikit.MenuButtonWithPalette(c, p, label, build)
 }

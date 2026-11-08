@@ -90,17 +90,12 @@ func TestWorkspaceViewSeparatedFromWelcome(t *testing.T) {
 	if err := tt.Click("Project X"); err != nil {
 		t.Fatalf("open project menu: %v", err)
 	}
-	items := tt.Menu()
-	hasClose := false
-	for _, it := range items {
-		if it == "Close Project" {
-			hasClose = true
-		}
+	tt.Frame()
+	if !tt.HasText("Close Project") {
+		t.Fatalf("project menu missing Close Project; texts=%v", tt.Texts())
 	}
-	if !hasClose {
-		t.Fatalf("project menu missing Close Project: %v", items)
-	}
-	tt.CloseMenu()
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
 	if tt.HasText("Recent Projects") {
 		t.Fatalf("workspace should not show the global recent list; texts=%v", tt.Texts())
 	}

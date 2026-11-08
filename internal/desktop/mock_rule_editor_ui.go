@@ -135,7 +135,7 @@ func (a *App) renderMockRuleEditor(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, mockT(a, "mock.edit.field.method")).FontSize(11).TextColor(p.Muted).Width(72)
 				ui.TextInput(c, &ed.methodText).Width(96).Font("monospace")
-				methodBtn := ui.MenuButton(c, mockT(a, "mock.edit.field.method"), func(mm *ui.Menu) {
+				uikit.MenuButton(c, mockT(a, "mock.edit.field.method"), func(mm *ui.Menu) {
 					for _, m := range []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"} {
 						choice := m
 						if mm.Item(choice).Chosen() {
@@ -143,7 +143,6 @@ func (a *App) renderMockRuleEditor(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 						}
 					}
 				})
-				uikit.ActionCursor(methodBtn)
 				renderMockEditorFieldError(c, t, ed.errs[mockFieldMethod])
 			})
 			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
@@ -166,7 +165,7 @@ func (a *App) renderMockRuleEditor(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 					return
 				}
 				ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-					bodyBtn := ui.MenuButton(c, mockCondOpLabel(ed.bodyOp), func(mm *ui.Menu) {
+					uikit.MenuButton(c, mockCondOpLabel(ed.bodyOp), func(mm *ui.Menu) {
 						if mm.Item("–").Chosen() {
 							ed.bodyOp = mockBodyOpNone
 							ed.bodyValueText = ""
@@ -178,7 +177,6 @@ func (a *App) renderMockRuleEditor(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 							}
 						}
 					})
-					uikit.ActionCursor(bodyBtn)
 					bodyValIn := ui.TextInput(c, &ed.bodyValueText).Grow(1)
 					_ = bodyValIn
 				})
@@ -259,7 +257,7 @@ func (a *App) renderMockRuleEditor(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 				ui.Text(c, mockT(a, "mock.edit.variant.no_more")).FontSize(11).TextColor(p.Muted)
 				return
 			}
-			addBtn := ui.MenuButton(c, mockT(a, "mock.edit.variant.add"), func(mm *ui.Menu) {
+			uikit.MenuButton(c, mockT(a, "mock.edit.variant.add"), func(mm *ui.Menu) {
 				for _, sc := range candidates {
 					choice := sc
 					if mm.Item(choice).Chosen() {
@@ -267,7 +265,6 @@ func (a *App) renderMockRuleEditor(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 					}
 				}
 			})
-			uikit.ActionCursor(addBtn)
 		})
 
 		// --- Validation & deterministic conflict preview ----------------------
@@ -380,7 +377,7 @@ func (a *App) renderMockMatcherRow(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 			return
 		}
 		ui.TextInput(c, &row.Name).Width(150).Font("monospace")
-		opBtn := ui.MenuButton(c, mockCondOpLabel(row.Op), func(mm *ui.Menu) {
+		uikit.MenuButton(c, mockCondOpLabel(row.Op), func(mm *ui.Menu) {
 			for _, op := range mockMatcherOps {
 				choice := op
 				if mm.Item(choice).Chosen() {
@@ -391,7 +388,6 @@ func (a *App) renderMockMatcherRow(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 				}
 			}
 		})
-		uikit.ActionCursor(opBtn)
 		ui.TextInput(c, &row.Value).Grow(1)
 		if allowIgnoreCase {
 			caseToggle := ui.Checkbox(c, &row.IgnoreCase, mockT(a, "mock.edit.ignore_case"))

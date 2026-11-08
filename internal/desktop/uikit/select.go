@@ -28,6 +28,15 @@ func SameIcon(ic *ui.SVG) SelectIconFunc {
 // ui.Select. Keyboard navigation (arrows, Home/End, Enter/Space, Escape) is
 // handled by SelectBase.
 //
+// Since U19 the trigger and the popup share the geometry and colors of
+// MenuButton, the single drop-down reference (the header's "+" menu): the same
+// 30-DIP trigger, hairline ring, 4-DIP panel padding, 10-DIP radius and 6/8-DIP
+// rows, with the accent wash on the option the pointer or keys are on. Select
+// keeps two things a drawn ui.Menu cannot carry in MyGo v0.7.4: per-option
+// icons (the public MenuItem API has no icon hook) and the controllable
+// open/close spring. Both are deliberate; the surface and interaction model are
+// otherwise identical to every other menu.
+//
 // Opening and closing play one shared spring (DropdownTransition): the popup
 // arrives from the trigger and leaves back toward it, while the chevron turns
 // to point up. Both are ordinary MyGo animations, so they settle and stop
@@ -60,7 +69,7 @@ func Select(c *ui.Context, selected *string, options []string, iconFor SelectIco
 		bg = p.Hover
 	}
 
-	trigger.Padding(7, 10).Gap(8).Radius(8).
+	trigger.Height(30).Padding(0, 10).Gap(6).Radius(8).AlignItems(ui.Center).
 		Background(bg).BorderWidth(1).BorderColor(p.Hairline).
 		Justify(ui.SpaceBetween)
 	trigger.Children(func() {
@@ -68,20 +77,21 @@ func Select(c *ui.Context, selected *string, options []string, iconFor SelectIco
 		dropdownChevron(c, open, iconColor)
 	})
 
-	// The popup is the elevated surface: white over the light page, the lighter
-	// panel face over the dark window.
-	popupBG := p.BG
-	if p.Dark {
-		popupBG = p.Sidebar
-	}
+	// The popup is the same elevated surface as the drawn menus: the window
+	// background over the page, the hairline ring and the one soft shadow.
 	popup := sel.Popup(func(panel ui.Element) {
 		panel.Padding(4).Gap(1).Radius(10).
-			Background(popupBG).BorderWidth(1).BorderColor(p.Hairline).
+			Background(p.BG).BorderWidth(1).BorderColor(p.Hairline).
 			Shadow(0, 6, 20, 0, p.CardShade)
 		for _, option := range options {
-			item := sel.Item(option).Padding(6, 8).Gap(8).Radius(6).AlignItems(ui.Center)
-			if item.Highlighted() {
-				item.Background(p.Hover)
+			item := sel.Item(option).Padding(6, 8).Gap(8).Radius(8).AlignItems(ui.Center)
+			highlighted := item.Highlighted()
+			if highlighted {
+				item.Background(p.Accent)
+			}
+			rowText, rowIcon, rowCheck := p.Text, p.Muted, p.Accent
+			if highlighted {
+				rowText, rowIcon, rowCheck = p.OnAccent, p.OnAccent, p.OnAccent
 			}
 			item.Children(func() {
 				ic := IconChevron
@@ -90,10 +100,10 @@ func Select(c *ui.Context, selected *string, options []string, iconFor SelectIco
 						ic = got
 					}
 				}
-				ui.Icon(c, ic).FontSize(IconSizeDefault).TextColor(p.Muted)
-				ui.Text(c, option).FontSize(13).TextColor(p.Text).SingleLine().Grow(1)
+				ui.Icon(c, ic).FontSize(IconSizeDefault).TextColor(rowIcon)
+				ui.Text(c, option).FontSize(13).TextColor(rowText).SingleLine().Grow(1)
 				if option == *selected {
-					ui.Icon(c, IconCheck).FontSize(IconSizeDefault).TextColor(p.Accent)
+					ui.Icon(c, IconCheck).FontSize(IconSizeDefault).TextColor(rowCheck)
 				} else {
 					// Reserve the check's space so labels stay aligned.
 					ui.Box(c).Size(IconSizeDefault, IconSizeDefault)
