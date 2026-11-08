@@ -1084,3 +1084,11 @@ U21-interop-i18n.patch先核对U22是否已覆盖勿重复套；U23-import_expor
 - 逐条确认 5 个来源头均为 `main` 祖先且 worktree 干净后，按 `sources.json` 精确关闭 U21–U25 的 5 个 Herdr tab（`t54`、`t55`、`t56`、`t57`、`t58`），全部 `ok: true`；首次检查时 `t55`–`t58` 已 `finished` 并 `hc rm`，`t54` 尚为 `live` 未删，随后复查 `t54` 变为 `finished` 后执行 `hc rm t54`。
 - 使用不带 `--force` 的 `git worktree remove` 与 `git branch -d` 删除 5 个来源 worktree 及分支（`cc/U21-menu-zh`、`cc/U22-import-zh`、`cc/U23-curl-duplicates`、`cc/U24-sse-stream`、`cc/U25-app-updates`）。
 - 保留 Herdr 原有 `t1h`、`t4q`、`t2s`、其他项目 `t4k` 以及本轮 agy 集成会话 `t5b`（`tb5b97af999a8b80146755e9158dbea9c4`）与集成 worktree `/private/tmp/gorequest-u21-u25-integration-20261108/worktree`（`agy/integrate-U21-U25`）供主 agent 收尾复核；MyGo showcase 分支未操作，未 push。清理前后主工作区用户 `dev.yaml`、`document.md`、`demo-server` debug 产物 SHA-256 摘要完全一致。
+
+### 39.4 主agent复核与最终清理
+
+用户要求agy完成后继续复核。核对main与集成分支同为 `fdfebdb`、集成工作区干净，五个来源提交在main历史、来源分支/worktree及CC会话均已移除；审阅实际接线及测试日志。发现更新post在后台宿主销毁时读取Manager窗口列表的线程边界问题，补生产MyGo.RunOnMain调度、宿主选择/界面状态均在UI线程完成，并增加排队回调期间关闭宿主与生产dispatcher装配回归。复核补丁 `3a31a1c` 已快进到main。
+
+补丁后build/vet通过；更新/SSE/cURL/中文组合及新增调度的race专项通过（desktop 8.387s、core 2.000s、update 1.218s），普通全仓再次完整执行仅4项旧失败，无新增失败/无skip。agy全仓race发生在本补丁之前，不冒称补丁后重跑过全仓race。详细过程及初版补丁重复刷新重入的定位/修正在集成报告§6；未实机窗口/真实安装更新，原限制保留。
+
+确认集成分支已为main祖先、工作区干净后，精确关闭agy的tab `tb5b97af999a8b80146755e9158dbea9c4` / t5b，返回ok:true；hc确认finished后rm。非force删除最后的集成worktree与 `agy/integrate-U21-U25` 分支。GoRequest最终只剩main/主worktree。Herdr保留t1h、用户新会话t5c、t4q、t2s和其他项目t4k；未操作MyGo showcase分支。原dev.yaml/document.md/demo-server debug摘要不变，当前新出现的desktop debug产物也保留。未push，未读写真实Secret或安装更新。
