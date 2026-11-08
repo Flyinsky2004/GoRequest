@@ -861,3 +861,23 @@ Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t3
 | U15 | t4w | tb00653120a3f4913e6c8454a5edda77fb |
 
 §33表中的待启动是派工登记时状态，以本节已启动/开发中为准；未交付/未合并/未验收，不勾完成。完整任务提示与sessions.json仅保存在本机 `/private/tmp/gorequest-u11-u15-20261108/`，不入Git。本轮主工作区仅提交账本，未运行功能build/测试；各CC已获必要验证和本地commit授权。用户dirty文件与既有其他项目/终端保留，不操作MyGo showcase分支。
+
+
+## 34. U16–U17 渲染式文档输入与表格（2026-11-08）
+
+用户在U11–U15开发期间补充：渲染式编辑无可见光标；新行首字输入/应弹出Markdown组件选择；优化表格编辑态渲染。核对main `8fb4b5a`及doc_live/doc_table/docedit现状，已有slash命令模型和caret配色不能视为实际交互通过。本批2个CC从本登记提交建立独立worktree，原5个任务保持开发。
+
+| ID / 负责人 | 分支 / 实际worktree | 文件归属与验收 | 状态 |
+| --- | --- | --- | --- |
+| U16 / CC doc-input-slash | cc/U16-doc-input-slash / /private/tmp/gorequest-u16-u17-20261108/doc-input-slash | doc_live.go/doc_live_edit.go/doc_live_slash.go/doc_live_actions.go/doc_live_i18n.go、必要documentation.go接线、internal/docedit及专属新增测试；光标/输入焦点修复，行首/组件菜单真实入口 | 待启动 |
+| U17 / CC doc-table-polish | cc/U17-doc-table-polish / /private/tmp/gorequest-u16-u17-20261108/doc-table-polish | doc_table.go/doc_table_icons.go、internal/doctable及专属新增测试；表头/边框/间距/对齐/列宽/长文及横向滚动、活动单元格、工具条与结构操作交互 | 待启动 |
+
+### 34.1 协作与验收约定
+
+- U16光标须查真实editor focus/theme/view构建/点击与帧时序，修根因，不靠画固定光标覆盖。空文档/点正文/回车新行/切块/滚动与亮暗主题覆盖；中文输入法不被焦点抢夺，不破坏选择/撤销/最后输入flush。行首/按光标所在逻辑行判断，不只整个块首；回车后首字/无需先退出编辑，空文档同样可用。正文中路径/URL/代码块/非首字符/不误触，菜单与@补全/IME键盘冲突需处理。
+- U16菜单至少H1/H2/H3、正文、列表、引用、代码块、表格、分割线，可复用已有完整命令；中英筛选、上下/Enter/Escape/鼠标可选，不遮光标/超窗，选择后替换触发文本并准确定位插入点；生成表格即走U17已有renderDocTable接口，正文/ID引用/未知块保真。
+- U17保持renderDocTable现有签名/同步replace事务契约，表格只替换自身源码，行列增删/对齐/Tab/ShiftTab/粘贴/Unicode/管道转义不丢数据，撤销/重做与外部刷新不复活缓存。尽量非活动单元格干净渲染、活动单元格清楚可编辑；不擅自实现未审定的复杂Markdown表格语法。工具条不挤压正文，小窗口可滚动且光标/焦点不丢。
+- U16不改doc_table*.go与doctable；U17不改doc_live*.go/documentation.go/tab.go。共用接口保持基线可编译，确需交叉改动以专属integration.patch交集成人。U12拥有Tab/App工作区壳层，U16不得直接修改，必要同样交patch。
+- 新划归的documentation.go/doc_live*/doc_table*由本批独占；U14/U15对这些文件的Tab/下拉调用迁移交patch，不直接写。其他任务及公共uikit组件/依赖/全局配置保持；自有图标/翻译放独立文件。
+- 使用ui-ux-pro-max核对现有原生主题/焦点/键盘，不引入WebView，不升级MyGo/go.mod/go.sum。每卡go build ./...与必要受影响测试，ui.Tester可控时钟；报告真实命令/结果/限制，不拿纯模型测试冒充鼠标输入与实机绘制。保留§31已复现基线失败，不改无关断言掩盖。
+- 完成后docs/task-results/U16.md/U17.md记录实现、接线、验证、真实目录/分支、基线及本地commit；暂存仅任务文件，不改总账本、不push/merge、不派子agent/操作其他会话。未交付集成和验收前不勾完成。
