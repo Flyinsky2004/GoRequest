@@ -77,12 +77,20 @@ type docLiveState struct {
 type docBlockEdit struct {
 	// start and end are the block's current range in the canonical buffer.
 	start, end int
-	// base is the block's text as last committed or adopted; the editor's
-	// buffer differing from it means there is a pending local edit.
+	// base is the block's projected text (the content the editor shows,
+	// without block markers such as "## ", "> " or "- ") as last committed
+	// or adopted; the editor's buffer differing from it means there is a
+	// pending local edit.
 	base string
-	// terminator records whether the block's source ended with a newline,
-	// which CommitText adds back.
-	terminator bool
+	// srcBase is the block's exact canonical source as last committed or
+	// adopted, so a change of only a hidden marker (undo of a heading
+	// level) is still seen as a canonical change.
+	srcBase string
+	// proj keeps the markers base hides and writes them back on commit.
+	proj docedit.Projection
+	// terminator records the block's trailing line ending ("\n", "\r\n", or
+	// ""), which the commit adds back.
+	terminator string
 	kind       docmd.Kind
 	level      int
 	// synthetic marks an empty line between blocks, where there is no parsed
@@ -113,6 +121,10 @@ func docLiveFor(st *docViewState) *docLiveState {
 	}
 	return st.live
 }
+
+// docLiveObserve is an optional test observer notified after each canvas
+// frame reconciles state; nil in production.
+var docLiveObserve func(tab *Tab, st *docViewState)
 
 // docCanvasView draws the rendered canvas and its in-place editor.
 func (a *App) docCanvasView(c *ui.Context, t *ui.Theme, root ui.Element, tab *Tab, st *docViewState) {
@@ -192,6 +204,9 @@ func (a *App) docCanvasView(c *ui.Context, t *ui.Theme, root ui.Element, tab *Ta
 			}
 		})
 	})
+	if docLiveObserve != nil {
+		docLiveObserve(tab, st)
+	}
 }
 
 // docCanvasEmptyHint is the empty document's invitation.
@@ -227,7 +242,7 @@ func (a *App) docCanvasAddArea(c *ui.Context, t *ui.Theme, p uikit.Palette, tab 
 // docCanvasRenderedBlock draws one block in its Markdown form and activates
 // its in-place editor on a click.
 func (a *App) docCanvasRenderedBlock(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, st *docViewState, b docedit.Block, opts *markdown.Options, dm *docLiveMessages) {
-	if docBlockIsSourceFallback(b.Kind) {
+	if docBlockIsSourceFallback(b) {
 		a.docCanvasSourceBlock(c, t, p, tab, st, b, dm)
 		return
 	}
@@ -278,8 +293,12 @@ func (a *App) docCanvasSourceBlock(c *ui.Context, t *ui.Theme, p uikit.Palette, 
 		card.Background(p.Hover)
 	}
 	card.Children(func() {
-		ui.Text(c, dm.SourceBlock).FontSize(11).TextColor(p.Muted)
-		ui.Text(c, strings.TrimRight(b.Source, "\n")).Font("monospace").FontSize(12).TextColor(p.Text)
+		caption := dm.SourceBlock
+		if b.FrontMatter {
+			caption = dm.FrontMatter
+		}
+		ui.Text(c, caption).FontSize(11).TextColor(p.Muted)
+		ui.Text(c, strings.TrimRight(b.Source, "\r\n")).Font("monospace").FontSize(12).TextColor(p.Text)
 	})
 	card.Label(docBlockLabel(b) + ":source")
 	if card.Clicked() {
@@ -334,6 +353,10 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 	// keyed host keeps the editor's own id stable across frames, so Focus
 	// and Focused agree and the real caret shows.
 	host := ui.Column(c).FillWidth().Key("doc-canvas-editor-host")
+	if be.kind == docmd.Quote && be.proj.Active() {
+		p := uikit.PaletteFor(t)
+		host.BorderWidth(0, 0, 0, 3).BorderColor(p.Hairline).Padding(0, 10)
+	}
 	host.Children(func() {
 		view := editor.View(c, be.ed).FillWidth()
 		if be.focusPending {
@@ -381,8 +404,11 @@ func (a *App) docCanvasMarkdownOptions(c *ui.Context, root ui.Element, tab *Tab,
 
 // docBlockIsSourceFallback reports whether the canvas must show the block as
 // explicit source rather than a rendered form.
-func docBlockIsSourceFallback(kind docmd.Kind) bool {
-	switch kind {
+func docBlockIsSourceFallback(b docedit.Block) bool {
+	if b.FrontMatter {
+		return true
+	}
+	switch b.Kind {
 	case docmd.HTMLBlock, docmd.FootnoteDefinition, docmd.MathBlock:
 		return true
 	}
@@ -391,11 +417,11 @@ func docBlockIsSourceFallback(kind docmd.Kind) bool {
 
 // docBlockLabel is the stable accessibility identity of a rendered block.
 func docBlockLabel(b docedit.Block) string {
-	return fmt.Sprintf("doc-block:%s:%d", docBlockKindName(b.Kind), b.Start)
+	return fmt.Sprintf("doc-block:%s:%d", docBlockKindName(b), b.Start)
 }
 
-func docBlockKindName(kind docmd.Kind) string {
-	switch kind {
+func docBlockKindName(b docedit.Block) string {
+	switch b.Kind {
 	case docmd.Paragraph:
 		return "paragraph"
 	case docmd.Heading:
@@ -409,6 +435,9 @@ func docBlockKindName(kind docmd.Kind) string {
 	case docmd.ThematicBreak:
 		return "rule"
 	case docmd.HTMLBlock:
+		if b.FrontMatter {
+			return "frontmatter"
+		}
 		return "html"
 	case docmd.Table:
 		return "table"

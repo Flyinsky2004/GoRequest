@@ -10,6 +10,7 @@
 package docedit
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 
@@ -32,27 +33,41 @@ type Block struct {
 	// Source is the exact source text of the block, including its final
 	// newline when the document has one.
 	Source string
+	// FrontMatter marks the leading YAML metadata block. It is kept as one
+	// verbatim source block so its fences are never read as a rule and a
+	// setext heading.
+	FrontMatter bool
 }
 
 // EditText returns the block's text without the single line terminator that
-// belongs to the block boundary. The canvas binds this text to its in-place
-// editor; CommitText adds the terminator back.
+// belongs to the block boundary. The canvas binds this text (or its content
+// projection) to its in-place editor; CommitText adds the terminator back.
 func (b Block) EditText() string {
 	return trimOneNewline(b.Source)
 }
 
+// Terminator returns the block's trailing line ending ("\r\n", "\n", or ""
+// when the block reaches EOF without a final newline).
+func (b Block) Terminator() string {
+	if strings.HasSuffix(b.Source, "\r\n") {
+		return "\r\n"
+	}
+	if strings.HasSuffix(b.Source, "\n") {
+		return "\n"
+	}
+	return ""
+}
+
 // HasTerminator reports whether the block's source ends with a newline.
-func (b Block) HasTerminator() bool { return strings.HasSuffix(b.Source, "\n") }
+func (b Block) HasTerminator() bool { return b.Terminator() != "" }
 
 // CommitText turns the editor's text back into replacement source: the
-// editor never shows the block-boundary newline, so the terminator the block
-// had is added back. A newline the user typed at the end is content and is
-// kept before that terminator, which splits the block as Markdown expects.
+// editor never shows the block-boundary newline, so the exact terminator the
+// block had ("\n", "\r\n", or "") is added back. A newline the user typed at
+// the end is content and is kept before that terminator, which splits the
+// block as Markdown expects.
 func (b Block) CommitText(edit string) string {
-	if b.HasTerminator() {
-		return edit + "\n"
-	}
-	return edit
+	return edit + b.Terminator()
 }
 
 // Parse returns the document's top-level blocks in source order.
@@ -63,21 +78,32 @@ func (b Block) CommitText(edit string) string {
 // twice; nested paragraphs, items, rows and cells stay part of their
 // container's source.
 func Parse(src string) []Block {
-	doc := markdown.Parse(src)
+	fmEnd := FrontMatterEnd(src)
+	body := src[fmEnd:]
+	doc := markdown.Parse(body)
 	raw := doc.Blocks()
-	out := make([]Block, 0, len(raw))
+	out := make([]Block, 0, len(raw)+1)
+	if fmEnd > 0 {
+		out = append(out, Block{
+			Kind:        markdown.HTMLBlock,
+			Start:       0,
+			End:         fmEnd,
+			Source:      src[:fmEnd],
+			FrontMatter: true,
+		})
+	}
 	var containers []Block
 	for _, b := range raw {
-		start, end := expandRange(src, b.Start, b.End)
+		start, end := expandRange(body, b.Start, b.End)
 		if b.Kind == markdown.Table {
 			// A table converted from a paragraph may inherit the paragraph's
 			// start. Find its header and delimiter within the reported range.
 			for pos := start; pos < end; {
-				next := LineEnd(src, pos)
+				next := LineEnd(body, pos)
 				if next >= end {
 					break
 				}
-				if _, err := doctable.Parse(src[pos:LineEnd(src, next)]); err == nil {
+				if _, err := doctable.Parse(body[pos:LineEnd(body, next)]); err == nil {
 					start = pos
 					break
 				}
@@ -85,21 +111,25 @@ func Parse(src string) []Block {
 			}
 		}
 		if b.Kind == markdown.CodeBlock {
-			end = fencedCodeEnd(src, start, end)
+			end = fencedCodeEnd(body, start, end)
 		}
 		if b.Kind == markdown.Heading {
-			end = setextHeadingEnd(src, start, end)
+			end = setextHeadingEnd(body, start, end)
 		}
-		for len(containers) > 0 && start >= containers[len(containers)-1].End {
+		if b.Kind == markdown.Quote {
+			end = quoteBlockEnd(body, end)
+		}
+		absStart, absEnd := fmEnd+start, fmEnd+end
+		for len(containers) > 0 && absStart >= containers[len(containers)-1].End {
 			containers = containers[:len(containers)-1]
 		}
 		if len(containers) > 0 {
 			top := containers[len(containers)-1]
-			if start >= top.Start && end <= top.End {
+			if absStart >= top.Start && absEnd <= top.End {
 				continue
 			}
 		}
-		blk := Block{Kind: b.Kind, Level: b.Level, Start: start, End: end, Source: src[start:end]}
+		blk := Block{Kind: b.Kind, Level: b.Level, Start: absStart, End: absEnd, Source: src[absStart:absEnd]}
 		out = append(out, blk)
 		if isContainer(b.Kind) {
 			containers = append(containers, blk)
@@ -109,6 +139,61 @@ func Parse(src string) []Block {
 	// the canvas draws.
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Start < out[j].Start })
 	return out
+}
+
+var yamlKeyLineRe = regexp.MustCompile(`^[^:\s#][^:\r\n]*:(?:[ \t]|$)`)
+
+// FrontMatterEnd returns the end offset (just past the closing fence line)
+// of a leading YAML front matter block, or 0 when the document has none.
+//
+// The block must open at byte 0 (after an optional UTF-8 BOM) with "---",
+// must not start with a blank line, must close with "---" or "...", and its
+// interior lines must look like YAML metadata (empty front matter or at least
+// one top-level "key:" entry, with no unindented prose paragraphs), so a
+// document that merely starts with a thematic break "---" is never mistaken
+// for metadata.
+func FrontMatterEnd(src string) int {
+	first := LineEnd(src, 0)
+	opener := strings.TrimPrefix(src[:first], "\uFEFF")
+	if !strings.HasSuffix(opener, "\n") {
+		return 0
+	}
+	if strings.TrimRight(opener, " \t\r\n") != "---" {
+		return 0
+	}
+	if first >= len(src) {
+		return 0
+	}
+	secondEnd := LineEnd(src, first)
+	if strings.TrimSpace(src[first:secondEnd]) == "" {
+		return 0
+	}
+	hasKey := false
+	lineCount := 0
+	for pos := first; pos < len(src); {
+		next := LineEnd(src, pos)
+		rawLine := strings.TrimRight(src[pos:next], "\r\n")
+		trimmedRight := strings.TrimRight(rawLine, " \t")
+		if trimmedRight == "---" || trimmedRight == "..." {
+			if lineCount == 0 || hasKey {
+				return next
+			}
+			return 0
+		}
+		lineCount++
+		switch {
+		case strings.TrimSpace(rawLine) == "":
+		case strings.HasPrefix(strings.TrimLeft(rawLine, " \t"), "#"):
+		case rawLine[0] == ' ' || rawLine[0] == '\t':
+		case strings.HasPrefix(rawLine, "- ") || strings.HasPrefix(rawLine, "-\t") || trimmedRight == "-":
+		case yamlKeyLineRe.MatchString(rawLine):
+			hasKey = true
+		default:
+			return 0
+		}
+		pos = next
+	}
+	return 0
 }
 
 // isContainer reports whether kind owns the blocks that follow it in the
@@ -166,6 +251,25 @@ func fencedCodeEnd(src string, start, end int) int {
 		pos = next
 	}
 	return max(end, len(src))
+}
+
+// quoteBlockEnd extends a block quote's range over any trailing '>' lines
+// (such as a setext underline "> ---", a closing fence "> ```", or a trailing
+// blank ">") that Goldmark's inline-anchored span stops before.
+func quoteBlockEnd(src string, end int) int {
+	for end < len(src) {
+		next := LineEnd(src, end)
+		raw := src[end:next]
+		sp := 0
+		for sp < len(raw) && raw[sp] == ' ' && sp < 4 {
+			sp++
+		}
+		if sp > 3 || sp >= len(raw) || raw[sp] != '>' {
+			break
+		}
+		end = next
+	}
+	return end
 }
 
 // setextHeadingEnd extends a setext heading's range over its underline. The

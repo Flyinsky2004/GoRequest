@@ -57,13 +57,33 @@ func (a *App) docInsertLink(tab *Tab, st *docViewState) {
 }
 
 // docInsertTemplate routes the Insert menu's code/table templates to the
-// active block.
+// active block. When the active block projects away heading, quote or list
+// markers, a block-level template opens a new block directly after it instead
+// of embedding fences or table pipes inside the projected prefix.
 func (a *App) docInsertTemplate(tab *Tab, st *docViewState, before, after string) {
 	if st == nil || st.live == nil || st.live.block == nil {
 		insertDocTemplate(tab, before, after)
 		return
 	}
 	be := st.live.block
+	if be.proj.Active() {
+		a.commitDocBlock(tab, st)
+		be = st.live.block
+		if be == nil {
+			insertDocTemplate(tab, before, after)
+			return
+		}
+		sep := "\n"
+		if be.terminator == "" {
+			sep = "\n\n"
+		}
+		lead := strings.TrimPrefix(before, "\n")
+		text := sep + lead + after
+		insertAt := be.end
+		tab.DocEditor.Buffer.Edit(editor.Edit{Start: insertAt, End: insertAt, Text: text})
+		a.relocateDocBlock(tab, st, insertAt+len(sep)+len(lead))
+		return
+	}
 	cur := be.ed.Cursor()
 	be.ed.Select(cur, cur)
 	be.ed.Insert(before + after)

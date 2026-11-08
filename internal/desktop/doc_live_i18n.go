@@ -16,6 +16,7 @@ type docLiveMessages struct {
 	NoMatches   string
 	NoRequests  string
 	SourceBlock string
+	FrontMatter string
 	DerivedCard string
 	RequestHint string
 	InvalidIDs  string
@@ -31,6 +32,7 @@ func docLiveMessagesFor(l language) *docLiveMessages {
 			NoMatches:   "No matching blocks",
 			NoRequests:  "No requests in this project",
 			SourceBlock: "Source block",
+			FrontMatter: "YAML front matter",
 			DerivedCard: "Request card (read-only; edit the directive)",
 			RequestHint: "Choose a request to reference",
 			InvalidIDs:  "Some requests have IDs that documents cannot reference",
@@ -44,6 +46,7 @@ func docLiveMessagesFor(l language) *docLiveMessages {
 		NoMatches:   "没有匹配的块",
 		NoRequests:  "当前项目没有接口",
 		SourceBlock: "源码块",
+		FrontMatter: "YAML 元数据",
 		DerivedCard: "接口卡片（只读，编辑原始指令）",
 		RequestHint: "选择要引用的接口",
 		InvalidIDs:  "部分接口 ID 无法被文档引用",

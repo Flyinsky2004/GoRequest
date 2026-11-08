@@ -24,7 +24,7 @@ func (a *App) docSlashMenu(c *ui.Context, t *ui.Theme, tab *Tab, st *docViewStat
 		return
 	}
 	p := uikit.PaletteFor(t)
-	menu := ui.Column(c).Key("doc-slash-menu").FillWidth().MaxHeight(300).Padding(4).Gap(1).Radius(8).
+	menu := ui.Column(c).Key("doc-slash-menu").FillWidth().MaxHeight(340).Padding(4).Gap(1).Radius(8).
 		Background(p.Sidebar).Border(1, p.Hairline).Shadow(0, 4, 14, 0, p.CardShade).
 		KeepFocus().Transition(uikit.DropdownInlineTransition)
 	menu.Label(dm.SlashMenu)
@@ -36,7 +36,7 @@ func (a *App) docSlashMenu(c *ui.Context, t *ui.Theme, tab *Tab, st *docViewStat
 			}
 			ui.Text(c, title).FontSize(11).TextColor(p.Muted).SingleLine()
 		})
-		ui.Scroll(c).MaxHeight(260).FillWidth().Children(func() {
+		ui.Scroll(c).MaxHeight(304).FillWidth().Children(func() {
 			if lv.slashMode == 1 {
 				a.docSlashRequestRows(c, p, tab, st, dm)
 				return
@@ -47,14 +47,22 @@ func (a *App) docSlashMenu(c *ui.Context, t *ui.Theme, tab *Tab, st *docViewStat
 			}
 			for i, cmd := range lv.slashItems {
 				i, cmd := i, cmd
-				row := ui.Row(c).FillWidth().Height(30).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(4)
-				if i == lv.slashIndex {
+				selected := i == lv.slashIndex
+				row := ui.Row(c).FillWidth().Height(42).Padding(0, 8).Gap(10).AlignItems(ui.Center).Radius(6)
+				if selected {
 					row.Background(p.Press)
 				} else if row.Hovered() {
 					row.Background(p.Hover)
 				}
 				row.Children(func() {
-					ui.Text(c, a.docSlashLabel(cmd)).FontSize(13).TextColor(p.Text).SingleLine()
+					docSlashIconTile(c, p, docSlashIcon(cmd), selected)
+					ui.Column(c).Grow(1).Gap(1).Children(func() {
+						ui.Text(c, a.docSlashLabel(cmd)).FontSize(13).FontWeight(500).TextColor(p.Text).SingleLine()
+						ui.Text(c, a.docSlashDescription(cmd)).FontSize(11).TextColor(p.Muted).SingleLine()
+					})
+					if cmd.Kind == docedit.SlashRequest {
+						ui.Icon(c, docSlashIconChevron).FontSize(14).TextColor(p.Muted)
+					}
 				})
 				row.Label(a.docSlashLabel(cmd))
 				if row.Clicked() {
@@ -203,7 +211,7 @@ func (a *App) docSlashChoose(tab *Tab, st *docViewState) {
 		entry := lv.slashRequest[lv.slashIndex]
 		label := "@" + docRequestDisplayPath(entry)
 		text := docgen.FormatRefLink(entry.Request.ID, label)
-		a.applyDocSlashText(tab, st, text, len(text), len(text))
+		a.applyDocSlashText(tab, st, text, len(text), len(text), true)
 		return
 	}
 	if len(lv.slashItems) == 0 {
@@ -217,34 +225,73 @@ func (a *App) docSlashChoose(tab *Tab, st *docViewState) {
 		return
 	}
 	res := docedit.ApplySlash(cmd, docedit.SlashRest(lv.slashQuery, cmd))
-	a.applyDocSlashText(tab, st, res.Text, res.SelStart, res.SelEnd)
+	a.applyDocSlashText(tab, st, res.Text, res.SelStart, res.SelEnd, docSlashKeepsBlockPrefix(cmd.Kind))
+}
+
+func docSlashKeepsBlockPrefix(kind string) bool {
+	switch kind {
+	case docedit.SlashLink, docedit.SlashImage, docedit.SlashRequest:
+		return true
+	}
+	return false
 }
 
 // applyDocSlashText replaces the logical line holding the caret with text in
 // one canonical transaction, then keeps editing the block that now holds the
-// caret. The rest of the block stays byte-identical, so a slash command on a
-// new line of a paragraph does not rewrite the lines around it.
-func (a *App) applyDocSlashText(tab *Tab, st *docViewState, text string, selStart, selEnd int) {
+// caret. Block conversions replace any projected block prefix ("## ", "> ",
+// "- "); inline commands (links, images, request references) keep the block's
+// prefix so inserting a link inside a heading or list never drops its marker.
+func (a *App) applyDocSlashText(tab *Tab, st *docViewState, text string, selStart, selEnd int, keepBlockPrefix bool) {
 	lv := st.live
 	be := lv.block
 	if be == nil {
 		return
 	}
-	local := be.ed.Buffer.String()
-	caret := be.ed.Cursor()
-	lineStart := docedit.LineStart(local, caret)
-	lineEnd := docedit.LineEnd(local, caret)
-	if lineEnd > lineStart && local[lineEnd-1] == '\n' {
-		lineEnd--
-		if lineEnd > lineStart && local[lineEnd-1] == '\r' {
-			lineEnd--
+	localText := be.ed.Buffer.String()
+	var newText string
+	var canonSelStart, canonSelEnd int
+
+	if keepBlockPrefix {
+		projCaret := be.ed.Cursor()
+		pStart := docedit.LineStart(localText, projCaret)
+		pEnd := docedit.LineEnd(localText, projCaret)
+		if pEnd > pStart && localText[pEnd-1] == '\n' {
+			pEnd--
+			if pEnd > pStart && localText[pEnd-1] == '\r' {
+				pEnd--
+			}
 		}
+		if slash := strings.IndexByte(localText[pStart:pEnd], '/'); slash > 0 {
+			pStart += slash
+		}
+		editedProj := localText[:pStart] + text + localText[pEnd:]
+		newText = be.proj.Commit(editedProj)
+		canonSelStart = be.start + be.proj.SourceOffset(editedProj, pStart+selStart)
+		canonSelEnd = be.start + be.proj.SourceOffset(editedProj, pStart+selEnd)
+	} else if be.proj.Active() && !strings.Contains(localText, "\n") {
+		newText = text
+		canonSelStart = be.start + selStart
+		canonSelEnd = be.start + selEnd
+	} else {
+		local := be.proj.Commit(localText)
+		caret := be.proj.SourceOffset(localText, be.ed.Cursor())
+		lineStart := docedit.LineStart(local, caret)
+		lineEnd := docedit.LineEnd(local, caret)
+		if lineEnd > lineStart && local[lineEnd-1] == '\n' {
+			lineEnd--
+			if lineEnd > lineStart && local[lineEnd-1] == '\r' {
+				lineEnd--
+			}
+		}
+		newText = local[:lineStart] + text + local[lineEnd:]
+		canonSelStart = be.start + lineStart + selStart
+		canonSelEnd = be.start + lineStart + selEnd
 	}
-	newText := local[:lineStart] + text + local[lineEnd:]
-	if !be.synthetic && be.terminator {
-		newText += "\n"
+
+	if !be.synthetic && be.terminator != "" {
+		newText += be.terminator
 	}
-	if be.end == tab.DocEditor.Buffer.Len() && !be.terminator && newText != "" && !strings.HasSuffix(newText, "\n") {
+	if be.end == tab.DocEditor.Buffer.Len() && be.terminator == "" && newText != "" && !strings.HasSuffix(newText, "\n") {
 		// A block created at the end of the file keeps the usual final
 		// newline.
 		newText += "\n"
@@ -255,16 +302,8 @@ func (a *App) applyDocSlashText(tab *Tab, st *docViewState, text string, selStar
 	lv.slashIndex = 0
 	lv.slashDismissed = ""
 	lv.slashDismissedSet = false
-	// The selection is in the applied text, which begins at lineStart of the
-	// block.
-	base := be.start + lineStart
-	a.relocateDocBlock(tab, st, base+selStart)
+	a.relocateDocBlockSelection(tab, st, canonSelStart, canonSelEnd)
 	if b := lv.block; b != nil {
-		s := base + selStart - b.start
-		e := base + selEnd - b.start
-		s = max(0, min(s, len(b.base)))
-		e = max(s, min(e, len(b.base)))
-		b.ed.Select(s, e)
 		b.focusPending = true
 	}
 }

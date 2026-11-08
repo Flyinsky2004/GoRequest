@@ -189,7 +189,7 @@ func (a *App) openDocSearchMatch(root ui.Element, tab *Tab, match core.DocMatch)
 	target.DocEditor.ScrollTo(line - 1)
 
 	anchor := ""
-	if h, ok := core.HeadingAtLine(core.ExtractHeadings(target.DocEditor.Buffer.String()), line); ok {
+	if h, ok := core.HeadingAtLine(extractDocHeadings(target.DocEditor.Buffer.String()), line); ok {
 		anchor = h.Slug
 	}
 	st := docStateFor(root, target)

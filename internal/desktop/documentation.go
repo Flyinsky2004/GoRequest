@@ -11,6 +11,7 @@ import (
 
 	"gorequest/internal/core"
 	"gorequest/internal/desktop/uikit"
+	"gorequest/internal/docedit"
 	"gorequest/internal/docgen"
 )
 
@@ -271,7 +272,7 @@ func (a *App) docWorkspaceView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	})
 	if st.digest != digest {
 		st.digest = digest
-		st.headings = core.ExtractHeadings(src)
+		st.headings = extractDocHeadings(src)
 		// Link diagnostics are local file stats and parsing only. Keep them
 		// current for ordinary documents; very large documents are checked
 		// on demand from the Problems button.
@@ -679,6 +680,24 @@ func (a *App) docMarkdownOptions(c *ui.Context, root ui.Element, tab *Tab, st *d
 	o.Anchor = st.anchor
 	o.AnchorVersion = st.anchorVersion
 	return o
+}
+
+// extractDocHeadings returns the document's headings while ignoring any YAML
+// front matter fence that the underlying CommonMark parser reads as a setext
+// underline.
+func extractDocHeadings(src string) []core.Heading {
+	all := core.ExtractHeadings(src)
+	fmEnd := docedit.FrontMatterEnd(src)
+	if fmEnd == 0 {
+		return all
+	}
+	out := make([]core.Heading, 0, len(all))
+	for _, h := range all {
+		if h.Offset >= fmEnd {
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 // Padding belongs to the scroll content so all four edges remain available,
