@@ -66,7 +66,15 @@ func (s *workspacePrefsStore) markdownSettingsGroup(c *ui.Context, p uikit.Palet
 			choice(m.Font, current.FontPercent, []int{75, 90, 100, 110, 125, 150, 175, 200}, "%", func(v int) { current.FontPercent = v; save(current) })
 			choice(m.Padding, current.Padding, []int{8, 12, 16, 24, 32, 48, 64}, "", func(v int) { current.Padding = v; save(current) })
 			choice(m.Line, current.LinePercent, []int{120, 140, 150, 160, 180, 200, 220}, "%", func(v int) { current.LinePercent = v; save(current) })
-			if ui.Button(c, m.Reset).Cursor(ui.CursorPointer).Clicked() {
+			reset := ui.Button(c, "").Cursor(ui.CursorPointer)
+			reset.Label(m.Reset)
+			reset.Children(func() {
+				if settingsIconReset != nil {
+					ui.Icon(c, settingsIconReset).FontSize(13).TextColor(p.Text).Shrink(0)
+				}
+				ui.Text(c, m.Reset).TextColor(p.Text).SingleLine()
+			})
+			if reset.Clicked() {
 				save(defaultMarkdownPreferences())
 			}
 			ui.Text(c, m.Note).FontSize(11).TextColor(p.Faint)

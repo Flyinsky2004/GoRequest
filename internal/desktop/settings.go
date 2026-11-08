@@ -77,8 +77,9 @@ const (
 	settingsTargetPanelFraction = 0.55
 	settingsMaxSheetWidth       = 640
 	settingsMinSheetWidth       = 200
-	settingsRailMinWidth        = 104
-	settingsRailMaxWidth        = 168
+	settingsRailMinWidth        = 120
+	settingsRailMaxWidth        = 180
+	settingsRailWidthFraction   = 0.34
 )
 
 // settingsGeometry is the sheet's size for one window. It is a pure function
@@ -98,7 +99,7 @@ func settingsGeometryFor(winW, winH float32) settingsGeometry {
 	if width < settingsMinSheetWidth {
 		width = settingsMinSheetWidth
 	}
-	leftW := width * 0.30
+	leftW := width * settingsRailWidthFraction
 	if leftW < settingsRailMinWidth {
 		leftW = settingsRailMinWidth
 	}
@@ -156,7 +157,15 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 		})
 
 		ui.Row(c).Gap(8).Justify(ui.End).Shrink(0).Children(func() {
-			if uikit.ActionCursor(ui.PrimaryButton(c, m.Done)).Clicked() {
+			done := uikit.ActionCursor(ui.PrimaryButton(c, ""))
+			done.Label(m.Done)
+			done.Children(func() {
+				if settingsIconDone != nil {
+					ui.Icon(c, settingsIconDone).FontSize(14).TextColor(p.OnAccent).Shrink(0)
+				}
+				ui.Text(c, m.Done).TextColor(p.OnAccent).SingleLine()
+			})
+			if done.Clicked() {
 				*open = false
 			}
 		})
@@ -166,7 +175,9 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 // settingsCategoryRail draws the left category list inside a scrollable card.
 // The card keeps its FIX05 look; only its list scrolls, so a long category
 // list (or a short window / larger text) keeps every category reachable
-// instead of clipping the ones past the bottom.
+// instead of clipping the ones past the bottom. Each row is a focusable
+// ButtonBase, so Tab reaches the categories and Enter/Space chooses one; its
+// icon and label share the selected, hover and pressed colors.
 func settingsCategoryRail(c *ui.Context, p uikit.Palette, titles []string, selected *int, width float32) {
 	rail := ui.Column(c).Width(width).FillHeight().Radius(10).Background(p.Sidebar).
 		BorderWidth(1).BorderColor(p.Hairline).Padding(6).Clip()
@@ -175,20 +186,30 @@ func settingsCategoryRail(c *ui.Context, p uikit.Palette, titles []string, selec
 			ui.Column(c).Gap(2).FillWidth().Children(func() {
 				for i, title := range titles {
 					i := i
-					row := uikit.ActionCursor(ui.Row(c).FillWidth().Height(30).Radius(7).
-						AlignItems(ui.Center).Padding(0, 10))
+					row := uikit.ActionCursor(ui.ButtonBase(c).FillWidth().Height(30).Radius(7).
+						AlignItems(ui.Center).Padding(0, 8).Gap(7))
+					row.Label(title)
 					bg := ui.Transparent
 					textColor := p.Text
+					iconColor := p.Muted
 					switch {
 					case i == *selected:
 						bg = p.Accent
 						textColor = p.OnAccent
+						iconColor = p.OnAccent
+					case row.Pressed():
+						bg = p.Press
+						iconColor = p.Text
 					case row.Hovered():
 						bg = p.Hover
+						iconColor = p.Text
 					}
 					row.Background(bg)
 					row.Children(func() {
-						ui.Text(c, title).FontSize(13).TextColor(textColor).SingleLine()
+						if ic := settingsCategoryIcon(settingsCategory(i)); ic != nil {
+							ui.Icon(c, ic).FontSize(14).TextColor(iconColor).Shrink(0)
+						}
+						ui.Text(c, title).FontSize(13).TextColor(textColor).SingleLine().Grow(1)
 					})
 					if row.Clicked() {
 						*selected = i
