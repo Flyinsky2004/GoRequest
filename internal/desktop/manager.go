@@ -476,6 +476,7 @@ func (m *Manager) anyDirty() bool {
 // resolved it calls itself again for the next. When nothing is dirty, it marks
 // the quit in progress and asks the app to quit for real.
 func (m *Manager) promptQuitGuard() {
+	m.flushAllDocEdits()
 	if m.handoff != nil && !m.pendingQuit {
 		// A previous update guard was canceled via cancelCloseGuard; drop the
 		// stale handoff so a subsequent normal quit never launches the installer.

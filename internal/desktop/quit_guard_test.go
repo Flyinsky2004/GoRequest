@@ -442,3 +442,74 @@ func TestReviewHandoffDiscardThenLaunchFailureKeepsDirty(t *testing.T) {
 		t.Fatal(r.order())
 	}
 }
+
+func TestHandoffFlushesPendingVisualDocEditBeforeDirtyCheck(t *testing.T) {
+	r := newHandoffRig(t)
+	if err := r.m.openProject(writeProject(t, "DocProj")); err != nil {
+		t.Fatal(err)
+	}
+	app := r.m.workspaces[0]
+	if _, err := app.ps.newDoc(); err != nil {
+		t.Fatal(err)
+	}
+	docTab := app.ps.activeTab()
+	docTab.Dirty = false
+	flushed := false
+	docTab.flushDocEdit = func() {
+		if !flushed {
+			flushed = true
+			docTab.DocEditor.Buffer.Set("# Visual block edit\n")
+			docTab.Dirty = true
+		}
+	}
+
+	r.run()
+	if !flushed {
+		t.Fatal("beginHandoff did not flush pending visual doc edit")
+	}
+	if r.order() != "" {
+		t.Fatalf("installer opened over unflushed visual doc edit: %q", r.order())
+	}
+	if app.closeGuard == nil || !app.closeGuard.active {
+		t.Fatal("expected close guard after flushing visual doc edit")
+	}
+	app.resolveCloseGuard(false)
+	if r.order() != "open,quit" {
+		t.Fatalf("order = %q, want open,quit", r.order())
+	}
+}
+
+func TestHandoffStructuredBodyAndInvalidDraftEditsAreRechecked(t *testing.T) {
+	r := newHandoffRig(t)
+	apps := r.openDirty(t, 2)
+	tab0 := apps[0].ps.activeTab()
+	ensureBodyState(tab0, apps[0])
+	tab0.bodyState.modeIdx = uiBodyModeIndex("urlencoded")
+	tab0.bodyState.formRows = []*formBodyRow{
+		{ID: "f1", Enabled: true, Name: "a|b", Value: "c"},
+	}
+
+	r.run()
+	apps[0].resolveCloseGuard(true) // approve window 1 with current structured body
+	if !apps[1].closeGuard.active {
+		t.Fatal("window 2 should prompt")
+	}
+
+	// Edit structured form row with delimiter-heavy values so naive string
+	// concatenation would collide, plus an unsaveable raw timeout draft.
+	tab0.bodyState.formRows[0].Name = "a"
+	tab0.bodyState.formRows[0].Value = "b|c"
+	tab0.Timeout = "not-a-duration"
+
+	apps[1].resolveCloseGuard(true)
+	if r.order() != "" {
+		t.Fatalf("structured body / invalid draft edit slipped past recheck: %q", r.order())
+	}
+	if !apps[0].closeGuard.active {
+		t.Fatal("window 1 should re-prompt after structured body edit")
+	}
+	apps[0].resolveCloseGuard(true)
+	if r.order() != "open,quit" {
+		t.Fatalf("order = %q, want open,quit", r.order())
+	}
+}

@@ -2,7 +2,7 @@ package desktop
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -57,20 +57,198 @@ type preGuardTab struct {
 	reqPtr   *core.Request
 }
 
+type kvRowSnap struct {
+	ID      string `json:"id"`
+	Enabled bool   `json:"enabled"`
+	Name    string `json:"name"`
+	Value   string `json:"value"`
+}
+
+type formRowSnap struct {
+	ID      string `json:"id"`
+	Enabled bool   `json:"enabled"`
+	Name    string `json:"name"`
+	Value   string `json:"value"`
+	Encoded bool   `json:"encoded"`
+}
+
+type multipartRowSnap struct {
+	ID             string `json:"id"`
+	Enabled        bool   `json:"enabled"`
+	Name           string `json:"name"`
+	PartSource     int    `json:"partSource"`
+	Value          string `json:"value"`
+	ProjectFile    string `json:"projectFile"`
+	LocalSlot      string `json:"localSlot"`
+	LocalPathDraft string `json:"localPathDraft"`
+	FileName       string `json:"fileName"`
+	ContentType    string `json:"contentType"`
+}
+
+type bodyStateSnap struct {
+	Unsupported    bool               `json:"unsupported"`
+	RawType        string             `json:"rawType"`
+	ModeIdx        int                `json:"modeIdx"`
+	TextSource     int                `json:"textSource"`
+	InlineJSON     string             `json:"inlineJSON"`
+	InlineXML      string             `json:"inlineXML"`
+	InlineText     string             `json:"inlineText"`
+	ProjectFile    string             `json:"projectFile"`
+	LocalSlot      string             `json:"localSlot"`
+	LocalPathDraft string             `json:"localPathDraft"`
+	BinSource      int                `json:"binSource"`
+	BinProjectFile string             `json:"binProjectFile"`
+	BinLocalSlot   string             `json:"binLocalSlot"`
+	BinLocalPath   string             `json:"binLocalPath"`
+	BinContentType string             `json:"binContentType"`
+	FormRows       []formRowSnap      `json:"formRows,omitempty"`
+	FormViewMode   int                `json:"formViewMode"`
+	FormRawText    string             `json:"formRawText"`
+	FormErr        string             `json:"formErr"`
+	MultipartRows  []multipartRowSnap `json:"multipartRows,omitempty"`
+	MultipartErr   string             `json:"multipartErr"`
+}
+
+type wsDraftSnap struct {
+	SubprotoDraft    string `json:"subprotoDraft"`
+	Compress         bool   `json:"compress"`
+	SendModeIdx      int    `json:"sendModeIdx"`
+	TextDraft        string `json:"textDraft"`
+	BinaryDraft      string `json:"binaryDraft"`
+	CloseCodeDraft   string `json:"closeCodeDraft"`
+	CloseReasonDraft string `json:"closeReasonDraft"`
+	SendEditor       string `json:"sendEditor,omitempty"`
+}
+
+type tabDraftSnapshot struct {
+	Kind            string         `json:"kind"`
+	Title           string         `json:"title"`
+	Baseline        string         `json:"baseline"`
+	Method          string         `json:"method"`
+	URL             string         `json:"url"`
+	QueryRows       []kvRowSnap    `json:"queryRows,omitempty"`
+	HeaderRows      []kvRowSnap    `json:"headerRows,omitempty"`
+	QueryText       bool           `json:"queryText"`
+	QueryRawEncoded bool           `json:"queryRawEncoded"`
+	QueryRaw        string         `json:"queryRaw"`
+	HeaderText      bool           `json:"headerText"`
+	HeaderRaw       string         `json:"headerRaw"`
+	KVErr           string         `json:"kvErr"`
+	BodyIdx         int            `json:"bodyIdx"`
+	BodyText        string         `json:"bodyText"`
+	BodyEditor      string         `json:"bodyEditor,omitempty"`
+	BodyState       *bodyStateSnap `json:"bodyState,omitempty"`
+	AuthMode        string         `json:"authMode"`
+	AuthIdx         int            `json:"authIdx"`
+	AuthRefID       string         `json:"authRefId"`
+	AuthToken       string         `json:"authToken"`
+	AuthUser        string         `json:"authUser"`
+	AuthPass        string         `json:"authPass"`
+	AuthKeyName     string         `json:"authKeyName"`
+	AuthKeyIn       string         `json:"authKeyIn"`
+	AuthKeyInIdx    int            `json:"authKeyInIdx"`
+	AuthKeyValue    string         `json:"authKeyValue"`
+	AuthInlineVer   int            `json:"authInlineVer"`
+	AuthInlineID    string         `json:"authInlineId"`
+	AuthKeyInOmit   bool           `json:"authKeyInOmit"`
+	AuthPassthrough *core.AuthRef  `json:"authPassthrough,omitempty"`
+	Timeout         string         `json:"timeout"`
+	DocRel          string         `json:"docRel"`
+	DocBuffer       string         `json:"docBuffer,omitempty"`
+	WS              *wsDraftSnap   `json:"ws,omitempty"`
+	SavedReq        *core.Request  `json:"savedReq,omitempty"`
+	SaveErr         string         `json:"saveErr,omitempty"`
+	FallbackReq     *core.Request  `json:"fallbackReq,omitempty"`
+}
+
+type envVarRowSnap struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type envSecretRowSnap struct {
+	Name string `json:"name"`
+}
+
+type envDraftSnapshot struct {
+	Open       bool               `json:"open"`
+	Mode       string             `json:"mode"`
+	Baseline   string             `json:"baseline"`
+	RelPath    string             `json:"relPath"`
+	EnvID      string             `json:"envId"`
+	IDText     string             `json:"idText"`
+	IDLocked   bool               `json:"idLocked"`
+	VarRows    []envVarRowSnap    `json:"varRows,omitempty"`
+	SecretRows []envSecretRowSnap `json:"secretRows,omitempty"`
+	Signature  string             `json:"signature"`
+}
+
+// flushAllDocEdits commits any pending visual-markdown block edits across all
+// open project windows so Dirty flags and DocEditor buffers are up to date
+// before checking for unsaved work or computing content fingerprints.
+func (m *Manager) flushAllDocEdits() {
+	if m == nil {
+		return
+	}
+	for _, app := range m.workspaces {
+		flushAppDocEdits(app)
+	}
+}
+
+func flushAppDocEdits(app *App) {
+	if app == nil || app.closed || app.ps == nil {
+		return
+	}
+	for _, tab := range app.ps.tabs {
+		if tab != nil && tab.flushDocEdit != nil {
+			tab.flushDocEdit()
+		}
+	}
+}
+
 func captureDirtyFingerprint(app *App) windowDirtyFingerprint {
 	fp := windowDirtyFingerprint{tabs: make(map[*Tab]string)}
 	if app == nil || app.ps == nil {
 		return fp
 	}
+	flushAppDocEdits(app)
 	for _, tab := range app.ps.tabs {
 		if tab != nil && tab.Dirty {
 			fp.tabs[tab] = tabDraftFingerprint(app.ps, tab)
 		}
 	}
 	if e := app.ps.envUI; e != nil && e.open && e.dirty() {
-		fp.envSig = "open:" + e.signature()
+		fp.envSig = envDraftFingerprint(e)
 	}
 	return fp
+}
+
+func envDraftFingerprint(e *environmentEditor) string {
+	if e == nil {
+		return ""
+	}
+	snap := envDraftSnapshot{
+		Open:      e.open,
+		Mode:      e.mode,
+		Baseline:  e.baseline,
+		RelPath:   e.relPath,
+		EnvID:     e.envID,
+		IDText:    e.idText,
+		IDLocked:  e.idLocked,
+		Signature: e.signature(),
+	}
+	for _, r := range e.varRows {
+		if r != nil {
+			snap.VarRows = append(snap.VarRows, envVarRowSnap{Key: r.Key, Value: r.Value})
+		}
+	}
+	for _, r := range e.secretRows {
+		if r != nil {
+			snap.SecretRows = append(snap.SecretRows, envSecretRowSnap{Name: r.Name})
+		}
+	}
+	data, _ := json.Marshal(snap)
+	return string(data)
 }
 
 func tabDraftFingerprint(ps *projectState, tab *Tab) string {
@@ -80,40 +258,147 @@ func tabDraftFingerprint(ps *projectState, tab *Tab) string {
 	if tab.flushDocEdit != nil {
 		tab.flushDocEdit()
 	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s|%s|%s|%s|%s|%d|%s|%t|%t|%s|%t|%s|%s|%d|%s|%s|%s|%s|%s|%s|%d|%s|%s|",
-		tab.Kind, tab.Title, tab.Baseline, tab.Method, tab.URL,
-		tab.BodyIdx, tab.BodyText,
-		tab.queryText, tab.queryRawEncoded, tab.queryRaw,
-		tab.headerText, tab.headerRaw,
-		tab.AuthMode, tab.AuthIdx, tab.AuthRefID, tab.AuthToken,
-		tab.AuthUser, tab.AuthPass, tab.AuthKeyName, tab.AuthKeyIn,
-		tab.AuthKeyInIdx, tab.AuthKeyValue, tab.Timeout,
-	)
+	var savedReq *core.Request
+	var saveErr string
+	var fallbackReq *core.Request
+	if tab.Kind == "request" && tab.Entry != nil && tab.Entry.Request != nil {
+		if req, err := requestForSaveFromTab(ps, tab); err == nil && req != nil {
+			savedReq = req
+		} else {
+			if err != nil {
+				saveErr = err.Error()
+			}
+			fallbackReq = bestEffortRequestFromTab(tab)
+		}
+	}
+	snap := tabDraftSnapshot{
+		Kind:            tab.Kind,
+		Title:           tab.Title,
+		Baseline:        tab.Baseline,
+		Method:          tab.Method,
+		URL:             tab.URL,
+		QueryText:       tab.queryText,
+		QueryRawEncoded: tab.queryRawEncoded,
+		QueryRaw:        tab.queryRaw,
+		HeaderText:      tab.headerText,
+		HeaderRaw:       tab.headerRaw,
+		KVErr:           tab.kvErr,
+		BodyIdx:         tab.BodyIdx,
+		BodyText:        tab.BodyText,
+		AuthMode:        tab.AuthMode,
+		AuthIdx:         tab.AuthIdx,
+		AuthRefID:       tab.AuthRefID,
+		AuthToken:       tab.AuthToken,
+		AuthUser:        tab.AuthUser,
+		AuthPass:        tab.AuthPass,
+		AuthKeyName:     tab.AuthKeyName,
+		AuthKeyIn:       tab.AuthKeyIn,
+		AuthKeyInIdx:    tab.AuthKeyInIdx,
+		AuthKeyValue:    tab.AuthKeyValue,
+		AuthInlineVer:   tab.authInlineVer,
+		AuthInlineID:    tab.authInlineID,
+		AuthKeyInOmit:   tab.authKeyInOmitted,
+		AuthPassthrough: core.CloneAuthRef(tab.authPassthrough),
+		Timeout:         tab.Timeout,
+		DocRel:          tab.DocRel,
+		SavedReq:        savedReq,
+		SaveErr:         saveErr,
+		FallbackReq:     fallbackReq,
+	}
 	for _, r := range tab.QueryRows {
 		if r != nil {
-			fmt.Fprintf(&b, "q:%t:%s=%s;", r.Enabled, r.Name, r.Value)
+			snap.QueryRows = append(snap.QueryRows, kvRowSnap{
+				ID:      r.ID,
+				Enabled: r.Enabled,
+				Name:    r.Name,
+				Value:   r.Value,
+			})
 		}
 	}
 	for _, r := range tab.HeaderRows {
 		if r != nil {
-			fmt.Fprintf(&b, "h:%t:%s=%s;", r.Enabled, r.Name, r.Value)
+			snap.HeaderRows = append(snap.HeaderRows, kvRowSnap{
+				ID:      r.ID,
+				Enabled: r.Enabled,
+				Name:    r.Name,
+				Value:   r.Value,
+			})
 		}
 	}
 	if tab.bodyEditor != nil && tab.bodyEditor.Buffer != nil {
-		b.WriteString("|be:")
-		b.WriteString(tab.bodyEditor.Buffer.String())
+		snap.BodyEditor = tab.bodyEditor.Buffer.String()
+	}
+	if bs := tab.bodyState; bs != nil {
+		bsSnap := &bodyStateSnap{
+			Unsupported:    bs.unsupported,
+			RawType:        bs.rawType,
+			ModeIdx:        bs.modeIdx,
+			TextSource:     bs.textSource,
+			InlineJSON:     bs.inlineJSON,
+			InlineXML:      bs.inlineXML,
+			InlineText:     bs.inlineText,
+			ProjectFile:    bs.projectFile,
+			LocalSlot:      bs.localSlot,
+			LocalPathDraft: bs.localPathDraft,
+			BinSource:      bs.binSource,
+			BinProjectFile: bs.binProjectFile,
+			BinLocalSlot:   bs.binLocalSlot,
+			BinLocalPath:   bs.binLocalPath,
+			BinContentType: bs.binContentType,
+			FormViewMode:   bs.formViewMode,
+			FormRawText:    bs.formRawText,
+			FormErr:        bs.formErr,
+			MultipartErr:   bs.multipartErr,
+		}
+		for _, r := range bs.formRows {
+			if r != nil {
+				bsSnap.FormRows = append(bsSnap.FormRows, formRowSnap{
+					ID:      r.ID,
+					Enabled: r.Enabled,
+					Name:    r.Name,
+					Value:   r.Value,
+					Encoded: r.Encoded,
+				})
+			}
+		}
+		for _, r := range bs.multipartRows {
+			if r != nil {
+				bsSnap.MultipartRows = append(bsSnap.MultipartRows, multipartRowSnap{
+					ID:             r.ID,
+					Enabled:        r.Enabled,
+					Name:           r.Name,
+					PartSource:     r.PartSource,
+					Value:          r.Value,
+					ProjectFile:    r.ProjectFile,
+					LocalSlot:      r.LocalSlot,
+					LocalPathDraft: r.LocalPathDraft,
+					FileName:       r.FileName,
+					ContentType:    r.ContentType,
+				})
+			}
+		}
+		snap.BodyState = bsSnap
 	}
 	if tab.DocEditor != nil && tab.DocEditor.Buffer != nil {
-		b.WriteString("|de:")
-		b.WriteString(tab.DocEditor.Buffer.String())
+		snap.DocBuffer = tab.DocEditor.Buffer.String()
 	}
-	if ps != nil && tab.Kind == "request" && tab.Entry != nil && tab.Entry.Request != nil {
-		if req, err := requestForSaveFromTab(ps, tab); err == nil && req != nil {
-			fmt.Fprintf(&b, "|req:%s:%s", req.Name, req.Protocol)
+	if ws := tab.ws; ws != nil {
+		wsSnap := &wsDraftSnap{
+			SubprotoDraft:    ws.subprotoDraft,
+			Compress:         ws.compress,
+			SendModeIdx:      ws.sendModeIdx,
+			TextDraft:        ws.textDraft,
+			BinaryDraft:      ws.binaryDraft,
+			CloseCodeDraft:   ws.closeCodeDraft,
+			CloseReasonDraft: ws.closeReasonDraft,
 		}
+		if ws.sendEditor != nil && ws.sendEditor.Buffer != nil {
+			wsSnap.SendEditor = ws.sendEditor.Buffer.String()
+		}
+		snap.WS = wsSnap
 	}
-	return b.String()
+	data, _ := json.Marshal(snap)
+	return string(data)
 }
 
 func (h *installerHandoff) approveWindow(app *App) {
@@ -150,6 +435,7 @@ func (h *installerHandoff) capturePreGuard(app *App) {
 	if h == nil || app == nil || app.ps == nil {
 		return
 	}
+	flushAppDocEdits(app)
 	if h.preGuard == nil {
 		h.preGuard = make(map[*App]*preGuardSnapshot)
 	}
@@ -237,6 +523,7 @@ func (m *Manager) tryResolveHandoffGuard(app *App, discard bool) bool {
 		m.abandonHandoff()
 		return false
 	}
+	flushAppDocEdits(app)
 	delete(m.handoff.preGuard, app)
 	if !discard {
 		if err := app.saveAllDirty(); err != nil {
@@ -274,6 +561,7 @@ func (m *Manager) anyGuardActive() bool {
 // hasUnapprovedDirtyForHandoff reports whether any open project has unsaved
 // edits that have not been approved for discard at their current fingerprint.
 func (m *Manager) hasUnapprovedDirtyForHandoff(h *installerHandoff) bool {
+	m.flushAllDocEdits()
 	for _, app := range m.workspaces {
 		if !app.closed && app.ps.hasDirty() && !h.isApproved(app) {
 			return true
@@ -290,6 +578,7 @@ func (m *Manager) beginHandoff(h *installerHandoff) bool {
 	if m.handoff != nil {
 		return false
 	}
+	m.flushAllDocEdits()
 	m.handoff = h
 	m.pendingQuit = true
 	m.promptQuitGuard()
@@ -395,6 +684,7 @@ func (u *updateController) handOffInstaller(ctx context.Context, dl *update.Down
 		return
 	}
 	u.cancel = nil
+	u.mgr.flushAllDocEdits()
 	if u.mgr.anyDirty() {
 		u.dialogOpen = false // the save guard is the only modal meanwhile
 	}
