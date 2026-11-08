@@ -1232,3 +1232,14 @@ UIKit 全部测试、Tab/HistoryEndpoint/Theme/URLGroup/Send/Settings 专项、`
 | U35 | `t5x` | `tb46ada74b45acabf3f9ae787688ce97ce` | 开发中 |
 
 精确 prompt、启动句柄、用户斜杠菜单参考图存 `/private/tmp/gorequest-u32-u35-20261109/`。U35 对 app.go 的退出 guard 接线交 patch，U32 已收到不要改这三处函数的通知。其余已有 Herdr 会话未改动。尚未集成或标记通过。
+
+### 44.2 追加 U36 与下拉配色
+
+用户追加：Secret 默认存储改本地文件，钥匙串保留可选；设置等下拉 hover 恢复品牌红橙；设置支持不脱敏、完整保存请求响应。不将用户明确选择的 backend 自动迁移，不访问真实 Secret。完整保存由设置选择后生效，既有脱敏记录不伪装成可恢复原始数据；脱敏标识与实际保存方式一致。
+
+| ID / 负责人 | 分支 / 实际 worktree | 归属 | 状态 |
+| --- | --- | --- | --- |
+| U36 / agy Sonnet | `agy/U36-local-secrets-full-history` / `/private/tmp/gorequest-u32-u35-20261109/storage` | config.go、settings*.go、history.go、i18n.go 必要项、internal/platform/secret* 默认后端与 internal/localstate/history* 策略、相关测试及专属辅助；不改 app/workspace/response/doc/update/公共UIKit | 待启动 |
+| 主代理 / 下拉配色 | main，随后集成分支 | uikit/select.go 与 Select 测试，仅恢复选中/hover 为 Accent/OnAccent，保留语义提示色 | 待实现 |
+
+U36 通过 Herdr 可见 agy，使用 `claude-sonnet-5-5-medium`，本登记提交为基线；先读本节与 §44 通用约束，必要构建/专项测试后提交并交 docs/task-results/U36.md。完整保存覆盖未脱敏 URL/头部/正文/失败信息与已捕获二进制数据（必要无损编码），不能隐性截断正文却标成全量；网络层未收到或已截断部分不能补回，明确记录界限。保留历史保留期/清理、默认脱敏方式与既有 Secret 显式选择。主代理接线与验收。
