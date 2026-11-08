@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -397,19 +398,23 @@ func TestSecretEntryUpdateDeleteAndErrors(t *testing.T) {
 	}
 
 	// Invalid name (namespace/brace injection) fails at the boundary without a
-	// backend write.
+	// backend write. The dialog stays open with the typed value so the user can
+	// correct the name and retry.
 	a.openSecretEntry(ps, "bad/../name")
 	d.value = "{{SECRET_shouldnotwrite}}"
 	a.saveSecretEntry(ps)
 	if !strings.Contains(d.errMsg, m.InvalidName[:6]) {
 		t.Fatalf("invalid name not reported: %q", d.errMsg)
 	}
-	if d.value != "" {
-		t.Fatal("temporary value must be cleared even on invalid input")
+	if !d.open {
+		t.Fatal("a failed save must keep the dialog open for retry")
+	}
+	if d.value != "{{SECRET_shouldnotwrite}}" {
+		t.Fatal("a failed save must keep the typed value for retry")
 	}
 
-	// Backend unavailable / locked: explicit error, value cleared, NO plaintext
-	// fallback into project files.
+	// Backend unavailable / locked: explicit error, dialog and retry input kept,
+	// NO plaintext fallback into project files.
 	drv.mu.Lock()
 	drv.err = errors.ErrUnsupported
 	drv.mu.Unlock()
@@ -419,8 +424,11 @@ func TestSecretEntryUpdateDeleteAndErrors(t *testing.T) {
 	if !strings.Contains(d.errMsg, m.BackendFailed[:6]) {
 		t.Fatalf("backend failure not reported: %q", d.errMsg)
 	}
-	if d.value != "" {
-		t.Fatal("temporary value must be cleared on backend failure")
+	if !d.open {
+		t.Fatal("a backend failure must keep the dialog open for retry")
+	}
+	if d.value != "{{SECRET_locked}}" {
+		t.Fatal("a backend failure must keep the typed value for retry")
 	}
 	if strings.Contains(d.errMsg, "{{SECRET_locked}}") || strings.Contains(d.status.Detail, "{{SECRET_locked}}") {
 		t.Fatalf("backend error/status leaked the real value: %q / %q", d.errMsg, d.status.Detail)
@@ -619,4 +627,155 @@ func TestSecretEntryPasswordNotEchoed(t *testing.T) {
 			t.Fatalf("secret value echoed in environment editor: %q", txt)
 		}
 	}
+}
+
+// TestSecretEntrySuccessfulSaveAutoClosesAndPreservesContext is the U28
+// acceptance: a successful local-value write closes the dialog on its own (no
+// "Cancel" click), clears the sensitive input, refreshes the non-sensitive
+// status/caches, and leaves the unsaved environment draft and the active
+// request exactly as they were.
+func TestSecretEntrySuccessfulSaveAutoClosesAndPreservesContext(t *testing.T) {
+	drv := withIdentityFakeBackend(t)
+	a, ps := openTestProject(t, "U28AutoClose")
+	declareSecretEnv(t, a, ps, "dev", "apiToken")
+
+	// An unsaved environment draft and an edited current request must survive
+	// the dialog's auto-close.
+	ps.envSel = "dev"
+	if err := ps.startEditEnvironmentWith(englishMessages); err != nil {
+		t.Fatal(err)
+	}
+	ps.envUI.varRows = append(ps.envUI.varRows, &envVarRow{ID: nextRowID(), Key: "draftKey", Value: "unsaved-value"})
+	draftSig := ps.envUI.signature()
+	if _, err := ps.createRequestIn("", "Orders"); err != nil {
+		t.Fatal(err)
+	}
+	tab := ps.activeTab()
+	tab.URL = "http://127.0.0.1:9/unsaved-request"
+	tab.Dirty = true
+
+	m := a.secretEntryMessages()
+	tt := ui.NewTester(a.View, 1280, 900)
+	tt.Frame()
+	if err := tt.Click(m.EnvSetValue); err != nil {
+		t.Fatalf("click env Set value: %v; texts=%v", err, tt.Texts())
+	}
+	tt.Frame()
+	d := secretEntryFor(ps)
+	if !d.open {
+		t.Fatal("dialog did not open from the environment row")
+	}
+	secretValue := "{{SECRET_u28_autoclose}}"
+	tt.Type(secretValue)
+	tt.Frame()
+	if err := tt.Click(m.SetValue); err != nil {
+		t.Fatalf("click dialog Set value: %v; texts=%v", err, tt.Texts())
+	}
+	tt.Frame()
+
+	// Success: the dialog closed itself, the sensitive input is gone, and the
+	// binding status was refreshed from the store.
+	if d.open {
+		t.Fatal("successful save must close the dialog without a Cancel click")
+	}
+	if d.value != "" {
+		t.Fatal("successful save must clear the temporary plaintext")
+	}
+	if d.status.State != core.SecretStateBound {
+		t.Fatalf("binding status not refreshed after save: %+v", d.status)
+	}
+	if v, ok := scopedValue(t, drv, ps.project.File.ID, ps.root, "apiToken"); !ok || v != secretValue {
+		t.Fatalf("value not written to the project-scoped fake store: %q %v", v, ok)
+	}
+	// The non-sensitive confirmation moves to the status line and never carries
+	// the value.
+	if want := fmt.Sprintf(m.SavedFmt, "apiToken"); a.status != want {
+		t.Fatalf("status line = %q, want %q", a.status, want)
+	}
+	if strings.Contains(a.status, secretValue) {
+		t.Fatal("status line leaked the secret value")
+	}
+	// The environment draft and the current request are untouched.
+	if ps.envUI == nil || !ps.envUI.open || ps.envUI.signature() != draftSig {
+		t.Fatal("auto-close must not discard the unsaved environment draft")
+	}
+	if ps.activeTab() != tab || tab.URL != "http://127.0.0.1:9/unsaved-request" || !tab.Dirty {
+		t.Fatal("auto-close must not change the current request")
+	}
+	// The environment editor's non-sensitive badge refreshed to Bound, and the
+	// value is not echoed anywhere in the UI.
+	if !tt.HasText(m.EnvStatusBound) {
+		t.Fatalf("env badge did not refresh after save; texts=%v", tt.Texts())
+	}
+	for _, txt := range tt.Texts() {
+		if strings.Contains(txt, secretValue) {
+			t.Fatalf("secret value echoed after auto-close: %q", txt)
+		}
+	}
+	assertNoRealValueInProject(t, ps.root, secretValue)
+}
+
+// TestSecretEntryFailureKeepsDialogAndRetryInput proves a failed write leaves
+// the dialog open with the typed value intact, and that retrying once the
+// backend recovers succeeds and then closes the dialog.
+func TestSecretEntryFailureKeepsDialogAndRetryInput(t *testing.T) {
+	drv := withIdentityFakeBackend(t)
+	a, ps := openTestProject(t, "U28Retry")
+	declareSecretEnv(t, a, ps, "dev", "apiToken")
+	m := a.secretEntryMessages()
+
+	a.openSecretEntry(ps, "apiToken")
+	d := secretEntryFor(ps)
+	drv.mu.Lock()
+	drv.err = errors.ErrUnsupported
+	drv.mu.Unlock()
+
+	tt := ui.NewTester(a.View, 1280, 900)
+	tt.Frame()
+	secretValue := "{{SECRET_u28_retry}}"
+	tt.Type(secretValue)
+	tt.Frame()
+	if err := tt.Click(m.SetValue); err != nil {
+		t.Fatalf("click dialog Set value: %v; texts=%v", err, tt.Texts())
+	}
+	tt.Frame()
+
+	// Failure: nothing written, dialog still open, retry input preserved.
+	if !d.open {
+		t.Fatal("a failed save must keep the dialog open")
+	}
+	if d.value != secretValue {
+		t.Fatalf("a failed save must keep the retry input, got %q", d.value)
+	}
+	if !strings.Contains(d.errMsg, m.BackendFailed[:6]) {
+		t.Fatalf("backend failure not reported: %q", d.errMsg)
+	}
+	if !tt.HasText(m.Title) {
+		t.Fatalf("dialog disappeared after a failed save; texts=%v", tt.Texts())
+	}
+	if _, ok := scopedValue(t, drv, ps.project.File.ID, ps.root, "apiToken"); ok {
+		t.Fatal("a failed save must not write a value")
+	}
+
+	// Backend recovers: the same dialog retries without retyping and closes.
+	drv.mu.Lock()
+	drv.err = nil
+	drv.mu.Unlock()
+	if err := tt.Click(m.SetValue); err != nil {
+		t.Fatalf("retry click: %v; texts=%v", err, tt.Texts())
+	}
+	tt.Frame()
+	if d.open {
+		t.Fatal("a successful retry must close the dialog")
+	}
+	if d.value != "" {
+		t.Fatal("a successful retry must clear the temporary plaintext")
+	}
+	if d.status.State != core.SecretStateBound {
+		t.Fatalf("retry did not refresh the binding status: %+v", d.status)
+	}
+	if v, ok := scopedValue(t, drv, ps.project.File.ID, ps.root, "apiToken"); !ok || v != secretValue {
+		t.Fatalf("retry did not store the value: %q %v", v, ok)
+	}
+	assertNoRealValueInProject(t, ps.root, secretValue)
 }
