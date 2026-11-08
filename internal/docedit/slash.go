@@ -106,7 +106,17 @@ func SlashQuery(text string) (query string, ok bool) {
 	if hasMore && strings.TrimSpace(rest) != "" {
 		return "", false
 	}
-	line = strings.TrimSpace(line)
+	return SlashQueryLine(line)
+}
+
+// SlashQueryLine reports the slash command query of one logical line. The
+// line may carry the spaces and list marker before the query; only the text
+// after them decides.
+func SlashQueryLine(line string) (query string, ok bool) {
+	line = strings.TrimSpace(strings.TrimRight(line, "\r\n"))
+	if strings.ContainsAny(line, "\r\n") {
+		return "", false
+	}
 	line = trimListMarker(line)
 	if !strings.HasPrefix(line, "/") {
 		return "", false
@@ -119,6 +129,25 @@ func SlashQuery(text string) (query string, ok bool) {
 		default:
 			return "", false
 		}
+	}
+	return query, true
+}
+
+// SlashQueryAt reports the slash command query on the logical line that
+// holds caret in text. The canvas judges by the caret's line rather than the
+// block's first line, so a new line made with Enter opens the menu without
+// leaving the block. It reports false when the caret is before the slash that
+// starts the query, so moving the caret to the line's start closes it.
+func SlashQueryAt(text string, caret int) (query string, ok bool) {
+	caret = max(0, min(caret, len(text)))
+	start := LineStart(text, caret)
+	line := text[start:LineEnd(text, caret)]
+	query, ok = SlashQueryLine(line)
+	if !ok {
+		return "", false
+	}
+	if slash := strings.IndexByte(line, '/'); slash >= 0 && caret < start+slash+1 {
+		return "", false
 	}
 	return query, true
 }
