@@ -498,7 +498,7 @@ func TestWebSocketWorkspaceEntryFromNewMenuAndTree(t *testing.T) {
 	a, ps, w := openWSProject(t, "WS UI")
 	tt := ui.NewTester(w.view(a), 1200, 820)
 
-	if err := tt.Click("+"); err != nil {
+	if err := tt.Click(a.msg().NewRequest); err != nil {
 		t.Fatalf("open new menu: %v", err)
 	}
 	tt.Frame()

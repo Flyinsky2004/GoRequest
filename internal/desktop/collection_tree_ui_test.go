@@ -16,10 +16,10 @@ func TestFolderTreeCreateAndOpenThroughView(t *testing.T) {
 	tt := ui.NewTester(a.View, 1100, 820)
 	tt.Frame()
 
-	// Create a folder through the real "+" new menu and modal. The menu is
+	// Create a folder through the real new-entry menu and modal. The menu is
 	// drawn in the window (not a system menu), so its items are clicked by
-	// their visible text.
-	if err := tt.Click("+"); err != nil {
+	// their visible text; the trigger itself is the icon-only new menu.
+	if err := tt.Click(a.msg().NewRequest); err != nil {
 		t.Fatalf("open new menu: %v", err)
 	}
 	if err := tt.Click("New Folder"); err != nil {
@@ -43,10 +43,16 @@ func TestFolderTreeCreateAndOpenThroughView(t *testing.T) {
 		t.Fatalf("folder not visible in tree; texts=%v", tt.Texts())
 	}
 
-	// The new-request form targets the selected folder.
-	if err := tt.Click("New Request"); err != nil {
-		t.Fatalf("click New Request: %v", err)
+	// The new-request form targets the selected folder. The header's single
+	// creation entry is the icon-only menu, whose first item is New Request;
+	// choosing it with the keyboard keeps this a real widget interaction.
+	if err := tt.Click(a.msg().NewRequest); err != nil {
+		t.Fatalf("open new menu: %v", err)
 	}
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
 	if !tt.HasText("Target folder: alpha") {
 		t.Fatalf("new request form should show the selected folder; texts=%v", tt.Texts())
 	}

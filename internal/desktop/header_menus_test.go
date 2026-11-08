@@ -127,8 +127,8 @@ func TestHeaderNewMenuIsDrawnInWindow(t *testing.T) {
 	tt := newHeaderTester(a, ps)
 	tt.Frame()
 
-	if err := tt.Click("+"); err != nil {
-		t.Fatalf("click + menu: %v", err)
+	if err := tt.Click(m.NewRequest); err != nil {
+		t.Fatalf("click new menu: %v", err)
 	}
 	tt.Frame()
 
@@ -155,6 +155,51 @@ func TestHeaderNewMenuIsDrawnInWindow(t *testing.T) {
 	tt.Frame()
 	if !a.newFolderOpen {
 		t.Fatal("New Folder from the drawn + menu did not open the folder form")
+	}
+}
+
+// TestHeaderKeepsOneIconOnlyNewEntry checks the U26 merge: the standalone
+// "New Request" pill is gone, and the only creation entry is the icon-only
+// drop-down, which keeps the accessible name and opens the full menu.
+func TestHeaderKeepsOneIconOnlyNewEntry(t *testing.T) {
+	a, ps := openTestProject(t, "HeaderSingleNew")
+	m := a.msg()
+	tt := newHeaderTester(a, ps)
+	tt.Frame()
+
+	// The old pill and the trigger both carried the name; only the trigger
+	// remains, so the accessible name appears exactly once before opening.
+	var named int
+	for _, s := range tt.Texts() {
+		if s == m.NewRequest {
+			named++
+		}
+	}
+	if named != 1 {
+		t.Fatalf("header has %d new-entry controls, want 1; texts=%v", named, tt.Texts())
+	}
+	trigger, ok := tt.Find(m.NewRequest)
+	if !ok {
+		t.Fatalf("new-entry trigger missing; texts=%v", tt.Texts())
+	}
+	// The trigger is icon-only: icon + chevron + padding, not a text pill.
+	if trigger.W > 70 {
+		t.Fatalf("new-entry trigger is not icon-only: %+v", trigger)
+	}
+
+	if err := tt.Click(m.NewRequest); err != nil {
+		t.Fatalf("click new-entry trigger: %v", err)
+	}
+	tt.Frame()
+	for _, want := range []string{
+		m.NewRequest, m.NewFolder, m.NewDoc, m.NewEnv,
+		a.wsWorkspaceMsg().NewWebSocket,
+		a.interopMsg().ImportCURLMenuLabel,
+		a.interopMsg().ImportMenuLabel,
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("new-entry menu missing %q; texts=%v", want, tt.Texts())
+		}
 	}
 }
 

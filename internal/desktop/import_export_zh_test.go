@@ -302,8 +302,8 @@ func TestInteropMenusFollowLanguage(t *testing.T) {
 	setInteropTestLanguage(t, a, langEnglish)
 	tt2 := newHeaderTester(a, ps)
 	tt2.Frame()
-	if err := tt2.Click("+"); err != nil {
-		t.Fatalf("open + menu: %v", err)
+	if err := tt2.Click(a.msg().NewRequest); err != nil {
+		t.Fatalf("open new menu: %v", err)
 	}
 	tt2.Frame()
 	assertHasText(t, tt2, "Import from cURL…")
