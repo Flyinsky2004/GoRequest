@@ -65,6 +65,65 @@ func TestSelectPopupLeavesWithMotion(t *testing.T) {
 	}
 }
 
+// inkBetween counts dark pixels in the horizontal band [y0,y1).
+func inkBetween(tt *ui.Tester, y0, y1 float32) int {
+	img := tt.Image()
+	return darkPixels(img, 0, y0, float32(img.Bounds().Dx()), y1)
+}
+
+// TestDropdownInlineTransitionCollapses checks the inline variant used by
+// in-page menus: the menu's own height collapses as it enters and leaves,
+// and its leaving copy is painted until the spring settles. The content
+// below needs its own Transition to move in step, as MyGo documents; this
+// test only checks the menu surface the patch adds.
+func TestDropdownInlineTransitionCollapses(t *testing.T) {
+	open := false
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Padding(10).Gap(4).Children(func() {
+			ui.Text(c, "before")
+			if open {
+				menu := ui.Column(c).Key("inline-menu").FillWidth().Padding(4).Children(func() {
+					ui.Text(c, "Menu item")
+				})
+				menu.Label("inline-menu").Transition(DropdownInlineTransition)
+			}
+			ui.Box(c).Height(40)
+			ui.Text(c, "after")
+		})
+	}, 240, 200)
+	before, ok := tt.Find("before")
+	if !ok {
+		t.Fatal("before text not found")
+	}
+
+	open = true
+	tt.Frame()
+	if r, ok := tt.Find("inline-menu"); !ok || r.H != 0 {
+		t.Fatalf("the inline menu did not start collapsed: %+v (found %v)", r, ok)
+	}
+	tt.Advance(400 * time.Millisecond)
+	opened, ok := tt.Find("inline-menu")
+	if !ok || opened.H <= 0 {
+		t.Fatalf("the inline menu never opened: %+v (found %v)", opened, ok)
+	}
+
+	// The band just below the text above holds the menu and its leaving
+	// copy; the spacer keeps the text below out of it.
+	bandTop, bandBottom := before.Y+before.H+2, before.Y+before.H+32
+	open = false
+	tt.Frame()
+	if _, ok := tt.Find("inline-menu"); ok {
+		t.Fatal("the closed inline menu is still a live element")
+	}
+	if inkBetween(tt, bandTop, bandBottom) == 0 {
+		t.Fatal("the leaving inline menu was not painted")
+	}
+	tt.Advance(400 * time.Millisecond)
+	if inkBetween(tt, bandTop, bandBottom) != 0 {
+		t.Fatal("the leaving inline menu was still painted after the spring settled")
+	}
+}
+
 // TestSelectPopupRespectsReduceMotion checks the popup fades in place rather
 // than scaling or sliding when the desktop asks for less motion.
 func TestSelectPopupRespectsReduceMotion(t *testing.T) {

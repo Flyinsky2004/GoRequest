@@ -54,6 +54,17 @@ var DropdownTransition = ui.ElementTransition{
 	Exit:      &ui.Motion{Y: DropdownExitLift, Opacity: 0, Scale: DropdownExitScale},
 }
 
+// DropdownInlineTransition is for a drop-down drawn in the page's own
+// layout rather than in an overlay, as the document slash menu is. It
+// collapses its height on the way in and out, so the content below does not
+// jump when the menu appears or goes, and fades at the same time. The
+// overlay variant above must not collapse: its panel takes no layout room.
+var DropdownInlineTransition = ui.ElementTransition{
+	Animation: &SpringDropdown,
+	Enter:     &ui.Motion{Collapse: true, Opacity: 0},
+	Exit:      &ui.Motion{Collapse: true, Opacity: 0},
+}
+
 // dropdownChevron draws the trigger chevron and turns it to point up while
 // the popup is open. The angle is a normal animated value, so it settles and
 // stops requesting frames; ReduceMotion jumps it to its target instead. The
