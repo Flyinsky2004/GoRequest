@@ -325,10 +325,6 @@ func (s *Server) Stop(ctx context.Context) error {
 	if srvCancel != nil {
 		srvCancel()
 	}
-	if ln != nil {
-		_ = ln.Close()
-	}
-
 	if ctx == nil {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(context.Background(), timeout)
@@ -345,6 +341,12 @@ func (s *Server) Stop(ctx context.Context) error {
 		if shutdownErr != nil {
 			_ = httpSrv.Close()
 		}
+	}
+	// Shutdown owns the listener while Serve is running. Closing it before
+	// Shutdown can make Shutdown report net.ErrClosed. Close it afterwards as
+	// a fallback for a Serve goroutine that has not registered it yet.
+	if ln != nil {
+		_ = ln.Close()
 	}
 	s.closeTrackedConns()
 

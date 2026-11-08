@@ -65,12 +65,13 @@ type wsTabState struct {
 	// Session lifecycle. session may be non-nil with a terminal state (facts
 	// remain visible until cleared). generation invalidates every callback from
 	// an older attempt or a torn-down tab.
-	session     *gows.Session
-	redactor    *core.Redactor
-	generation  uint64
-	mailbox     *wsMailbox
-	busy        bool
-	promptFacts string
+	session       *gows.Session
+	redactor      *core.Redactor
+	generation    uint64
+	mailbox       *wsMailbox
+	busy          bool
+	connectCancel context.CancelFunc
+	promptFacts   string
 
 	confirmChecked bool
 	confirmAsked   bool
@@ -97,6 +98,10 @@ func wsTeardownTab(tab *Tab) {
 	}
 	st := tab.ws
 	st.generation++
+	if st.connectCancel != nil {
+		st.connectCancel()
+		st.connectCancel = nil
+	}
 	if st.mailbox != nil {
 		st.mailbox.stop()
 		st.mailbox = nil
@@ -392,6 +397,7 @@ func (a *App) wsTabConnect(tab *Tab) {
 	st.confirmChecked = false
 
 	ctx, cancel := context.WithCancel(context.Background())
+	st.connectCancel = cancel
 	st.busy = true
 	st.notice = fmt.Sprintf(m.Connecting, red.RedactString(endpoint))
 	st.generation++
@@ -647,11 +653,10 @@ func (a *App) wsTabCloseSession(tab *Tab) {
 // events and facts stay inspectable. No close frame is sent.
 func (a *App) wsTabDisconnect(tab *Tab) {
 	st := tab.ensureWSState()
-	if st == nil || st.session == nil {
+	if st == nil {
 		return
 	}
-	wsStopMailbox(st)
-	st.session.Terminate()
+	wsTeardownTab(tab)
 	st.notice = a.websocketMsg().Terminated
 }
 
@@ -662,11 +667,7 @@ func (a *App) wsTabClear(tab *Tab) {
 	if st == nil {
 		return
 	}
-	wsStopMailbox(st)
-	if st.session != nil {
-		st.session.Terminate()
-	}
-	st.generation++
+	wsTeardownTab(tab)
 	st.session = nil
 	st.redactor = nil
 	st.selectedSeq = 0

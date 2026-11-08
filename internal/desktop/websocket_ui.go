@@ -70,9 +70,11 @@ func (a *App) wsTabView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			ps.layoutPct = eff
 		}
 		split := ui.SplitVerticalPercent(c, &ps.layoutPct, func() {
-			ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
-				a.wsConfigSection(c, t, tab, st, m, wm, p)
-			})
+			uikit.TabContent(c, st.section, func(int) {
+				ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
+					a.wsConfigSection(c, t, tab, st, m, wm, p)
+				})
+			}).Grow(1)
 		}, func() {
 			ui.Column(c).Grow(1).FillHeight().Bind(&ps.respRef).Children(func() {
 				a.wsMessagePane(c, t, tab, st, m, wm, p)
@@ -128,7 +130,7 @@ func (a *App) wsURLRow(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m *
 				}
 			})
 			a.wsStateBadge(c, t, st, m, p)
-			if open {
+			if open || st.busy {
 				if uikit.ActionCursor(ui.Button(c, m.BtnDisconnect)).Clicked() {
 					a.wsTabDisconnect(tab)
 				}

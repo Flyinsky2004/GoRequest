@@ -893,3 +893,35 @@ Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t3
 | U17 | t4y | tb94963fc6e67620ec6fc41887a78009ba |
 
 已通过各自现有终端通知U14/U15：documentation.go/doc_live*/doc_table*由本批独占，相关迁移交patch；未终止/替换其他任务。§34表中待启动是登记时状态，以本节已启动/开发中为准。提示词与sessions.json仅存本机 `/private/tmp/gorequest-u16-u17-20261108/`。本轮主工作区仅静态核对/登记与启动，尚未交付/合并/验收、不勾完成，未运行功能build或测试。用户示例环境、文档和debug产物保持。
+
+
+## 35. U11–U17 集成与清理（2026-11-08）
+
+用户要求合并所有已完成agent任务并清理旧分支/agent。核对main `2394cce`、7个来源工作区干净且均有交付/报告、对应Herdr done，从该基线创建 `integrate/U11-U17` / `/private/tmp/gorequest-u11-u17-integration-20261108/worktree`。逐条no-ff合并全部无冲突。§33/34的待启动/开发中为历史状态，以本节代码集成为准，不等于所有产品实机验收通过。
+
+| 任务 | 来源头 | 合并提交 |
+| --- | --- | --- |
+| U11 | `74a6c21` | `c453667` |
+| U12 | `575880b` | `428957d` |
+| U13 | `35d4b36` | `e720e3b` |
+| U14 | `1024d9f` | `4606ee6` |
+| U15 | `43f884d` | `c8f3a36` |
+| U16 | `bb377af` | `15e5ff8` |
+| U17 | `4eedad6` | `0f8050c` |
+
+### 35.1 公共接线与验证
+
+详见 [本轮集成报告](task-results/integration-U11-U17-2026-11-08.md)。手工适配U14标签栏patch与U15斜杠菜单patch，保留WS协议色、关闭/重命名/上下文菜单、真实编辑焦点；真实工作区/HTTP与WS配置页/设置分类接入TabContent。修正WS尚在握手时关闭标签/窗口/断开/清空未取消尝试的问题，新增真实TCP阻塞TLS握手回归（race通过）。斜杠菜单鼠标用例通过受控时钟等待入场，再验证选择/光标，不用sleep。
+
+`go build ./...`、`go vet ./...`及受影响UI/工作区专项通过。最终 `go test ./... -count=1` 完整执行，除4项旧失败外其他通过；在合并前主工作区main `2394cce`实际复跑相同4项均同原因失败：desktop TestMockEditorSuggestionsAreProjectUnique（copy suggestion x）、TestRunnerEditorDescribeAssertions（want 6 got 7）、TestRunnerEditorPatchSuiteExtract（comments lost），diagnostics TestEngine_PolicyBlockedAndMissingSecretPreflight（expected target policy error）。未改这些断言。全仓race结果下节记录，仅显式跳过这4项旧失败。代码diff检查通过，整批diff仅原始patch上下文有空格+tab/空行尾空格提示，保留合法patch；依赖文件不变。
+
+首次全仓race还暴露未被来源分支修改的Mock Stop重复关闭listener错误；主main单项race压力20/100次未复现，故不将其冒称已复现基线、不新增skip。集成修正为Shutdown先拥有关闭流程，最后Close listener兜底；随后重跑Mock压力及全仓验证。
+
+本轮未启动真实桌面窗口/真实macOS输入法/跨平台视觉或辅助功能验收。U15的系统原生MenuButton及MyGo未开放动画钩子的Popover菜单无表面动画；U12 WS尚无OAuth2/OIDC运行时token注入；U16菜单仍在滚动内容内，表格命令退出活动块后渲染；U17格内编辑Markdown源码。各主功能卡不因代码合并勾为完整产品验收。
+
+清理仅针对本批U11–U17的7个来源worktree/分支及其Herdr tab/terminal和本轮临时集成worktree/分支。保留用户其他终端/项目与MyGo showcase PR分支、主目录dev.yaml/document.md/debug产物，不push。最终执行句柄和main头下节补记。
+
+
+### 35.2 最终验证门禁
+
+Mock关闭顺序修正后，Mock包race连续20轮通过（15.679s）。最终build/vet通过、普通全仓只剩前述4项已复现旧失败；全仓race `go test -race ./... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunnerEditorDescribeAssertions|TestRunnerEditorPatchSuiteExtract|TestEngine_PolicyBlockedAndMissingSecretPreflight)$' -count=1` 退出码0（desktop 112.128s），无race。未额外skip Mock用例或任何新增功能用例。首次失败与调查/修正证据保留集成报告和临时日志。

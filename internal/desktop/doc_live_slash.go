@@ -24,9 +24,9 @@ func (a *App) docSlashMenu(c *ui.Context, t *ui.Theme, tab *Tab, st *docViewStat
 		return
 	}
 	p := uikit.PaletteFor(t)
-	menu := ui.Column(c).FillWidth().MaxHeight(300).Padding(4).Gap(1).Radius(8).
+	menu := ui.Column(c).Key("doc-slash-menu").FillWidth().MaxHeight(300).Padding(4).Gap(1).Radius(8).
 		Background(p.Sidebar).Border(1, p.Hairline).Shadow(0, 4, 14, 0, p.CardShade).
-		KeepFocus()
+		KeepFocus().Transition(uikit.DropdownInlineTransition)
 	menu.Label(dm.SlashMenu)
 	menu.Children(func() {
 		ui.Row(c).FillWidth().Height(24).Padding(0, 8).AlignItems(ui.Center).Children(func() {

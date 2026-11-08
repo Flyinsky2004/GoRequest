@@ -48,7 +48,7 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme, ps *projectState) {
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(6).Padding(0, 8).
 		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
 		uikit.TabScroll(c, t, func() {
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(4).AlignItems(ui.Center).Role(ui.RoleTabList).Children(func() {
 				for _, tab := range ps.tabs {
 					a.tabItem(c, t, ps, tab)
 				}
@@ -58,96 +58,28 @@ func (a *App) tabBar(c *ui.Context, t *ui.Theme, ps *projectState) {
 	})
 }
 
-// tabItem draws one tab: a method-colored tag, a truncated title, an unsaved
-// dot or a close × on hover, and the active tab's accent underline. The full
-// label and the close label are the accessibility identities the strip's
-// actions (and tests) use.
-//
-// The strip is built inline instead of through uikit.TabItem so the activation
-// area can answer DoubleClicked (in-place rename, §4) directly, and so the row
-// can answer middle clicks (close) and the secondary button (a per-tab close
-// menu) across the whole tab.
+// tabItem uses the shared themed tab while preserving protocol colors and
+// the workspace's rename, close and context-menu behavior.
 func (a *App) tabItem(c *ui.Context, t *ui.Theme, ps *projectState, tab *Tab) {
 	p := uikit.PaletteFor(t)
 	if tab.renaming {
 		a.tabRenameField(c, p, tab)
 		return
 	}
-	active := ps.activeTab() == tab
-	outer := ui.Row(c).Key("tab:"+tabIdentity(tab)).Height(uikit.TabHeight).Radius(8).Padding(0, 6).Gap(4).
-		AlignItems(ui.Center).MaxWidth(180).Clip()
-	hovered := outer.Hovered()
-	switch {
-	case active:
-		outer.Background(p.BG)
-	case hovered:
-		outer.Background(p.Hover)
-	default:
-		outer.Background(ui.Transparent)
+	spec := uikit.TabSpec{Title: tab.Title, Active: ps.activeTab() == tab, Dirty: tab.Dirty}
+	if tab.Kind == "request" {
+		spec.Method = tab.Method
+		color := tabStripMethodColor(tab, p)
+		spec.MethodColor = &color
 	}
-	titleColor := p.Muted
-	if active {
-		titleColor = p.Text
-	}
-	label := tabDisplayLabel(tab)
-	closeLabel := translate(a.msg().CloseTabTip, tabIdentity(tab))
-
-	// The whole tab answers pointer input: the secondary button targets the
-	// tab (activating it, as VSCode does) before its context menu opens, and
-	// the middle button closes it like a browser. MyGo reports the pointer's
-	// button in InputEvent (1 = secondary, 2 = middle).
-	outer.HandleInput(func(ev ui.InputEvent) bool {
-		if ev.Kind != ui.InputPointerDown {
-			return false
-		}
-		switch ev.Button {
-		case 1:
-			ps.activateTab(tab)
-		case 2:
-			a.startClose(ps, []*Tab{tab})
-			return true
-		}
-		return false
-	})
-	outer.ContextMenu(func(m *ui.Menu) { a.tabContextMenu(m, ps, tab) })
-
-	var clicked, closeClicked bool
-	outer.Children(func() {
-		act := ui.ButtonBase(c).Grow(1).Height(uikit.TabHeight - 2).Gap(6).PaddingX(2)
-		if !act.IsDisabled() {
-			act.Cursor(ui.CursorPointer)
-		}
-		act.Children(func() {
-			if tab.Kind == "request" && tab.Method != "" {
-				ui.Text(c, tab.Method).Font("monospace").FontWeight(700).FontSize(11).
-					TextColor(tabStripMethodColor(tab, p)).Width(38).SingleLine()
-			}
-			ui.Text(c, tab.Title).FontSize(13).TextColor(titleColor).Grow(1).SingleLine()
+	uikit.TabItemWithActions(c, p, "tab:"+tabIdentity(tab), spec,
+		translate(a.msg().CloseTabTip, tabIdentity(tab)), uikit.TabItemActions{
+			OnActivate:    func() { ps.activateTab(tab) },
+			OnClose:       func() { a.startClose(ps, []*Tab{tab}) },
+			OnDoubleClick: func() { beginTabRename(ps, tab) },
+			OnMiddleClick: func() { a.startClose(ps, []*Tab{tab}) },
+			OnContextMenu: func(m *ui.Menu) { a.tabContextMenu(m, ps, tab) },
 		})
-		act.Label(label)
-		if act.DoubleClicked() {
-			// Double-clicking the name edits it in place; the tab also becomes
-			// active so the edit visibly belongs to what is on screen.
-			beginTabRename(ps, tab)
-		} else if act.Clicked() {
-			clicked = true
-		}
-		if uikit.TabClose(c, p, closeLabel, tab.Dirty, hovered).Clicked() {
-			closeClicked = true
-		}
-		if active {
-			ui.Box(c).Absolute().Bottom(0).Left(0).Right(0).Height(2).Background(p.Accent)
-		}
-	})
-
-	if closeClicked {
-		clicked = false
-		a.startClose(ps, []*Tab{tab})
-		return
-	}
-	if clicked {
-		ps.activateTab(tab)
-	}
 }
 
 // tabContextMenu fills a tab's right-click menu with the VSCode-like close

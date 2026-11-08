@@ -7,9 +7,11 @@ type TabSpec struct {
 	// Method is the HTTP method shown as a small colored monospace tag; empty
 	// for a document tab.
 	Method string
-	Title  string
-	Active bool
-	Dirty  bool
+	// MethodColor overrides the default HTTP method color for other protocols.
+	MethodColor *ui.Color
+	Title       string
+	Active      bool
+	Dirty       bool
 	// Icon is an optional leading icon, drawn in the tab's text color, for
 	// document or protocol tabs that are not identified by a method.
 	Icon *ui.SVG
@@ -130,8 +132,12 @@ func TabItemWithActions(c *ui.Context, p Palette, key any, s TabSpec, closeLabel
 				ui.Icon(c, s.Icon).FontSize(14).TextColor(titleColor)
 			}
 			if s.Method != "" {
+				color := MethodColor(s.Method, p)
+				if s.MethodColor != nil {
+					color = *s.MethodColor
+				}
 				ui.Text(c, s.Method).Font("monospace").FontWeight(700).FontSize(11).
-					TextColor(MethodColor(s.Method, p)).Width(38).SingleLine()
+					TextColor(color).Width(38).SingleLine()
 			}
 			ui.Text(c, s.Title).FontSize(13).TextColor(titleColor).Grow(1).SingleLine()
 			if s.Badge != "" {

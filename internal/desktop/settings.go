@@ -150,8 +150,10 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 		ui.Row(c).Gap(12).FillWidth().Grow(1).Clip().Children(func() {
 			settingsCategoryRail(c, p, titles, selected, g.leftW)
 			ui.Scroll(c).Grow(1).FillHeight().Children(func() {
-				ui.Column(c).Gap(10).FillWidth().Padding(0, 2).Children(func() {
-					settingsCategoryContent(c, p, m, settingsCategory(*selected), cfg, prefs, setStatus)
+				uikit.TabContent(c, *selected, func(int) {
+					ui.Column(c).Gap(10).FillWidth().Padding(0, 2).Children(func() {
+						settingsCategoryContent(c, p, m, settingsCategory(*selected), cfg, prefs, setStatus)
+					})
 				})
 			})
 		})

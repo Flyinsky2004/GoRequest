@@ -3,6 +3,7 @@ package desktop
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -230,6 +231,8 @@ func TestDocCanvasSlashMouseChoose(t *testing.T) {
 	tt.Frame()
 	tt.Type("/")
 	tt.Frame()
+	// Wait for the real menu to finish its enter transition using the tester clock.
+	tt.Advance(400 * time.Millisecond)
 	if err := tt.Click("Heading 2"); err != nil {
 		t.Fatalf("click menu row: %v", err)
 	}

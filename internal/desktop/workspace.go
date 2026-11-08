@@ -209,17 +209,21 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 		if tab == nil {
 			return // The final tab may have been closed by the tab bar this frame.
 		}
-		a.fileSyncTabBanner(c, t, ps, tab)
-		a.applyEditorPrefs(tab)
-		a.workspaceBreadcrumb(c, t, tab)
-		switch {
-		case isWebSocketTab(tab):
-			a.wsTabView(c, t, tab)
-		case tab.Kind == "request":
-			a.requestView(c, t, tab)
-		default:
-			a.docView(c, t, tab)
-		}
+		uikit.TabContent(c, ps.active, func(int) {
+			ui.Column(c).Grow(1).FillHeight().Children(func() {
+				a.fileSyncTabBanner(c, t, ps, tab)
+				a.applyEditorPrefs(tab)
+				a.workspaceBreadcrumb(c, t, tab)
+				switch {
+				case isWebSocketTab(tab):
+					a.wsTabView(c, t, tab)
+				case tab.Kind == "request":
+					a.requestView(c, t, tab)
+				default:
+					a.docView(c, t, tab)
+				}
+			})
+		}).Grow(1).FillHeight()
 	})
 }
 
@@ -261,24 +265,26 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		eff := clampBuildPctForHeight(ps.buildPct, splitHeight)
 		ps.layoutPct = eff
 		split := ui.SplitVerticalPercent(c, &ps.layoutPct, func() {
-			ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
-				switch tab.Section {
-				case 0:
-					a.kvForm(c, t, tab, kvQuery)
-				case 1:
-					a.authEditor(c, t, tab)
-				case 2:
-					a.kvForm(c, t, tab, kvHeader)
-				case 3:
-					a.bodyEditor(c, t, tab)
-				case 4:
-					a.emptyTabHint(c, p, m.NoScriptsHint)
-				case 5:
-					a.emptyTabHint(c, p, m.NoTestsHint)
-				case 6:
-					a.buildSettings(c, t, tab, m)
-				}
-			})
+			uikit.TabContent(c, tab.Section, func(int) {
+				ui.Column(c).Grow(1).FillWidth().Gap(4).Children(func() {
+					switch tab.Section {
+					case 0:
+						a.kvForm(c, t, tab, kvQuery)
+					case 1:
+						a.authEditor(c, t, tab)
+					case 2:
+						a.kvForm(c, t, tab, kvHeader)
+					case 3:
+						a.bodyEditor(c, t, tab)
+					case 4:
+						a.emptyTabHint(c, p, m.NoScriptsHint)
+					case 5:
+						a.emptyTabHint(c, p, m.NoTestsHint)
+					case 6:
+						a.buildSettings(c, t, tab, m)
+					}
+				})
+			}).Grow(1)
 		}, func() {
 			ui.Column(c).Grow(1).FillHeight().Bind(&ps.respRef).Children(func() {
 				a.responseView(c, t, tab)
