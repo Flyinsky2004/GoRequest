@@ -139,6 +139,7 @@ func (a *App) wire() {
 		if a.bypassGuard || a.mgr.quitting {
 			return
 		}
+		flushAppDocEdits(a)
 		if a.ps.hasDirty() {
 			e.PreventDefault()
 			a.openCloseGuard(false)
@@ -296,6 +297,9 @@ func (a *App) clearDirty() {
 	}
 	for _, tab := range a.ps.tabs {
 		tab.Dirty = false
+		if tab.DocEditor != nil && tab.DocEditor.Buffer != nil {
+			tab.DocEditor.Buffer.MarkSaved()
+		}
 	}
 }
 
@@ -504,6 +508,9 @@ func (a *App) cancelAllRequests() {
 func (a *App) openCloseGuard(quit bool) {
 	if a.closeGuard == nil {
 		a.closeGuard = &closeGuard{}
+	}
+	if a.closeGuard.active && a.closeGuard.quit && !quit {
+		return // A window close must not replace an application/update decision.
 	}
 	a.closeGuard.active = true
 	a.closeGuard.quit = quit
