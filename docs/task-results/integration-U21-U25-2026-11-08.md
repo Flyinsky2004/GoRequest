@@ -71,4 +71,9 @@
 
 ## 5. `main` 快进与来源清理
 
-（在完成本地提交、`main` 快进及 5 个来源 Herdr tab/worktree/分支清理后补记最终哈希与清理结果。）
+- 代码集成提交为 `7cf5e20`（`feat: integrate U21-U25 localization, duplicate cURL, SSE streaming and app updates`），主工作区 `main` 从 `a12e525` 无冲突快进至该提交（并在登记本清理记录后快进至最终文档提交）。
+- 清理前逐条验证 5 个来源提交（`7a992f7`、`be2139f`、`2141d04`、`5c74af2`、`176df3f`）均为 `main` 祖先，且 5 个来源 worktree 状态全部干净。
+- 按 `sources.json` 中的精确 tab ID 执行 `herdr-app do tab.close '{"id":"...","confirmed":true}'` 关闭 5 个来源标签（`tb3452e6330c949cebdfcae76c70db11a4` / `t54`、`tbebdd1157963719c9135d4de295c58476` / `t55`、`tb9b2330e304612089e2980fa5a36f2381` / `t56`、`tb006096415ee761f09627cd0a396c15b3` / `t57`、`tb35d9fc74d18ca7c969c53884259fae67` / `t58`），全部返回 `"ok": true`。首次检查时 `t55`–`t58` 已 `finished` 并执行 `hc rm`，`t54` 尚为 `live` 未删；随后复查 `t54` 状态变为 `finished` 后执行 `hc rm t54` 清除记录。
+- 使用不带 `--force` 的 `git worktree remove` 删除 `/private/tmp/gorequest-u21-u25-20261108/{menu-zh,import-zh,curl-duplicates,sse-stream,app-updates}` 五个来源 worktree，并使用 `git branch -d` 删除 `cc/U21-menu-zh`、`cc/U22-import-zh`、`cc/U23-curl-duplicates`、`cc/U24-sse-stream`、`cc/U25-app-updates` 五个来源分支。
+- 保留 Herdr 原有 `t1h`、`t4q`、`t2s`、其他项目 `t4k` 及本轮集成人自身会话 `t5b`（`tb5b97af999a8b80146755e9158dbea9c4`）与集成 worktree `/private/tmp/gorequest-u21-u25-integration-20261108/worktree`（`agy/integrate-U21-U25`）供主 agent 复核收尾；未操作 MyGo showcase 分支，未执行 `git push`。
+- 主工作区用户未提交文件（`examples/sample-project/.gorequest/environments/dev.yaml`、`examples/sample-project/.gorequest/docs/document.md`、`examples/demo-server/__debug_bin457189101`）在快进与清理前后 SHA-256 摘要完全一致。

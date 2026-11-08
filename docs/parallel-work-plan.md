@@ -1047,7 +1047,7 @@ main从 `27db078` 快进至集成代码提交 `4d59451`，包含3条来源no-ff�
 
 | ID / 负责人 | 分支 / 实际worktree | 范围 | 状态 |
 | --- | --- | --- | --- |
-| INT21–25 / agy integrator | agy/integrate-U21-U25 / /private/tmp/gorequest-u21-u25-integration-20261108/worktree | 核对U21–U25完整报告/patch/当前代码，no-ff合并、补公共接线与集成回归；build/vet/普通全仓/必要race，main快进；安全删除5条已合并来源分支/worktree与精确Herdr会话 | 代码已集成验证，待main快进与清理 |
+| INT21–25 / agy integrator | agy/integrate-U21-U25 / /private/tmp/gorequest-u21-u25-integration-20261108/worktree | 核对U21–U25完整报告/patch/当前代码，no-ff合并、补公共接线与集成回归；build/vet/普通全仓/必要race，main快进；安全删除5条已合并来源分支/worktree与精确Herdr会话 | 已完成代码集成、main快进与5条来源清理（保留agy会话/集成worktree待主agent收尾） |
 
 来源头：U21 `7a992f7`、U22 `be2139f`、U23 `2141d04`、U24 `5c74af2`、U25 `176df3f`。从本登记提交创建独立集成worktree。旧各卡“不得merge/操作其他会话”是开发阶段限制，本次用户明确授权的集成人可merge/快进main及仅本批来源清理；不push、不重置/覆盖用户文件、不操作其他终端/项目、不得实际安装更新/请求用户公网接口/读真实Secret。
 
@@ -1077,3 +1077,10 @@ U21-interop-i18n.patch先核对U22是否已覆盖勿重复套；U23-import_expor
 - 未合并基线 `a12e525` 实际复跑确认 §37 的 4 项历史失败一致复现，未修改其断言。
 - `go build ./...`、`go vet ./...` 通过；`go test ./... -count=1` 除上述 4 项历史失败外全部通过；全仓 `go test -race ./... -skip '^(TestMockEditorSuggestionsAreProjectUnique|TestRunnerEditorDescribeAssertions|TestRunnerEditorPatchSuiteExtract|TestEngine_PolicyBlockedAndMissingSecretPreflight)$' -count=1` 退出码 0（`desktop` 122.357s，`core` 9.001s，`update` 1.248s），无 race，未额外 skip 任何用例。`git diff --check` 通过，`go.mod`/`go.sum` 无变化。
 - 本轮均为 headless `ui.Tester`、loopback `httptest`、fake clock/下载/安装器验证，未启动真实桌面窗口，不冒称实机窗口/输入法/安装器替换验收；各主功能卡不因代码合并勾为实机验收完成。
+
+### 39.3 main快进与来源清理完成
+
+- `main` 从 `a12e525` 快进至集成代码提交 `7cf5e20`（并随本节清理记录快进至最终文档提交），包含五条来源 `--no-ff` 合并、公共补丁/集成修正与报告。
+- 逐条确认 5 个来源头均为 `main` 祖先且 worktree 干净后，按 `sources.json` 精确关闭 U21–U25 的 5 个 Herdr tab（`t54`、`t55`、`t56`、`t57`、`t58`），全部 `ok: true`；首次检查时 `t55`–`t58` 已 `finished` 并 `hc rm`，`t54` 尚为 `live` 未删，随后复查 `t54` 变为 `finished` 后执行 `hc rm t54`。
+- 使用不带 `--force` 的 `git worktree remove` 与 `git branch -d` 删除 5 个来源 worktree 及分支（`cc/U21-menu-zh`、`cc/U22-import-zh`、`cc/U23-curl-duplicates`、`cc/U24-sse-stream`、`cc/U25-app-updates`）。
+- 保留 Herdr 原有 `t1h`、`t4q`、`t2s`、其他项目 `t4k` 以及本轮 agy 集成会话 `t5b`（`tb5b97af999a8b80146755e9158dbea9c4`）与集成 worktree `/private/tmp/gorequest-u21-u25-integration-20261108/worktree`（`agy/integrate-U21-U25`）供主 agent 收尾复核；MyGo showcase 分支未操作，未 push。清理前后主工作区用户 `dev.yaml`、`document.md`、`demo-server` debug 产物 SHA-256 摘要完全一致。
