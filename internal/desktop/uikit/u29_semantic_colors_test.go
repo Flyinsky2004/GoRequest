@@ -157,12 +157,15 @@ func TestU29NoticeColors(t *testing.T) {
 	}
 }
 
-func TestU29EditorThemeNotRed(t *testing.T) {
+func TestEditorThemeRestoresBrandSelection(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		th, p := themeFor(dark)
 		ct := EditorTheme(th)
-		if ct.Cursor != p.Focus || ct.Selection != p.Selection {
-			t.Fatalf("dark=%v editor cursor/selection must use Focus tokens", dark)
+		if ct.Selection != p.Accent.Alpha(0.25) || ct.InactiveSelection != p.Accent.Alpha(0.14) {
+			t.Fatalf("dark=%v editor selection must use the original brand accent", dark)
+		}
+		if ct.Cursor != p.Focus {
+			t.Fatalf("dark=%v editor cursor must retain its Focus color", dark)
 		}
 	}
 }

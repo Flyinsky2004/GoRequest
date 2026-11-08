@@ -28,8 +28,8 @@ func EditorTheme(t *ui.Theme) *editor.Theme {
 	ct.Text = p.Text
 	ct.LineNumber = p.Faint
 	ct.ActiveLineNumber = p.Muted
-	ct.Selection = p.Selection
-	ct.InactiveSelection = p.Focus.Alpha(0.14)
+	ct.Selection = p.Accent.Alpha(0.25)
+	ct.InactiveSelection = p.Accent.Alpha(0.14)
 	ct.Cursor = p.Focus
 	ct.Match = p.Focus.Alpha(0.25)
 	ct.CurrentMatch = p.Focus
