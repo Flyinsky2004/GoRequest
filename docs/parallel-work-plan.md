@@ -953,3 +953,16 @@ Herdr保留原有t1h/t4q/t3w/t2s及其他项目t31/t4k；MyGo showcase分支未�
 - U19交付逐文件覆盖清单及静态扫描证据，功能迁移而非只动箭头或动画；旧“框架菜单不迁移”的U15范围不能作为本任务豁免。保留已有可控动效且不破坏新建菜单参考外观；若公开API无法保持动效，报告实际范围，不以动效困难逃避菜单统一。
 - 文件交叉：U18独占identity_management*.go及Secret相关UI/配置，U20独占welcome.go与manager.showWelcome；U19对此只交最小U19-integration.patch，其他调用直接迁移。U18新增下拉调用现有uikit.Select签名，U19在组件层自动统一；必要使用新的共享菜单入口并在报告登记。U18 manager.openProject与U20 manager.showWelcome按函数归属并行，不跨区域格式化；其他公共app/config变更仅U18。
 - 使用ui-ux-pro-max核对主题/图标/焦点/键盘；每卡go build ./...与受影响测试，ui.Tester受控时钟；4项既有普通测试失败见§35，不改断言掩盖。报告docs/task-results/U18.md–U20.md记录真实实现/接线/命令/限制/提交，无实机截图不冒称实机验收。允许本地commit，不push/merge、不派子agent、不改依赖/全局模型/其他工作区/总账本，临时产物和Secret绝不入Git。
+
+
+### 36.2 实际启动句柄
+
+三条从共同登记提交 `dc311f2` 创建独立worktree，经Herdr tab.new交互启动Claude Code；逐个读屏核对任务/目录/分支/bypass permissions，hc get均working，无信任阻塞。沿用默认DeepSeek V4.1 Flash 1017 (Mistral)，不指定模型或修改全局配置。
+
+| ID | Herdr终端 | tab ID |
+| --- | --- | --- |
+| U18 | t51 | tbe478ea5d2792ea0c79c5fde2bb20c281 |
+| U19 | t52 | tb896bae466b8eddf16eef40f987f7abad |
+| U20 | t53 | tb0fb38384e373b99db77def7cc4fa9872 |
+
+§36表中待启动是登记时状态，以本节开发中为准。完整提示词与sessions.json仅存本机 `/private/tmp/gorequest-u18-u20-20261108/` 不入Git。三卡尚未交付/合并/验收、不勾完成；本轮主工作区仅做静态核对/派工，未跑功能构建/测试。保留用户原有示例环境、文档、两个debug产物和其他会话，未操作MyGo showcase分支。
