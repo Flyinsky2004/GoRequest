@@ -105,117 +105,26 @@ func pillButton(c *ui.Context, p Palette, style PillStyle, label string, ic *ui.
 }
 
 // Segmented is the AppKit-style segmented control (§5): 24 high, 2 inset,
-// radius 6, a sliding white capsule (light: white with a soft double shadow;
-// dark: white at 24%). The capsule slides with the shared SpringSlide spring and
-// the hairline dividers adjacent to it hide. labels are the segment titles;
-// *selected is the chosen index. The returned bool reports a change this frame.
+// radius 6, a sliding capsule (light: white with a soft shadow; dark: white at
+// 24%). The capsule slides with the shared spring and the hairline dividers
+// adjacent to it hide. labels are the segment titles; *selected is the chosen
+// index. The returned bool reports a change this frame.
+//
+// It is the original-signature entry point of Segments; new callers that need
+// optional icons, badges or disabled segments use Segments with TabEntry
+// values.
 func Segmented(c *ui.Context, p Palette, selected *int, labels []string) (ui.Element, bool) {
-	n := len(labels)
-	segW := float32(100) / float32(n)
-
-	track := ui.Box(c).Height(24).Radius(6).Padding(2).Background(trackColor(p))
-
-	if *selected < 0 {
-		*selected = 0
-	}
-	if *selected >= n {
-		*selected = n - 1
-	}
-	pos := track.AnimateTo("seg-pos", float32(*selected), SpringSlide)
-
-	var changed bool
-	track.Children(func() {
-		// Sliding capsule, behind everything.
-		capLeft := pos * segW
-		capsule := ui.Box(c).Absolute().Top(0).Bottom(0).
-			LeftPercent(capLeft).WidthPercent(segW).Radius(4).Background(capsuleColor(p))
-		capsule.Children(func() {
-			// Inner tight shadow gives the light capsule its two-layer look.
-			inner := ui.Box(c).Fill().Radius(4).Background(capsuleColor(p))
-			if !p.Dark {
-				inner.Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.10))
-			}
-			capsule.Shadow(0, 0, 1, 0, ui.RGBA(0, 0, 0, 0.06))
-		})
-
-		// Hairline dividers between segments; those next to the chosen segment
-		// fade out.
-		for i := 1; i < n; i++ {
-			op := float32(1)
-			if absf(pos-float32(i)) < 0.5 || absf(pos-float32(i-1)) < 0.5 {
-				op = 0
-			}
-			d := ui.Box(c).Absolute().Top(5).Height(10).Width(1).
-				LeftPercent(float32(i) * segW).Background(p.Hairline)
-			d.Opacity(d.AnimateTo("seg-div", op, AnimHover))
-		}
-
-		// Labels on top. The row fills the track so its cells line up with the
-		// percentage-positioned capsule; a shrink-to-fit row would leave the
-		// labels bunched under the capsule.
-		ui.Row(c).FillWidth().FillHeight().Children(func() {
-			for i, label := range labels {
-				i := i
-				cell := ActionCursor(ui.Box(c).Grow(1).FillHeight().Center())
-				col := p.Muted
-				hovered := cell.Hovered()
-				if i == *selected {
-					col = p.Text
-				} else if hovered {
-					col = p.Text
-				}
-				weight := 500
-				if i == *selected {
-					weight = 600
-				}
-				ui.Text(c, label).FontSize(13).FontWeight(weight).TextColor(col).SingleLine()
-				if cell.Clicked() && i != *selected {
-					*selected = i
-					changed = true
-				}
-			}
-		})
-	})
-	return track, changed
+	return Segments(c, p, selected, entriesFromLabels(labels))
 }
 
-// SimpleSegmented is a small two-or-more-way switch built from ordinary
-// layout (no absolutely positioned capsule), so it stays aligned at any
-// explicit width: a rounded track with one rounded cell per label, the chosen
-// cell filled with the capsule color. The returned bool reports a change.
+// SimpleSegmented is a small two-or-more-way switch built from ordinary layout
+// (no absolutely positioned capsule), so it stays aligned at any explicit
+// width: a rounded track with one rounded cell per label, the chosen cell
+// filled with the capsule color over a 200ms fade. It shares the radio-group
+// keyboard and disabled semantics of Segments. The returned bool reports a
+// change this frame.
 func SimpleSegmented(c *ui.Context, p Palette, selected *int, labels []string) (ui.Element, bool) {
-	n := len(labels)
-	if *selected < 0 {
-		*selected = 0
-	}
-	if *selected >= n {
-		*selected = n - 1
-	}
-	track := ui.Row(c).Height(24).Radius(6).Padding(2).Gap(2).Background(trackColor(p))
-	var changed bool
-	track.Children(func() {
-		for i, label := range labels {
-			i := i
-			cell := ActionCursor(ui.Box(c).Grow(1).FillHeight().Radius(4).Center())
-			if i == *selected {
-				cell.Background(capsuleColor(p))
-			}
-			cell.Children(func() {
-				col, weight := p.Muted, 500
-				if i == *selected {
-					col, weight = p.Text, 600
-				} else if cell.Hovered() {
-					col = p.Text
-				}
-				ui.Text(c, label).FontSize(13).FontWeight(weight).TextColor(col).SingleLine()
-			})
-			if cell.Clicked() && i != *selected {
-				*selected = i
-				changed = true
-			}
-		}
-	})
-	return track, changed
+	return segmentSet(c, p, selected, entriesFromLabels(labels), false)
 }
 
 func trackColor(p Palette) ui.Color {

@@ -201,7 +201,7 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			// so a long status can wrap at narrow widths without overflowing.
 			a.responseStatus(c, tab, m, p)
 			if tab.Resp != nil && !tab.Sending && tab.RespErr == "" {
-				responseSegments(c, t, &tab.RespSection, m.BodySection, m.HeadersSection,
+				uikit.NativeSegmented(c, &tab.RespSection, m.BodySection, m.HeadersSection,
 					cookieSectionLabel(nm, jar.Count()), nm.NetworkSection)
 				if tab.RespSection == 0 && !tab.Resp.IsBinary {
 					if b := uikit.IconButton(c, p, uikit.IconSearch, m.FindPlaceholder).Label(m.FindPlaceholder).Cursor(ui.CursorPointer); b.Clicked() {
@@ -223,12 +223,12 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				if tab.RespSection == 0 && !tab.Resp.IsBinary {
 					ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Margin(0, 0, 0, ui.Auto).Children(func() {
 						if responseBodyIsJSON(tab.Resp) && tab.Resp.BodySize <= largeResponseThreshold {
-							responseSegments(c, t, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
+							uikit.NativeSegmented(c, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
 						} else {
 							if tab.RespRawIdx > 1 {
 								tab.RespRawIdx = 0
 							}
-							responseSegments(c, t, &tab.RespRawIdx, m.Pretty, m.Raw)
+							uikit.NativeSegmented(c, &tab.RespRawIdx, m.Pretty, m.Raw)
 						}
 					})
 				}
@@ -283,33 +283,6 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		}
 		a.cookieJarModal(c, t, tab)
 		a.networkSettingsModal(c, t, tab)
-	})
-}
-
-// responseSegments uses MyGo's native segmented radio/focus behavior and
-// theme geometry. Setting the cursor on each clickable segment is necessary:
-// MyGo stops cursor inheritance at clickable children of a Segmented track.
-func responseSegments(c *ui.Context, t *ui.Theme, selected *int, labels ...string) {
-	parts := ui.SegmentedBase(c, selected, len(labels))
-	parts.Track.AlignItems(ui.Stretch).Padding(t.Space(0.5)).Gap(t.Space(0.5)).
-		Radius(t.Radius).Background(t.Surface).Border(1, t.Border).Children(func() {
-		for i, label := range labels {
-			segment := parts.Segment(i).Cursor(ui.CursorPointer).
-				Padding(t.Space(1), t.Space(3)).Gap(t.Space(1.5)).
-				Radius(max(t.Radius-t.Space(0.5), 0)).TextColor(t.Text)
-			if i == *selected {
-				face := t.Background
-				if t.Dark {
-					face = t.SurfacePressed
-				}
-				segment.Background(face).Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.12))
-			} else if segment.Pressed() {
-				segment.Background(t.SurfacePressed)
-			} else if segment.Hovered() {
-				segment.Background(t.SurfaceHover)
-			}
-			segment.Children(func() { ui.Text(c, label).SingleLine() })
-		}
 	})
 }
 

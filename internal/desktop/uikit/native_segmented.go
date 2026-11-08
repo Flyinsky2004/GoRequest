@@ -5,6 +5,11 @@ import "github.com/egoist/mygo/ui"
 // NativeSegmented retains MyGo v0.7.4's segmented geometry, theme and radio
 // group semantics. A cursor on ui.Segmented's track cannot reach its clickable
 // radio children, so use the public parts API to set it on each segment.
+//
+// It is the native-geometry variant of the Segments family: it keeps the same
+// selection, disabled and keyboard contract (radio group, arrows choose, Tab
+// enters at the chosen segment) while drawing MyGo's own pixels, which the
+// uikit test compares against ui.Segmented.
 func NativeSegmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 	t := c.Theme()
 	parts := ui.SegmentedBase(c, selected, len(labels))
