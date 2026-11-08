@@ -42,13 +42,14 @@ func fix04TreeFixture(t *testing.T) (*ui.Tester, *App) {
 func TestJSONTreeToggleCompactAndAligned(t *testing.T) {
 	tt, _ := fix04TreeFixture(t)
 
-	glyph, ok := tt.Find("▾")
+	glyph, ok := tt.Find(jsonTreeToggleExpandedLabel)
 	if !ok {
 		t.Fatalf("collapse chevron missing; texts=%v", tt.Texts())
 	}
-	// The glyph must stay close to the 12px row text rather than filling a
-	// large padded control box.
-	if glyph.H > 18 || glyph.W > 18 {
+	// U30: the SVG chevron (16px) must fit its hit target with a small margin
+	// and be at least 18px for clear clicking, yet stay a compact square
+	// (<=24px) rather than a large padded control box.
+	if glyph.H != glyph.W || glyph.H < 18 || glyph.H > 24 || glyph.H < jsonTreeToggleGlyph {
 		t.Fatalf("chevron box not compact: %+v", glyph)
 	}
 
@@ -76,7 +77,17 @@ func TestJSONTreeToggleCompactAndAligned(t *testing.T) {
 		t.Fatalf("nested key not indented: b:=%+v c:=%+v", bKey, cKey)
 	}
 
-	// Hit target shrank: a point 28px left of the key sits in the row's gutter.
+	// Toggle is vertically centered on the key text of its row.
+	// The first toggle belongs to the root row, whose only text is its "$" path.
+	rootPath, ok := tt.Find("$")
+	if !ok {
+		t.Fatalf("root path missing; texts=%v", tt.Texts())
+	}
+	if dy := (glyph.Y + glyph.H/2) - (rootPath.Y + rootPath.H/2); dy > 3 || dy < -3 {
+		t.Fatalf("toggle not vertically centered with row text: toggle=%+v text=%+v", glyph, rootPath)
+	}
+
+	// Hit target stays compact: a point 28px left of the key sits in the row's gutter.
 	// The old padded button reached there and would collapse "a"; the compact
 	// toggle does not, so the click must be a no-op.
 	yy := aKey.Y + aKey.H/2
@@ -95,7 +106,7 @@ func TestJSONTreeToggleCollapseExpandAndCopy(t *testing.T) {
 	nm := a.networkMsg()
 
 	// Collapse the root container via its chevron: children disappear.
-	glyph, ok := tt.Find("▾")
+	glyph, ok := tt.Find(jsonTreeToggleExpandedLabel)
 	if !ok {
 		t.Fatalf("collapse chevron missing; texts=%v", tt.Texts())
 	}
@@ -105,7 +116,7 @@ func TestJSONTreeToggleCollapseExpandAndCopy(t *testing.T) {
 		t.Fatalf("clicking ▾ did not collapse children; texts=%v", tt.Texts())
 	}
 	// Expand again via the now-pointing ▸.
-	expanded, ok := tt.Find("▸")
+	expanded, ok := tt.Find(jsonTreeToggleCollapsedLabel)
 	if !ok {
 		t.Fatalf("expand chevron missing after collapse; texts=%v", tt.Texts())
 	}
