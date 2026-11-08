@@ -124,6 +124,9 @@ type App struct {
 	// instead of rebuilding the tab or dropping the user's edits.
 	themeGen  int
 	themeDark bool
+
+	// feedbackPending is the next action confirmation toast (feedback.go).
+	feedbackPending *feedbackToast
 }
 
 // wire connects the project window's lifecycle to the manager and the close
@@ -208,6 +211,7 @@ func (a *App) View(c *ui.Context) {
 		}
 	})
 	a.expireUndo()
+	a.drainFeedback(c)
 	a.envEditorModal(c, t)
 	a.settingsModal(c, t)
 	// The manager-level update dialog sits above the Settings sheet it can be
@@ -259,7 +263,7 @@ func (a *App) closeWindow() {
 // saveActive saves the active tab of this project, reporting conflicts rather
 // than overwriting external edits.
 func (a *App) saveActive() {
-	a.saveActiveSynced()
+	a.saveActiveWithFeedback()
 }
 
 // saveAllDirty saves every dirty tab of this project; the first failure stops

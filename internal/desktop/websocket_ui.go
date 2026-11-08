@@ -44,7 +44,7 @@ func (a *App) wsTabView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		return
 	}
 	// §9 shortcuts: ⌘S saves the tab; ⌘↩ connects when disconnected.
-	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.saveActiveSynced() })
+	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.saveActiveWithFeedback() })
 	c.OnShortcut(ui.Cmd, ui.KeyEnter, func() {
 		if st.session == nil || st.session.State() != gows.StateOpen {
 			a.wsTabConnect(tab)

@@ -43,6 +43,8 @@ func (a *App) workspaceHeader(c *ui.Context, t *ui.Theme, ps *projectState) {
 		Background(p.BG).BorderWidth(0, 0, 1, 0).BorderColor(p.Hairline).Children(func() {
 		// Left: project name + switch dropdown.
 		uikit.MenuButton(c, ps.name(), func(mm *ui.Menu) { a.buildProjectMenu(c, mm, ps) })
+		// The active item's path follows the project name (U32).
+		a.headerPath(c, t, ps)
 		windowDragSpacer(c, 8)
 		// Environment area: a fixed single-line label (never wraps) + selector,
 		// then the active tab's save control. The save control is drawn only
@@ -94,6 +96,7 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
 			c.WriteClipboard(ps.root)
 		}
 		a.status = m.Copied
+		a.notifyCopied(ps.root)
 	}
 	mm.Separator()
 	if mm.Item(m.CloseProject).Chosen() {
@@ -209,7 +212,6 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 			ui.Column(c).Grow(1).FillHeight().Children(func() {
 				a.fileSyncTabBanner(c, t, ps, tab)
 				a.applyEditorPrefs(tab)
-				a.workspaceBreadcrumb(c, t, tab)
 				switch {
 				case isWebSocketTab(tab):
 					a.wsTabView(c, t, tab)
@@ -237,7 +239,7 @@ func (a *App) requestView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			a.trySend(tb)
 		}
 	})
-	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.saveActiveSynced() })
+	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.saveActiveWithFeedback() })
 	ui.Column(c).Grow(1).FillHeight().Padding(12, 16).Gap(10).Children(func() {
 		a.urlGroup(c, t, tab)
 
@@ -348,6 +350,7 @@ func (a *App) urlGroup(c *ui.Context, t *ui.Theme, tab *Tab) {
 				if b := uikit.IconButton(c, p, uikit.IconCopy, "Copy URL"); b.Clicked() {
 					c.WriteClipboard(tab.URL)
 					a.status = m.Copied
+					a.notifyCopied(tab.URL)
 				}
 			})
 			// Focus stays visible independently of the status color. The ring
@@ -425,7 +428,7 @@ func (a *App) saveControl(c *ui.Context, p uikit.Palette, tab *Tab) {
 	btn := uikit.ActionCursor(ui.Button(c, m.Save)).TextColor(p.Accent).
 		Label(m.Save + " ⌘S").Tooltip(m.Save + " ⌘S")
 	if btn.Clicked() {
-		a.saveActiveSynced()
+		a.saveActiveWithFeedback()
 	}
 }
 

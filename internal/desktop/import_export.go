@@ -551,6 +551,9 @@ func (a *App) CopyExportPreviewToClipboard(c *ui.Context) {
 	}
 	st.ExportNotice = a.msg().Copied
 	a.status = a.msg().Copied
+	if c != nil {
+		a.notifyCopied(st.ExportPreviewText)
+	}
 }
 
 // ExecuteExportToFile writes the selected export payload to ExportOutputPath,
@@ -649,6 +652,7 @@ func (a *App) ExecuteExportToFile() {
 	msg := fmt.Sprintf(im.ExportSavedStatus, filepath.Base(targetPath))
 	st.ExportNotice = msg
 	a.status = msg
+	a.notifySuccess(a.feedbackMsg().ExportOK)
 }
 
 func writeExportBytes(targetPath string, data []byte) error {

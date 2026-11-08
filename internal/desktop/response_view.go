@@ -202,7 +202,7 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		// there too instead of overflowing. There is no second settings row: the
 		// Cookie Jar lives in the Cookies view and the Network/TLS settings live
 		// inside the Network view, so neither can push the status off its anchor.
-		ui.Row(c).FillWidth().Wrap().Gap(8).Padding(6, 10).AlignItems(ui.Start).
+		ui.Row(c).FillWidth().Wrap().Gap(8).Padding(6, 10).AlignItems(ui.Center).
 			BorderWidth(1, 0, 0, 0).BorderColor(p.Hairline).Children(func() {
 			// Status elements are direct children (not one non-wrapping group)
 			// so a long status can wrap at narrow widths without overflowing.
@@ -228,8 +228,10 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 				}
 				ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
 					if b := uikit.IconButton(c, p, uikit.IconCopy, m.CopyResponse).Label(m.CopyResponse).Cursor(ui.CursorPointer); b.Clicked() {
-						c.WriteClipboard(responseBodyText(tab.Resp, tab.RespRawIdx == 1))
+						txt := responseBodyText(tab.Resp, tab.RespRawIdx == 1)
+						c.WriteClipboard(txt)
 						a.status = m.Copied
+						a.notifyCopied(txt)
 					}
 					if b := uikit.IconButton(c, p, uikit.IconFile, m.SaveResponse).Label(m.SaveResponse).Cursor(ui.CursorPointer); b.Clicked() {
 						a.saveResponse(tab)
@@ -475,12 +477,18 @@ func (a *App) saveResponse(tab *Tab) {
 		}
 		if err := saveResponseToPath(res, raw, path); err != nil {
 			if win != nil && !win.IsDestroyed() {
-				win.Update(func() { a.status = fmt.Sprintf("%s: %v", m.SaveResponse, err) })
+				win.Update(func() {
+					a.status = fmt.Sprintf("%s: %v", m.SaveResponse, err)
+					a.notifyError(a.feedbackMsg().SaveFailed, err.Error())
+				})
 			}
 			return
 		}
 		if win != nil && !win.IsDestroyed() {
-			win.Update(func() { a.status = translate(m.SavedResponse, path) })
+			win.Update(func() {
+				a.status = translate(m.SavedResponse, path)
+				a.notifySuccess(a.feedbackMsg().SaveSuccess)
+			})
 		}
 	}()
 }
@@ -780,10 +788,12 @@ func (a *App) responseJSONTreeView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit
 						if ui.Button(c, nm.CopyJSONPathBtn).Cursor(ui.CursorPointer).Clicked() {
 							c.WriteClipboard(n.Path)
 							a.status = m.Copied
+							a.notifyCopied(n.Path)
 						}
 						if ui.Button(c, nm.CopyValueBtn).Cursor(ui.CursorPointer).Clicked() {
 							c.WriteClipboard(n.RawValue)
 							a.status = m.Copied
+							a.notifyCopied(n.RawValue)
 						}
 					})
 				}

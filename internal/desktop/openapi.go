@@ -426,6 +426,9 @@ func (a *App) CopyOpenAPIExportToClipboard(c *ui.Context) {
 	}
 	st.ExportNotice = a.msg().Copied
 	a.status = a.msg().Copied
+	if c != nil {
+		a.notifyCopied(st.ExportPreviewText)
+	}
 }
 
 // ExecuteOpenAPIExportToFile writes the OpenAPI 3.1.2 / 3.2.1 specification to
@@ -461,6 +464,7 @@ func (a *App) ExecuteOpenAPIExportToFile() {
 	msg := fmt.Sprintf(a.openAPIMsg().ExportSavedFmt, filepath.Base(targetPath))
 	st.ExportNotice = msg
 	a.status = msg
+	a.notifySuccess(a.feedbackMsg().ExportOK)
 }
 
 func (a *App) activeHTTPRequestTabAndEntry() (*Tab, *core.RequestEntry) {
