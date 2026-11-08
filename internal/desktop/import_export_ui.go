@@ -117,7 +117,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 			ui.Row(c).FillWidth().Gap(12).Children(func() {
 				ui.Column(c).Grow(1).Gap(4).Children(func() {
 					ui.Text(c, im.TargetFolderLabel).FontSize(12).TextColor(p.Muted)
-					ui.TextInput(c, &st.ImportTargetFolder).FillWidth().Placeholder("collections (root)")
+					ui.TextInput(c, &st.ImportTargetFolder).FillWidth().Placeholder(im.RootFolderPlaceholder)
 				})
 				ui.Column(c).Grow(1).Gap(4).Children(func() {
 					ui.Text(c, im.TargetEnvLabel).FontSize(12).TextColor(p.Muted)
@@ -148,7 +148,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 
 			// Error / Notice banner
 			if st.ImportErr != "" {
-				ui.Text(c, st.ImportErr).FontSize(12).TextColor(t.Danger)
+				ui.Text(c, a.displayImportError(st.ImportErr)).FontSize(12).TextColor(t.Danger)
 			}
 			if st.ImportNotice != "" {
 				ui.Text(c, st.ImportNotice).FontSize(12).TextColor(t.Success)
@@ -174,13 +174,13 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 						ui.Text(c, "["+badgeText+"]").FontSize(12).FontWeight(700).TextColor(badgeColor)
 						ui.Text(c, fmt.Sprintf("%s (%s)", prev.Format, prev.FormatVersion)).Font("monospace").FontSize(12).TextColor(p.Muted)
 					})
-					ui.Text(c, prev.Summary).FontSize(12).TextColor(p.Text)
+					ui.Text(c, a.displayImportSummary(prev)).FontSize(12).TextColor(p.Text)
 
 					// Conflicts
 					if len(prev.Conflicts) > 0 {
 						ui.Text(c, im.ConflictsHeading).FontSize(12).FontWeight(600).TextColor(t.Danger)
 						for _, cf := range prev.Conflicts {
-							ui.Text(c, "• "+cf).FontSize(12).TextColor(t.Danger)
+							ui.Text(c, "• "+a.displayConflict(cf)).FontSize(12).TextColor(t.Danger)
 						}
 					}
 
@@ -188,8 +188,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 					if len(prev.Changes) > 0 {
 						ui.Text(c, fmt.Sprintf("%s (%d)", im.ChangesHeading, len(prev.Changes))).FontSize(12).FontWeight(600).TextColor(p.Text)
 						for _, ch := range prev.Changes {
-							line := fmt.Sprintf("[%s] %s (%d bytes)", strings.ToUpper(string(ch.Kind)), ch.RelPath, ch.AfterBytes)
-							ui.Text(c, line).Font("monospace").FontSize(11).TextColor(p.Text)
+							ui.Text(c, a.displayChangeLine(ch)).Font("monospace").FontSize(11).TextColor(p.Text)
 						}
 					}
 
@@ -197,12 +196,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 					if len(prev.IDMappings) > 0 {
 						ui.Text(c, fmt.Sprintf("%s (%d)", im.IDMappingsHeading, len(prev.IDMappings))).FontSize(12).FontWeight(600).TextColor(p.Text)
 						for _, mp := range prev.IDMappings {
-							renameTag := ""
-							if mp.Renamed {
-								renameTag = " [RENAMED]"
-							}
-							line := fmt.Sprintf("%s: %s -> %s (%s)%s", mp.EntityKind, mp.SourceID, mp.TargetID, mp.TargetPath, renameTag)
-							ui.Text(c, line).Font("monospace").FontSize(11).TextColor(p.Muted)
+							ui.Text(c, a.displayIDMappingLine(mp)).Font("monospace").FontSize(11).TextColor(p.Muted)
 						}
 					}
 
@@ -210,15 +204,10 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 					if len(prev.Variables) > 0 || len(prev.SecretBindings) > 0 || len(prev.LocalFileSlots) > 0 {
 						ui.Text(c, im.SecretsVarsHeading).FontSize(12).FontWeight(600).TextColor(p.Text)
 						for _, v := range prev.Variables {
-							kindTag := "var"
-							if v.IsSecret {
-								kindTag = "secret"
-							}
-							line := fmt.Sprintf("[%s] %s -> %s = %s (source: %s)", kindTag, v.Name, v.MappedRef, v.MaskedPreview, v.Source)
-							ui.Text(c, line).Font("monospace").FontSize(11).TextColor(p.Muted)
+							ui.Text(c, a.displayVariableLine(v)).Font("monospace").FontSize(11).TextColor(p.Muted)
 						}
 						for _, slot := range prev.LocalFileSlots {
-							ui.Text(c, fmt.Sprintf("[local-slot] local:%s (bind local file before sending)", slot)).Font("monospace").FontSize(11).TextColor(t.Warning)
+							ui.Text(c, a.displayLocalFileSlot(slot)).Font("monospace").FontSize(11).TextColor(t.Warning)
 						}
 					}
 
@@ -233,8 +222,7 @@ func (a *App) importModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 							case core.LossWarning, core.LossUnsupported, core.LossSecurityScrubbed:
 								col = t.Warning
 							}
-							line := fmt.Sprintf("[%s / %s] %s", l.Severity, l.Code, l.Message)
-							ui.Text(c, line).FontSize(11).TextColor(col)
+							ui.Text(c, a.displayLossLine(l)).FontSize(11).TextColor(col)
 						}
 					}
 				})
@@ -289,21 +277,21 @@ func (a *App) exportModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 			switch st.ExportKind {
 			case ExportKindRedactedCURL, ExportKindPortableReq:
 				ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "Request:").FontSize(12).TextColor(p.Muted)
+					ui.Text(c, im.RequestLabel+im.LabelColon).FontSize(12).TextColor(p.Muted)
 					if ui.TextInput(c, &st.ExportTargetReqRel).Grow(1).Placeholder("collections/req.request.yaml").Submitted() {
 						a.RefreshExportPreview()
 					}
 				})
 			case ExportKindPortableFolder:
 				ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, im.TargetFolderLabel+":").FontSize(12).TextColor(p.Muted)
+					ui.Text(c, im.TargetFolderLabel+im.LabelColon).FontSize(12).TextColor(p.Muted)
 					if ui.TextInput(c, &st.ExportTargetFolder).Grow(1).Placeholder("collections/folder").Submitted() {
 						a.RefreshExportPreview()
 					}
 				})
 			case ExportKindPostmanEnv:
 				ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, im.TargetEnvLabel+":").FontSize(12).TextColor(p.Muted)
+					ui.Text(c, im.TargetEnvLabel+im.LabelColon).FontSize(12).TextColor(p.Muted)
 					if ui.TextInput(c, &st.ExportTargetEnvID).Grow(1).Placeholder("dev").Submitted() {
 						a.RefreshExportPreview()
 					}
@@ -312,7 +300,7 @@ func (a *App) exportModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 
 			// Output file path & overwrite checkbox
 			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, im.OutputPathLabel+":").FontSize(12).TextColor(p.Muted)
+				ui.Text(c, im.OutputPathLabel+im.LabelColon).FontSize(12).TextColor(p.Muted)
 				ui.TextInput(c, &st.ExportOutputPath).Grow(1).Placeholder(im.OutputPathPlaceholder)
 				if uikit.ActionCursor(ui.Button(c, im.BrowseFileButton)).Clicked() {
 					a.pickLocalFileDialog(func(chosen string) {
@@ -323,7 +311,7 @@ func (a *App) exportModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 			})
 
 			if st.ExportErr != "" {
-				ui.Text(c, st.ExportErr).FontSize(12).TextColor(t.Danger)
+				ui.Text(c, a.displayExportError(st.ExportErr)).FontSize(12).TextColor(t.Danger)
 			}
 			if st.ExportNotice != "" {
 				ui.Text(c, st.ExportNotice).FontSize(12).TextColor(t.Success)
@@ -342,7 +330,7 @@ func (a *App) exportModal(c *ui.Context, t *ui.Theme, st *InteropState) {
 					if len(st.ExportLosses) > 0 {
 						ui.Text(c, fmt.Sprintf("%s (%d)", im.LossesHeading, len(st.ExportLosses))).FontSize(12).FontWeight(600).TextColor(t.Warning)
 						for _, l := range st.ExportLosses {
-							ui.Text(c, fmt.Sprintf("[%s] %s", l.Code, l.Message)).FontSize(11).TextColor(t.Warning)
+							ui.Text(c, a.displayLossLine(l)).FontSize(11).TextColor(t.Warning)
 						}
 					}
 				})

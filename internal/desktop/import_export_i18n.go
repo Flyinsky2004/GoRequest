@@ -59,6 +59,97 @@ type interopMessages struct {
 	ExportPreviewHeading     string
 	ExportSecurityNote       string
 	ExportSavedStatus        string
+
+	// Structured preview rendering. These keep the technical facts (IDs, paths,
+	// codes, JSON keys, request data) verbatim while localizing the surrounding
+	// natural language.
+	RequestLabel          string
+	RootFolderPlaceholder string
+	LabelColon            string
+	BytesFmt              string
+	ChangeLineFmt         string
+	IDMappingLineFmt      string
+	VariableLineFmt       string
+	LocalSlotLineFmt      string
+	RenamedTag            string
+	VarKindVar            string
+	VarKindSecret         string
+	SummaryFallback       string
+	LossUnknownFmt        string
+
+	// Loss severity labels (the machine code stays visible next to them).
+	SeverityInfo             string
+	SeverityWarning          string
+	SeverityUnsupported      string
+	SeveritySecurityScrubbed string
+	SeverityBlocked          string
+
+	// Change kinds.
+	ChangeKindCreate string
+	ChangeKindUpdate string
+	ChangeKindDelete string
+	ChangeKindMove   string
+
+	// Entity kinds.
+	EntityRequest     string
+	EntityFolder      string
+	EntityEnvironment string
+	EntityAuth        string
+	EntityDoc         string
+	EntityAsset       string
+	EntityAttachment  string
+
+	// Mapping actions.
+	ActionCreate   string
+	ActionUpdate   string
+	ActionRename   string
+	ActionSkip     string
+	ActionConflict string
+
+	// Variable scopes and sources.
+	ScopeEnvironment string
+	ScopeCollection  string
+	ScopeRequestAuth string
+	ScopeHeader      string
+	ScopeBundle      string
+
+	SourcePostmanEnv        string
+	SourcePostmanCollection string
+	SourceCurlAuth          string
+	SourceCurlHeader        string
+	SourcePortable          string
+
+	// Format display names used only when the core summary cannot be mapped.
+	FormatCURL               string
+	FormatPostmanCollection  string
+	FormatPostmanEnvironment string
+	FormatPortableBundle     string
+	FormatOpenAPI            string
+	FormatSwagger2           string
+
+	// User-facing import/export errors. Known desktop messages are translated in
+	// full; unknown core errors keep their original technical detail behind a
+	// localized classification.
+	ErrorCURLRequired              string
+	ErrorImportFileRequired        string
+	ErrorPreviewRequired           string
+	ErrorNoReceipt                 string
+	ErrorSelectRequestForCURL      string
+	ErrorSelectRequestForBundle    string
+	ErrorExportPathRequired        string
+	ErrorTargetExistsFmt           string
+	ErrorReadImportFilePrefix      string
+	ErrorParsePostmanCollection    string
+	ErrorParsePostmanEnvironment   string
+	ErrorUnrecognizedImportFormat  string
+	ErrorImportPlanBlockedPrefix   string
+	ErrorImportPlanApplied         string
+	ErrorOpenAPIRouted             string
+	ErrorUnknownImportFmt          string
+	ErrorUnknownExportFmt          string
+	ErrorExportTargetExistsFmt     string
+	ErrorExportPathRequiredCore    string
+	ErrorUnsupportedExportScopeFmt string
 }
 
 var interopEN = interopMessages{
@@ -119,6 +210,85 @@ var interopEN = interopMessages{
 	ExportPreviewHeading:     "Redacted Preview & Manifest Summary",
 	ExportSecurityNote:       "Real secrets, cookies, local history, device configs, reports, and host file paths are automatically excluded.",
 	ExportSavedStatus:        "Exported to %s",
+
+	RequestLabel:          "Request",
+	RootFolderPlaceholder: "collections (root)",
+	LabelColon:            ": ",
+	BytesFmt:              "%d bytes",
+	ChangeLineFmt:         "[%s] %s (%s)",
+	IDMappingLineFmt:      "%s: %s -> %s (%s; %s)%s",
+	VariableLineFmt:       "[%s] %s -> %s = %s (source: %s)",
+	LocalSlotLineFmt:      "[local-slot] local:%s (bind local file before sending)",
+	RenamedTag:            " [RENAMED]",
+	VarKindVar:            "var",
+	VarKindSecret:         "secret",
+	SummaryFallback:       "%s import preview: %d file change(s), %d loss/warning note(s), %d conflict(s)",
+	LossUnknownFmt:        "Untranslated conversion diagnostic: %s",
+
+	SeverityInfo:             "info",
+	SeverityWarning:          "warning",
+	SeverityUnsupported:      "unsupported",
+	SeveritySecurityScrubbed: "security-scrubbed",
+	SeverityBlocked:          "blocked",
+
+	ChangeKindCreate: "create",
+	ChangeKindUpdate: "update",
+	ChangeKindDelete: "delete",
+	ChangeKindMove:   "move",
+
+	EntityRequest:     "request",
+	EntityFolder:      "folder",
+	EntityEnvironment: "environment",
+	EntityAuth:        "auth",
+	EntityDoc:         "doc",
+	EntityAsset:       "asset",
+	EntityAttachment:  "attachment",
+
+	ActionCreate:   "create",
+	ActionUpdate:   "update",
+	ActionRename:   "rename",
+	ActionSkip:     "skip",
+	ActionConflict: "conflict",
+
+	ScopeEnvironment: "environment",
+	ScopeCollection:  "collection",
+	ScopeRequestAuth: "request-auth",
+	ScopeHeader:      "header",
+	ScopeBundle:      "bundle",
+
+	SourcePostmanEnv:        "postman-env",
+	SourcePostmanCollection: "postman-collection",
+	SourceCurlAuth:          "curl-auth",
+	SourceCurlHeader:        "curl-header",
+	SourcePortable:          "portable",
+
+	FormatCURL:               "cURL",
+	FormatPostmanCollection:  "Postman Collection",
+	FormatPostmanEnvironment: "Postman Environment",
+	FormatPortableBundle:     "Portable Bundle",
+	FormatOpenAPI:            "OpenAPI",
+	FormatSwagger2:           "Swagger 2.0",
+
+	ErrorCURLRequired:              "Please enter a cURL command to preview.",
+	ErrorImportFileRequired:        "Please enter or browse to an import file (.json, .yaml, or .gorequest-bundle.zip).",
+	ErrorPreviewRequired:           "Generate a preview before applying.",
+	ErrorNoReceipt:                 "No applied import receipt available to roll back.",
+	ErrorSelectRequestForCURL:      "Select or open an HTTP request to generate a redacted cURL command.",
+	ErrorSelectRequestForBundle:    "Select a request to export as a Portable Bundle.",
+	ErrorExportPathRequired:        "Please enter an export file path.",
+	ErrorTargetExistsFmt:           "Target file %q already exists (enable 'Allow Overwrite' to replace it).",
+	ErrorReadImportFilePrefix:      "Read import file: ",
+	ErrorParsePostmanCollection:    "parse Postman Collection structure: ",
+	ErrorParsePostmanEnvironment:   "parse Postman Environment structure: ",
+	ErrorUnrecognizedImportFormat:  "unsupported or unrecognized import format (file: %q)",
+	ErrorImportPlanBlockedPrefix:   "import plan cannot be applied: ",
+	ErrorImportPlanApplied:         "import plan already applied",
+	ErrorOpenAPIRouted:             "openapi/swagger specification conversion belongs to task A03 and is not handled by B08 basic interop",
+	ErrorUnknownImportFmt:          "Import failed: %s",
+	ErrorUnknownExportFmt:          "Export failed: %s",
+	ErrorExportTargetExistsFmt:     "export target %q already exists",
+	ErrorExportPathRequiredCore:    "export file path is required",
+	ErrorUnsupportedExportScopeFmt: "unsupported portable export scope %q",
 }
 
 var interopZH = interopMessages{
@@ -179,11 +349,99 @@ var interopZH = interopMessages{
 	ExportPreviewHeading:     "脱敏预览与便携包清单摘要",
 	ExportSecurityNote:       "真实密钥、Cookie、执行历史、设备配置、测试报告及本机绝对路径已自动排除。",
 	ExportSavedStatus:        "已导出至 %s",
+
+	RequestLabel:          "请求",
+	RootFolderPlaceholder: "collections（根目录）",
+	LabelColon:            "：",
+	BytesFmt:              "%d 字节",
+	ChangeLineFmt:         "[%s] %s（%s）",
+	IDMappingLineFmt:      "%s：%s → %s（%s；%s）%s",
+	VariableLineFmt:       "[%s] %s → %s = %s（来源：%s）",
+	LocalSlotLineFmt:      "[本地文件槽位] local:%s（发送前请绑定本地文件）",
+	RenamedTag:            " [已重命名]",
+	VarKindVar:            "变量",
+	VarKindSecret:         "Secret",
+	SummaryFallback:       "%s导入预览：%d 项文件变更，%d 项损失/警告，%d 项冲突",
+	LossUnknownFmt:        "未收录的转换诊断：%s",
+
+	SeverityInfo:             "提示",
+	SeverityWarning:          "警告",
+	SeverityUnsupported:      "不支持",
+	SeveritySecurityScrubbed: "安全脱敏",
+	SeverityBlocked:          "已阻止",
+
+	ChangeKindCreate: "新建",
+	ChangeKindUpdate: "更新",
+	ChangeKindDelete: "删除",
+	ChangeKindMove:   "移动",
+
+	EntityRequest:     "请求",
+	EntityFolder:      "文件夹",
+	EntityEnvironment: "环境",
+	EntityAuth:        "鉴权方案",
+	EntityDoc:         "文档",
+	EntityAsset:       "资源",
+	EntityAttachment:  "附件",
+
+	ActionCreate:   "新建",
+	ActionUpdate:   "更新",
+	ActionRename:   "重命名",
+	ActionSkip:     "跳过",
+	ActionConflict: "冲突",
+
+	ScopeEnvironment: "环境",
+	ScopeCollection:  "集合",
+	ScopeRequestAuth: "请求鉴权",
+	ScopeHeader:      "请求头",
+	ScopeBundle:      "便携包",
+
+	SourcePostmanEnv:        "Postman 环境",
+	SourcePostmanCollection: "Postman 集合",
+	SourceCurlAuth:          "cURL 鉴权",
+	SourceCurlHeader:        "cURL 请求头",
+	SourcePortable:          "便携包",
+
+	FormatCURL:               "cURL",
+	FormatPostmanCollection:  "Postman 集合",
+	FormatPostmanEnvironment: "Postman 环境",
+	FormatPortableBundle:     "便携包",
+	FormatOpenAPI:            "OpenAPI",
+	FormatSwagger2:           "Swagger 2.0",
+
+	ErrorCURLRequired:              "请输入要预览的 cURL 命令。",
+	ErrorImportFileRequired:        "请输入或浏览选择导入文件（.json、.yaml 或 .gorequest-bundle.zip）。",
+	ErrorPreviewRequired:           "请先生成变更预览再应用。",
+	ErrorNoReceipt:                 "没有可回滚的已应用导入记录。",
+	ErrorSelectRequestForCURL:      "请选择或打开一个 HTTP 请求以生成脱敏 cURL 命令。",
+	ErrorSelectRequestForBundle:    "请选择要导出为便携包的请求。",
+	ErrorExportPathRequired:        "请输入导出文件路径。",
+	ErrorTargetExistsFmt:           "目标文件 %q 已存在（启用「允许覆盖」后可替换）。",
+	ErrorReadImportFilePrefix:      "读取导入文件失败：",
+	ErrorParsePostmanCollection:    "解析 Postman 集合结构失败：",
+	ErrorParsePostmanEnvironment:   "解析 Postman 环境结构失败：",
+	ErrorUnrecognizedImportFormat:  "不支持或无法识别的导入格式（文件：%q）",
+	ErrorImportPlanBlockedPrefix:   "导入计划无法应用：",
+	ErrorImportPlanApplied:         "导入计划已应用，不能重复应用",
+	ErrorOpenAPIRouted:             "OpenAPI/Swagger 规范转换属于 A03 任务，B08 基础互操作不处理",
+	ErrorUnknownImportFmt:          "导入失败：%s",
+	ErrorUnknownExportFmt:          "导出失败：%s",
+	ErrorExportTargetExistsFmt:     "导出目标 %q 已存在",
+	ErrorExportPathRequiredCore:    "必须提供导出文件路径",
+	ErrorUnsupportedExportScopeFmt: "不支持的便携包导出范围 %q",
+}
+
+// interopLanguage returns the interface language for interop surfaces. It reads
+// the config on every call so a language switch applies on the next frame.
+func (a *App) interopLanguage() language {
+	if a != nil && a.mgr != nil && a.mgr.cfg != nil {
+		return a.mgr.cfg.language()
+	}
+	return defaultLanguage()
 }
 
 func (a *App) interopMsg() *interopMessages {
-	if a != nil && a.mgr != nil && a.mgr.cfg != nil && a.mgr.cfg.language() == "zh" {
-		return &interopZH
+	if a.interopLanguage() == langEnglish {
+		return &interopEN
 	}
-	return &interopEN
+	return &interopZH
 }
