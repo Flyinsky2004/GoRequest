@@ -1113,3 +1113,17 @@ U21-interop-i18n.patch先核对U22是否已覆盖勿重复套；U23-import_expor
 - U29从实际MyGo输入绘制路径审计（输入可能用Accent而非Focus），不能仅改Focus假装所有输入已修，也不能把全局Accent改绿导致品牌主动作全部变绿。统一语义token，覆盖正常输入边框/填充/提示/成功及亮暗主题，保留错误与危险红、HTTP方法/代码语义。其他卡文件的接线交独立.patch供集成人处理，报告明确未接线项；不改U26 workspace.go、U27 settings*/update_ui.go、U28 secret_entry.go。其余卡也不得改共享palette/组件，所需扩展独立文件或patch。
 - 每位先读AGENTS.md、本节及ui-ux-pro-max技能，使用现有原生MyGo组件。允许build/vet/必要专项测试、本地commit；报告docs/task-results/U26.md–U29.md记录真实基线/改动/验证/限制/待集成patch。不改go.mod/go.sum/MyGo源码/总账本/其他分支/全局模型配置，不派子agent、不merge/push、不操作其他会话。实机未跑明确未验收。
 - 已知4项旧失败见§37及§39：TestMockEditorSuggestionsAreProjectUnique、TestRunnerEditorDescribeAssertions、TestRunnerEditorPatchSuiteExtract、TestEngine_PolicyBlockedAndMissingSecretPreflight；遇到如实记录，不改旧断言掩盖。主工作区用户dev.yaml/document.md及两个debug产物全部保留。使用临时测试数据/fake网络，不实际安装更新。
+
+
+### 40.2 实际启动句柄
+
+四条均从登记提交40616af创建，经Herdr交互启动。两个agy新目录信任提示已确认，读屏核对实际模型为Claude Sonnet 5.5 (Medium)与Gemini 4 Argon (Medium)，hc状态working；两个CC读屏为默认DeepSeek V4.1 Flash 1017 · Mistral、bypass permissions on，hc状态working。未修改全局模型配置。
+
+| ID | Herdr终端 | tab ID | 模型 |
+| --- | --- | --- | --- |
+| U26 | t5d | tb3970d9794c9cb60f8005a4eeed6d25d1 | CC default |
+| U27 | t5f | tb915f72029242d093c3d174fea98924db | claude-sonnet-5-5-medium |
+| U28 | t5g | tb9354889fd2fa9e658812091f041e2449 | CC default |
+| U29 | t5h | tbd6935a22b2503729ce4f525050e34a3d | gemini-4-argon-medium |
+
+以上取代登记表待启动状态，现为开发中，尚未交付/合并/验收。完整prompts与sessions.json仅存本机/private/tmp/gorequest-u26-u29-20261108/。本次主工作区只登记派工，未修改产品代码，用户已有改动和其他会话保留。
