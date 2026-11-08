@@ -514,6 +514,9 @@ func (a *App) resolveCloseGuard(discard bool) {
 	if a.closeGuard == nil || !a.closeGuard.active {
 		return
 	}
+	if a.closeGuard.quit && a.mgr != nil && a.mgr.tryResolveHandoffGuard(a, discard) {
+		return
+	}
 	if discard {
 		a.clearDirty()
 	} else if err := a.saveAllDirty(); err != nil {
@@ -539,6 +542,7 @@ func (a *App) cancelCloseGuard() {
 	a.closeGuard.active = false
 	if a.closeGuard.quit {
 		a.mgr.pendingQuit = false
+		a.mgr.abandonHandoff()
 	}
 }
 
