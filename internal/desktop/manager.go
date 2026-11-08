@@ -476,13 +476,29 @@ func (m *Manager) anyDirty() bool {
 // resolved it calls itself again for the next. When nothing is dirty, it marks
 // the quit in progress and asks the app to quit for real.
 func (m *Manager) promptQuitGuard() {
+	if m.handoff != nil && !m.pendingQuit {
+		// A previous update guard was canceled via cancelCloseGuard; drop the
+		// stale handoff so a subsequent normal quit never launches the installer.
+		m.abandonHandoff()
+	}
 	for _, app := range m.workspaces {
-		if !app.closed && app.ps.hasDirty() {
-			app.win.Show()
-			app.win.Focus()
-			app.openCloseGuard(true)
-			return
+		if app.closed || !app.ps.hasDirty() {
+			if m.handoff != nil {
+				delete(m.handoff.approved, app)
+			}
+			continue
 		}
+		if m.handoff != nil {
+			if m.handoff.isApproved(app) {
+				continue
+			}
+			delete(m.handoff.approved, app)
+			m.handoff.capturePreGuard(app)
+		}
+		app.win.Show()
+		app.win.Focus()
+		app.openCloseGuard(true)
+		return
 	}
 	if m.handoff != nil {
 		m.finishHandoff()
@@ -497,6 +513,9 @@ func (m *Manager) promptQuitGuard() {
 // (saved or discarded).
 func (m *Manager) onQuitGuardSettled(app *App) {
 	app.closeGuard.active = false
+	if m.handoff != nil {
+		m.handoff.settleCompat(app)
+	}
 	m.promptQuitGuard()
 }
 
