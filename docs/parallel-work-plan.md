@@ -822,3 +822,27 @@ Herdr复查本批10个终端均不再出现；保留t1h/t3w/t2s及其他项目t3
 ### 32.2 DOC01 旧分支清理
 
 用户要求确认昨晚CC工作合并后删除旧分支。已核对 `b789a49` 为main祖先，README与DOC01报告在main与来源分支完全一致，来源worktree无未提交文件。精确关闭DOC01的Herdr tab `tb662187d54a907dfdaf048d7940554f90`（终端t4p），使用不带force的worktree remove与branch -d删除 `/private/tmp/gorequest-doc01-20261108` 和 `cc/DOC01-readme`。保留main与全部交付提交，未删除MyGo showcase分支、未push，用户原有示例环境/文档/debug文件保留。
+
+
+## 33. U11–U15 项目创建、WebSocket工作区与统一交互（2026-11-08）
+
+用户要求继续通过Herdr启动CC落实五项优化。当前main `29d9755`，检查保留用户dev.yaml、示例document.md、demo-server debug产物。本批从本登记提交创建5个独立worktree，沿用默认CC模型，不改全局设置；未集成验收前不勾完成。
+
+| ID / 负责人 | 分支 / 实际worktree | 文件归属与验收 | 状态 |
+| --- | --- | --- | --- |
+| U11 / CC project-modes | cc/U11-project-modes / /private/tmp/gorequest-u11-u15-20261108/project-modes | welcome.go、workspace_management.go创建项目部分、core/workspace.go及专属新增测试/翻译；左右大选择卡、独立项目子目录与已有代码目录直接.gorequest、路径预览、不覆盖已有项目/代码 | 待启动 |
+| U12 / CC websocket-workspace | cc/U12-websocket-workspace / /private/tmp/gorequest-u11-u15-20261108/websocket-workspace | websocket*.go与新增测试；独占共享app.go、workspace.go、tab.go、tab_actions.go、tab_bar.go、project_state.go及必要请求创建/持久化接线；WS进入主工作区、并列标签、每标签连接/草稿/时间线隔离、关闭释放 | 待启动 |
+| U13 / CC settings-icons | cc/U13-settings-icons / /private/tmp/gorequest-u11-u15-20261108/settings-icons | settings.go、workspace_settings.go、markdown_settings.go及专属新增图标/测试；设置各分类/Tab/按钮图标，统一SVG语义与主题色、无重复装饰/布局回退 | 待启动 |
+| U14 / CC themed-tabs | cc/U14-themed-tabs / /private/tmp/gorequest-u11-u15-20261108/themed-tabs | uikit/tab.go、underlinetabs.go、native_segmented.go、components.go及新增主题Tab组件/专属测试；除其他卡独占文件外全仓Tab调用迁移；主题/图标/过渡统一，不丢编辑/关闭/键盘/滚动语义 | 待启动 |
+| U15 / CC dropdown-bounce | cc/U15-dropdown-bounce / /private/tmp/gorequest-u11-u15-20261108/dropdown-bounce | uikit/select.go、desktop/header_menus.go及专属新增动效/测试；所有可控下拉开合bounce、统一入口与覆盖审计，键盘/定位/点击/边缘裁剪/空闲重绘不回归 | 待启动 |
+
+### 33.1 公共文件与交付契约
+
+- U11不执行git init、不改已有.git/代码，不要求目录为空或必须有.git才能共存；共存目录必须已存在，已存在.gorequest明确拒绝覆盖/引导打开。中文名、空名、路径非法、文件/权限错误均有反馈，失败只回滚本次创建的资源。
+- U12不把WS伪装成HTTP发送，不只把modal放大；复用当前HTTP式工作区布局、URL/环境/鉴权/Headers/消息区，HTTP与WS可并列编辑；新建/保存/重开/树导航必须能回到正确协议，不把连接对象或真实密钥写项目。必要core文件仅U12修改（U11的core/workspace.go除外）。流取消/关闭/切换/多窗口及事件generation隔离需有测试。
+- U13不直接改U14公共组件；若需公共Icon导出或Tab API，仅新增自有文件/交接线patch。设置导航尽量用ButtonBase保留焦点语义。U14兼容已有组件签名，图标为可选参数/新入口，U13现有提交单独可编译。
+- U14独占现有uikit tab/segmented组件，但不改select.go/motion.go/icons.go。U15不改上述Tab文件。新增动效/图标放各自新文件，避免抢公共表。U14不直接编辑U11/U12/U13/U15独占文件，交docs/task-results/U14-integration.patch及逐文件覆盖清单；U15对workspace.go、welcome.go、settings.go等同理交U15-integration.patch。不准以未接线patch声称全量替换完成。
+- 五卡均不得改go.mod/go.sum、MyGo源码/版本或其他worktree、总账本；确需公共改动记录最小patch供集成人处理。双语用各自独立翻译文件，避免修改全局i18n消息大表。允许本地build/受影响测试/commit，不push/merge、不派子agent、不操作其他终端/全局模型。
+- 统一使用现有Palette/SVG/MyGo动画及ui.Tester；尊重可用的减少动态效果机制，动效不以sleep/永久ticker驱动，稳定后停止重绘。若依赖缺少关闭动画钩子须查实并报告，不升级框架或宣称未实现能力。
+- 测试：每卡go build ./...及必要受影响测试；已有desktop三项TestMockEditorSuggestionsAreProjectUnique/TestRunnerEditorDescribeAssertions/TestRunnerEditorPatchSuiteExtract与diagnostics TestEngine_PolicyBlockedAndMissingSecretPreflight是§31已复现历史失败，如遇仍需记录本轮实际输出，不擅改断言掩盖。
+- 报告docs/task-results/U11.md–U15.md记录基线/实际目录/分支、实现与接线状态、完整命令及结果、限制/截图证据/本地commit。未启动真实窗口不得冒充实机验收；交付至少检查diff与暂存范围。
