@@ -118,7 +118,7 @@ func TabItemWithActions(c *ui.Context, p Palette, key any, s TabSpec, closeLabel
 		})
 	}
 	if a.OnContextMenu != nil && !s.Disabled {
-		outer.ContextMenu(a.OnContextMenu)
+		outer.PopoverMenu(a.OnContextMenu)
 	}
 
 	outer.Children(func() {

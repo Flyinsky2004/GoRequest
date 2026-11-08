@@ -1,23 +1,25 @@
 package desktop
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+
+	"gorequest/internal/desktop/uikit"
 )
 
 // tabBarTester renders just the tab strip. A right-click on a tab label then
 // cannot land on the sidebar's same-named row, which would open the tree menu.
-func tabBarTester(a *App, ps *projectState) *ui.Tester {
-	theme := ui.LightTheme()
+func tabBarTester(a *App, ps *projectState, dark ...bool) *ui.Tester {
+	isDark := len(dark) > 0 && dark[0]
+	theme := uikit.Theme(uikit.PaletteFor(&ui.Theme{Dark: isDark}), isDark)
 	tt := ui.NewTester(func(c *ui.Context) {
 		c.SetTheme(theme)
 		ui.Column(c).Fill().Children(func() {
 			a.tabBar(c, theme, ps)
 			ui.Text(c, "content boundary")
 		})
-	}, 760, 120)
+	}, 760, 320)
 	tt.Frame()
 	return tt
 }
@@ -25,21 +27,52 @@ func tabBarTester(a *App, ps *projectState) *ui.Tester {
 // TestTabRightClickOpensContextMenu proves the secondary button on a tab opens
 // the VSCode-like close menu and targets the tab under the pointer.
 func TestTabRightClickOpensContextMenu(t *testing.T) {
-	a, ps := openTestProject(t, "TabMenu")
-	tabs := openRequestTabs(t, ps, "Alpha", "Beta", "Gamma")
-	ps.active = 2 // Gamma active; right-clicking Alpha must retarget it.
-	tt := tabBarTester(a, ps)
+	for _, dark := range []bool{false, true} {
+		name := "light"
+		if dark {
+			name = "dark"
+		}
+		t.Run(name, func(t *testing.T) {
+			a, ps := openTestProject(t, "TabMenu")
+			tabs := openRequestTabs(t, ps, "Alpha", "Beta", "Gamma")
+			ps.active = 2 // Gamma active; right-clicking Alpha must retarget it.
+			tt := tabBarTester(a, ps, dark)
 
-	if err := tt.RightClick(tabDisplayLabel(tabs[0])); err != nil {
-		t.Fatalf("right-click tab: %v", err)
-	}
-	got := tt.Menu()
-	want := []string{"Close", "Close Others", "Close to the Right", "Close All"}
-	if strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Fatalf("tab context menu = %v, want %v", got, want)
-	}
-	if ps.activeTab() != tabs[0] {
-		t.Fatalf("right-click should activate the tab; active = %q", ps.activeTab().Title)
+			if err := tt.RightClick(tabDisplayLabel(tabs[0])); err != nil {
+				t.Fatalf("right-click tab: %v", err)
+			}
+			if got := tt.Menu(); got != nil {
+				t.Fatalf("tab context menu must be drawn in the window, got native menu %v", got)
+			}
+			for _, want := range []string{"Close", "Close Others", "Close to the Right", "Close All"} {
+				if !tt.HasText(want) {
+					t.Fatalf("tab context menu missing %q; texts=%v", want, tt.Texts())
+				}
+			}
+			if ps.activeTab() != tabs[0] {
+				t.Fatalf("right-click should activate the tab; active = %q", ps.activeTab().Title)
+			}
+			r, ok := tt.Find("Close Others")
+			if !ok {
+				t.Fatal("drawn menu item missing")
+			}
+			got := tt.Image().RGBAAt(int(r.X+2), int(r.Y+r.H/2))
+			want := uikit.PaletteFor(&ui.Theme{Dark: dark}).BG
+			if got.R != want.R || got.G != want.G || got.B != want.B {
+				t.Fatalf("menu surface = %v, want theme background %v", got, want)
+			}
+			tt.Key(0, ui.KeyEscape)
+			if tt.HasText("Close Others") {
+				t.Fatal("Escape left the tab menu open")
+			}
+			if err := tt.RightClick(tabDisplayLabel(tabs[0])); err != nil {
+				t.Fatal(err)
+			}
+			tt.ClickAt(740, 300)
+			if tt.HasText("Close Others") {
+				t.Fatal("outside click left the tab menu open")
+			}
+		})
 	}
 }
 
@@ -53,7 +86,7 @@ func TestTabContextMenuCloseOthers(t *testing.T) {
 	if err := tt.RightClick(tabDisplayLabel(tabs[1])); err != nil {
 		t.Fatalf("right-click tab: %v", err)
 	}
-	if err := tt.ChooseMenuItem("Close Others"); err != nil {
+	if err := tt.Click("Close Others"); err != nil {
 		t.Fatalf("choose Close Others: %v", err)
 	}
 	if len(ps.tabs) != 1 || ps.tabs[0] != tabs[1] {
@@ -74,7 +107,7 @@ func TestTabContextMenuCloseRight(t *testing.T) {
 	if err := tt.RightClick(tabDisplayLabel(tabs[1])); err != nil {
 		t.Fatalf("right-click tab: %v", err)
 	}
-	if err := tt.ChooseMenuItem("Close to the Right"); err != nil {
+	if err := tt.Click("Close to the Right"); err != nil {
 		t.Fatalf("choose Close to the Right: %v", err)
 	}
 	if len(ps.tabs) != 2 || ps.tabs[0] != tabs[0] || ps.tabs[1] != tabs[1] {
@@ -92,11 +125,10 @@ func TestTabContextMenuCloseRightDisabledOnLastTab(t *testing.T) {
 	if err := tt.RightClick(tabDisplayLabel(tabs[1])); err != nil {
 		t.Fatalf("right-click tab: %v", err)
 	}
-	err := tt.ChooseMenuItem("Close to the Right")
-	if err == nil || !strings.Contains(err.Error(), "disabled") {
-		t.Fatalf("Close to the Right on the last tab should be disabled, got %v", err)
+	if err := tt.Click("Close to the Right"); err != nil {
+		t.Fatalf("click disabled item: %v", err)
 	}
-	tt.CloseMenu()
+	tt.Key(0, ui.KeyEscape)
 	if len(ps.tabs) != 2 {
 		t.Fatalf("a disabled action must close nothing, got %v", tabTitles(ps))
 	}
@@ -115,7 +147,7 @@ func TestTabContextMenuDirtyPausesForDecision(t *testing.T) {
 	if err := tt.RightClick(tabDisplayLabel(tabs[0])); err != nil {
 		t.Fatalf("right-click tab: %v", err)
 	}
-	if err := tt.ChooseMenuItem("Close to the Right"); err != nil {
+	if err := tt.Click("Close to the Right"); err != nil {
 		t.Fatalf("choose Close to the Right: %v", err)
 	}
 	tt.Frame()

@@ -298,10 +298,10 @@ func TestTabItemActionsOptionalChrome(t *testing.T) {
 	if err := tt.RightClick("Doc"); err != nil {
 		t.Fatal(err)
 	}
-	if len(menuItems) != 1 || len(tt.Menu()) != 1 {
+	if len(menuItems) != 1 || tt.Menu() != nil || !tt.HasText("Close") {
 		t.Fatalf("context menu not built: items=%v menu=%v", menuItems, tt.Menu())
 	}
-	tt.CloseMenu()
+	tt.Key(0, ui.KeyEscape)
 	if err := tt.Click("close"); err != nil {
 		t.Fatal(err)
 	}
