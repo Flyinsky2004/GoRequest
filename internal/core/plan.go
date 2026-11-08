@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -35,7 +36,12 @@ type Plan struct {
 	Query   [][2]string
 	Body    []byte
 	Timeout time.Duration
-	HasBody bool
+	// TimeoutExplicit reports that Timeout came from the request or device
+	// configuration rather than the built-in default. Streaming responses use it
+	// to keep the default deadline from cutting a healthy SSE connection while
+	// still honoring a deadline the user actually asked for.
+	TimeoutExplicit bool
+	HasBody         bool
 	// Network holds optional stage timeouts, redirect policy, proxy, TLS/mTLS,
 	// CookieJar, and target policy options for Execute.
 	Network *ExecuteOptions
@@ -119,6 +125,9 @@ type ExecResult struct {
 	Redirects         []RedirectHop
 	Cookies           []CookieEntry
 	Trace             *NetworkTrace
+	// Stream is non-nil only for a text/event-stream response handled by the
+	// incremental path; it records the event count and how the stream ended.
+	Stream *StreamInfo
 }
 
 // Execute sends a plan and reads a bounded response. It honors ctx cancellation
@@ -158,10 +167,25 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
 	if effectiveTimeout <= 0 {
 		effectiveTimeout = plan.Timeout
 	}
+	// A device TotalTimeout or a request timeout is an explicit deadline. The
+	// built-in DefaultTimeout is not: for an event stream it must not cut a
+	// healthy connection, so the timer is stopped once SSE is detected.
+	explicitTimeout := opts.Timeouts.TotalTimeout > 0 || plan.TimeoutExplicit
+	var (
+		timeoutCancel context.CancelFunc
+		timeoutTimer  *time.Timer
+		timedOut      atomic.Bool
+	)
 	if effectiveTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, effectiveTimeout)
-		defer cancel()
+		ctx, timeoutCancel = context.WithCancel(ctx)
+		timeoutTimer = time.AfterFunc(effectiveTimeout, func() {
+			timedOut.Store(true)
+			timeoutCancel()
+		})
+		defer func() {
+			timeoutTimer.Stop()
+			timeoutCancel()
+		}()
 	}
 
 	u, err := url.Parse(strings.TrimSpace(plan.URL))
@@ -420,10 +444,13 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
 		if parentCtx.Err() == context.Canceled {
 			return nil, &RunError{Err: fmt.Errorf("request canceled")}
 		}
-		if ctx.Err() == context.DeadlineExceeded {
+		if parentCtx.Err() == context.DeadlineExceeded {
 			return nil, &RunError{Err: fmt.Errorf("request timed out after %s", effectiveTimeout)}
 		}
-		if ctx.Err() == context.Canceled {
+		if timedOut.Load() {
+			return nil, &RunError{Err: fmt.Errorf("request timed out after %s", effectiveTimeout)}
+		}
+		if ctx.Err() != nil {
 			return nil, &RunError{Err: fmt.Errorf("request canceled")}
 		}
 		return nil, redactErr(classifyTransportError(err))
@@ -444,31 +471,69 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
 		}
 	}()
 
+	finalURL := u.String()
+	if resp.Request != nil && resp.Request.URL != nil {
+		finalURL = resp.Request.URL.String()
+	}
+
 	downloadStart := time.Now()
 	maxBody := opts.EffectiveMaxResponseBytes()
-	payload, readErr := readAndDecodeResponseBody(ctx, resp, req.Method, maxBody, opts.DisableAutoDecompress)
+	var (
+		payload    *responseBodyPayload
+		streamInfo *StreamInfo
+		readErr    error
+	)
+	if opts.Stream != nil && isSSEResponse(resp, req.Method) {
+		// A healthy event stream may outlive the built-in default timeout; only a
+		// deadline the user actually configured keeps running. The timer still
+		// bounded connect and response headers, so a dead server cannot hang the
+		// send, and an explicit timeout still ends the stream.
+		if !explicitTimeout && timeoutTimer != nil {
+			timeoutTimer.Stop()
+		}
+		flatHeaders := flattenHeader(resp.Header)
+		contentType, _, _ := InspectPayload(finalURL, flatHeaders, nil)
+		payload, streamInfo, readErr = readSSEStream(ctx, resp, req.Method, sseReadConfig{
+			parentCtx:             parentCtx,
+			timedOut:              &timedOut,
+			maxBody:               maxBody,
+			disableAutoDecompress: opts.DisableAutoDecompress,
+			redactor:              opts.Redactor,
+			handler:               opts.Stream,
+			timeoutLabel:          effectiveTimeout.String(),
+			status:                resp.StatusCode,
+			proto:                 resp.Proto,
+			headers:               flatHeaders,
+			contentType:           contentType,
+			finalURL:              finalURL,
+		})
+	} else {
+		payload, readErr = readAndDecodeResponseBody(ctx, resp, req.Method, maxBody, opts.DisableAutoDecompress)
+	}
 	downloadDur := time.Since(downloadStart)
-	if readErr != nil {
+	if readErr != nil && payload == nil {
 		if parentCtx.Err() == context.Canceled {
 			return nil, &RunError{Err: fmt.Errorf("request canceled")}
 		}
-		if ctx.Err() == context.DeadlineExceeded {
+		if parentCtx.Err() == context.DeadlineExceeded {
 			return nil, &RunError{Err: fmt.Errorf("request timed out after %s", effectiveTimeout)}
 		}
-		if ctx.Err() == context.Canceled {
+		if timedOut.Load() {
+			return nil, &RunError{Err: fmt.Errorf("request timed out after %s", effectiveTimeout)}
+		}
+		if ctx.Err() != nil {
 			return nil, &RunError{Err: fmt.Errorf("request canceled")}
 		}
 		return nil, redactErr(&RunError{Err: fmt.Errorf("reading response body: %w", readErr)})
 	}
+	if payload == nil {
+		payload = &responseBodyPayload{}
+	}
 
-	finalURL := u.String()
-	if resp.Request != nil && resp.Request.URL != nil {
-		finalURL = resp.Request.URL.String()
-		if !opts.DisableCookies && opts.CookieJar != nil {
-			opts.CookieJar.SetCookies(resp.Request.URL, resp.Cookies())
-			if opts.Redactor != nil {
-				opts.CookieJar.RegisterSecrets(opts.Redactor)
-			}
+	if !opts.DisableCookies && opts.CookieJar != nil && resp.Request != nil && resp.Request.URL != nil {
+		opts.CookieJar.SetCookies(resp.Request.URL, resp.Cookies())
+		if opts.Redactor != nil {
+			opts.CookieJar.RegisterSecrets(opts.Redactor)
 		}
 	}
 
@@ -505,12 +570,16 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
 		Redirects:         redirects,
 		Cookies:           respCookies,
 		Trace:             tc.snapshot(resp, downloadDur, builtTLS),
+		Stream:            streamInfo,
 	}
 	if !isBinary && json.Valid(payload.body) {
 		var pretty bytes.Buffer
 		if json.Indent(&pretty, payload.body, "", "  ") == nil {
 			res.Pretty = pretty.String()
 		}
+	}
+	if readErr != nil {
+		return res, readErr
 	}
 	return res, nil
 }

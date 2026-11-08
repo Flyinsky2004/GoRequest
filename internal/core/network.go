@@ -179,6 +179,12 @@ type ExecuteOptions struct {
 	// DisableAutoDecompress keeps compressed wire bytes as-is instead of
 	// automatically decompressing gzip/deflate payloads.
 	DisableAutoDecompress bool
+
+	// Stream opts into incremental server-sent-event delivery. When set and the
+	// response Content-Type is text/event-stream, ExecuteWithOptions parses the
+	// stream as it arrives and calls the handler instead of waiting for EOF.
+	// Ordinary responses are unaffected. Callbacks run on the reader goroutine.
+	Stream *StreamHandler
 }
 
 // EffectiveTargetPolicy returns opts.TargetPolicy if HasTargetPolicy is set, or
@@ -837,4 +843,3 @@ func readBoundedChunks(ctx context.Context, r io.Reader, maxBytes int64) ([]byte
 		}
 	}
 }
-

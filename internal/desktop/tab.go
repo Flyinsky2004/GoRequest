@@ -118,6 +118,12 @@ type Tab struct {
 	// only for protocol: websocket request tabs, so HTTP and WebSocket tabs can
 	// coexist with separate drafts, sessions, mailboxes and generations.
 	ws *wsTabState
+
+	// sse is the live server-sent-events state for the current send. It is set
+	// on the UI thread when a send starts and closed when the tab is removed,
+	// its window is destroyed, or a newer send supersedes it, so an old stream
+	// can never overwrite a newer response.
+	sse *tabSSEStream
 }
 
 // requestFromTab builds a core.Request from the tab's edited fields.

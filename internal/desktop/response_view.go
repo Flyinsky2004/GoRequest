@@ -200,6 +200,14 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			// Status elements are direct children (not one non-wrapping group)
 			// so a long status can wrap at narrow widths without overflowing.
 			a.responseStatus(c, tab, m, p)
+			if tab.Resp != nil && !tab.Sending && tab.RespErr == "" && tab.Resp.Stream != nil &&
+				tab.Resp.Stream.Phase != core.StreamPhaseCompleted {
+				// A canceled, timed-out or disconnected stream keeps its events;
+				// this offers a truthful retry without hiding what arrived.
+				if b := uikit.IconButton(c, p, uikit.IconRetry, m.Retry).Label(m.Retry).Cursor(ui.CursorPointer); b.Clicked() {
+					a.send(tab)
+				}
+			}
 			if tab.Resp != nil && !tab.Sending && tab.RespErr == "" {
 				uikit.NativeSegmented(c, &tab.RespSection, m.BodySection, m.HeadersSection,
 					cookieSectionLabel(nm, jar.Count()), nm.NetworkSection)
@@ -220,7 +228,7 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 						a.saveResponse(tab)
 					}
 				})
-				if tab.RespSection == 0 && !tab.Resp.IsBinary {
+				if tab.RespSection == 0 && !tab.Resp.IsBinary && tab.Resp.Stream == nil {
 					ui.Row(c).Shrink(0).Gap(8).AlignItems(ui.Center).Margin(0, 0, 0, ui.Auto).Children(func() {
 						if responseBodyIsJSON(tab.Resp) && tab.Resp.BodySize <= largeResponseThreshold {
 							uikit.NativeSegmented(c, &tab.RespRawIdx, m.Pretty, m.Raw, nm.TreeMode)
@@ -238,6 +246,15 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		// In flight: progress line over the previous response at 40%, or a
 		// skeleton when there is nothing yet.
 		if tab.Sending {
+			if tab.sse != nil && tab.sse.opened {
+				// A connected event stream is live content, not a pending
+				// request: show the events as they arrive instead of dimming a
+				// previous response under a progress bar.
+				a.responseBodyArea(c, t, tab, m, p)
+				a.cookieJarModal(c, t, tab)
+				a.networkSettingsModal(c, t, tab)
+				return
+			}
 			uikit.SendProgress(c, p)
 			if tab.Resp != nil {
 				ui.Box(c).Grow(1).FillWidth().Opacity(0.4).Children(func() {
@@ -279,6 +296,7 @@ func (a *App) responseView(c *ui.Context, t *ui.Theme, tab *Tab) {
 			a.responseNetworkView(c, t, tab, tab.Resp, p)
 		default:
 			a.responseFindBar(c, t, tab)
+			a.responseStreamNotice(c, tab, p)
 			a.responseBodyArea(c, t, tab, m, p)
 		}
 		a.cookieJarModal(c, t, tab)
@@ -463,7 +481,12 @@ func (a *App) saveResponse(tab *Tab) {
 // responseStatus draws the status line's left part.
 func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palette) {
 	nm := a.networkMsg()
+	sm := a.sseMsg()
 	switch {
+	case tab.Sending && tab.sse != nil && tab.sse.opened:
+		// The stream is connected and events are arriving: show progress by
+		// event count instead of the generic sending label.
+		ui.Text(c, translate(sm.StreamingFmt, tab.sse.eventCount)).FontSize(12).TextColor(p.Accent)
 	case tab.Sending:
 		ui.Text(c, m.SendingLabel).FontSize(12).TextColor(p.Muted)
 	case tab.RespErr != "":
@@ -492,13 +515,80 @@ func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palet
 			ui.Text(c, nm.TLSInsecureBadge).
 				FontSize(11).FontWeight(600).TextColor(uikit.MethodColor("DELETE", p))
 		}
-		if tab.Resp.Truncated {
+		if tab.Resp.Truncated && tab.Resp.Stream == nil {
 			ui.Text(c, m.TruncatedNotice).FontSize(12).TextColor(uikit.MethodColor("POST", p))
+		}
+		if tab.Resp.Stream != nil {
+			ui.Text(c, streamPhaseText(sm, tab.Resp.Stream)).FontSize(11).
+				TextColor(streamPhaseColor(tab.Resp.Stream.Phase, p))
 		}
 	default:
 		// No response yet: the single centered empty state below carries the
 		// message, so the status line stays blank here (§7/D9).
 	}
+}
+
+// streamPhaseText is the localized, count-bearing label for a stream's phase.
+func streamPhaseText(sm *sseMessages, st *core.StreamInfo) string {
+	if st == nil {
+		return ""
+	}
+	switch st.Phase {
+	case core.StreamPhaseOpen:
+		return translate(sm.StreamingFmt, st.EventCount)
+	case core.StreamPhaseCompleted:
+		return translate(sm.CompletedFmt, st.EventCount)
+	case core.StreamPhaseCanceled:
+		return translate(sm.CanceledFmt, st.EventCount)
+	case core.StreamPhaseTimeout:
+		return translate(sm.TimeoutFmt, st.EventCount)
+	case core.StreamPhaseFailed:
+		return translate(sm.FailedFmt, st.EventCount)
+	}
+	return ""
+}
+
+// streamPhaseColor keeps the phase legible without relying on color alone: the
+// text above always names the phase, and the color only reinforces it.
+func streamPhaseColor(phase core.StreamPhase, p uikit.Palette) ui.Color {
+	switch phase {
+	case core.StreamPhaseOpen:
+		return p.Accent
+	case core.StreamPhaseTimeout:
+		return uikit.MethodColor("POST", p)
+	case core.StreamPhaseFailed:
+		return uikit.MethodColor("DELETE", p)
+	default:
+		return p.Muted
+	}
+}
+
+// responseStreamNotice is the one-line explanation shown above the retained
+// events after a stream was canceled, timed out, disconnected or truncated.
+func (a *App) responseStreamNotice(c *ui.Context, tab *Tab, p uikit.Palette) {
+	if tab == nil || tab.Resp == nil || tab.Resp.Stream == nil {
+		return
+	}
+	st := tab.Resp.Stream
+	sm := a.sseMsg()
+	var text string
+	var col ui.Color
+	switch st.Phase {
+	case core.StreamPhaseCanceled:
+		text, col = translate(sm.CanceledFmt, st.EventCount), p.Muted
+	case core.StreamPhaseTimeout:
+		text, col = translate(sm.TimeoutFmt, st.EventCount), uikit.MethodColor("POST", p)
+	case core.StreamPhaseFailed:
+		text, col = translate(sm.FailedFmt, st.EventCount), uikit.MethodColor("DELETE", p)
+	default:
+		if !st.Truncated {
+			return
+		}
+		text, col = sm.Truncated, uikit.MethodColor("POST", p)
+	}
+	ui.Row(c).FillWidth().Padding(4, 10).Children(func() {
+		ui.Text(c, text).FontSize(11).TextColor(col)
+	})
 }
 
 // responseError shows a centered error with an accent Retry pill, never a
@@ -521,6 +611,14 @@ func (a *App) responseBodyArea(c *ui.Context, t *ui.Theme, tab *Tab, m *messages
 		return
 	}
 	if responseBodyText(tab.Resp, tab.RespRawIdx == 1) == "" {
+		if tab.Resp != nil && tab.Resp.Stream != nil && tab.Resp.Stream.Phase == core.StreamPhaseOpen {
+			// Connected but the server has not pushed an event yet: say so
+			// instead of claiming the response body is empty.
+			ui.Column(c).Grow(1).Center().Children(func() {
+				ui.Text(c, a.sseMsg().Waiting).FontSize(12).TextColor(p.Muted)
+			})
+			return
+		}
 		ui.Column(c).Grow(1).Center().Children(func() {
 			ui.Text(c, m.BodyEmpty).TextColor(p.Muted)
 		})

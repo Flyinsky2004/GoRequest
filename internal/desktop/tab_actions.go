@@ -59,6 +59,9 @@ func (ps *projectState) removeTab(tab *Tab) bool {
 	// Closing a tab releases its live WebSocket connection and invalidates any
 	// in-flight callback, so no socket outlives its tab.
 	wsTeardownTab(tab)
+	// A live SSE stream is detached the same way: its callbacks stop scheduling
+	// UI work and the request context above is already canceled.
+	teardownTabStream(tab)
 	kept := make([]*Tab, 0, len(ps.tabs)-1)
 	kept = append(kept, ps.tabs[:i]...)
 	kept = append(kept, ps.tabs[i+1:]...)

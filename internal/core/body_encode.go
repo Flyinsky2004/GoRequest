@@ -578,6 +578,7 @@ func BuildPlanWithOptions(ctx context.Context, req *Request, vars map[string]str
 	}
 
 	timeout := DefaultTimeout
+	timeoutExplicit := false
 	if req.Timeout != "" {
 		d, err := time.ParseDuration(req.Timeout)
 		if err != nil {
@@ -585,17 +586,19 @@ func BuildPlanWithOptions(ctx context.Context, req *Request, vars map[string]str
 		}
 		if d > 0 {
 			timeout = d
+			timeoutExplicit = true
 		}
 	}
 
 	return &Plan{
-		Method:  method,
-		URL:     rawURL,
-		Headers: headers,
-		Query:   query,
-		Body:    encBody.Bytes,
-		Timeout: timeout,
-		HasBody: encBody.HasBody,
+		Method:          method,
+		URL:             rawURL,
+		Headers:         headers,
+		Query:           query,
+		Body:            encBody.Bytes,
+		Timeout:         timeout,
+		TimeoutExplicit: timeoutExplicit,
+		HasBody:         encBody.HasBody,
 	}, nil
 }
 
