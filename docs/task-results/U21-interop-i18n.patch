@@ -1,0 +1,23 @@
+Minimal U22 patch: make the interop (Import/Export) project-menu and "+" menu
+entries follow the interface language.
+
+The interop catalog already has complete English and Simplified Chinese
+strings; only the selector compares the normalized language ("zh-CN") with the
+literal "zh", so it always falls through to English. This is the same defect
+U21 fixed in the Runner/OpenAPI/Mock/Performance/Snippet selectors.
+
+U22 owns internal/desktop/import_export_ui.go and import_export_i18n.go, so
+U21 did not apply this. Apply with:
+
+    git apply docs/task-results/U21-interop-i18n.patch
+
+--- a/internal/desktop/import_export_i18n.go
++++ b/internal/desktop/import_export_i18n.go
+@@ -183,6 +183,6 @@
+ func (a *App) interopMsg() *interopMessages {
+-	if a != nil && a.mgr != nil && a.mgr.cfg != nil && a.mgr.cfg.language() == "zh" {
++	if a != nil && a.mgr != nil && a.mgr.cfg != nil && parseLanguage(string(a.mgr.cfg.language())) == langSimplifiedChinese {
+ 		return &interopZH
+ 	}
+ 	return &interopEN
+ }

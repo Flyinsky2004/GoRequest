@@ -176,7 +176,7 @@ var runnerEditorZH = runnerEditorMessages{
 }
 
 func (a *App) runnerEditorMsg() runnerEditorMessages {
-	if a != nil && a.mgr != nil && a.mgr.cfg != nil && a.mgr.cfg.language() == "zh" {
+	if a != nil && a.mgr != nil && a.mgr.cfg != nil && parseLanguage(string(a.mgr.cfg.language())) == langSimplifiedChinese {
 		return runnerEditorZH
 	}
 	return runnerEditorEN
