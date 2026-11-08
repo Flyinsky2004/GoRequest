@@ -171,6 +171,7 @@ func (w *welcomeState) view(c *ui.Context) {
 
 	w.settingsModal(c, t)
 	w.newProjectModal(c, t)
+	w.mgr.updateModalFor(w.win, c, t)
 }
 
 // openSelected opens the recent project chosen in the list. A failure stays in
@@ -193,7 +194,8 @@ func (w *welcomeState) openRecent(path string) {
 }
 
 func (w *welcomeState) settingsModal(c *ui.Context, t *ui.Theme) {
-	renderSettings(c, t, w.mgr.cfg, w.mgr.workspacePrefs(), &w.showSettings, func(s string) { w.status = s })
+	renderSettingsWithUpdates(c, t, w.mgr.cfg, w.mgr.workspacePrefs(), w.mgr.update, w.win,
+		&w.showSettings, func(s string) { w.status = s })
 }
 
 // openNewProject resets and shows the wizard, defaulting the location to the

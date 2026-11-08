@@ -18,6 +18,7 @@ const (
 	settingsCategoryWorkspace
 	settingsCategoryMarkdown
 	settingsCategoryHistory
+	settingsCategoryUpdates
 	settingsCategoryAbout
 	settingsCategoryCount
 )
@@ -33,6 +34,7 @@ func settingsCategoryTitles(l language) []string {
 			"Workspace",
 			"Markdown preview",
 			"History",
+			"Updates",
 			"About",
 		}
 	}
@@ -43,6 +45,7 @@ func settingsCategoryTitles(l language) []string {
 		"工作区偏好",
 		"Markdown 预览",
 		"历史",
+		"更新",
 		"关于",
 	}
 }
