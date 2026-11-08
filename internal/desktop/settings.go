@@ -150,6 +150,10 @@ func settingsBody(c *ui.Context, t *ui.Theme, cfg *configStore, prefs *workspace
 
 	root := ui.Column(c).Gap(12).Width(g.width).Height(g.height)
 	selected := ui.Local(root, settingsSelectionKey{}, func() int { return int(settingsCategoryAppearance) })
+	// The update dialog's Settings button asks for About, where updates live.
+	if up != nil && up.aboutRequested.Swap(false) {
+		*selected = int(settingsCategoryAbout)
+	}
 	root.Children(func() {
 		ui.Text(c, m.SettingsTitle).FontSize(17).FontWeight(700).TextColor(p.Text).Shrink(0)
 
@@ -319,36 +323,50 @@ func settingsCategoryContentWithUpdates(c *ui.Context, p uikit.Palette, m *messa
 			})
 		})
 
-	case settingsCategoryUpdates:
-		settingsUpdateContent(c, p, cfg.language(), host, up, setStatus)
-
 	case settingsCategoryAbout:
-		settingsAbout(c, p, m, cfg)
+		settingsAbout(c, p, m, cfg, host, up, setStatus)
 	}
 }
 
-// settingsAbout draws real application information (no configurable controls),
-// matching the original version block.
-func settingsAbout(c *ui.Context, p uikit.Palette, m *messages, cfg *configStore) {
-	titles := settingsCategoryTitles(cfg.language())
+// settingsAbout draws the application information, the developer/project
+// facts and the update controls (version, automatic checks, manual check).
+func settingsAbout(c *ui.Context, p uikit.Palette, m *messages, cfg *configStore,
+	host window, up *updateController, setStatus func(string)) {
+	lang := cfg.language()
+	titles := settingsCategoryTitles(lang)
+	at := aboutTextsFor(lang)
+	version := installedVersionLabel(lang)
+	if up != nil {
+		version = up.versionLabel(lang)
+	}
 	ui.Column(c).Gap(10).FillWidth().Children(func() {
 		ui.Text(c, titles[int(settingsCategoryAbout)]).FontSize(12).FontWeight(600).TextColor(p.Muted).LetterSpacing(0.4)
 		ui.Box(c).Radius(12).BorderWidth(1).BorderColor(p.Hairline).Background(p.Sidebar).Padding(4, 12).FillWidth().Children(func() {
-			ui.Column(c).Gap(2).Children(func() {
-				infoRow := func(k, v string) {
-					ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, k).Width(120).FontSize(12).TextColor(p.Muted).SingleLine()
+			ui.Column(c).Gap(2).FillWidth().Children(func() {
+				infoRow := func(k, v string, link string) {
+					ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Children(func() {
+						ui.Text(c, k).Width(96).FontSize(12).TextColor(p.Muted).SingleLine().Shrink(0)
+						if link != "" {
+							ui.Link(c, v, link).FontSize(12).SingleLine().Grow(1)
+							return
+						}
 						ui.Text(c, v).FontSize(12).SingleLine().Grow(1).TextColor(p.Text)
 					})
 				}
-				infoRow(m.VersionLabel, installedVersionLabel(cfg.language()))
-				infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH)
-				infoRow(m.GoLabel, runtime.Version())
-				infoRow(m.ConfigFileLabel, configLocation(m, cfg))
-				infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())))
+				infoRow(m.VersionLabel, version, "")
+				infoRow(at.Developer, aboutDeveloperName, "")
+				infoRow(at.Contact, aboutContactEmail, "mailto:"+aboutContactEmail)
+				infoRow(at.Project, aboutProjectURL, aboutProjectURL)
+				infoRow(m.PlatformLabel, runtime.GOOS+"/"+runtime.GOARCH, "")
+				infoRow(m.GoLabel, runtime.Version(), "")
+				infoRow(m.ConfigFileLabel, configLocation(m, cfg), "")
+				infoRow(m.RecentProjectsLabel, fmt.Sprintf("%d", len(cfg.recent())), "")
 			})
 		})
 		ui.Text(c, m.SecretNote).FontSize(12).TextColor(p.Muted)
+
+		ui.Text(c, at.Updates).FontSize(12).FontWeight(600).TextColor(p.Muted).LetterSpacing(0.4)
+		settingsUpdateContent(c, p, lang, host, up, setStatus)
 	})
 }
 

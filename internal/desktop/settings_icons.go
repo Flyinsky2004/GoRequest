@@ -31,7 +31,6 @@ var (
 	settingsIconWorkspace  = settingsSVG(`<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>`)
 	settingsIconMarkdown   = settingsSVG(`<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/>`)
 	settingsIconHistory    = settingsSVG(`<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>`)
-	settingsIconUpdates    = settingsSVG(`<path d="M21 12a9 9 0 0 1-15.5 6.2"/><polyline points="3 16 5.5 18.2 7.7 15.7"/><path d="M3 12a9 9 0 0 1 15.5-6.2"/><polyline points="21 8 18.5 5.8 16.3 8.3"/>`)
 	settingsIconAbout      = settingsSVG(`<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>`)
 
 	// Action icons for the real operations on the sheet: Done dismisses it and
@@ -51,7 +50,6 @@ func settingsCategoryIcons() []*ui.SVG {
 		settingsIconWorkspace,
 		settingsIconMarkdown,
 		settingsIconHistory,
-		settingsIconUpdates,
 		settingsIconAbout,
 	}
 }
