@@ -1243,3 +1243,7 @@ UIKit 全部测试、Tab/HistoryEndpoint/Theme/URLGroup/Send/Settings 专项、`
 | 主代理 / 下拉配色 | main，随后集成分支 | uikit/select.go 与 Select 测试，仅恢复选中/hover 为 Accent/OnAccent，保留语义提示色 | 待实现 |
 
 U36 通过 Herdr 可见 agy，使用 `claude-sonnet-5-5-medium`，本登记提交为基线；先读本节与 §44 通用约束，必要构建/专项测试后提交并交 docs/task-results/U36.md。完整保存覆盖未脱敏 URL/头部/正文/失败信息与已捕获二进制数据（必要无损编码），不能隐性截断正文却标成全量；网络层未收到或已截断部分不能补回，明确记录界限。保留历史保留期/清理、默认脱敏方式与既有 Secret 显式选择。主代理接线与验收。
+
+U36 已从 `9d9c724` 启动，terminal `t5y`、tab `tb22e5a2a9bb459cd71adeca6bb81c19cc`，worktree 与登记一致。Sonnet 开发期间出现配额限制，Herdr 中部分会话切换到 Gemini 4 Argon；用户明确回复“沿用 Herdr 中的选择”，后续保留各窗口的选择，不更改全局模型配置。
+
+主代理集成分支 `codex/integrate-U32-U35`，worktree `/private/tmp/gorequest-u32-u35-20261109/integration`。全仓基线 `go test ./... -count=1`（desktop 30.099s）仅既有三项 Mock/Runner 与 diagnostics policy preflight 失败；U32 初稿 `864c3aa`、U33 初稿 `c12b7cf`、U35 初稿 `03201d2` 已进入隔离集成分支，尚待后续修正与最终验收，未快进 main。下拉配色恢复 `765d494` 与 UIKit 验证通过。
