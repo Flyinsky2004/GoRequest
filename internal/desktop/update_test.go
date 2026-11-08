@@ -360,6 +360,9 @@ func TestUpdateDownloadVerifiedAndOpened(t *testing.T) {
 	if u.detail != "/tmp/gorequest-0.0.2-arm64.dmg" {
 		t.Fatalf("detail = %q", u.detail)
 	}
+	if got := u.state.Load().LastResult; got != update.ResultDownloaded {
+		t.Fatalf("persisted result = %q, want downloaded", got)
+	}
 }
 
 func TestUpdateDownloadFailures(t *testing.T) {

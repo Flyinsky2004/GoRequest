@@ -505,6 +505,11 @@ func (u *updateController) downloadAndOpen(ctx context.Context, cand *update.Can
 		return
 	}
 	u.post(func() {
+		u.state.Mutate(func(st *update.State) {
+			st.LastCheckedAt = u.now().UTC().Format(time.RFC3339)
+			st.LastResult = update.ResultDownloaded
+			st.LastError = ""
+		})
 		u.dialogKind = updateDialogResult
 		u.result = updateResultDownloaded
 		u.detail = dl.Path
