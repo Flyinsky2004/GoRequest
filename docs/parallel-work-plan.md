@@ -1247,3 +1247,9 @@ U36 通过 Herdr 可见 agy，使用 `claude-sonnet-5-5-medium`，本登记提�
 U36 已从 `9d9c724` 启动，terminal `t5y`、tab `tb22e5a2a9bb459cd71adeca6bb81c19cc`，worktree 与登记一致。Sonnet 开发期间出现配额限制，Herdr 中部分会话切换到 Gemini 4 Argon；用户明确回复“沿用 Herdr 中的选择”，后续保留各窗口的选择，不更改全局模型配置。
 
 主代理集成分支 `codex/integrate-U32-U35`，worktree `/private/tmp/gorequest-u32-u35-20261109/integration`。全仓基线 `go test ./... -count=1`（desktop 30.099s）仅既有三项 Mock/Runner 与 diagnostics policy preflight 失败；U32 初稿 `864c3aa`、U33 初稿 `c12b7cf`、U35 初稿 `03201d2` 已进入隔离集成分支，尚待后续修正与最终验收，未快进 main。下拉配色恢复 `765d494` 与 UIKit 验证通过。
+
+### 44.3 INT36 完整捕获执行输出接线
+
+集成人审查 U36 报告发现 SSE 聚合体与部分错误在 core 执行阶段已脱敏，需要补齐完整保存的实际端到端路径。负责人主代理，分支 `codex/raw-history-results`，worktree `/private/tmp/gorequest-u32-u35-20261109/raw-results`，从本登记提交建立。归属 internal/core/network.go、plan.go 及专属测试、desktop/network_ui.go 的选项接线与必要历史标识；其他代理已交付，停止扩展任务。
+
+实现独立“原始执行输出”选项，仅在完整本地历史模式启用；保留执行器 Redactor 对跳转敏感头、Cookie 与其他网络安全行为的作用，不直接清空它。默认行为不变。用 loopback SSE 与错误测试验证原始值，并确认跨域敏感头仍被剥离；不读真实 Secret、不发外部请求。当前集成分支的全仓 race 检查与本子工作区源码隔离，补齐后再统一验证。
