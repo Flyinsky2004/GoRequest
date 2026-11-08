@@ -463,6 +463,7 @@ func (m *Manager) onWorkspaceClosed(app *App) {
 
 // anyDirty reports whether any open project has unsaved edits.
 func (m *Manager) anyDirty() bool {
+	m.flushAllDocEdits()
 	for _, app := range m.workspaces {
 		if !app.closed && app.ps.hasDirty() {
 			return true

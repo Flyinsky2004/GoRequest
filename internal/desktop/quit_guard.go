@@ -159,6 +159,7 @@ type tabDraftSnapshot struct {
 	SavedReq        *core.Request  `json:"savedReq,omitempty"`
 	SaveErr         string         `json:"saveErr,omitempty"`
 	FallbackReq     *core.Request  `json:"fallbackReq,omitempty"`
+	EditedYAML      string         `json:"editedYAML,omitempty"`
 }
 
 type envVarRowSnap struct {
@@ -261,7 +262,11 @@ func tabDraftFingerprint(ps *projectState, tab *Tab) string {
 	var savedReq *core.Request
 	var saveErr string
 	var fallbackReq *core.Request
+	var editedYAML string
 	if tab.Kind == "request" && tab.Entry != nil && tab.Entry.Request != nil {
+		if b, err := editedBytesForTab(ps, peekFileSync(ps), tab); err == nil {
+			editedYAML = string(b)
+		}
 		if req, err := requestForSaveFromTab(ps, tab); err == nil && req != nil {
 			savedReq = req
 		} else {
@@ -304,6 +309,7 @@ func tabDraftFingerprint(ps *projectState, tab *Tab) string {
 		SavedReq:        savedReq,
 		SaveErr:         saveErr,
 		FallbackReq:     fallbackReq,
+		EditedYAML:      editedYAML,
 	}
 	for _, r := range tab.QueryRows {
 		if r != nil {
