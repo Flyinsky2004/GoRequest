@@ -832,6 +832,7 @@ func (a *App) attachNetworkToPlan(tab *Tab, req *core.Request, plan *core.Plan, 
 		ps = a.ps
 	}
 	opts := a.buildExecuteOptionsForTab(ps, tab, req, nil, red)
+	opts.UnredactedResult = a != nil && a.historyPolicy().Unredacted
 	plan.Network = &opts
 }
 

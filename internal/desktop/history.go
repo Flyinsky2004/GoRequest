@@ -138,6 +138,16 @@ func (a *App) historyPolicy() localstate.Policy {
 	return p
 }
 
+// A request started before full capture was enabled may already have had its
+// stream or error redacted. Never label those results as an original capture.
+func (a *App) historyPolicyForPlan(plan *core.Plan) localstate.Policy {
+	p := a.historyPolicy()
+	if plan != nil && plan.Network != nil && !plan.Network.UnredactedResult {
+		p.Unredacted = false
+	}
+	return p
+}
+
 func (a *App) historyLimits() localstate.Limits {
 	l := localstate.DefaultLimits()
 	if a.mgr != nil && a.mgr.cfg != nil {
@@ -181,7 +191,7 @@ func (a *App) recordHistory(tab *Tab, plan *core.Plan, red *core.Redactor, res *
 	in.ResponseHeaders = res.Headers
 	in.ResponseBody = res.Body
 	in.ResponseTruncated = res.Truncated
-	rec := localstate.BuildRecord(in, a.historyPolicy())
+	rec := localstate.BuildRecord(in, a.historyPolicyForPlan(plan))
 	ares, err := s.appendRecord(historyKey(a.ps), rec)
 	if err != nil {
 		a.historyUI.diag = translate(a.msg().HistoryWriteFailed, err.Error())
@@ -223,7 +233,7 @@ func (a *App) recordHistoryFailure(tab *Tab, plan *core.Plan, red *core.Redactor
 	}
 	in := a.historyInput(tab, plan, red, outcome)
 	in.Error = err.Error()
-	rec := localstate.BuildRecord(in, a.historyPolicy())
+	rec := localstate.BuildRecord(in, a.historyPolicyForPlan(plan))
 	ares, err := s.appendRecord(historyKey(a.ps), rec)
 	if err != nil {
 		a.historyUI.diag = translate(a.msg().HistoryWriteFailed, err.Error())
@@ -260,7 +270,7 @@ func (a *App) historyInput(tab *Tab, plan *core.Plan, red *core.Redactor, outcom
 		RequestHasBody:     plan.HasBody,
 		RequestContentType: headerValue(plan.Headers, "Content-Type"),
 		Redactor:           red,
-		Policy:             a.historyPolicy(),
+		Policy:             a.historyPolicyForPlan(plan),
 	}
 }
 

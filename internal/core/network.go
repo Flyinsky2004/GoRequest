@@ -162,8 +162,12 @@ type ExecuteOptions struct {
 	EnvID           string
 	AuthScheme      *AuthScheme
 	Redactor        *Redactor
-	Interactive     bool
-	Confirmed       bool
+	// UnredactedResult preserves raw response-stream data and execution errors
+	// for explicitly enabled local capture. Redactor still protects outgoing
+	// credentials on redirects and registers cookies as usual.
+	UnredactedResult bool
+	Interactive      bool
+	Confirmed        bool
 
 	// File and secret resolvers for Custom CA / mTLS slot resolution and proxy
 	// credentials.

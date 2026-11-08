@@ -153,9 +153,13 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
 		ctx = context.Background()
 	}
 	parentCtx := ctx
+	resultRedactor := opts.Redactor
+	if opts.UnredactedResult {
+		resultRedactor = nil
+	}
 	redactErr := func(err error) error {
-		if opts.Redactor != nil {
-			return opts.Redactor.RedactError(err)
+		if resultRedactor != nil {
+			return resultRedactor.RedactError(err)
 		}
 		return err
 	}
@@ -498,7 +502,7 @@ func ExecuteWithOptions(ctx context.Context, plan *Plan, opts ExecuteOptions) (*
 			timedOut:              &timedOut,
 			maxBody:               maxBody,
 			disableAutoDecompress: opts.DisableAutoDecompress,
-			redactor:              opts.Redactor,
+			redactor:              resultRedactor,
 			handler:               opts.Stream,
 			timeoutLabel:          effectiveTimeout.String(),
 			status:                resp.StatusCode,
