@@ -183,16 +183,19 @@ func (a *App) MockModals(c *ui.Context, t *ui.Theme) {
 				mockT(a, "mock.tab.suite_control"),
 			})
 
-			// Tab body
+			// Tab body. The content transition builds only the selected tab, so
+			// a rapid switch retargets the fade instead of stacking old pages.
 			ui.Scroll(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
-				switch s.tab {
-				case 0:
-					a.renderMockRulesTab(c, t, p, s)
-				case 1:
-					a.renderMockAccessLogTab(c, t, p, s)
-				case 2:
-					a.renderMockSuiteControlTab(c, t, p, s)
-				}
+				uikit.TabContent(c, s.tab, func(tab int) {
+					switch tab {
+					case 0:
+						a.renderMockRulesTab(c, t, p, s)
+					case 1:
+						a.renderMockAccessLogTab(c, t, p, s)
+					case 2:
+						a.renderMockSuiteControlTab(c, t, p, s)
+					}
+				})
 			})
 		})
 	})

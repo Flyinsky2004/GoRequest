@@ -147,18 +147,20 @@ func (a *App) PerformanceModals(c *ui.Context, t *ui.Theme) {
 							m.TabSamples,
 							m.TabCompare,
 						})
-						switch s.viewTab {
-						case 0:
-							renderPerfSummaryTab(c, t, p, s.report)
-						case 1:
-							renderPerfStagesTab(c, p, s.report)
-						case 2:
-							renderPerfTimelineTab(c, p, s)
-						case 3:
-							renderPerfSamplesTab(c, t, p, s.report)
-						case 4:
-							renderPerfCompareTab(c, t, p, s)
-						}
+						uikit.TabContent(c, s.viewTab, func(tab int) {
+							switch tab {
+							case 0:
+								renderPerfSummaryTab(c, t, p, s.report)
+							case 1:
+								renderPerfStagesTab(c, p, s.report)
+							case 2:
+								renderPerfTimelineTab(c, p, s)
+							case 3:
+								renderPerfSamplesTab(c, t, p, s.report)
+							case 4:
+								renderPerfCompareTab(c, t, p, s)
+							}
+						})
 					}
 				})
 			})
