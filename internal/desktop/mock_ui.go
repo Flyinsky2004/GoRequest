@@ -431,7 +431,7 @@ func (a *App) renderMockAccessLogTab(c *ui.Context, t *ui.Theme, p uikit.Palette
 					if rec.Status >= 400 {
 						statusColor = t.Warning
 					}
-					ui.Text(c, fmt.Sprintf("HTTP %d (%d ms)", rec.Status, rec.DurationMs)).Font("monospace").FontSize(11).TextColor(statusColor)
+					ui.Text(c, fmt.Sprintf("HTTP %d (%s)", rec.Status, formatDurationMs(float64(rec.DurationMs)))).Font("monospace").FontSize(11).TextColor(statusColor)
 					ui.Box(c).Grow(1)
 					if rec.Matched {
 						ui.Text(c, mockTf(a, "mock.log.matched_rule", rec.MatchedRuleID, rec.Scenario)).FontSize(11).TextColor(p.Muted)

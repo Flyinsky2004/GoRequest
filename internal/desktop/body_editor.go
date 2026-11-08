@@ -122,7 +122,7 @@ func (a *App) projectFileStatus(tab *Tab, rel string) (text string, isErr bool) 
 		return err.Error(), true
 	}
 	_ = opened.Reader.Close()
-	return fmt.Sprintf(bm.FileReady, opened.Name, opened.Size), false
+	return fmt.Sprintf(bm.FileReady, opened.Name, formatByteSize(opened.Size)), false
 }
 
 func (a *App) localFileStatus(tab *Tab, slot string) (text string, isErr bool) {
@@ -154,7 +154,7 @@ func (a *App) localFileStatus(tab *Tab, slot string) (text string, isErr bool) {
 	if stream != nil && stream.Reader != nil {
 		_ = stream.Reader.Close()
 	}
-	return fmt.Sprintf(bm.FileReady, filepath.Base(absPath), stream.ContentLength), false
+	return fmt.Sprintf(bm.FileReady, filepath.Base(absPath), formatByteSize(stream.ContentLength)), false
 }
 
 // renderBodyEditor builds the native B03 HTTP Body editor inside workspace.go's

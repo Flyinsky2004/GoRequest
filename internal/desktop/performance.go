@@ -485,10 +485,10 @@ func perfSummaryText(rep *diagnostics.Report) string {
 	)
 	if rep.SuccessLatency != nil {
 		base += fmt.Sprintf(
-			" · P50 %.2f ms · P95 %.2f ms · P99 %.2f ms (n=%d)",
-			rep.SuccessLatency.P50Ms,
-			rep.SuccessLatency.P95Ms,
-			rep.SuccessLatency.P99Ms,
+			" · P50 %s · P95 %s · P99 %s (n=%d)",
+			formatDurationMs(rep.SuccessLatency.P50Ms),
+			formatDurationMs(rep.SuccessLatency.P95Ms),
+			formatDurationMs(rep.SuccessLatency.P99Ms),
 			rep.SuccessLatency.Count,
 		)
 	}

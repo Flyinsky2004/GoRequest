@@ -4,21 +4,21 @@ package desktop
 // in their own file so the shared i18n.go catalog is not touched by the R9
 // layout/status work.
 type layoutStatusMessages struct {
-	SendDoneFmt     string // status code, milliseconds
-	SendFailedFmt   string // milliseconds, error
-	SendCanceledFmt string // milliseconds
+	SendDoneFmt     string // status code, formatted duration
+	SendFailedFmt   string // formatted duration, error
+	SendCanceledFmt string // formatted duration
 }
 
 var layoutStatusMessagesZh = layoutStatusMessages{
-	SendDoneFmt:     "已收到 %d 响应 · %.1f ms",
-	SendFailedFmt:   "请求失败 · %.1f ms · %s",
-	SendCanceledFmt: "请求已取消 · %.1f ms",
+	SendDoneFmt:     "已收到 %d 响应 · %s",
+	SendFailedFmt:   "请求失败 · %s · %s",
+	SendCanceledFmt: "请求已取消 · %s",
 }
 
 var layoutStatusMessagesEn = layoutStatusMessages{
-	SendDoneFmt:     "received %d response · %.1f ms",
-	SendFailedFmt:   "request failed · %.1f ms · %s",
-	SendCanceledFmt: "request canceled · %.1f ms",
+	SendDoneFmt:     "received %d response · %s",
+	SendFailedFmt:   "request failed · %s · %s",
+	SendCanceledFmt: "request canceled · %s",
 }
 
 func layoutStatusMessagesFor(l language) *layoutStatusMessages {

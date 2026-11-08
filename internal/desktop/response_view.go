@@ -509,7 +509,7 @@ func (a *App) responseStatus(c *ui.Context, tab *Tab, m *messages, p uikit.Palet
 		host := ui.Box(c).Width(0).Height(0)
 		durMs := host.AnimateTo("resp-dur", float32(tab.Resp.Duration.Microseconds())/1000.0, uikit.SpringNumber)
 		sizeB := host.AnimateTo("resp-size", float32(tab.Resp.BodySize), uikit.SpringNumber)
-		ui.Textf(c, "%.1f ms · %d B", durMs, int64(sizeB)).
+		ui.Textf(c, "%s · %s", formatDurationMs(float64(durMs)), formatByteSize(int64(sizeB))).
 			FontSize(12).FontFeatures("tnum").TextColor(p.Muted)
 		if summary := transferSizeSummary(tab.Resp, nm); summary != "" {
 			ui.Text(c, summary).FontSize(11).FontFeatures("tnum").TextColor(p.Muted)
@@ -665,7 +665,7 @@ func (a *App) responseBinaryView(c *ui.Context, t *ui.Theme, tab *Tab, p uikit.P
 				a.saveResponse(tab)
 			}
 		})
-		ui.Text(c, fmt.Sprintf(nm.BinaryInfoFmt, mimeLabel, res.BodySize, shaHex)).
+		ui.Text(c, fmt.Sprintf(nm.BinaryInfoFmt, mimeLabel, formatByteSize(res.BodySize), shaHex)).
 			FontSize(11).Font("monospace").FontFeatures("tnum").Selectable().TextColor(p.Muted)
 		if hexDump != "" {
 			ui.Text(c, nm.BinaryPreviewLabel).FontSize(11).TextColor(p.Muted)

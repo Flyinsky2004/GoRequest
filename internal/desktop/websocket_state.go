@@ -509,7 +509,7 @@ func (a *App) wsTabSend(tab *Tab) {
 			sess.RegisterSecret(value)
 		}
 		if len(value) > int(sess.Snapshot().MaxMessage) {
-			st.notice = fmt.Sprintf("message exceeds the session limit (%d bytes)", sess.Snapshot().MaxMessage)
+			st.notice = fmt.Sprintf("message exceeds the session limit (%s)", formatByteSize(sess.Snapshot().MaxMessage))
 			return
 		}
 		if err := sess.SendText(context.Background(), value, sensitive); err != nil {
@@ -545,7 +545,7 @@ func (a *App) wsTabSend(tab *Tab) {
 		return
 	}
 	if len(data) > int(sess.Snapshot().MaxMessage) {
-		st.notice = fmt.Sprintf("message exceeds the session limit (%d bytes)", sess.Snapshot().MaxMessage)
+		st.notice = fmt.Sprintf("message exceeds the session limit (%s)", formatByteSize(sess.Snapshot().MaxMessage))
 		return
 	}
 	if err := sess.SendBinary(context.Background(), data, binarySensitive); err != nil {

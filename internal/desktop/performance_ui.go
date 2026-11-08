@@ -130,8 +130,8 @@ func (a *App) PerformanceModals(c *ui.Context, t *ui.Theme) {
 									if ev.IsWarmup {
 										phase = "warmup"
 									}
-									ui.Text(c, fmt.Sprintf("#%d · %s · sample %d (%s) · %s · HTTP %d · %.2f ms %s",
-										ev.Seq, ev.Kind, ev.SampleIndex, phase, ev.Outcome, ev.StatusCode, ev.DurationMs, ev.Message)).
+									ui.Text(c, fmt.Sprintf("#%d · %s · sample %d (%s) · %s · HTTP %d · %s %s",
+										ev.Seq, ev.Kind, ev.SampleIndex, phase, ev.Outcome, ev.StatusCode, formatDurationMs(ev.DurationMs), ev.Message)).
 										Font("monospace").FontSize(11).TextColor(p.Text)
 								}
 							})
@@ -197,8 +197,8 @@ func renderPerfSummaryTab(c *ui.Context, t *ui.Theme, p uikit.Palette, rep *diag
 		ui.Text(c, fmt.Sprintf("Run ID: %s · Request: %s (%s %s) · Env: %s · Strategy: %s · Reuse Support: %s",
 			rep.RunID, rep.RequestPath, rep.Method, rep.TargetURL, perfValue(rep.Environment), rep.Config.ConnectionStrategy, rep.ReuseSupport)).
 			Font("monospace").FontSize(11).TextColor(p.Muted)
-		ui.Text(c, fmt.Sprintf("Snapshot Digest: %s · Seed: %d · Proxy: %s · Total Elapsed: %.2f ms",
-			rep.SnapshotDigest, rep.Config.Seed, perfValue(rep.ProxyMode), rep.TotalElapsedMs)).
+		ui.Text(c, fmt.Sprintf("Snapshot Digest: %s · Seed: %d · Proxy: %s · Total Elapsed: %s",
+			rep.SnapshotDigest, rep.Config.Seed, perfValue(rep.ProxyMode), formatDurationMs(rep.TotalElapsedMs))).
 			Font("monospace").FontSize(11).TextColor(p.Muted)
 
 		if rep.ReuseNote != "" {
@@ -216,8 +216,8 @@ func renderPerfSummaryTab(c *ui.Context, t *ui.Theme, p uikit.Palette, rep *diag
 		if rep.SuccessLatency != nil {
 			sl := rep.SuccessLatency
 			ui.Text(c, fmt.Sprintf(
-				"Success Latency (%s, n=%d): Mean=%.3f ms · Min=%.3f ms · P50=%.3f ms · P90=%.3f ms · P95=%.3f ms · P99=%.3f ms · Max=%.3f ms",
-				sl.Method, sl.Count, sl.MeanMs, sl.MinMs, sl.P50Ms, sl.P90Ms, sl.P95Ms, sl.P99Ms, sl.MaxMs,
+				"Success Latency (%s, n=%d): Mean=%s · Min=%s · P50=%s · P90=%s · P95=%s · P99=%s · Max=%s",
+				sl.Method, sl.Count, formatDurationMs(sl.MeanMs), formatDurationMs(sl.MinMs), formatDurationMs(sl.P50Ms), formatDurationMs(sl.P90Ms), formatDurationMs(sl.P95Ms), formatDurationMs(sl.P99Ms), formatDurationMs(sl.MaxMs),
 			)).Font("monospace").FontSize(12).TextColor(p.Text)
 			if sl.ResolutionNote != "" {
 				ui.Text(c, sl.ResolutionNote).FontSize(11).TextColor(p.Muted)
@@ -229,8 +229,8 @@ func renderPerfSummaryTab(c *ui.Context, t *ui.Theme, p uikit.Palette, rep *diag
 		if rep.FailureLatency != nil {
 			fl := rep.FailureLatency
 			ui.Text(c, fmt.Sprintf(
-				"Failure Latency (separate from success, n=%d): Mean=%.3f ms · Min=%.3f ms · P50=%.3f ms · P95=%.3f ms · Max=%.3f ms",
-				fl.Count, fl.MeanMs, fl.MinMs, fl.P50Ms, fl.P95Ms, fl.MaxMs,
+				"Failure Latency (separate from success, n=%d): Mean=%s · Min=%s · P50=%s · P95=%s · Max=%s",
+				fl.Count, formatDurationMs(fl.MeanMs), formatDurationMs(fl.MinMs), formatDurationMs(fl.P50Ms), formatDurationMs(fl.P95Ms), formatDurationMs(fl.MaxMs),
 			)).Font("monospace").FontSize(12).TextColor(p.Muted)
 		}
 
@@ -241,8 +241,8 @@ func renderPerfSummaryTab(c *ui.Context, t *ui.Theme, p uikit.Palette, rep *diag
 				col = t.Danger
 			}
 			ui.Text(c, fmt.Sprintf(
-				"Threshold Gate [%s]: %s=%0.3f ms <= %0.3f ms · valid n=%d (min %d) · failureRate=%.3f (max %.3f)",
-				gr.Status, gr.Quantile, gr.ObservedQuantileMs, gr.MaxLatencyMs, gr.ValidSamples, gr.MinValidSamples, gr.FailureRate, gr.MaxFailureRate,
+				"Threshold Gate [%s]: %s=%s <= %s · valid n=%d (min %d) · failureRate=%.3f (max %.3f)",
+				gr.Status, gr.Quantile, formatDurationMs(gr.ObservedQuantileMs), formatDurationMs(gr.MaxLatencyMs), gr.ValidSamples, gr.MinValidSamples, gr.FailureRate, gr.MaxFailureRate,
 			)).Font("monospace").FontSize(12).TextColor(col)
 			for _, reason := range gr.Reasons {
 				ui.Text(c, "  • "+reason).FontSize(11).TextColor(col)
@@ -267,9 +267,9 @@ func renderPerfStagesTab(c *ui.Context, p uikit.Palette, rep *diagnostics.Report
 			if st.Stats != nil && st.ObservedCount > 0 {
 				d := st.Stats
 				ui.Text(c, fmt.Sprintf(
-					"%-14s | n=%-3d (reused=%d, unobs=%d, incomp=%d, n/a=%d) | Mean=%7.2f ms | Min=%7.2f | P50=%7.2f | P90=%7.2f | P95=%7.2f | P99=%7.2f | Max=%7.2f",
+					"%-14s | n=%-3d (reused=%d, unobs=%d, incomp=%d, n/a=%d) | Mean=%s | Min=%s | P50=%s | P90=%s | P95=%s | P99=%s | Max=%s",
 					kind, st.ObservedCount, st.SkippedReusedCount, st.UnobservedCount, st.IncompleteCount, st.NotApplicableCount,
-					d.MeanMs, d.MinMs, d.P50Ms, d.P90Ms, d.P95Ms, d.P99Ms, d.MaxMs,
+					formatDurationMs(d.MeanMs), formatDurationMs(d.MinMs), formatDurationMs(d.P50Ms), formatDurationMs(d.P90Ms), formatDurationMs(d.P95Ms), formatDurationMs(d.P99Ms), formatDurationMs(d.MaxMs),
 				)).Font("monospace").FontSize(11).TextColor(p.Text)
 			} else {
 				ui.Text(c, fmt.Sprintf(
@@ -326,10 +326,10 @@ func renderPerfTimelineTab(c *ui.Context, p uikit.Palette, s *performanceState) 
 					}
 					ivText := ""
 					if da.Interval != nil {
-						ivText = fmt.Sprintf("[%.2f..%.2f ms]", da.Interval.StartOffsetMs, da.Interval.EndOffsetMs)
+						ivText = fmt.Sprintf("[%s..%s]", formatDurationMs(da.Interval.StartOffsetMs), formatDurationMs(da.Interval.EndOffsetMs))
 					}
-					ui.Text(c, fmt.Sprintf("  DialAttempt: %s %s%s · observed=%v · %.2f ms %s %s",
-						da.Network, da.RemoteAddr, winTag, da.Observed, da.DurationMs, ivText, da.Error)).
+					ui.Text(c, fmt.Sprintf("  DialAttempt: %s %s%s · observed=%v · %s %s %s",
+						da.Network, da.RemoteAddr, winTag, da.Observed, formatDurationMs(da.DurationMs), ivText, da.Error)).
 						Font("monospace").FontSize(11).TextColor(p.Muted)
 				}
 
@@ -341,10 +341,10 @@ func renderPerfTimelineTab(c *ui.Context, p uikit.Palette, s *performanceState) 
 					if sm.Status == diagnostics.ObsObserved {
 						ivStr := ""
 						if sm.Interval != nil {
-							ivStr = fmt.Sprintf("[%.2f..%.2f ms]", sm.Interval.StartOffsetMs, sm.Interval.EndOffsetMs)
+							ivStr = fmt.Sprintf("[%s..%s]", formatDurationMs(sm.Interval.StartOffsetMs), formatDurationMs(sm.Interval.EndOffsetMs))
 						}
-						ui.Text(c, fmt.Sprintf("  %-14s | %-22s | %7.2f ms %-18s | %s",
-							kind, sm.Status, sm.DurationMs, ivStr, sm.Note)).Font("monospace").FontSize(11).TextColor(p.Text)
+						ui.Text(c, fmt.Sprintf("  %-14s | %-22s | %s %-18s | %s",
+							kind, sm.Status, formatDurationMs(sm.DurationMs), ivStr, sm.Note)).Font("monospace").FontSize(11).TextColor(p.Text)
 					} else {
 						ui.Text(c, fmt.Sprintf("  %-14s | %-22s | — (not summed/not 0ms)     | %s %s",
 							kind, sm.Status, sm.Note, sm.Error)).Font("monospace").FontSize(11).TextColor(p.Muted)
@@ -362,8 +362,8 @@ func renderPerfTimelineTab(c *ui.Context, p uikit.Palette, s *performanceState) 
 func renderPerfSamplesTab(c *ui.Context, t *ui.Theme, p uikit.Palette, rep *diagnostics.Report) {
 	ui.Column(c).FillWidth().Gap(4).Padding(10).BorderWidth(1).BorderColor(p.Hairline).Radius(8).Children(func() {
 		for _, ws := range rep.WarmupSamples {
-			ui.Text(c, fmt.Sprintf("[warmup #%d] %s · HTTP %d · %.2f ms · reused=%v · redirects=%d · %s",
-				ws.Index, ws.Outcome, ws.StatusCode, ws.DurationMs, ws.ReusedConn, ws.RedirectCount, ws.Error)).
+			ui.Text(c, fmt.Sprintf("[warmup #%d] %s · HTTP %d · %s · reused=%v · redirects=%d · %s",
+				ws.Index, ws.Outcome, ws.StatusCode, formatDurationMs(ws.DurationMs), ws.ReusedConn, ws.RedirectCount, ws.Error)).
 				Font("monospace").FontSize(11).TextColor(p.Muted)
 		}
 		for _, ms := range rep.Samples {
@@ -371,8 +371,8 @@ func renderPerfSamplesTab(c *ui.Context, t *ui.Theme, p uikit.Palette, rep *diag
 			if ms.Outcome != diagnostics.OutcomeSuccess || ms.Truncated {
 				col = t.Danger
 			}
-			ui.Text(c, fmt.Sprintf("[sample #%d] %s · HTTP %d (%s) · %.2f ms · reused=%v · body=%d B (truncated=%v) · redirects=%d · %s",
-				ms.Index, ms.Outcome, ms.StatusCode, perfValue(ms.Proto), ms.DurationMs, ms.ReusedConn, ms.BodySize, ms.Truncated, ms.RedirectCount, ms.Error)).
+			ui.Text(c, fmt.Sprintf("[sample #%d] %s · HTTP %d (%s) · %s · reused=%v · body=%s (truncated=%v) · redirects=%d · %s",
+				ms.Index, ms.Outcome, ms.StatusCode, perfValue(ms.Proto), formatDurationMs(ms.DurationMs), ms.ReusedConn, formatByteSize(ms.BodySize), ms.Truncated, ms.RedirectCount, ms.Error)).
 				Font("monospace").FontSize(11).TextColor(col)
 		}
 	})
@@ -408,8 +408,18 @@ func renderPerfCompareTab(c *ui.Context, t *ui.Theme, p uikit.Palette, s *perfor
 		}
 
 		for _, d := range comp.OverallDeltas {
-			ui.Text(c, fmt.Sprintf("%-12s | base=%.3f (n=%d) | cand=%.3f (n=%d) | delta=%+0.3f (%+0.1f%%) | comparable=%v %s",
-				d.Metric, d.BaselineValue, d.BaselineN, d.CandidateValue, d.CandidateN, d.Delta, d.DeltaPct, d.Comparable, d.Note)).
+			base, candidate, delta := "—", "—", "—"
+			if d.BaselineN > 0 {
+				base = formatDurationMs(d.BaselineValue)
+			}
+			if d.CandidateN > 0 {
+				candidate = formatDurationMs(d.CandidateValue)
+			}
+			if d.BaselineN > 0 && d.CandidateN > 0 {
+				delta = formatDurationDeltaMs(d.Delta)
+			}
+			ui.Text(c, fmt.Sprintf("%-12s | base=%s (n=%d) | cand=%s (n=%d) | delta=%s (%+0.1f%%) | comparable=%v %s",
+				d.Metric, base, d.BaselineN, candidate, d.CandidateN, delta, d.DeltaPct, d.Comparable, d.Note)).
 				Font("monospace").FontSize(11).TextColor(p.Text)
 		}
 	})

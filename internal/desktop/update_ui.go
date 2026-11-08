@@ -1,8 +1,6 @@
 package desktop
 
 import (
-	"fmt"
-
 	"github.com/egoist/mygo/ui"
 
 	"gorequest/internal/desktop/uikit"
@@ -124,7 +122,7 @@ func (u *updateController) renderDownloading(c *ui.Context, p uikit.Palette, um 
 	}
 	ui.Text(c, um.DownloadingTitle).FontSize(16).Bold().TextColor(p.Text)
 	ui.Text(c, translate(um.DownloadingBody, target)).FontSize(12).TextColor(p.Muted)
-	ui.Text(c, translate(um.DownloadProgress, formatBytes(u.progress), formatBytes(u.total))).
+	ui.Text(c, translate(um.DownloadProgress, formatByteSize(u.progress), formatByteSize(u.total))).
 		FontSize(12).TextColor(p.Text).SingleLine()
 	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 		if uikit.ActionCursor(ui.Button(c, um.Cancel)).Clicked() {
@@ -238,21 +236,4 @@ func settingsUpdateContent(c *ui.Context, p uikit.Palette, lang language, host w
 			ui.Text(c, um.LastCheckLabel+": "+up.lastStatusText(lang)).FontSize(11).TextColor(p.Muted)
 		})
 	})
-}
-
-// formatBytes renders a byte count for the download progress line.
-func formatBytes(n int64) string {
-	if n < 0 {
-		n = 0
-	}
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for v := n / unit; v >= unit && exp < 3; v /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGT"[exp])
 }

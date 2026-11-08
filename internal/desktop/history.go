@@ -665,7 +665,7 @@ func (a *App) historyRow(c *ui.Context, t *ui.Theme, p uikit.Palette, m *message
 			ui.Text(c, historyOutcomeLabel(m, r.OutcomeValue())).FontSize(10).
 				TextColor(historyOutcomeColor(p, r.OutcomeValue())).Width(52).SingleLine()
 		}
-		ui.Text(c, fmt.Sprintf("%d ms", r.DurationMs)).FontSize(11).FontFeatures("tnum").TextColor(p.Faint).SingleLine()
+		ui.Text(c, formatDurationMs(float64(r.DurationMs))).FontSize(11).FontFeatures("tnum").TextColor(p.Faint).SingleLine()
 		// A reserved, compact action area replaces the old absolutely
 		// positioned buttons, which overlapped the status and duration cells.
 		a.historyRowActions(c, p, t, r)
@@ -781,7 +781,7 @@ func (a *App) historyDetailModal(c *ui.Context, t *ui.Theme) {
 			detailRow(m.HistoryLabel, r.Ts.Format("2006-01-02 15:04:05"))
 			detailRow(m.Projects, r.ProjectName)
 			detailRow(m.EnvLabel, r.Env)
-			detailRow(m.HistoryDetailResult, resultSummary(m, r))
+			detailRow(m.HistoryDetailResult, fmt.Sprintf("%s · %s · %s", resultSummary(m, r), formatDurationMs(float64(r.DurationMs)), formatByteSize(r.SizeBytes)))
 			detailRow("URL", r.URL)
 			detailRow(m.Error, r.Error)
 

@@ -227,7 +227,7 @@ func (a *App) renderOpenAPIImportSyncTab(c *ui.Context, t *ui.Theme, p uikit.Pal
 					ui.Text(c, "• "+cf).FontSize(11).TextColor(t.Danger)
 				}
 				for _, ch := range prev.Changes {
-					ui.Text(c, fmt.Sprintf("[%s] %s (%d bytes)", strings.ToUpper(string(ch.Kind)), ch.RelPath, ch.AfterBytes)).
+					ui.Text(c, fmt.Sprintf("[%s] %s (%s)", strings.ToUpper(string(ch.Kind)), ch.RelPath, formatByteSize(int64(ch.AfterBytes)))).
 						Font("monospace").FontSize(11).TextColor(p.Muted)
 				}
 				for _, l := range prev.Losses {

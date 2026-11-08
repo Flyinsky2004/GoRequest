@@ -305,7 +305,7 @@ func (a *App) wsRenderFacts(c *ui.Context, t *ui.Theme, st *wsTabState, m *wsMes
 		})
 		ui.Row(c).FillWidth().Gap(12).Children(func() {
 			ui.Text(c, m.FactsDeadlines+": "+wsDeadlineLabel(sn)).FontSize(11).TextColor(p.Muted)
-			ui.Text(c, fmt.Sprintf(m.BoundsNoteFmt, sn.StreamStats.Capacity, sn.MaxMessage, sn.InboxCapacity)).FontSize(11).TextColor(p.Muted)
+			ui.Text(c, fmt.Sprintf(m.BoundsNoteFmt, sn.StreamStats.Capacity, formatByteSize(sn.MaxMessage), sn.InboxCapacity)).FontSize(11).TextColor(p.Muted)
 		})
 		if sn.StreamStats.Overflowed > 0 || sn.StreamStats.SubscriberDrops > 0 {
 			ui.Text(c, fmt.Sprintf(m.OverflowNoteFmt, sn.StreamStats.Overflowed, sn.StreamStats.SubscriberDrops)).FontSize(11).TextColor(t.Warning)

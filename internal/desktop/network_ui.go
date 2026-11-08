@@ -44,7 +44,7 @@ type networkMessages struct {
 
 	// Binary Inspector
 	BinaryPayloadTitle string
-	BinaryInfoFmt      string // %s (mime), %d (bytes), %s (sha256)
+	BinaryInfoFmt      string // %s (mime), %s (formatted size), %s (sha256)
 	BinaryPreviewLabel string
 
 	// Cookie Jar Modal
@@ -167,7 +167,7 @@ var networkMessagesZh = networkMessages{
 	TreeTruncatedNote: "（JSON 树已按 %d 节点上限截断显示）",
 
 	BinaryPayloadTitle: "二进制响应载荷（已安全隔离渲染，不会损坏原始字节）",
-	BinaryInfoFmt:      "类型：%s · 原始大小：%d B · SHA-256：%s",
+	BinaryInfoFmt:      "类型：%s · 原始大小：%s · SHA-256：%s",
 	BinaryPreviewLabel: "前 512 字节十六进制预览：",
 
 	CookieJarTitle:          "项目隔离 Cookie 罐",
@@ -286,7 +286,7 @@ var networkMessagesEn = networkMessages{
 	TreeTruncatedNote: "(JSON tree truncated at %d nodes)",
 
 	BinaryPayloadTitle: "Binary Response Payload (rendered safely without UTF-8 corruption)",
-	BinaryInfoFmt:      "MIME: %s · Size: %d B · SHA-256: %s",
+	BinaryInfoFmt:      "MIME: %s · Size: %s · SHA-256: %s",
 	BinaryPreviewLabel: "First 512 bytes hex preview:",
 
 	CookieJarTitle:          "Project Cookie Jar",
@@ -1133,8 +1133,8 @@ func (a *App) responseNetworkDetail(c *ui.Context, t *ui.Theme, res *core.ExecRe
 			// 1. Transfer Size vs Decompressed Body Size & Connection Summary
 			ui.Column(c).Gap(4).Padding(8, 10).BorderWidth(1).BorderColor(p.Hairline).Radius(8).FillWidth().Children(func() {
 				ui.Text(c, nm.TraceSummaryHeader).FontSize(12).FontWeight(600)
-				traceKVRow(c, p, nm.TraceTransferSize, fmt.Sprintf("%d B (%s)", transferBytes, formatByteSize(transferBytes)))
-				traceKVRow(c, p, nm.TraceDecompressedSize, fmt.Sprintf("%d B (%s)", res.BodySize, formatByteSize(res.BodySize)))
+				traceKVRow(c, p, nm.TraceTransferSize, formatByteSize(transferBytes))
+				traceKVRow(c, p, nm.TraceDecompressedSize, formatByteSize(res.BodySize))
 				traceKVRow(c, p, nm.TraceEncoding, encLabel)
 				if tr.RemoteAddr != "" {
 					traceKVRow(c, p, nm.TraceRemoteAddr, tr.RemoteAddr)
@@ -1157,7 +1157,7 @@ func (a *App) responseNetworkDetail(c *ui.Context, t *ui.Theme, res *core.ExecRe
 				traceKVRow(c, p, nm.TraceStageTLS, formatObservedDuration(tr.TLSDuration, tr.TLSObserved, nm.TraceNotObserved))
 				traceKVRow(c, p, nm.TraceStageWrite, formatObservedDuration(tr.WriteDuration, tr.WriteObserved, nm.TraceNotObserved))
 				traceKVRow(c, p, nm.TraceStageTTFB, formatObservedDuration(tr.TTFBDuration, tr.TTFBObserved, nm.TraceNotObserved))
-				traceKVRow(c, p, nm.TraceStageDownload, fmt.Sprintf("%.2f ms", float64(tr.DownloadDuration.Microseconds())/1000.0))
+				traceKVRow(c, p, nm.TraceStageDownload, formatDuration(tr.DownloadDuration))
 			})
 
 			// 3. TLS & Certificate Details (if HTTPS or TLS metadata present)
@@ -1220,20 +1220,5 @@ func formatObservedDuration(d time.Duration, observed bool, fallback string) str
 	if !observed {
 		return fallback
 	}
-	return fmt.Sprintf("%.2f ms", float64(d.Microseconds())/1000.0)
-}
-
-func formatByteSize(b int64) string {
-	const (
-		kb = 1024
-		mb = 1024 * kb
-	)
-	switch {
-	case b >= mb:
-		return fmt.Sprintf("%.2f MB", float64(b)/float64(mb))
-	case b >= kb:
-		return fmt.Sprintf("%.1f KB", float64(b)/float64(kb))
-	default:
-		return fmt.Sprintf("%d B", b)
-	}
+	return formatDuration(d)
 }

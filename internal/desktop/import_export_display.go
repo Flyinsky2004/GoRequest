@@ -271,9 +271,9 @@ func (a *App) displayVariableSource(source string) string {
 func (a *App) displayChangeLine(ch core.ChangePreview) string {
 	im := a.interopMsg()
 	if !a.interopIsZH() {
-		return fmt.Sprintf(im.ChangeLineFmt, strings.ToUpper(string(ch.Kind)), ch.RelPath, fmt.Sprintf(im.BytesFmt, ch.AfterBytes))
+		return fmt.Sprintf(im.ChangeLineFmt, strings.ToUpper(string(ch.Kind)), ch.RelPath, fmt.Sprintf(im.BytesFmt, formatByteSize(int64(ch.AfterBytes))))
 	}
-	return fmt.Sprintf(im.ChangeLineFmt, a.displayChangeKind(ch.Kind), ch.RelPath, fmt.Sprintf(im.BytesFmt, ch.AfterBytes))
+	return fmt.Sprintf(im.ChangeLineFmt, a.displayChangeKind(ch.Kind), ch.RelPath, fmt.Sprintf(im.BytesFmt, formatByteSize(int64(ch.AfterBytes))))
 }
 
 // displayIDMappingLine renders an entity ID/reference mapping with localized

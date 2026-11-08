@@ -430,7 +430,7 @@ func TestResponseTransferVsDecompressedSizeAndNetworkTraceTabs(t *testing.T) {
 	tt.Frame()
 
 	// Status bar shows wire transfer size vs decompressed body size and redirect count.
-	if !tt.HasText("180 B wire · 4.0 KB body (gzip)") {
+	if !tt.HasText("180 B wire · 4 KiB body (gzip)") {
 		t.Fatalf("status bar missing wire vs body size summary; texts=%v", tt.Texts())
 	}
 	if !tt.HasText("1 redirects") {
@@ -442,11 +442,11 @@ func TestResponseTransferVsDecompressedSizeAndNetworkTraceTabs(t *testing.T) {
 		t.Fatalf("click Network tab: %v", err)
 	}
 	for _, want := range []string{
-		"180 B (180 B)",
-		"4096 B (4.0 KB)",
+		"180 B",
+		"4 KiB",
 		"reused / n/a", // unobserved DNS must not be shown as 0.00 ms
-		"4.20 ms",
-		"8.50 ms",
+		"4.2ms",
+		"8.5ms",
 		"TLS 1.3 · TLS_AES_128_GCM_SHA256",
 		"http://127.0.0.1:8080",
 		"#1 302 GET",

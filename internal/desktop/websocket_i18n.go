@@ -66,7 +66,7 @@ type wsMessages struct {
 	Busy              string
 	FilterLabel       string
 	OverflowNoteFmt   string // %d events, %d dropped subscribers
-	BoundsNoteFmt     string // %d ring, %d msg cap, %d inbox
+	BoundsNoteFmt     string // %d ring, %s msg cap, %d inbox
 }
 
 var wsMessagesEn = wsMessages{
@@ -129,7 +129,7 @@ var wsMessagesEn = wsMessages{
 	Busy:              "Another connection attempt is already in progress",
 	FilterLabel:       "Filter",
 	OverflowNoteFmt:   "timeline: %d events kept, %d subscriber drops",
-	BoundsNoteFmt:     "ring %d · message cap %d B · inbox %d",
+	BoundsNoteFmt:     "ring %d · message cap %s · inbox %d",
 }
 
 var wsMessagesZh = wsMessages{
@@ -192,7 +192,7 @@ var wsMessagesZh = wsMessages{
 	Busy:              "已有连接尝试正在进行",
 	FilterLabel:       "过滤",
 	OverflowNoteFmt:   "时间线：保留 %d 条事件，订阅丢弃 %d 条",
-	BoundsNoteFmt:     "环形 %d · 单条上限 %d B · 收件 %d",
+	BoundsNoteFmt:     "环形 %d · 单条上限 %s · 收件 %d",
 }
 
 // websocketMsg returns the active-language message set for the dialog.

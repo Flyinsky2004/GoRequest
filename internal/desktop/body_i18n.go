@@ -27,7 +27,7 @@ type bodyMessages struct {
 	ChooseFile             string
 	UnbindFile             string
 	LocalIsolationHint     string
-	FileReady              string // %s, %d
+	FileReady              string // %s, %s
 	FileUnbound            string // %s
 	NoBodyHint             string
 
@@ -82,7 +82,7 @@ var bodyMessagesZh = bodyMessages{
 	ChooseFile:             "选择文件…",
 	UnbindFile:             "解除绑定",
 	LocalIsolationHint:     "本机文件路径仅保存在当前设备配置目录，绝不写入共享 .gorequest 项目文件。",
-	FileReady:              "文件就绪：%s（%d 字节）",
+	FileReady:              "文件就绪：%s（%s）",
 	FileUnbound:            "本机映射 %q 尚未在当前设备绑定文件",
 	NoBodyHint:             "此请求不包含请求正文（无 Body）。",
 
@@ -137,7 +137,7 @@ var bodyMessagesEn = bodyMessages{
 	ChooseFile:             "Choose File…",
 	UnbindFile:             "Unbind",
 	LocalIsolationHint:     "Local machine file paths are stored only in device-local config and never written into .gorequest/.",
-	FileReady:              "Ready: %s (%d bytes)",
+	FileReady:              "Ready: %s (%s)",
 	FileUnbound:            "Local mapping %q is not bound on this machine",
 	NoBodyHint:             "This request has no body.",
 

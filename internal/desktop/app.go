@@ -381,9 +381,9 @@ func (a *App) send(tab *Tab) {
 				// The status bar must leave its "sending…" state even when the
 				// request failed or was canceled.
 				if errors.Is(ctx.Err(), context.Canceled) || isCanceledErr(tab.RespErr) {
-					a.status = translate(lm.SendCanceledFmt, sendMs(time.Since(started)))
+					a.status = translate(lm.SendCanceledFmt, formatDuration(time.Since(started)))
 				} else {
-					a.status = translate(lm.SendFailedFmt, sendMs(time.Since(started)), tab.RespErr)
+					a.status = translate(lm.SendFailedFmt, formatDuration(time.Since(started)), tab.RespErr)
 				}
 			} else {
 				tab.Resp = res
@@ -393,7 +393,7 @@ func (a *App) send(tab *Tab) {
 				a.recordHistory(tab, plan, red, res)
 				// Terminal success: status code and measured duration, so the
 				// line never stays on "sending…" after completion.
-				a.status = translate(lm.SendDoneFmt, res.Status, sendMs(res.Duration))
+				a.status = translate(lm.SendDoneFmt, res.Status, formatDuration(res.Duration))
 			}
 			// Put the caret back in the URL so the user can tweak and resend.
 			tab.focusURL = true
@@ -454,23 +454,20 @@ func (a *App) finishStreamSend(
 
 	switch res.Stream.Phase {
 	case core.StreamPhaseCompleted:
-		a.status = translate(lm.SendDoneFmt, res.Status, sendMs(res.Duration))
+		a.status = translate(lm.SendDoneFmt, res.Status, formatDuration(res.Duration))
 		a.recordHistory(tab, plan, red, res)
 	case core.StreamPhaseCanceled:
-		a.status = translate(lm.SendCanceledFmt, sendMs(time.Since(started)))
+		a.status = translate(lm.SendCanceledFmt, formatDuration(time.Since(started)))
 		a.recordHistoryFailure(tab, plan, red, err, ctx.Err())
 	default:
 		reason := res.Stream.EndReason
 		if reason == "" && err != nil {
 			reason = red.RedactError(err).Error()
 		}
-		a.status = translate(lm.SendFailedFmt, sendMs(time.Since(started)), reason)
+		a.status = translate(lm.SendFailedFmt, formatDuration(time.Since(started)), reason)
 		a.recordHistoryFailure(tab, plan, red, err, ctx.Err())
 	}
 }
-
-// sendMs formats a duration as milliseconds for the send status line.
-func sendMs(d time.Duration) float64 { return float64(d.Microseconds()) / 1000.0 }
 
 // cancelAllRequests cancels every in-flight request owned by this window and
 // marks its tabs idle. Called when the window is destroyed, so late results are

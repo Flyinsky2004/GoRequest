@@ -104,7 +104,7 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
 												break
 											}
 											count++
-											ui.Text(c, fmt.Sprintf("  attempt %d · %s · HTTP %d · %d ms", attempt.Number, attempt.Status, attempt.HTTPStatus, attempt.DurationMs)).FontSize(11).TextColor(p.Muted)
+											ui.Text(c, fmt.Sprintf("  attempt %d · %s · HTTP %d · %s", attempt.Number, attempt.Status, attempt.HTTPStatus, formatDurationMs(float64(attempt.DurationMs)))).FontSize(11).TextColor(p.Muted)
 											if attempt.Failure != nil {
 												ui.Text(c, string(attempt.Failure.Category)+" / "+string(attempt.Failure.Kind)+": "+attempt.Failure.Message).FontSize(11).TextColor(t.Danger)
 											}
