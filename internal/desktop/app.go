@@ -125,8 +125,10 @@ type App struct {
 	themeGen  int
 	themeDark bool
 
-	// feedbackPending is the next action confirmation toast (feedback.go).
+	// feedbackPending is the next action confirmation toast (feedback.go);
+	// inView suppresses redundant win.Update wakeups while View is running.
 	feedbackPending *feedbackToast
+	inView          bool
 }
 
 // wire connects the project window's lifecycle to the manager and the close
@@ -167,6 +169,8 @@ func (a *App) saveGeometry() {
 
 // View builds one frame of the project window.
 func (a *App) View(c *ui.Context) {
+	a.inView = true
+	defer func() { a.inView = false }()
 	// Input may land after the last document frame, then switch to a request.
 	// Commit it before building any tab so the header, save and sync see it.
 	if a.ps != nil {
@@ -211,7 +215,6 @@ func (a *App) View(c *ui.Context) {
 		}
 	})
 	a.expireUndo()
-	a.drainFeedback(c)
 	a.envEditorModal(c, t)
 	a.settingsModal(c, t)
 	// The manager-level update dialog sits above the Settings sheet it can be
@@ -235,6 +238,8 @@ func (a *App) View(c *ui.Context) {
 	if a.git != nil {
 		a.git.modals(c, t)
 	}
+	a.drainFeedback(c)
+	a.renderFeedbackViewport(c, t)
 }
 
 func (a *App) settingsModal(c *ui.Context, t *ui.Theme) {

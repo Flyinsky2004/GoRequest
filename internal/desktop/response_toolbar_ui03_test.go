@@ -445,3 +445,71 @@ func TestUI03ResponseAnchorsInWorkspace(t *testing.T) {
 		t.Logf("workspace width=%d status=%+v Cookies label bounds=%+v", width, status, r)
 	}
 }
+
+// TestU32ResponseToolbarVerticalCenterlineAlignment verifies that the response
+// toolbar aligns status text/capsules, segmented switches, and 32×32 icon
+// buttons along the same horizontal centerline on every wrapped line.
+func TestU32ResponseToolbarVerticalCenterlineAlignment(t *testing.T) {
+	for _, language := range []language{langEnglish, langSimplifiedChinese} {
+		for _, width := range []int{320, 480, 900} {
+			t.Run(fmt.Sprintf("%s/%d", language, width), func(t *testing.T) {
+				m, a, tab := ui03Fixture(t)
+				m.cfg.cfg.Language = string(language)
+				tab.Resp.Duration = 42 * time.Millisecond
+				tt := ui.NewTester(func(c *ui.Context) { a.responseView(c, c.Theme(), tab) }, width, 600)
+				tt.Advance(5 * time.Second) // settle rolling duration/size numbers
+				msg, nm := a.msg(), a.networkMsg()
+
+				labels := []string{
+					"200",
+					"HTTP/1.1",
+					msg.BodySection,
+					msg.HeadersSection,
+					nm.CookiesSection,
+					nm.NetworkSection,
+					msg.FindPlaceholder,
+					msg.CopyResponse,
+					msg.SaveResponse,
+					msg.Pretty,
+					msg.Raw,
+					nm.TreeMode,
+				}
+				rects := make([]ui.Rect, len(labels))
+				for i, l := range labels {
+					rects[i] = ui03Rect(t, tt, l, width)
+				}
+
+				// At 900 DIPs the leading status text/capsule, view switch, and
+				// 32×32 icon buttons share the first line and must share the
+				// same horizontal centerline.
+				if width == 900 {
+					refMid := rects[7].Y + rects[7].H/2 // CopyResponse 32×32 IconButton
+					for i, l := range labels {
+						mid := rects[i].Y + rects[i].H/2
+						if math.Abs(float64(mid-refMid)) > 1.0 {
+							t.Fatalf("%s/%d: %q centerY=%.2f differs from Copy button centerY=%.2f (rect=%+v, copy=%+v)",
+								language, width, l, mid, refMid, rects[i], rects[7])
+						}
+					}
+				}
+
+				// At every width (including wrapped narrow lines), any two
+				// controls that sit on the same wrapped line must share the
+				// same horizontal centerline.
+				for i := range rects {
+					for j := i + 1; j < len(rects); j++ {
+						aRect, bRect := rects[i], rects[j]
+						if aRect.Y < bRect.Y+bRect.H && bRect.Y < aRect.Y+aRect.H {
+							midA := aRect.Y + aRect.H/2
+							midB := bRect.Y + bRect.H/2
+							if math.Abs(float64(midA-midB)) > 1.0 {
+								t.Fatalf("%s/%d: same-line controls %q (centerY=%.2f, %+v) and %q (centerY=%.2f, %+v) are not vertically centered together",
+									language, width, labels[i], midA, aRect, labels[j], midB, bRect)
+							}
+						}
+					}
+				}
+			})
+		}
+	}
+}

@@ -421,14 +421,10 @@ func (a *App) CopyOpenAPIExportToClipboard(c *ui.Context) {
 	if st.ExportPreviewText == "" {
 		return
 	}
-	if c != nil {
-		c.WriteClipboard(st.ExportPreviewText)
+	if !a.copyToClipboard(c, st.ExportPreviewText) {
+		return
 	}
 	st.ExportNotice = a.msg().Copied
-	a.status = a.msg().Copied
-	if c != nil {
-		a.notifyCopied(st.ExportPreviewText)
-	}
 }
 
 // ExecuteOpenAPIExportToFile writes the OpenAPI 3.1.2 / 3.2.1 specification to
@@ -641,6 +637,7 @@ func (a *App) SaveActiveRequestContract() {
 	om := a.openAPIMsg()
 	st.ContractNotice = om.ContractSavedStatus
 	a.status = om.ContractSavedStatus
+	a.notifySuccess(a.feedbackMsg().SaveSuccess)
 }
 
 // LoadLatestLiveResponseIntoValidator populates TestStatusCode, TestContentType,

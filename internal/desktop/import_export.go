@@ -546,14 +546,10 @@ func (a *App) CopyExportPreviewToClipboard(c *ui.Context) {
 	if st.ExportPreviewText == "" {
 		return
 	}
-	if c != nil {
-		c.WriteClipboard(st.ExportPreviewText)
+	if !a.copyToClipboard(c, st.ExportPreviewText) {
+		return
 	}
 	st.ExportNotice = a.msg().Copied
-	a.status = a.msg().Copied
-	if c != nil {
-		a.notifyCopied(st.ExportPreviewText)
-	}
 }
 
 // ExecuteExportToFile writes the selected export payload to ExportOutputPath,

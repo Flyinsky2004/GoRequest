@@ -907,6 +907,7 @@ func (a *App) networkSettingsModal(c *ui.Context, t *ui.Theme, tab *Tab) {
 						st.timeoutErr = ""
 						st.netModalOpen = false
 						a.status = nm.NetworkSettingsSaved
+						a.notifySuccess(a.feedbackMsg().SaveSuccess)
 					}
 				}
 			})
