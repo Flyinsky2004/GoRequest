@@ -12,6 +12,7 @@ import (
 	"weak"
 
 	"gorequest/internal/core"
+	"gorequest/internal/mockserver"
 	"gorequest/internal/runner"
 )
 
@@ -30,6 +31,15 @@ type runnerState struct {
 	result                                     *runner.RunResult
 	cancel                                     context.CancelFunc
 	generation                                 uint64
+
+	// This-run Mock configuration and result. The values are frozen into locals
+	// at StartRunner; the panel must not mutate them while running.
+	mockEnabled     bool
+	mockScenario    string
+	mockPort        string
+	mockEndpointVar string
+	mockScenarios   []string
+	mockResult      *runnerMockResult
 }
 
 var runnerStates = struct {
@@ -50,7 +60,11 @@ func (a *App) runnerState(create bool) *runnerState {
 	if !create {
 		return nil
 	}
-	s := &runnerState{}
+	s := &runnerState{
+		mockScenario:    mockserver.DefaultScenario,
+		mockPort:        "0",
+		mockEndpointVar: mockserver.DefaultMockURLVar,
+	}
 	runnerStates.byWindow[key] = s
 	runtime.AddCleanup(a, func(k weak.Pointer[App]) {
 		runnerStates.Lock()
@@ -106,6 +120,13 @@ func (a *App) OpenRunner() {
 		if len(files) > 0 {
 			s.suite = files[0]
 		}
+	}
+	// Offer the project's rule scenarios plus the built-in ones. Compilation is
+	// bounded (1 MiB per file, 512 rules) and never starts a listener; a broken
+	// catalog falls back to built-in names and is reported when the run starts.
+	s.mockScenarios = append([]string(nil), mockserver.BuiltinScenarios...)
+	if snap, err := mockserver.CompileProjectMocks(a.ps.project, "", 1, mockserver.ServerLimits{}); err == nil && snap != nil && len(snap.AvailableScenarios) > 0 {
+		s.mockScenarios = snap.AvailableScenarios
 	}
 	s.notice = ""
 }
@@ -180,12 +201,6 @@ func (a *App) StartRunner() {
 		s.reject(a.runnerMsg().SelectionFailed, a.ps.root)
 		return
 	}
-	// Network helper is called only here, on the UI thread, with a real temporary
-	// Tab. Its returned settings are copied; all providers are consumed/sealed by
-	// prepareDesktopRunner before execution moves to the background.
-	tab := &Tab{Owner: a.ps}
-	net := a.buildExecuteOptionsForTab(a.ps, tab, nil, nil, nil)
-	net.EnvID = s.environment
 	// MergeTargetPolicy owns fresh policy slices/maps. Clone options containing
 	// byte slices/pointers in prepareDesktopRunner's TLS snapshot routine.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -193,6 +208,10 @@ func (a *App) StartRunner() {
 	generation := s.generation
 	key := weak.Make(a)
 	win := a.win
+	var mockHolder struct {
+		sync.Mutex
+		result *runnerMockResult
+	}
 	mailbox := &runnerMailbox{post: win.Update, deliver: func(events []runner.Event, result *runner.RunResult, finished bool) {
 		owner := key.Value()
 		if owner == nil || owner.closed {
@@ -205,6 +224,10 @@ func (a *App) StartRunner() {
 		state.appendEvents(events)
 		if finished {
 			state.result = result
+			mockHolder.Lock()
+			mockResult := mockHolder.result
+			mockHolder.Unlock()
+			state.mockResult = mockResult
 			state.running = false
 			if state.cancel != nil {
 				state.cancel()
@@ -217,8 +240,37 @@ func (a *App) StartRunner() {
 			}
 		}
 	}}
-	r, err := prepareDesktopRunner(ctx, p, suite, s.environment, net, a.mgrSecrets(), func(e runner.Event) { mailbox.publish(&e, nil, false) })
+	// Freeze this run's Mock configuration and bind the loopback listener before
+	// any request is prepared, so the actual port can be injected into a private
+	// copy of the Suite. The listener is released on every failure path below.
+	var lease *mockserver.SuiteMockLease
+	var mockMeta *runnerMockResult
+	runSuite := suite
+	if s.mockEnabled {
+		l, injected, mErr := a.startRunnerMockLease(ctx, p, s)
+		if mErr != nil {
+			cancel()
+			s.mockResult = nil
+			s.reject(mErr.Error(), a.ps.root)
+			return
+		}
+		lease = l
+		mockMeta = runnerMockMetadata(lease)
+		runSuite = mockserver.InjectSuiteVariables(suite, injected)
+	}
+	// Network helper is called only here, on the UI thread, with a real temporary
+	// Tab. Its returned settings are copied; all providers are consumed/sealed by
+	// prepareDesktopRunner before execution moves to the background.
+	tab := &Tab{Owner: a.ps}
+	net := a.buildExecuteOptionsForTab(a.ps, tab, nil, nil, nil)
+	net.EnvID = s.environment
+	r, err := prepareDesktopRunner(ctx, p, runSuite, s.environment, net, a.mgrSecrets(), func(e runner.Event) { mailbox.publish(&e, nil, false) })
 	if err != nil {
+		// Preparing the Runner failed after the Mock listener was bound; release it
+		// immediately instead of waiting for a worker that will never start.
+		if lease != nil {
+			s.mockResult = runnerMockFinalize(lease, mockMeta, stopRunnerMockLease(lease))
+		}
 		cancel()
 		s.reject(err.Error(), a.ps.root)
 		return
@@ -228,9 +280,39 @@ func (a *App) StartRunner() {
 	s.result = nil
 	s.events = nil
 	s.exportNotice = ""
+	// Publish the actual bound endpoint while the run is active; the finalized
+	// result replaces this on completion. Nil for a non-Mock run.
+	s.mockResult = mockMeta
 	s.notice = a.runnerMsg().Running
 	s.snapshotRoot = a.ps.root
-	go func() { result, _ := r.Run(ctx); mailbox.publish(nil, result, true) }()
+	go func() {
+		// The Runner and the controlled Mock share this run's context. Cancelling
+		// the run wakes the watcher so an in-flight mock delay stops immediately;
+		// the deferred stop is a safety net that also covers a panicking run.
+		var stopDone chan struct{}
+		if lease != nil {
+			stopDone = make(chan struct{})
+			go func() {
+				select {
+				case <-ctx.Done():
+					_ = stopRunnerMockLease(lease)
+				case <-stopDone:
+				}
+			}()
+			defer func() {
+				_ = stopRunnerMockLease(lease)
+				close(stopDone)
+			}()
+		}
+		result, _ := r.Run(ctx)
+		if lease != nil {
+			stopErr := stopRunnerMockLease(lease)
+			mockHolder.Lock()
+			mockHolder.result = runnerMockFinalize(lease, mockMeta, stopErr)
+			mockHolder.Unlock()
+		}
+		mailbox.publish(nil, result, true)
+	}()
 }
 func (a *App) CancelRunner() {
 	if s := a.runnerState(false); s != nil && s.cancel != nil {

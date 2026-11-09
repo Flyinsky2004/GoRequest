@@ -1,0 +1,20 @@
+diff --git a/internal/desktop/runner_ui.go b/internal/desktop/runner_ui.go
+index 603e815..a6867df 100644
+--- a/internal/desktop/runner_ui.go
++++ b/internal/desktop/runner_ui.go
+@@ -60,6 +60,7 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
+ 					} else {
+ 						ui.Text(c, m.Environment+": "+runnerValue(s.environment)).FontSize(12)
+ 					}
++					a.runnerMockConfigUI(c, t, p, s)
+ 					ui.Row(c).Gap(10).Children(func() {
+ 						if ui.Button(c, m.Start).Disabled(s.running).Clicked() {
+ 							a.StartRunner()
+@@ -79,6 +80,7 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
+ 							ui.Text(c, string(s.result.Failure.Category)+" / "+string(s.result.Failure.Kind)+": "+s.result.Failure.Message).FontSize(12).TextColor(t.Danger)
+ 						}
+ 					}
++					a.runnerMockResultUI(c, t, p, s)
+ 					ui.Text(c, m.EventLimit).FontSize(11).TextColor(p.Muted)
+ 					ui.Scroll(c).FillWidth().Height(220).Padding(8).Background(p.Sidebar).Radius(6).Children(func() {
+ 						ui.Column(c).FillWidth().Gap(4).Children(func() {
