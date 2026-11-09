@@ -97,8 +97,11 @@ type docBlockEdit struct {
 	// block yet.
 	synthetic bool
 
+	rich         *docRichInput
 	ed           *editor.State
 	focusPending bool
+	initialClick *ui.Point
+	initialWidth float32
 }
 
 type docCardCacheEntry struct {
@@ -259,7 +262,7 @@ func (a *App) docCanvasRenderedBlock(c *ui.Context, t *ui.Theme, p uikit.Palette
 		if b.Kind == docmd.Table && docTableRenderer != nil {
 			if docTableRenderer(c, t, row, b.Source, func(newSource string) {
 				a.replaceDocBlockSource(tab, st, b, newSource)
-			}) {
+			}, a.docMarkdownTheme(t)) {
 				// U07 owns the table's cells; a click there edits the cell,
 				// not the whole table's raw source.
 				handled = true
@@ -278,8 +281,8 @@ func (a *App) docCanvasRenderedBlock(c *ui.Context, t *ui.Theme, p uikit.Palette
 	})
 	row.Label(docBlockLabel(b))
 	if !handled && row.Clicked() {
-		_, y, _ := row.PointerPosition()
-		a.activateDocBlock(t, tab, st, b, y)
+		x, y, _ := row.PointerPosition()
+		a.activateDocBlock(t, tab, st, b, y, x, row.Bounds().W)
 	}
 }
 
@@ -352,13 +355,61 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 	// different node's focus every frame, so its caret never drew. The
 	// keyed host keeps the editor's own id stable across frames, so Focus
 	// and Focused agree and the real caret shows.
-	host := ui.Column(c).FillWidth().Key("doc-canvas-editor-host")
+	host := ui.Column(c).FillWidth().Padding(2, 8).Key("doc-canvas-editor-host")
 	if be.kind == docmd.Quote && be.proj.Active() {
 		p := uikit.PaletteFor(t)
 		host.BorderWidth(0, 0, 0, 3).BorderColor(p.Hairline).Padding(0, 10)
 	}
 	host.Children(func() {
-		view := editor.View(c, be.ed).FillWidth()
+		var view ui.Element
+		richNeeded := be.rich != nil || be.kind == docmd.List || be.kind == docmd.CodeBlock
+		if !richNeeded {
+			inline := docedit.NewInlineView(be.ed.Buffer.String())
+			richNeeded = inline.Text != inline.Source
+		}
+		if be.kind == docmd.List && !be.proj.Active() {
+			ui.Text(c, dm.SourceBlock).FontSize(11).TextColor(t.TextMuted)
+			richNeeded = false
+			be.rich = nil
+		}
+		if richNeeded {
+			if be.rich == nil {
+				be.rich = &docRichInput{ed: be.ed}
+			}
+			w := be.rich
+			w.font = be.ed.Font
+			w.font.LineHeight = be.ed.LineHeight
+			w.theme = a.docMarkdownTheme(t)
+			w.literal = be.kind == docmd.CodeBlock
+			if be.kind == docmd.List && be.proj.Active() {
+				key := be.srcBase + "\x00" + be.ed.Buffer.String()
+				if w.prefixKey != key {
+					w.prefixes = be.proj.ListLines(be.ed.Buffer.String())
+					w.prefixKey = key
+				}
+			} else {
+				w.prefixes = nil
+				w.prefixKey = ""
+			}
+			w.changed = func() { tab.Dirty = true; a.commitDocBlock(tab, st) }
+			w.toggleTask = func(line int) { a.docRichToggleTask(tab, st, be, line) }
+			w.mentionInput = func(ev ui.InputEvent) bool { return a.docRichMentionInput(tab, st, be, ev) }
+			w.structure = func(ev ui.InputEvent) bool { return a.docRichListInput(tab, st, be, ev) }
+			if be.initialClick != nil {
+				w.width = max(1, be.initialWidth-16)
+			}
+			view = w.element(c, "doc-canvas-editor")
+			if be.initialClick != nil {
+				pt := *be.initialClick
+				pt.X -= 8
+				pt.Y -= 2
+				index, _ := w.IndexForPoint(pt)
+				w.selectVisible(index, index)
+				be.initialClick = nil
+			}
+		} else {
+			view = editor.View(c, be.ed).FillWidth()
+		}
 		if be.focusPending {
 			view.Focus()
 			be.focusPending = false
@@ -368,6 +419,9 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 			c.Invalidate()
 		}
 		view.Label("doc-canvas-editor")
+		if be.rich != nil {
+			a.docRichMentionMenu(c, t, tab, st, be)
+		}
 	})
 	if st.live.slashOpen {
 		a.docSlashMenu(c, t, tab, st, dm)
@@ -409,6 +463,8 @@ func docBlockIsSourceFallback(b docedit.Block) bool {
 		return true
 	}
 	switch b.Kind {
+	case docmd.List:
+		return !docedit.NewProjection(b).Active()
 	case docmd.HTMLBlock, docmd.FootnoteDefinition, docmd.MathBlock:
 		return true
 	}

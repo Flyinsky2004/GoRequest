@@ -184,13 +184,9 @@ func TestProjectionListAndQuoteEditsPreserveLevelsNumbersAndCRLF(t *testing.T) {
 
 func TestProjectionFallsBackToSource(t *testing.T) {
 	for _, src := range []string{
-		"```go\n# not a heading\n```\n",
 		"| a | b |\n| - | - |\n| 1 | 2 |\n",
 		"<div>\n# x\n</div>\n",
 		"---\n",
-		"- a\n  - nested\n",
-		"- a\n  continuation\n",
-		"- a\n\n- loose\n",
 		"> lazy\ncontinuation\n",
 		"> outer\n>> mixed inner\n",
 		"> # Heading inside quote\n",
@@ -278,6 +274,52 @@ func TestFrontMatterIsNeverMisreadAsSetextHeading(t *testing.T) {
 	} {
 		if got := FrontMatterEnd(nonFM); got != 0 {
 			t.Errorf("FrontMatterEnd(%q) = %d, want 0", nonFM, got)
+		}
+	}
+}
+
+func TestStructuredProjectionRoundTrip(t *testing.T) {
+	for _, src := range []string{"- a\n  - nested\n", "- a\n  continuation\n", "- a\n\n- loose\n", "```go\r\n中文😀\r\n```\r\n"} {
+		b, p := projOf(t, src)
+		if !p.Active() {
+			t.Fatalf("not projected: %q", src)
+		}
+		if got := b.CommitText(p.Commit(p.Text())); got != src {
+			t.Fatalf("%q => %q", src, got)
+		}
+		for i := 0; i <= len(p.Text()); i++ {
+			if got := p.ProjectedOffset(p.SourceOffset(p.Text(), i)); got != i {
+				t.Fatalf("%q offset %d => %d", src, i, got)
+			}
+		}
+	}
+}
+
+func TestFenceContentEditingPreservesLanguageAndDelimiter(t *testing.T) {
+	b, p := projOf(t, "~~~~go\r\n中文\r\n😀\r\n~~~~\r\n")
+	if p.Text() != "中文\n😀" {
+		t.Fatalf("fence content %q", p.Text())
+	}
+	if got := b.CommitText(p.Commit("中文\n新😀")); got != "~~~~go\r\n中文\r\n新😀\r\n~~~~\r\n" {
+		t.Fatalf("fence edit %q", got)
+	}
+	_, open := projOf(t, "```go\nunfinished\n")
+	if open.Active() {
+		t.Fatal("unclosed fence concealed")
+	}
+}
+
+func TestComplexListFallbackIsLossless(t *testing.T) {
+	for _, src := range []string{"-     indented code\n", "- text\n\n  ```go\n  code\n  ```\n", "- # embedded heading\n"} {
+		b, p := projOf(t, src)
+		if len(Parse(src)) != 1 {
+			t.Fatalf("container split: %+v", Parse(src))
+		}
+		if p.Active() {
+			t.Fatalf("unsupported structure concealed: %q", src)
+		}
+		if got := b.CommitText(p.Commit(p.Text())); got != src {
+			t.Fatalf("fallback changed bytes %q", got)
 		}
 	}
 }

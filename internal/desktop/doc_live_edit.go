@@ -20,7 +20,7 @@ var (
 	// editable GFM table for one complete table block. source is exactly the
 	// block's Markdown; replace receives the block's new Markdown and the
 	// canvas applies it as one minimal source-range transaction (undoable).
-	docTableRenderer = renderDocTable
+	docTableRenderer = renderDocTableStyled
 
 	// installDocMentionHooks, when set by desktop/doc_mentions*.go (U08),
 	// composes completion/hover callbacks onto the active editor. It must
@@ -135,12 +135,13 @@ func (a *App) commitDocBlock(tab *Tab, st *docViewState) {
 	srcText := be.proj.Commit(local)
 	srcAnchor := be.proj.SourceOffset(local, sel.Anchor)
 	srcHead := be.proj.SourceOffset(local, sel.Head)
-	if be.synthetic {
-		tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.start, End: be.end, Text: srcText})
-	} else {
-		newText := srcText + be.terminator
-		tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.start, End: be.end, Text: newText})
+	newText := srcText
+	if !be.synthetic {
+		newText += be.terminator
 	}
+	oldText := tab.DocEditor.Buffer.Slice(be.start, be.end)
+	deltaStart, deltaEnd, replacement := docedit.MinimalChange(oldText, newText)
+	tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.start + deltaStart, End: be.start + deltaEnd, Text: replacement})
 	a.relocateDocBlockSelection(tab, st, be.start+srcAnchor, be.start+srcHead)
 }
 
@@ -201,7 +202,7 @@ func (a *App) relocateDocBlockSelection(tab *Tab, st *docViewState, canonicalAnc
 
 // activateDocBlock opens the in-place editor for b. clickY, relative to the
 // rendered block, puts the caret near the line clicked.
-func (a *App) activateDocBlock(t *ui.Theme, tab *Tab, st *docViewState, b docedit.Block, clickY float32) {
+func (a *App) activateDocBlock(t *ui.Theme, tab *Tab, st *docViewState, b docedit.Block, clickY float32, clickGeometry ...float32) {
 	lv := docLiveFor(st)
 	if lv.block != nil {
 		a.commitDocBlock(tab, st)
@@ -218,6 +219,10 @@ func (a *App) activateDocBlock(t *ui.Theme, tab *Tab, st *docViewState, b docedi
 	line = max(0, min(line, strings.Count(be.base, "\n")))
 	off := docLineEndOffset(be.base, line)
 	be.ed.Select(off, off)
+	if len(clickGeometry) >= 2 && (b.Kind == docmd.List || b.Kind == docmd.CodeBlock || docedit.NewInlineView(be.base).Text != be.base) {
+		be.initialClick = &ui.Point{X: clickGeometry[0], Y: clickY}
+		be.initialWidth = clickGeometry[1]
+	}
 	lv.block = be
 	lv.slashOpen = false
 	lv.slashMode = 0

@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 
+	mdparser "github.com/egoist/mygo/ui/markdown/parser"
+
 	"gorequest/internal/doctable"
 	"gorequest/internal/markdown"
 )
@@ -82,6 +84,19 @@ func Parse(src string) []Block {
 	body := src[fmEnd:]
 	doc := markdown.Parse(body)
 	raw := doc.Blocks()
+	// Goldmark container spans can stop at the first paragraph when a list
+	// ends in fenced code. The native parser includes container delimiters;
+	// use its outer list ranges so descendants never become duplicate canvas
+	// blocks and unsupported nested structures remain one lossless source block.
+	native := mdparser.Parse(body)
+	listEnds := map[int]int{}
+	for i := 0; i < native.Len(); i++ {
+		b := native.Block(i)
+		if b.Kind == mdparser.List && b.Parent == 0 {
+			start := LineStart(body, b.Start)
+			listEnds[start] = LineEnd(body, max(start, b.End-1))
+		}
+	}
 	out := make([]Block, 0, len(raw)+1)
 	if fmEnd > 0 {
 		out = append(out, Block{
@@ -95,6 +110,11 @@ func Parse(src string) []Block {
 	var containers []Block
 	for _, b := range raw {
 		start, end := expandRange(body, b.Start, b.End)
+		if b.Kind == markdown.List {
+			if nativeEnd, ok := listEnds[start]; ok {
+				end = max(end, nativeEnd)
+			}
+		}
 		if b.Kind == markdown.Table {
 			// A table converted from a paragraph may inherit the paragraph's
 			// start. Find its header and delimiter within the reported range.
