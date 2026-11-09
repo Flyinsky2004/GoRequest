@@ -201,6 +201,9 @@ func Preview(snapshot []byte, opts Options) (*Plan, error) {
 
 // classifyTarget decides the action for one generated content file.
 func classifyTarget(target string, f File, oldByPath map[string]ManifestEntry, opts Options) (Action, *Conflict) {
+	if err := validateOutputPath(target, f.RelPath); err != nil {
+		return Action{}, &Conflict{RelPath: f.RelPath, Reason: err.Error()}
+	}
 	abs := filepath.Join(target, filepath.FromSlash(f.RelPath))
 	fi, err := os.Lstat(abs)
 	if err != nil {
@@ -274,6 +277,9 @@ func classifyManifest(target string, f File, baseline string) (Action, *Conflict
 
 // classifyStale decides whether a stale generated file can be deleted.
 func classifyStale(target string, e ManifestEntry, opts Options) (*StaleFile, *Conflict) {
+	if err := validateOutputPath(target, e.Path); err != nil {
+		return nil, &Conflict{RelPath: e.Path, Reason: err.Error()}
+	}
 	abs := filepath.Join(target, filepath.FromSlash(e.Path))
 	fi, err := os.Lstat(abs)
 	if err != nil {
@@ -343,6 +349,12 @@ func Apply(plan *Plan) (*ApplyResult, error) {
 		var rbErr error
 		for i := len(undo) - 1; i >= 0; i-- {
 			step := undo[i]
+			if err := validateBaseline(target, step.rel, step.writtenDigest); err != nil {
+				if rbErr == nil {
+					rbErr = fmt.Errorf("rollback preserves external changes to %s: %w", step.rel, err)
+				}
+				continue
+			}
 			if step.existed {
 				if err := writeAtomicFile(target, step.rel, step.prior); err != nil && rbErr == nil {
 					rbErr = fmt.Errorf("rollback restore %s: %w", step.rel, err)
@@ -370,6 +382,9 @@ func Apply(plan *Plan) (*ApplyResult, error) {
 				return nil, rollback(err)
 			}
 		}
+		if err := validateBaseline(target, action.RelPath, plan.baselines[action.RelPath]); err != nil {
+			return nil, rollback(&ConflictError{Conflicts: []Conflict{{RelPath: action.RelPath, Reason: err.Error()}}})
+		}
 		abs := filepath.Join(target, filepath.FromSlash(action.RelPath))
 		switch action.Kind {
 		case ActionCreate, ActionUpdate:
@@ -380,7 +395,7 @@ func Apply(plan *Plan) (*ApplyResult, error) {
 			if err := writeAtomicFile(target, action.RelPath, data); err != nil {
 				return nil, rollback(err)
 			}
-			undo = append(undo, undoStep{rel: action.RelPath, existed: existed, prior: prior})
+			undo = append(undo, undoStep{rel: action.RelPath, existed: existed, prior: prior, writtenDigest: digestBytes(data)})
 			if action.Kind == ActionCreate {
 				res.Created = append(res.Created, action.RelPath)
 			} else {
@@ -410,14 +425,18 @@ func Apply(plan *Plan) (*ApplyResult, error) {
 }
 
 type undoStep struct {
-	rel     string
-	existed bool
-	prior   []byte
+	rel           string
+	existed       bool
+	prior         []byte
+	writtenDigest string
 }
 
 // validateBaseline checks that rel still matches the digest captured at
 // preview. An empty baseline means the file must not exist.
 func validateBaseline(target, rel, baseline string) error {
+	if err := validateOutputPath(target, rel); err != nil {
+		return err
+	}
 	abs := filepath.Join(target, filepath.FromSlash(rel))
 	fi, err := os.Lstat(abs)
 	if baseline == "" {
@@ -447,6 +466,29 @@ func validateBaseline(target, rel, baseline string) error {
 	}
 	if current != baseline {
 		return fmt.Errorf("file changed since preview")
+	}
+	return nil
+}
+
+// Manifest paths are untrusted. Checking only the leaf would follow a symlink
+// in a parent directory when reading or deleting a stale generated file.
+func validateOutputPath(target, rel string) error {
+	if err := validateRelPath(rel); err != nil {
+		return err
+	}
+	cur := target
+	for _, part := range strings.Split(rel, "/") {
+		cur = filepath.Join(cur, part)
+		info, err := os.Lstat(cur)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("output path %s contains a symbolic link", rel)
+		}
 	}
 	return nil
 }

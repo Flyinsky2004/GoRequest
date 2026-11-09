@@ -35,8 +35,9 @@ type installerHandoff struct {
 }
 
 type windowDirtyFingerprint struct {
-	tabs   map[*Tab]string
-	envSig string
+	tabs     map[*Tab]string
+	envSig   string
+	suiteSig string
 }
 
 type kvRowSnap struct {
@@ -103,45 +104,46 @@ type wsDraftSnap struct {
 }
 
 type tabDraftSnapshot struct {
-	Kind            string         `json:"kind"`
-	Title           string         `json:"title"`
-	Baseline        string         `json:"baseline"`
-	Method          string         `json:"method"`
-	URL             string         `json:"url"`
-	QueryRows       []kvRowSnap    `json:"queryRows,omitempty"`
-	HeaderRows      []kvRowSnap    `json:"headerRows,omitempty"`
-	QueryText       bool           `json:"queryText"`
-	QueryRawEncoded bool           `json:"queryRawEncoded"`
-	QueryRaw        string         `json:"queryRaw"`
-	HeaderText      bool           `json:"headerText"`
-	HeaderRaw       string         `json:"headerRaw"`
-	KVErr           string         `json:"kvErr"`
-	BodyIdx         int            `json:"bodyIdx"`
-	BodyText        string         `json:"bodyText"`
-	BodyEditor      string         `json:"bodyEditor,omitempty"`
-	BodyState       *bodyStateSnap `json:"bodyState,omitempty"`
-	AuthMode        string         `json:"authMode"`
-	AuthIdx         int            `json:"authIdx"`
-	AuthRefID       string         `json:"authRefId"`
-	AuthToken       string         `json:"authToken"`
-	AuthUser        string         `json:"authUser"`
-	AuthPass        string         `json:"authPass"`
-	AuthKeyName     string         `json:"authKeyName"`
-	AuthKeyIn       string         `json:"authKeyIn"`
-	AuthKeyInIdx    int            `json:"authKeyInIdx"`
-	AuthKeyValue    string         `json:"authKeyValue"`
-	AuthInlineVer   int            `json:"authInlineVer"`
-	AuthInlineID    string         `json:"authInlineId"`
-	AuthKeyInOmit   bool           `json:"authKeyInOmit"`
-	AuthPassthrough *core.AuthRef  `json:"authPassthrough,omitempty"`
-	Timeout         string         `json:"timeout"`
-	DocRel          string         `json:"docRel"`
-	DocBuffer       string         `json:"docBuffer,omitempty"`
-	WS              *wsDraftSnap   `json:"ws,omitempty"`
-	SavedReq        *core.Request  `json:"savedReq,omitempty"`
-	SaveErr         string         `json:"saveErr,omitempty"`
-	FallbackReq     *core.Request  `json:"fallbackReq,omitempty"`
-	EditedYAML      string         `json:"editedYAML,omitempty"`
+	Kind            string           `json:"kind"`
+	Title           string           `json:"title"`
+	Baseline        string           `json:"baseline"`
+	Method          string           `json:"method"`
+	URL             string           `json:"url"`
+	QueryRows       []kvRowSnap      `json:"queryRows,omitempty"`
+	HeaderRows      []kvRowSnap      `json:"headerRows,omitempty"`
+	QueryText       bool             `json:"queryText"`
+	QueryRawEncoded bool             `json:"queryRawEncoded"`
+	QueryRaw        string           `json:"queryRaw"`
+	HeaderText      bool             `json:"headerText"`
+	HeaderRaw       string           `json:"headerRaw"`
+	KVErr           string           `json:"kvErr"`
+	BodyIdx         int              `json:"bodyIdx"`
+	BodyText        string           `json:"bodyText"`
+	BodyEditor      string           `json:"bodyEditor,omitempty"`
+	BodyState       *bodyStateSnap   `json:"bodyState,omitempty"`
+	AuthMode        string           `json:"authMode"`
+	AuthIdx         int              `json:"authIdx"`
+	AuthRefID       string           `json:"authRefId"`
+	AuthToken       string           `json:"authToken"`
+	AuthUser        string           `json:"authUser"`
+	AuthPass        string           `json:"authPass"`
+	AuthKeyName     string           `json:"authKeyName"`
+	AuthKeyIn       string           `json:"authKeyIn"`
+	AuthKeyInIdx    int              `json:"authKeyInIdx"`
+	AuthKeyValue    string           `json:"authKeyValue"`
+	AuthInlineVer   int              `json:"authInlineVer"`
+	AuthInlineID    string           `json:"authInlineId"`
+	AuthKeyInOmit   bool             `json:"authKeyInOmit"`
+	AuthPassthrough *core.AuthRef    `json:"authPassthrough,omitempty"`
+	Timeout         string           `json:"timeout"`
+	DocRel          string           `json:"docRel"`
+	DocBuffer       string           `json:"docBuffer,omitempty"`
+	WS              *wsDraftSnap     `json:"ws,omitempty"`
+	GraphQL         *core.GraphQLDef `json:"graphql,omitempty"`
+	SavedReq        *core.Request    `json:"savedReq,omitempty"`
+	SaveErr         string           `json:"saveErr,omitempty"`
+	FallbackReq     *core.Request    `json:"fallbackReq,omitempty"`
+	EditedYAML      string           `json:"editedYAML,omitempty"`
 }
 
 type envVarRowSnap struct {
@@ -202,6 +204,10 @@ func captureDirtyFingerprint(app *App) windowDirtyFingerprint {
 	}
 	if e := app.ps.envUI; e != nil && e.open && e.dirty() {
 		fp.envSig = envDraftFingerprint(e)
+	}
+	if s := app.suiteEditorState(false); s != nil && s.dirty() {
+		data, _ := json.Marshal([]string{s.draft.Signature(), s.maxRowsText, s.maxBytesText})
+		fp.suiteSig = string(data)
 	}
 	return fp
 }
@@ -302,6 +308,11 @@ func tabDraftFingerprint(ps *projectState, tab *Tab) string {
 				Value:   r.Value,
 			})
 		}
+	}
+	if isGraphQLTab(tab) {
+		// Invalid documents/JSON cannot be saved, but edits to them must still
+		// invalidate an earlier update-discard approval.
+		snap.GraphQL = tab.gqlDef()
 	}
 	for _, r := range tab.HeaderRows {
 		if r != nil {
@@ -408,7 +419,7 @@ func (h *installerHandoff) isApproved(app *App) bool {
 		return false
 	}
 	cur := captureDirtyFingerprint(app)
-	if cur.envSig != prev.envSig || len(cur.tabs) != len(prev.tabs) {
+	if cur.envSig != prev.envSig || cur.suiteSig != prev.suiteSig || len(cur.tabs) != len(prev.tabs) {
 		return false
 	}
 	for tab, sig := range cur.tabs {

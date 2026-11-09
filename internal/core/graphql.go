@@ -360,6 +360,11 @@ func buildGraphQLTrackedPlan(
 	for _, s := range varSecrets {
 		planRed.RegisterSecret(s)
 	}
+	// Keep the underlying secret as well as a compound variable value. A server
+	// can echo just the token from "prefix-{{secret.token}}" in an error.
+	for secret := range red.rawSecrets {
+		planRed.RegisterSecret(secret)
+	}
 	if err != nil {
 		return nil, planRed, planRed.RedactError(err)
 	}

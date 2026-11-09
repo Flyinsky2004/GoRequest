@@ -52,6 +52,8 @@ type projectState struct {
 	// Keeping it per project means switching projects cannot apply one project's
 	// draft to another.
 	envUI *environmentEditor
+	// suiteUI also participates in window/quit/update unsaved-edit protection.
+	suiteUI *suiteEditorState
 	// expanded records which folders are open in this project's request tree.
 	// It is per project (like tabs and edits), so two open project windows never
 	// share an expansion state.
@@ -113,7 +115,8 @@ func (ps *projectState) hasDirty() bool {
 			return true
 		}
 	}
-	return ps.envUI != nil && ps.envUI.open && ps.envUI.dirty()
+	return (ps.envUI != nil && ps.envUI.open && ps.envUI.dirty()) ||
+		(ps.suiteUI != nil && ps.suiteUI.dirty())
 }
 
 // activateTab makes the given tab the active one by identity, without relying
@@ -221,6 +224,7 @@ func fillTabFromRequest(tab *Tab, entry *core.RequestEntry, p *core.Project) {
 	}
 	tab.resetBodyState()
 	fillAuth(p, tab, req)
+	fillGraphQLTab(tab, req)
 	if strings.EqualFold(strings.TrimSpace(req.Protocol), core.ProtocolWebSocket) {
 		// Keep a live session across a discard/reload: only the persisted drafts
 		// are refreshed. The endpoint/headers/auth already live on the tab.

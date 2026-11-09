@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"runtime"
 	"strings"
@@ -38,7 +39,25 @@ type SDKState struct {
 	generation uint64
 	// previewDone is closed when the in-flight preview completes. Tests use it
 	// to join the background goroutine; production ignores it.
-	previewDone chan struct{}
+	previewDone   chan struct{}
+	previewInputs sdkPreviewInputs
+	previewDigest [32]byte
+}
+
+type sdkPreviewInputs struct {
+	Options sdkgen.Options
+	Version int
+}
+
+func (a *App) sdkInputs(st *SDKState) sdkPreviewInputs {
+	return sdkPreviewInputs{Options: a.sdkOptions(st), Version: st.SpecVersionIdx}
+}
+
+func (a *App) invalidateSDKPreview(st *SDKState) {
+	if st.Plan != nil && a.sdkInputs(st) != st.previewInputs {
+		st.Plan = nil
+		st.Err = a.sdkMsg().NeedPreview
+	}
 }
 
 var (
@@ -91,6 +110,7 @@ func (a *App) OpenSDKModal() {
 		return
 	}
 	st := a.SDK()
+	st.generation++
 	st.Open = true
 	st.Err = ""
 	st.Notice = ""
@@ -177,6 +197,8 @@ func (a *App) RefreshSDKPreview() {
 		return
 	}
 	opts := a.sdkOptions(st)
+	inputs := a.sdkInputs(st)
+	digest := sha256.Sum256(snapshot)
 	st.generation++
 	gen := st.generation
 	st.Busy = true
@@ -193,12 +215,19 @@ func (a *App) RefreshSDKPreview() {
 				return
 			}
 			st.Busy = false
+			if a.sdkInputs(st) != inputs {
+				st.Plan = nil
+				st.Err = a.sdkMsg().NeedPreview
+				return
+			}
 			if perr != nil {
 				st.Plan = nil
 				st.Err = perr.Error()
 				return
 			}
 			st.Plan = plan
+			st.previewInputs = inputs
+			st.previewDigest = digest
 		})
 	}()
 }
@@ -212,7 +241,18 @@ func (a *App) ApplySDK() {
 	st := a.SDK()
 	st.Err = ""
 	st.Notice = ""
+	a.invalidateSDKPreview(st)
+	if !st.Open || st.Busy {
+		st.Err = a.sdkMsg().NeedPreview
+		return
+	}
 	if st.Plan == nil {
+		st.Err = a.sdkMsg().NeedPreview
+		return
+	}
+	snapshot, err := a.sdkSnapshot(st)
+	if err != nil || sha256.Sum256(snapshot) != st.previewDigest {
+		st.Plan = nil
 		st.Err = a.sdkMsg().NeedPreview
 		return
 	}
@@ -296,5 +336,4 @@ func defaultSDKPackageName(name string) string {
 // exercise the full flow while shared files stay on the integration baseline.
 func (a *App) SDKView(c *ui.Context) {
 	a.View(c)
-	a.SDKModals(c, c.Theme())
 }

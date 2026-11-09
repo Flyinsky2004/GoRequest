@@ -85,6 +85,7 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
 	}
 	a.BuildInteropProjectMenuItems(c, mm)
 	a.BuildSnippetProjectMenuItems(mm)
+	a.BuildSDKProjectMenuItems(mm)
 	a.BuildOpenAPIProjectMenuItems(c, mm)
 	a.BuildRunnerProjectMenuItems(mm)
 	a.BuildMockProjectMenuItems(mm)
@@ -110,6 +111,9 @@ func (a *App) buildNewMenu(mm *ui.Menu, ps *projectState) {
 	}
 	if mm.Item(a.wsWorkspaceMsg().NewWebSocket).Chosen() {
 		a.openNewWebSocket()
+	}
+	if mm.Item(a.gqlMsg().NewGraphQL).Chosen() {
+		a.openNewGraphQL()
 	}
 	if mm.Item(m.NewFolder).Chosen() {
 		a.openNewFolder()
@@ -212,6 +216,8 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
 				switch {
 				case isWebSocketTab(tab):
 					a.wsTabView(c, t, tab)
+				case isGraphQLTab(tab):
+					a.gqlTabView(c, t, tab)
 				case tab.Kind == "request":
 					a.requestView(c, t, tab)
 				default:

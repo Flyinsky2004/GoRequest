@@ -21,6 +21,13 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
 	// itself; it opens from the runner modal's entry button and survives the
 	// runner modal being closed.
 	a.RunnerEditorModals(c, t)
+	a.SuiteEditorModals(c, t)
+	if child := a.suiteEditorState(false); child != nil && child.open {
+		return
+	}
+	if child := a.runnerEditorState(false); child != nil && child.open {
+		return
+	}
 	s := a.runnerState(false)
 	if s == nil || !s.open {
 		return
@@ -60,12 +67,16 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
 					} else {
 						ui.Text(c, m.Environment+": "+runnerValue(s.environment)).FontSize(12)
 					}
+					a.runnerMockConfigUI(c, t, p, s)
 					ui.Row(c).Gap(10).Children(func() {
 						if ui.Button(c, m.Start).Disabled(s.running).Clicked() {
 							a.StartRunner()
 						}
 						if ui.Button(c, m.EditorEntry).Clicked() {
 							a.OpenRunnerEditor()
+						}
+						if ui.Button(c, a.suiteEditorMsg().OpenEntry).Clicked() {
+							a.OpenSuiteEditor()
 						}
 					})
 					if s.notice != "" {
@@ -79,6 +90,7 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
 							ui.Text(c, string(s.result.Failure.Category)+" / "+string(s.result.Failure.Kind)+": "+s.result.Failure.Message).FontSize(12).TextColor(t.Danger)
 						}
 					}
+					a.runnerMockResultUI(c, t, p, s)
 					ui.Text(c, m.EventLimit).FontSize(11).TextColor(p.Muted)
 					ui.Scroll(c).FillWidth().Height(220).Padding(8).Background(p.Sidebar).Radius(6).Children(func() {
 						ui.Column(c).FillWidth().Gap(4).Children(func() {

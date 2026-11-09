@@ -231,6 +231,7 @@ func (a *App) View(c *ui.Context) {
 	a.b03CustomMethodModal(c, t)
 	a.InteropModals(c, t)
 	a.SnippetModals(c, t)
+	a.SDKModals(c, t)
 	a.OpenAPIModals(c, t)
 	a.RunnerModals(c, t)
 	a.MockModals(c, t)
@@ -275,6 +276,15 @@ func (a *App) saveActive() {
 // saveAllDirty saves every dirty tab of this project; the first failure stops
 // the sequence so a close cannot proceed past a failed or conflicting save.
 func (a *App) saveAllDirty() error {
+	if s := a.suiteEditorState(false); s != nil && s.dirty() {
+		a.SaveSuiteEditor()
+		if s.err != "" {
+			return fmt.Errorf("Suite: %s", s.err)
+		}
+		if s.dirty() {
+			return fmt.Errorf("Suite: %s", a.suiteEditorMsg().InvalidDraft)
+		}
+	}
 	if e := a.ps.envUI; e != nil && e.open && e.dirty() {
 		if err := a.saveEnvironmentDraft(a.ps); err != nil {
 			return fmt.Errorf("environment: %w", err)
@@ -292,6 +302,9 @@ func (a *App) saveAllDirty() error {
 }
 
 func (a *App) clearDirty() {
+	if s := a.suiteEditorState(false); s != nil {
+		s.reset()
+	}
 	if a.ps.envUI != nil {
 		a.ps.envUI.close()
 	}
@@ -570,6 +583,9 @@ func (a *App) closeGuardModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, m.GuardItems).FontSize(12).TextColor(t.TextMuted)
 			ui.Scroll(c).MaxHeight(160).Children(func() {
 				ui.Column(c).Gap(2).Children(func() {
+					if s := a.suiteEditorState(false); s != nil && s.dirty() {
+						ui.Text(c, "• "+a.suiteEditorMsg().Title+": "+s.draft.Name).FontSize(12).SingleLine()
+					}
 					if e := a.ps.envUI; e != nil && e.open && e.dirty() {
 						ui.Text(c, translate(m.GuardEnvironment, e.idText)).FontSize(12).SingleLine()
 					}

@@ -62,6 +62,9 @@ func (a *App) suiteEditorState(create bool) *suiteEditorState {
 		return nil
 	}
 	s := &suiteEditorState{}
+	if a.ps != nil {
+		a.ps.suiteUI = s
+	}
 	suiteEditorStates.byWindow[key] = s
 	runtime.AddCleanup(a, func(k weak.Pointer[App]) {
 		suiteEditorStates.Lock()
@@ -101,6 +104,13 @@ func (s *suiteEditorState) reset() {
 func (s *suiteEditorState) dirty() bool {
 	if s == nil || s.draft == nil {
 		return false
+	}
+	if s.draft.Dataset.Enabled {
+		rows, rowErr := parseOptionalInt(s.maxRowsText)
+		bytes, byteErr := parseOptionalInt64(s.maxBytesText)
+		if rowErr != nil || byteErr != nil || rows != s.draft.Dataset.MaxRows || bytes != s.draft.Dataset.MaxBytes {
+			return true
+		}
 	}
 	return s.draft.Signature() != s.originalSig
 }

@@ -80,6 +80,7 @@ func (a *App) sdkModal(c *ui.Context, t *ui.Theme, st *SDKState) {
 				uikit.ActionCursor(ui.Checkbox(c, &st.AllowOverwrite, sm.AllowOverwrite))
 				uikit.ActionCursor(ui.Checkbox(c, &st.AllowDeleteStale, sm.AllowDeleteStale))
 			})
+			a.invalidateSDKPreview(st)
 
 			if st.Err != "" {
 				ui.Text(c, st.Err).FontSize(12).TextColor(t.Danger)
