@@ -331,47 +331,120 @@ func TestEngine_WarmupFailuresTruncatedAndGateIndeterminate(t *testing.T) {
 }
 
 func TestEngine_PolicyBlockedAndMissingSecretPreflight(t *testing.T) {
+	// 1. Production environment + mutating method requires confirmation -> blocked
+	// before any request is sent. The default policy allows safe reads (GET), so
+	// the fixture must use a mutating method to exercise the guard.
 	proj := makeTestProject("https://api.prod.example.com/v1/charge")
+	proj.Requests["requests/orders.yaml"].Request.HTTP.Method = http.MethodPost
 	proj.Environments["prod"] = &core.Environment{
 		SchemaVersion: 1,
 		ID:            "prod",
 		Variables:     map[string]string{},
 	}
 
-	var calls atomic.Int32
-	execFn := ExecutorFunc(func(ctx context.Context, plan *core.Plan, opts core.ExecuteOptions) (*core.ExecResult, error) {
-		calls.Add(1)
+	var mutatingCalls atomic.Int32
+	mutatingExec := ExecutorFunc(func(ctx context.Context, plan *core.Plan, opts core.ExecuteOptions) (*core.ExecResult, error) {
+		mutatingCalls.Add(1)
 		return &core.ExecResult{Status: http.StatusOK}, nil
 	})
-
-	// 1. Production environment requires confirmation -> blocked before any request is sent.
 	eng := New(proj, Options{
 		RequestRef:  "requests/orders.yaml",
 		Environment: "prod",
 		Config:      SamplingConfig{Iterations: 3, Concurrency: 1},
-		Executor:    execFn,
+		Executor:    mutatingExec,
 	})
 	rep, err := eng.Run(context.Background())
 	if err == nil {
-		t.Fatal("expected target policy error for unconfirmed prod environment")
+		t.Fatal("expected target policy error for unconfirmed prod mutation")
 	}
 	if rep == nil || rep.Status != StatusPolicyBlocked {
 		t.Fatalf("expected StatusPolicyBlocked report, got %+v", rep)
 	}
-	if calls.Load() != 0 {
-		t.Fatalf("expected 0 executor calls when policy blocks, got %d", calls.Load())
+	if mutatingCalls.Load() != 0 {
+		t.Fatalf("expected 0 executor calls when policy blocks, got %d", mutatingCalls.Load())
 	}
 
-	// 2. Missing secret reference -> fails in Prepare with StatusConfigError and 0 calls.
+	// 2. Safe read (GET) to the same production environment is allowed under the
+	// default confirm policy; the executor actually runs.
+	projRead := makeTestProject("https://api.prod.example.com/v1/orders")
+	projRead.Environments["prod"] = &core.Environment{
+		SchemaVersion: 1,
+		ID:            "prod",
+		Variables:     map[string]string{},
+	}
+	var readCalls atomic.Int32
+	readExec := ExecutorFunc(func(ctx context.Context, plan *core.Plan, opts core.ExecuteOptions) (*core.ExecResult, error) {
+		readCalls.Add(1)
+		return &core.ExecResult{Status: http.StatusOK}, nil
+	})
+	engRead := New(projRead, Options{
+		RequestRef:  "requests/orders.yaml",
+		Environment: "prod",
+		Config:      SamplingConfig{Iterations: 3, Concurrency: 1},
+		Executor:    readExec,
+	})
+	repRead, errRead := engRead.Run(context.Background())
+	if errRead != nil {
+		t.Fatalf("safe GET to production must be allowed under default confirm policy: %v", errRead)
+	}
+	if repRead == nil || repRead.Status != StatusCompleted {
+		t.Fatalf("expected completed report for safe GET, got %+v", repRead)
+	}
+	if got := readCalls.Load(); got != 3 {
+		t.Fatalf("expected 3 executor calls for the allowed GET, got %d", got)
+	}
+
+	// 3. A deny policy blocks even safe reads with zero calls.
+	projDeny := makeTestProject("https://api.prod.example.com/v1/orders")
+	projDeny.Environments["prod"] = &core.Environment{
+		SchemaVersion: 1,
+		ID:            "prod",
+		Variables:     map[string]string{},
+	}
+	var denyCalls atomic.Int32
+	denyExec := ExecutorFunc(func(ctx context.Context, plan *core.Plan, opts core.ExecuteOptions) (*core.ExecResult, error) {
+		denyCalls.Add(1)
+		return &core.ExecResult{Status: http.StatusOK}, nil
+	})
+	engDeny := New(projDeny, Options{
+		RequestRef:  "requests/orders.yaml",
+		Environment: "prod",
+		Config:      SamplingConfig{Iterations: 3, Concurrency: 1},
+		Executor:    denyExec,
+		ExecuteOptions: core.ExecuteOptions{
+			HasTargetPolicy: true,
+			TargetPolicy: core.MergedTargetPolicy{
+				ProductionAction: core.ActionDeny,
+				ProductionEnvs:   map[string]bool{"prod": true},
+			},
+		},
+	})
+	repDeny, errDeny := engDeny.Run(context.Background())
+	if errDeny == nil {
+		t.Fatal("deny policy must block even a safe GET")
+	}
+	if repDeny == nil || repDeny.Status != StatusPolicyBlocked {
+		t.Fatalf("expected StatusPolicyBlocked for deny policy, got %+v", repDeny)
+	}
+	if denyCalls.Load() != 0 {
+		t.Fatalf("expected 0 executor calls under deny policy, got %d", denyCalls.Load())
+	}
+
+	// 4. Missing secret reference -> fails in Prepare with StatusConfigError and 0 calls.
 	projSecret := makeTestProject("http://127.0.0.1:8080/items")
 	projSecret.Requests["requests/orders.yaml"].Request.HTTP.Headers = []core.KV{
 		{Name: "X-Secret", Value: "{{secret.missing_key}}"},
 	}
+	var secretCalls atomic.Int32
+	secretExec := ExecutorFunc(func(ctx context.Context, plan *core.Plan, opts core.ExecuteOptions) (*core.ExecResult, error) {
+		secretCalls.Add(1)
+		return &core.ExecResult{Status: http.StatusOK}, nil
+	})
 	engSecret := New(projSecret, Options{
 		RequestRef: "requests/orders.yaml",
 		Config:     SamplingConfig{Iterations: 3, Concurrency: 1},
 		Secrets:    core.MapSecrets{},
-		Executor:   execFn,
+		Executor:   secretExec,
 	})
 	repSecret, errSecret := engSecret.Run(context.Background())
 	if errSecret == nil {
@@ -380,8 +453,8 @@ func TestEngine_PolicyBlockedAndMissingSecretPreflight(t *testing.T) {
 	if repSecret == nil || repSecret.Status != StatusConfigError {
 		t.Fatalf("expected StatusConfigError report, got %+v", repSecret)
 	}
-	if calls.Load() != 0 {
-		t.Fatalf("expected 0 executor calls on missing secret, got %d", calls.Load())
+	if secretCalls.Load() != 0 {
+		t.Fatalf("expected 0 executor calls on missing secret, got %d", secretCalls.Load())
 	}
 }
 

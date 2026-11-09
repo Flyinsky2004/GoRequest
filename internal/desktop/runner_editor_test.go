@@ -31,8 +31,10 @@ func runnerEditorAssertNodes(t *testing.T, text string) []yaml.Node {
 }
 
 // TestRunnerEditorDescribeAssertions verifies the runner-backed description of
-// saved assert nodes: the four structured targets parse, other valid targets
-// are reported as preserved, and unparseable nodes keep a precise error.
+// saved assert nodes: the four structured targets parse, the other valid
+// targets (durationMs, schema) are reported as preserved, and the appended
+// unparseable node keeps a precise error. DescribeAssertions is one output per
+// input node, so the six valid entries plus one invalid entry are seven specs.
 func TestRunnerEditorDescribeAssertions(t *testing.T) {
 	nodes := runnerEditorAssertNodes(t, `assert:
   - status: 200
@@ -45,33 +47,62 @@ func TestRunnerEditorDescribeAssertions(t *testing.T) {
   - durationMs: {lte: 1500}
   - schema: {ref: schemas/login.yaml}
 `)
-	nodes = append(nodes, func() []yaml.Node {
-		invalid := runnerEditorAssertNodes(t, `assert:
+	nodes = append(nodes, runnerEditorAssertNodes(t, `assert:
   - schema: {ref: ""}
-`)
-		return invalid
-	}()...)
+`)...)
 	specs := runner.DescribeAssertions(nodes)
-	if len(specs) != 6 {
-		t.Fatalf("want 6 specs, got %d", len(specs))
+	if len(specs) != 7 {
+		t.Fatalf("want 7 specs (one per input node), got %d", len(specs))
 	}
+	// 0-3: the four structured targets.
 	if specs[0].Target != runner.TargetStatus || !specs[0].Structured || specs[0].StatusEquals == nil || *specs[0].StatusEquals != 200 {
 		t.Fatalf("status spec wrong: %+v", specs[0])
 	}
-	if specs[1].Target != runner.TargetHeader || specs[1].Header != "X-Request-Id" || len(specs[1].Matchers) != 1 {
+	if specs[1].Target != runner.TargetHeader || !specs[1].Structured || specs[1].Header != "X-Request-Id" || len(specs[1].Matchers) != 1 {
 		t.Fatalf("header spec wrong: %+v", specs[1])
 	}
-	if specs[2].Target != runner.TargetJSONPath || specs[2].JSONPath != "$.user.id" || len(specs[2].Matchers) != 2 {
+	if specs[2].Target != runner.TargetJSONPath || !specs[2].Structured || specs[2].JSONPath != "$.user.id" || len(specs[2].Matchers) != 2 {
 		t.Fatalf("jsonpath spec wrong: %+v", specs[2])
 	}
-	if specs[3].Target != runner.TargetBody || len(specs[3].Matchers) != 2 {
+	if specs[3].Target != runner.TargetBody || !specs[3].Structured || len(specs[3].Matchers) != 2 {
 		t.Fatalf("body spec wrong: %+v", specs[3])
 	}
-	if specs[4].Target != runner.TargetDuration || specs[4].Structured {
+	// 4-5: valid but non-structured targets are preserved verbatim.
+	if specs[4].Target != runner.TargetDuration || specs[4].Structured || specs[4].Raw == "" {
 		t.Fatalf("durationMs must be preserved verbatim: %+v", specs[4])
 	}
-	if specs[5].Target != runner.TargetInvalid || specs[5].Err == "" || specs[5].Raw == "" {
-		t.Fatalf("invalid spec wrong: %+v", specs[5])
+	if specs[5].Target != runner.TargetSchema || specs[5].Structured || specs[5].Raw == "" || specs[5].Err != "" {
+		t.Fatalf("valid schema must be preserved verbatim, not invalid: %+v", specs[5])
+	}
+	// 6: the appended invalid schema keeps a precise error.
+	if specs[6].Target != runner.TargetInvalid || specs[6].Err == "" || specs[6].Raw == "" {
+		t.Fatalf("invalid spec wrong: %+v", specs[6])
+	}
+
+	// Rebuilding the six valid specs must stay engine-parseable; including the
+	// invalid node must still fail, proving preservation neither drops nor
+	// silently repairs it.
+	rows := make([]*runnerEditorRow, 0, len(specs))
+	for i := range specs {
+		row := &runnerEditorRow{spec: specs[i]}
+		if !specs[i].Structured {
+			row.node = runnerEditorCloneNode(&nodes[i])
+		}
+		rows = append(rows, row)
+	}
+	valid, _, err := runnerEditorBuildAssertNodes(rows[:6])
+	if err != nil {
+		t.Fatalf("build valid rows: %v", err)
+	}
+	if verr := runner.ValidateAssertions(valid); verr != nil {
+		t.Fatalf("rebuilt valid assertions do not parse: %v", verr)
+	}
+	all, _, err := runnerEditorBuildAssertNodes(rows)
+	if err != nil {
+		t.Fatalf("build all rows: %v", err)
+	}
+	if verr := runner.ValidateAssertions(all); verr == nil {
+		t.Fatal("invalid assertion must still fail engine validation after rebuild")
 	}
 }
 
@@ -300,6 +331,78 @@ steps:
 	}
 	if _, err := runnerEditorPatchSuiteExtract(data, 0, []runner.Extraction{{Name: "t", From: "weird"}}); err == nil || !strings.Contains(err.Error(), "weird") {
 		t.Fatalf("unknown extraction source must fail the patch with it named: %v", err)
+	}
+}
+
+// TestRunnerEditorPatchSuiteExtractRepeatAndPositions pins comment handling at
+// different positions, repeated saves on already-patched bytes, appending to a
+// step that had no extract, and sibling-step isolation.
+func TestRunnerEditorPatchSuiteExtractRepeatAndPositions(t *testing.T) {
+	data := []byte(`schemaVersion: 1
+id: repeat-patch
+steps:
+  - id: login
+    request: a
+    extract: # inline note
+      - name: token
+        from: jsonpath
+        path: $.t
+  - id: other
+    request: b
+`)
+	first := []runner.Extraction{{Name: "tid", From: "header", Header: "X-Request-Id"}}
+	p1, err := runnerEditorPatchSuiteExtract(data, 0, first)
+	if err != nil {
+		t.Fatalf("first patch: %v", err)
+	}
+	if !strings.Contains(string(p1), "# inline note") {
+		t.Fatalf("inline key comment lost:\n%s", p1)
+	}
+	// Patch again on the already-patched bytes: comments and structure survive.
+	second := []runner.Extraction{{Name: "uid", From: "jsonpath", Path: "$.user.id"}}
+	p2, err := runnerEditorPatchSuiteExtract(p1, 0, second)
+	if err != nil {
+		t.Fatalf("second patch: %v", err)
+	}
+	if !strings.Contains(string(p2), "# inline note") {
+		t.Fatalf("inline key comment lost on second save:\n%s", p2)
+	}
+	if strings.Contains(string(p2), "X-Request-Id") {
+		t.Fatalf("old extract row survived the second save:\n%s", p2)
+	}
+	suite, err := runner.ParseSuite(p2)
+	if err != nil {
+		t.Fatalf("re-parse after second save: %v", err)
+	}
+	if len(suite.Steps) != 2 || suite.Steps[1].Request != "b" {
+		t.Fatalf("sibling step changed: %+v", suite.Steps)
+	}
+	if len(suite.Steps[0].Extract) != 1 || suite.Steps[0].Extract[0].Name != "uid" {
+		t.Fatalf("extract not replaced: %+v", suite.Steps[0].Extract)
+	}
+
+	// A step with no extract gains one; the sibling stays untouched.
+	plain := []byte(`schemaVersion: 1
+id: append-patch
+steps:
+  - id: plain
+    request: c
+  - id: sibling
+    request: d
+`)
+	p3, err := runnerEditorPatchSuiteExtract(plain, 0, first)
+	if err != nil {
+		t.Fatalf("append patch: %v", err)
+	}
+	suite3, err := runner.ParseSuite(p3)
+	if err != nil {
+		t.Fatalf("re-parse appended suite: %v", err)
+	}
+	if len(suite3.Steps[0].Extract) != 1 || suite3.Steps[0].Extract[0].Header != "X-Request-Id" {
+		t.Fatalf("extract not appended: %+v", suite3.Steps[0].Extract)
+	}
+	if len(suite3.Steps[1].Extract) != 0 {
+		t.Fatalf("sibling step gained extract: %+v", suite3.Steps[1])
 	}
 }
 
