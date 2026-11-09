@@ -1287,12 +1287,26 @@ U36 已从 `9d9c724` 启动，terminal `t5y`、tab `tb22e5a2a9bb459cd71adeca6bb8
 
 | ID / 负责人 | 分支 / 实际 worktree | 归属与实施方案 | 状态 |
 | --- | --- | --- | --- |
-| N01 / CC | `cc/N01-release-regressions` / `/private/tmp/gorequest-next5-20261109/regressions` | 四项失败根因和契约修复；Runner旧编辑器、Mock规则编辑器、diagnostics预检相关最小修正；[方案](task-briefs/N01-release-regressions.md) | 已规划，待启动 |
-| N02 / CC | `cc/N02-suite-editor` / `/private/tmp/gorequest-next5-20261109/suite-editor` | A02-phase3：新 Suite 可视化创建/步骤/依赖/排序/数据配置与预览、安全保存；新 suiteedit包与suite_editor文件；[方案](task-briefs/N02-suite-editor.md) | 已规划，待启动 |
-| N03 / CC | `cc/N03-mock-runner` / `/private/tmp/gorequest-next5-20261109/mock-runner` | C01-phase3：Mock受控启动/变量注入/Runner/取消回收，独占runner.go/runner_snapshot.go与专属Mock生命周期；[方案](task-briefs/N03-mock-runner.md) | 已规划，待启动 |
-| N04 / CC | `cc/N04-graphql-http` / `/private/tmp/gorequest-next5-20261109/graphql` | P02-phase1：GraphQL Query/Mutation存储/原生编辑/发送/结果分类；独占必要Core协议模型/构建和tab接线；唯一go.mod/go.sum写入者，只允许固定gqlparser v2.5.64；[方案](task-briefs/N04-graphql-http.md) | 已规划，待启动 |
-| N05 / CC | `cc/N05-go-sdk` / `/private/tmp/gorequest-next5-20261109/go-sdk` | C04-phase2：OpenAPI驱动Go SDK、确定性输出/manifest/差异预览/手工文件保护与原生入口；新sdkgen/sdk模块；[方案](task-briefs/N05-go-sdk.md) | 已规划，待启动 |
+| N01 / CC | `cc/N01-release-regressions` / `/private/tmp/gorequest-next5-20261109/regressions` | 四项失败根因和契约修复；Runner旧编辑器、Mock规则编辑器、diagnostics预检相关最小修正；[方案](task-briefs/N01-release-regressions.md) | 已领取/实现中，见 §45.1 |
+| N02 / CC | `cc/N02-suite-editor` / `/private/tmp/gorequest-next5-20261109/suite-editor` | A02-phase3：新 Suite 可视化创建/步骤/依赖/排序/数据配置与预览、安全保存；新 suiteedit包与suite_editor文件；[方案](task-briefs/N02-suite-editor.md) | 已领取/实现中，见 §45.1 |
+| N03 / CC | `cc/N03-mock-runner` / `/private/tmp/gorequest-next5-20261109/mock-runner` | C01-phase3：Mock受控启动/变量注入/Runner/取消回收，独占runner.go/runner_snapshot.go与专属Mock生命周期；[方案](task-briefs/N03-mock-runner.md) | 已领取/实现中，见 §45.1 |
+| N04 / CC | `cc/N04-graphql-http` / `/private/tmp/gorequest-next5-20261109/graphql` | P02-phase1：GraphQL Query/Mutation存储/原生编辑/发送/结果分类；独占必要Core协议模型/构建和tab接线；唯一go.mod/go.sum写入者，只允许固定gqlparser v2.5.64；[方案](task-briefs/N04-graphql-http.md) | 已领取/实现中，见 §45.1 |
+| N05 / CC | `cc/N05-go-sdk` / `/private/tmp/gorequest-next5-20261109/go-sdk` | C04-phase2：OpenAPI驱动Go SDK、确定性输出/manifest/差异预览/手工文件保护与原生入口；新sdkgen/sdk模块；[方案](task-briefs/N05-go-sdk.md) | 已领取/实现中，见 §45.1 |
 
 公共 app/workspace/manager/project_state/i18n、runner_ui由集成人统一接线，来源交最小integration.patch。N02和N03的Runner UI patch分别限制在编排入口与Mock配置区，不能整文件替换；N04模型文件的直接写入为本批明确单一归属例外，其余来源只读。N04不改Runner启动/快照，未接入的协议自动化必须明确拒绝，不能按HTTP200假通过；N05不改Snippet/OpenAPI引擎。N01修旧编辑器，N02新编排模块，不交叉写。
 
 必要检查为build/vet/专项测试与race、不skip普通全仓测试；其他卡只能记录上述四项旧失败，N01可依契约修fixture但不得删除断言/skip。真实窗口/三平台未验收必须明记。生产入口patch须临时应用验证，集成人后续审阅/集成/验收，本次授权为启动与开发，不据此执行push/部署。
+
+### 45.1 实际启动与共同基线
+
+五个隔离 worktree 均从 `dd8cbc7db7ca2576b18d6beeefc595b78c19c53c` 创建，包含本批完整方案和公共归属约定。通过现有 GoRequest Space `spdf881da8ac8898e94ad5193c04ff7ba9` 的 `herdr-app do tab.new` 启动可见交互 Claude Code v2.1.319，启动即传入首个完整任务，避免启动期间发送丢失。沿用既有会话级 Full Access 方式，不改全局配置。
+
+| 任务 | terminal | tab | 首屏和实际状态 |
+| --- | --- | --- | --- |
+| N01 | `t5z` | `tbecf51f3fc656f6b3855496679a1879b0` | DeepSeek V4.1 Flash 1017 · Mistral；目录/分支正确；working，读取实际源代码 |
+| N02 | `t60` | `tb1dc0e246c1d82d7c771dff74416b822e` | 同当前默认模型；目录/分支正确；working，读取方案与仓库约定 |
+| N03 | `t61` | `tb715a7ecb766143a48bd48198d15c5d66` | 同当前默认模型；目录/分支正确；working，读取方案与仓库约定 |
+| N04 | `t62` | `tb45970f6981774215c0b9f0252746c3c0` | 同当前默认模型；目录/分支正确；working，读取方案与仓库约定 |
+| N05 | `t63` | `tbc138a3a0764f507c66fade1ae77e395b` | 同当前默认模型；目录/分支正确；working，读取方案与仓库约定 |
+
+五卡均已领取/实现中，尚无功能交付、集成或验收声明。首个prompt、精确启动返回、首屏与hc状态保存于本机 `/private/tmp/gorequest-next5-20261109/`，长期方案在 `docs/task-briefs/`。其他原有 GoRequest 和 Proxy-Rules 会话未操作。用户 dev.yaml/document.md 以启动前摘要保护；不纳入本批提交。三个旧未合并补充分支继续保留。
