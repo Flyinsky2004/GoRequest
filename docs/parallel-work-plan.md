@@ -1391,3 +1391,15 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - 16 张亮/暗、100%/150%、两种窗口尺寸的同源 idle/active PNG 位于临时目录；活动态 keyword 像素、真实 caret 和聚焦前后 bounds 有断言。截图路径、基线失败日志、精确命令和实现矩阵见 [M02 交付报告](task-results/M02-code-block-editing.md)。
 - MyGo v0.7.4 无公开 composition 查询；使用只读 reflection 布尔桥接并有版本契约测试，无 unsafe、无依赖/缓存修改。该维护边界和混合缩进/内嵌代码限制已在报告明确登记。
 - **未集成 main、未实机 IME/三平台验收**；本卡和完整 B09 保持未勾选。未 push、部署、重启应用或触碰主目录用户数据、全局配置、依赖版本及模块缓存。
+
+### 48.3 main 集成验证与清理完成
+
+用户明确要求合并 main、清理旧分支和 agent。main 从 `5d106c4` 以 no-ff 合入 M02 来源头 `fd152b6`，合并提交 `f7ddfe7`，含实现 `b3b7ea5` 和交付记录 `fd152b6`。唯一冲突在本账本，保留主线启动记录与来源交付证据，将来源交付节顺延为 §48.2。
+
+- [x] M02 已交付实现的 main 集成与自动化验证完成；不代表完整 B09 或实机 IME/三平台验收完成。
+- main 上 `go test ./...` 无 skip 全部通过（desktop 31.852s）；`go build ./...`、`go vet ./...` 通过。
+- `go test -race ./internal/docedit ./internal/doctable -count=1` 通过（1.619s/1.602s）；`go test -race ./internal/desktop -run 'TestM02|TestM01|TestDocTable|TestAuthoringIntegratedTableEditUndo|TestDocCanvasSlashOffset|TestDocCanvasCrossLine' -count=1` 通过（24.367s）。没有据此声称全仓 race 或真实输入法验收通过。
+- 清理前确认来源 worktree 干净、头 `fd152b6` 不变且已是 main 祖先，agent idle。精确关闭 Tab `tb0d797b06055370abc1e28ba9a16c1aa0`，确认 `t68` finished 后 `hc rm t68`；非 force 移除 `/private/tmp/gorequest-M02-20261109`，以 `git branch -d` 删除已合并的 `codex/M02-code-block-editing`。当前只保留 main/主 worktree，其他用户/项目会话未操作。
+- dev.yaml、document.md 及用户 debug 二进制 SHA-256 与合并开始一致，保留未提交状态。未 push、部署、重启用户应用或运行安装器。
+
+只读 composition 兼容桥依赖锁定 MyGo v0.7.4 的私有布尔字段，升级时须复核；真实 IME/三平台与报告所列嵌入代码/混合缩进等边界仍待验收，完整目标不勾通过。

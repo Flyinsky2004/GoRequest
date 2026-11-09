@@ -59,3 +59,9 @@ MyGo v0.7.4 的 `editor.State` **没有公开 composition 查询 API**，而 `Se
 - 缩进单位依据已有空格缩进的公约数估算，不是语言格式化器。独立 preview 模式继续使用 MyGo 默认 Markdown 渲染；本卡统一的是 canvas idle/active 的 native 容器，并共用 preview 的主题/lexer。
 - 未运行全仓 race；真实 IME、三平台、复杂跨块选择仍留待集成人。版本私有布尔桥接的维护边界见上文。
 - 未启动子代理，未 merge/main、push、部署、重启用户应用，未修改全局配置、依赖版本、模块缓存或主目录用户数据。交互会话保留。
+
+## 集成人后续记录（2026-11-09）
+
+用户要求合并与清理后，来源头 `fd152b6` 已通过 `f7ddfe7` 合入 main。main 上全仓普通测试无 skip 全通过（desktop 31.852s）、build/vet 通过；docedit/doctable 全套 race（1.619s/1.602s）和 desktop M02/M01/列表表格专项 race（24.367s）通过，未运行全仓 race。账本冲突保留启动与交付记录。
+
+已确认来源干净且提交全在 main 中，关闭登记的 M02 tab，确认 `t68` finished 后移除记录；非 force 删除来源 worktree 和已合并分支，当前仅 main/主 worktree。用户未提交数据及 debug 产物摘要不变，其他会话未操作。未 push、部署或重启应用。本节更新上文“未集成/保留会话”的历史交接状态；真实 IME/三平台及已列实现限制仍有效。
