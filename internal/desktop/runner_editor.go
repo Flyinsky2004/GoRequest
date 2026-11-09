@@ -907,8 +907,11 @@ func runnerEditorBuildAssertionNode(spec *runner.AssertionSpec) (yaml.Node, erro
 }
 
 // runnerEditorPatchSuiteExtract replaces one step's extract sequence inside
-// the suite file's own YAML tree, keeping comments, key order, other steps and
-// untouched keys byte-faithful through the yaml.v3 node round-trip.
+// the suite file's own YAML tree. The extract key node is kept in place so its
+// comments and key order survive; only the value node is replaced. Clearing the
+// list removes the key/value but keeps any comments attached to them at a
+// stable position inside the same step (never on a sibling step). The yaml.v3
+// node round-trip preserves comments and untouched keys, not byte-level layout.
 func runnerEditorPatchSuiteExtract(data []byte, stepIdx int, exts []runner.Extraction) ([]byte, error) {
 	if stepIdx < 0 {
 		return nil, errors.New("suite step index is invalid")
@@ -938,48 +941,103 @@ func runnerEditorPatchSuiteExtract(data []byte, stepIdx int, exts []runner.Extra
 	if step.Kind != yaml.MappingNode {
 		return nil, errors.New("suite step is not a mapping")
 	}
-	content := make([]*yaml.Node, 0, len(step.Content))
+
+	extractIdx := -1
 	for i := 0; i+1 < len(step.Content); i += 2 {
 		if step.Content[i].Value == "extract" {
-			continue
+			extractIdx = i
+			break
 		}
-		content = append(content, step.Content[i], step.Content[i+1])
 	}
+
 	if len(exts) > 0 {
-		seq := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
-		for _, e := range exts {
-			item := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-			pairs := make([]*yaml.Node, 0, 8)
-			pairs = append(pairs, runnerEditorKeyNode("name"), runnerEditorStringNode(e.Name))
-			pairs = append(pairs, runnerEditorKeyNode("from"), runnerEditorStringNode(strings.ToLower(strings.TrimSpace(e.From))))
-			switch strings.ToLower(strings.TrimSpace(e.From)) {
-			case "jsonpath":
-				pairs = append(pairs, runnerEditorKeyNode("path"), runnerEditorStringNode(e.Path))
-			case "header":
-				pairs = append(pairs, runnerEditorKeyNode("header"), runnerEditorStringNode(e.Header))
-			case "cookie":
-				pairs = append(pairs, runnerEditorKeyNode("cookie"), runnerEditorStringNode(e.Cookie))
-			case "body":
-				pairs = append(pairs, runnerEditorKeyNode("regex"), runnerEditorStringNode(e.Regex))
-				if e.Group != nil {
-					pairs = append(pairs, runnerEditorKeyNode("group"), runnerEditorIntNode(*e.Group))
-				}
-			default:
-				return nil, fmt.Errorf("extraction %q: unknown source %q", e.Name, e.From)
-			}
-			if e.Required != nil {
-				pairs = append(pairs, runnerEditorKeyNode("required"), runnerEditorScalar("!!bool", strconv.FormatBool(*e.Required)))
-			}
-			if e.Sensitive != nil {
-				pairs = append(pairs, runnerEditorKeyNode("sensitive"), runnerEditorScalar("!!bool", strconv.FormatBool(*e.Sensitive)))
-			}
-			item.Content = pairs
-			seq.Content = append(seq.Content, item)
+		seq, err := runnerEditorBuildExtractSeq(exts)
+		if err != nil {
+			return nil, err
 		}
-		content = append(content, runnerEditorKeyNode("extract"), seq)
+		if extractIdx >= 0 {
+			// Keep the original key node (and its comments) in place; only the
+			// value changes. Carry over any comments attached to the old value.
+			oldVal := step.Content[extractIdx+1]
+			seq.HeadComment = oldVal.HeadComment
+			seq.LineComment = oldVal.LineComment
+			seq.FootComment = oldVal.FootComment
+			step.Content[extractIdx+1] = seq
+		} else {
+			step.Content = append(step.Content, runnerEditorKeyNode("extract"), seq)
+		}
+	} else if extractIdx >= 0 {
+		key := step.Content[extractIdx]
+		val := step.Content[extractIdx+1]
+		comments := runnerEditorMergeComments(key.HeadComment, key.LineComment, key.FootComment, val.HeadComment, val.LineComment, val.FootComment)
+		step.Content = append(step.Content[:extractIdx], step.Content[extractIdx+2:]...)
+		if comments != "" {
+			if extractIdx >= 2 {
+				// Keep the comment inside the same step, after the previous key.
+				prevKey := step.Content[extractIdx-2]
+				prevKey.FootComment = runnerEditorMergeComments(prevKey.FootComment, comments)
+			} else {
+				// extract was the step's first key: keep it on the step itself.
+				step.HeadComment = runnerEditorMergeComments(step.HeadComment, comments)
+			}
+		}
 	}
-	step.Content = content
 	return runnerEditorEncodeNode(&doc)
+}
+
+// runnerEditorBuildExtractSeq builds the extract sequence node from validated
+// extraction values using the exact grammar the runner parser accepts.
+func runnerEditorBuildExtractSeq(exts []runner.Extraction) (*yaml.Node, error) {
+	seq := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	for _, e := range exts {
+		item := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		pairs := make([]*yaml.Node, 0, 8)
+		pairs = append(pairs, runnerEditorKeyNode("name"), runnerEditorStringNode(e.Name))
+		pairs = append(pairs, runnerEditorKeyNode("from"), runnerEditorStringNode(strings.ToLower(strings.TrimSpace(e.From))))
+		switch strings.ToLower(strings.TrimSpace(e.From)) {
+		case "jsonpath":
+			pairs = append(pairs, runnerEditorKeyNode("path"), runnerEditorStringNode(e.Path))
+		case "header":
+			pairs = append(pairs, runnerEditorKeyNode("header"), runnerEditorStringNode(e.Header))
+		case "cookie":
+			pairs = append(pairs, runnerEditorKeyNode("cookie"), runnerEditorStringNode(e.Cookie))
+		case "body":
+			pairs = append(pairs, runnerEditorKeyNode("regex"), runnerEditorStringNode(e.Regex))
+			if e.Group != nil {
+				pairs = append(pairs, runnerEditorKeyNode("group"), runnerEditorIntNode(*e.Group))
+			}
+		default:
+			return nil, fmt.Errorf("extraction %q: unknown source %q", e.Name, e.From)
+		}
+		if e.Required != nil {
+			pairs = append(pairs, runnerEditorKeyNode("required"), runnerEditorScalar("!!bool", strconv.FormatBool(*e.Required)))
+		}
+		if e.Sensitive != nil {
+			pairs = append(pairs, runnerEditorKeyNode("sensitive"), runnerEditorScalar("!!bool", strconv.FormatBool(*e.Sensitive)))
+		}
+		item.Content = pairs
+		seq.Content = append(seq.Content, item)
+	}
+	return seq, nil
+}
+
+// runnerEditorMergeComments joins non-empty comment blocks, dropping exact
+// duplicate lines so relocating a removed field's comments never doubles a
+// line or overwrites an existing neighbouring comment.
+func runnerEditorMergeComments(parts ...string) string {
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range parts {
+		for _, line := range strings.Split(p, "\n") {
+			line = strings.TrimRight(line, " \t")
+			if strings.TrimSpace(line) == "" || seen[line] {
+				continue
+			}
+			seen[line] = true
+			out = append(out, line)
+		}
+	}
+	return strings.Join(out, "\n")
 }
 
 func runnerEditorEncodeNode(doc *yaml.Node) ([]byte, error) {

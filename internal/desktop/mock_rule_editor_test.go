@@ -491,7 +491,9 @@ func TestMockParsePathTemplateEditorChecks(t *testing.T) {
 }
 
 func TestMockEditorSuggestionsAreProjectUnique(t *testing.T) {
-	taken := map[string]bool{"rule-1": true, "x-copy": true, "x-copy-2": true}
+	// taken represents the source rule "x" (always present when duplicating it)
+	// plus two existing copies, so the next free suffix is -3.
+	taken := map[string]bool{"rule-1": true, "x": true, "x-copy": true, "x-copy-2": true}
 	if got := mockSuggestRuleID(taken); got != "rule-2" {
 		t.Fatalf("rule suggestion: %q", got)
 	}
@@ -500,5 +502,52 @@ func TestMockEditorSuggestionsAreProjectUnique(t *testing.T) {
 	}
 	if got := mockSuggestCopyID("free", map[string]bool{}); got != "free" {
 		t.Fatalf("first copy keeps base id: %q", got)
+	}
+	seq := map[string]bool{"y": true, "y-copy": true, "y-copy-2": true, "y-copy-3": true}
+	if got := mockSuggestCopyID("y", seq); got != "y-copy-4" {
+		t.Fatalf("consecutive suffix suggestion: %q", got)
+	}
+}
+
+// TestMockDuplicateRuleIDIsProjectUnique drives the real duplicate flow: the
+// suggested id must account for the source rule and for rules in other mock
+// files, and a manually forced duplicate must be rejected at save-build time.
+func TestMockDuplicateRuleIDIsProjectUnique(t *testing.T) {
+	a, ps := openTestProject(t, "Mock Duplicate IDs")
+
+	other := &mockserver.MockFile{
+		SchemaVersion: mockserver.MockSchemaVersion,
+		ID:            "other-file",
+		Name:          "Other Mock",
+		Rules:         []mockserver.MockRule{simpleEditorRule("x-copy"), simpleEditorRule("x-copy-2")},
+	}
+	writeEditorMockFile(t, ps, other)
+
+	mf := &mockserver.MockFile{
+		SchemaVersion: mockserver.MockSchemaVersion,
+		ID:            "main-file",
+		Name:          "Main Mock",
+		Rules:         []mockserver.MockRule{simpleEditorRule("x")},
+	}
+	rel := writeEditorMockFile(t, ps, mf)
+
+	a.OpenMockServer()
+	a.DuplicateMockRule(rel, "x")
+	s := a.mockState(false)
+	ed := s.editor
+	if ed == nil || ed.mode != "new" {
+		t.Fatalf("duplicate draft missing: %+v", ed)
+	}
+	if got := ed.idText; got != "x-copy-3" {
+		t.Fatalf("duplicate id must be project-unique across files, got %q", got)
+	}
+
+	// Forcing a duplicate id must be rejected by the save-time build.
+	ed.idText = "x-copy-2"
+	if _, ok := ed.buildRule(a, s); ok {
+		t.Fatal("duplicate project-wide rule id must fail the save build")
+	}
+	if msg := ed.errs[mockFieldID]; msg == "" {
+		t.Fatal("duplicate id error must be localized")
 	}
 }
