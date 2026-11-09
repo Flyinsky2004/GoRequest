@@ -35,7 +35,8 @@ const docSectionCanvas = 3
 type docLiveState struct {
 	// block is the block being edited in place, nil when the canvas is in
 	// its rendered state.
-	block *docBlockEdit
+	block  *docBlockEdit
+	carets docCaretHistory
 
 	// modeInit records that the first build chose the canvas as the default
 	// for a document that had no explicit mode yet.
@@ -106,6 +107,7 @@ type docBlockEdit struct {
 	initialClick     *ui.Point
 	initialWidth     float32
 	codeEnterPending bool
+	caretBefore      *editor.Selection
 }
 
 type docCardCacheEntry struct {
@@ -169,22 +171,26 @@ func (a *App) docCanvasView(c *ui.Context, t *ui.Theme, root ui.Element, tab *Ta
 	ui.Scroll(c).Grow(1).FillWidth().TrackScroll(&lv.canvasScroll).Children(func() {
 		canvas := ui.Column(c).FillWidth().Padding(18, 40).Gap(2)
 		// Canvas blocks and table cells share the canonical document history.
-		canvas.OnShortcut(ui.Cmd, ui.KeyZ, func() {
+		undo := func() {
 			if lv.block != nil {
 				a.docBlockUndo(tab, st, false)
 			} else {
 				tab.DocEditor.Buffer.Undo()
 				tab.Dirty = tab.DocEditor.Buffer.Modified()
 			}
-		})
-		canvas.OnShortcut(ui.Cmd|ui.Shift, ui.KeyZ, func() {
+		}
+		redo := func() {
 			if lv.block != nil {
 				a.docBlockUndo(tab, st, true)
 			} else {
 				tab.DocEditor.Buffer.Redo()
 				tab.Dirty = tab.DocEditor.Buffer.Modified()
 			}
-		})
+		}
+		canvas.OnShortcut(ui.Cmd, ui.KeyZ, undo)
+		canvas.OnShortcut(ui.Ctrl, ui.KeyZ, undo)
+		canvas.OnShortcut(ui.Cmd|ui.Shift, ui.KeyZ, redo)
+		canvas.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyZ, redo)
 		if canvas.Clicked() {
 			a.commitDocBlock(tab, st)
 			lv.block = nil
@@ -458,6 +464,11 @@ func (a *App) docCanvasTextBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *docVi
 				w.prefixKey = ""
 			}
 			w.changed = func() { tab.Dirty = true; a.commitDocBlock(tab, st) }
+			w.beforeReplace = func(string) bool {
+				a.commitDocBlock(tab, st)
+				be.rememberCaret()
+				return false
+			}
 			w.toggleTask = func(line int) { a.docRichToggleTask(tab, st, be, line) }
 			w.mentionInput = func(ev ui.InputEvent) bool { return a.docRichMentionInput(tab, st, be, ev) }
 			w.structure = func(ev ui.InputEvent) bool { return a.docRichListInput(tab, st, be, ev) }
