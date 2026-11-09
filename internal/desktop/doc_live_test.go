@@ -246,6 +246,11 @@ func TestDocCanvasCompositionCommitsChineseText(t *testing.T) {
 	tt.Frame()
 	tt.Compose("中文", 2)
 	tt.Frame()
+	if tab.DocEditor.Buffer.String() != src || tab.Dirty {
+		t.Fatal("preedit entered canonical history")
+	}
+	tt.Type("中文") // native commit, distinct from marked candidate text
+	tt.Frame()
 	if got := tab.DocEditor.Buffer.String(); !strings.Contains(got, "中文") {
 		t.Fatalf("composition not committed: %q", got)
 	}

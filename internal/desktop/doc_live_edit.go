@@ -234,7 +234,7 @@ func (a *App) activateDocBlock(t *ui.Theme, tab *Tab, st *docViewState, b docedi
 	line = max(0, min(line, strings.Count(be.base, "\n")))
 	off := docLineEndOffset(be.base, line)
 	be.ed.Select(off, off)
-	if len(clickGeometry) >= 2 && (b.Kind == docmd.List || b.Kind == docmd.CodeBlock || docedit.NewInlineView(be.base).Text != be.base) {
+	if len(clickGeometry) >= 2 && (docSharedTextBlock(b) || b.Kind == docmd.CodeBlock) {
 		be.initialClick = &ui.Point{X: clickGeometry[0], Y: clickY}
 		be.initialWidth = clickGeometry[1]
 	}

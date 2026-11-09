@@ -14,6 +14,7 @@ type InlineRun struct {
 	SourceStart, SourceEnd         int
 	Code, Strong, Emphasis, Strike bool
 	Link                           string
+	SoftBreak                      bool
 }
 
 type InlineView struct {
@@ -25,6 +26,10 @@ type InlineView struct {
 // markers stay literal. The parser reports absolute source bytes, including
 // delimiters. Content ranges below are retained separately, never serialized.
 func NewInlineView(src string) InlineView {
+	return newInlineView(src, false)
+}
+
+func newInlineView(src string, retainLines bool) InlineView {
 	v := InlineView{Source: src}
 	var visible strings.Builder
 	d := parser.Parse(src)
@@ -53,7 +58,9 @@ func NewInlineView(src string) InlineView {
 				i = next
 				continue
 			}
-			emit(at, n.Start, style)
+			if n.Kind != parser.SoftBreak && n.Kind != parser.LineBreak {
+				emit(at, n.Start, style)
+			}
 			s := style
 			switch n.Kind {
 			case parser.Strong, parser.Emphasis, parser.Strikethrough, parser.Link:
@@ -70,6 +77,32 @@ func NewInlineView(src string) InlineView {
 				} else {
 					emit(n.Start, n.End, style)
 				}
+			case parser.SoftBreak, parser.LineBreak:
+				// Break syntax belongs to this retained normalization run. It
+				// is never serialized unless the user actually replaces it.
+				a := n.Start
+				// The parser excludes hard-break trailing spaces from its
+				// Text node. Include those source bytes in the break run.
+				for a > at && (src[a-1] == ' ' || src[a-1] == '\r') {
+					a--
+				}
+				emit(at, a, style)
+
+				b := n.End
+				for b < len(src) && (src[b] == ' ' || src[b] == '\t') {
+					b++
+				}
+				run := s
+				run.SoftBreak = n.Kind == parser.SoftBreak
+				run.Start, run.End = visible.Len(), visible.Len()+1
+				run.SourceStart, run.SourceEnd = a, b
+				if n.Kind == parser.LineBreak || retainLines {
+					visible.WriteByte('\n')
+				} else {
+					visible.WriteByte(' ')
+				}
+				v.Runs = append(v.Runs, run)
+				at = b
 			case parser.Code:
 				raw := src[n.Start:n.End]
 				ticks := 0
@@ -184,10 +217,9 @@ func (v InlineView) VisibleOffset(off int) int {
 	return len(v.Text)
 }
 
-// Replace edits only the selected visible content; untouched syntax and
-// destination bytes survive. A selection crossing runs removes the source
-// interval between them as well, which deliberately joins their structures.
-func (v InlineView) Replace(start, end int, text string) (string, int) {
+// SourceRange uses inward affinity for a nonempty visible selection:
+// adjacent hidden opening/closing delimiters belong to the unselected run.
+func (v InlineView) SourceRange(start, end int) (int, int) {
 	a, b := v.SourceOffset(start), v.SourceOffset(end)
 	if end > start {
 		for _, r := range v.Runs {
@@ -197,6 +229,22 @@ func (v InlineView) Replace(start, end int, text string) (string, int) {
 			}
 		}
 	}
+	if end > start {
+		for _, r := range v.Runs {
+			if end == r.End {
+				b = r.SourceEnd
+				break
+			}
+		}
+	}
+	return a, b
+}
+
+// Replace edits only the selected visible content; untouched syntax and
+// destination bytes survive. A selection crossing runs removes the source
+// interval between them as well, which deliberately joins their structures.
+func (v InlineView) Replace(start, end int, text string) (string, int) {
+	a, b := v.SourceRange(start, end)
 	if b < a {
 		a, b = b, a
 	}
@@ -208,4 +256,22 @@ func (v InlineView) Replace(start, end int, text string) (string, int) {
 		b++
 	}
 	return v.Source[:a] + text + v.Source[b:], a + len(text)
+}
+
+// NewListInlineView joins only soft continuations within an item. Item and
+// paragraph boundaries remain newlines; literal code spans keep their spaces.
+func NewListInlineView(src string, lines []ListLine) InlineView {
+	v := newInlineView(src, true)
+	text := []byte(v.Text)
+	for _, r := range v.Runs {
+		if !r.SoftBreak {
+			continue
+		}
+		next := strings.Count(src[:r.SourceEnd], "\n")
+		if next > 0 && next < len(lines) && lines[next].Marker == "" {
+			text[r.Start] = ' '
+		}
+	}
+	v.Text = string(text)
+	return v
 }
