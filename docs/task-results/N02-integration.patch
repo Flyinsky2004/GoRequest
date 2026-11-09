@@ -1,0 +1,22 @@
+diff --git a/internal/desktop/runner_ui.go b/internal/desktop/runner_ui.go
+index 603e815..cab54c7 100644
+--- a/internal/desktop/runner_ui.go
++++ b/internal/desktop/runner_ui.go
+@@ -21,6 +21,7 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
+ 	// itself; it opens from the runner modal's entry button and survives the
+ 	// runner modal being closed.
+ 	a.RunnerEditorModals(c, t)
++	a.SuiteEditorModals(c, t)
+ 	s := a.runnerState(false)
+ 	if s == nil || !s.open {
+ 		return
+@@ -67,6 +68,9 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
+ 						if ui.Button(c, m.EditorEntry).Clicked() {
+ 							a.OpenRunnerEditor()
+ 						}
++						if ui.Button(c, a.suiteEditorMsg().OpenEntry).Clicked() {
++							a.OpenSuiteEditor()
++						}
+ 					})
+ 					if s.notice != "" {
+ 						ui.Text(c, s.notice).FontSize(13).TextColor(p.Text)
