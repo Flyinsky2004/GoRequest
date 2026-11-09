@@ -1350,4 +1350,6 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 
 - [ ] M01 / Herdr Codex：`codex/M01-typora-live-editing`，实际 worktree `/private/tmp/gorequest-M01-20261109`。归属 `internal/docedit/`、desktop doc_live/doc_table/文档样式相关文件及必要测试/原生编辑适配层；单代理串行，无其他本轮开发者竞争公共文件。
 - 详细实施方案：[M01](task-briefs/M01-typora-live-editing.md)，包含列表和inline内容投影、真实可见样式编辑、canonical buffer/偏移/IME/undo保护、表格共用主题与尺寸、逐项验收。
-- 状态：方案已完成，准备从本登记提交创建 worktree 并在 GoRequest Space 新建 Codex 标签；启动句柄/实际共同基线后续补记。来源提交和本轮验证待交付；不得据此勾完整B09或实机验收。不push，不改用户数据。
+- 状态：Herdr Codex 已在上述独立 worktree 实施并本地提交；实际共同基线 `9f88d29dafd3577899e7c64ae107203b29cad5c6`。来源提交 `a97da79b1530ae5dd2b89593faffa4ecd22bba73`（原生渲染编辑/映射/表格主题）与 `ae2f660ebafa804b398fb413ae1b9c96033140db`（真实编号 gutter 度量）。负责人为本交互 Herdr Codex 会话，未另开子代理。
+- 验证：本轮 `go test ./internal/docedit ./internal/doctable ./internal/desktop`、`go build ./...`、`go vet ./...` 均通过；docedit/doctable 全套 race 与 desktop 编辑/表格专项 race 通过。已生成活动编辑态亮暗/默认及大字号/两种窗口尺寸图片和几何断言；详见 [M01 交付报告](task-results/M01-typora-live-editing.md)。复杂嵌入块列表明确源码回退；其他限制逐项登记于报告。
+- 集成/验收：**未集成 main、未实机 IME/三平台验收**，M01 与完整 B09 均保持未勾选。会话保持可继续交互；未 push、部署、重启用户应用，未触碰主仓库示例数据/debug 产物或全局配置。
