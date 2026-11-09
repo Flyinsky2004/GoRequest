@@ -1410,4 +1410,12 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 
 - [ ] M03 / Herdr Codex，分支 `codex/M03-stable-document-layout`，worktree `/private/tmp/gorequest-M03-20261109`，起点 main `0ff698b`，实际创建基线为本方案登记提交。
 - [实施方案](task-briefs/M03-stable-document-layout.md)：softbreak/hardbreak/容器语义与源码映射、共用 idle/active 排版几何、首次点击/滚动锚点、临界折行宽度与逐帧前后位置验证；回归已认可 M01/M02 行为。单代理、无并行公共文件竞争，不触碰用户示例数据和debug产物。
-- 状态：方案已完成，准备通过 Herdr 启动 Codex；句柄/实际基线后补。实现/验证/集成/实机验收待交付，不勾完成。
+- 状态：当前 Herdr 交互 Codex 已单代理实施，实际共同基线 `2aa2aba`；未启动子代理。实现来源提交 `2222d8899bf42e35af1e1863d1f917b94881d3bb`。来源报告：[M03 交付报告](task-results/M03-stable-document-layout.md)。本卡保留未勾选，未集成 main、未实机 IME/三平台验收。
+
+### 49.1 M03 来源交付（未集成）
+
+- 真实 App.View 画布入口在基线复现 README 点击后下一个标题 Y=195→214.5（+19.5 DIP）；修复后 Y=195→195。按 AST 区分 soft/hard break 并保留源范围，统一可编辑文字块 idle/active 的原生 RichText 度量和实例、实际文字 bounds 首击定位，消除源码逐行 Shape 与纯文本 editor inset 两条分歧。
+- SourceRange 对非空选区使用内侧亲和，跨 softbreak 编辑保留相邻 code/strong/link 分隔符；保留原有 canonical 事务、LF/CRLF 文件协议、Undo、slash/@ 和 IME preedit 生命周期。列表只连接同项普通续行，保留 item 边界/gutter/编号/loose spacing；M01/M02 表格与代码路径回归。
+- 104 对/208 张临时 PNG 覆盖 13 类文本、亮暗、100%/150%、1200×820/1024×640；断言每帧文字行末/baseline/起点、caret 外像素、后续标题 Y、临界折行宽度两侧、滚动锚点及无输入不改 Dirty/Undo，详见来源报告。没有以容器等高代替文字布局证据。
+- 最终三包 `go test` 通过（0.109s/0.100s/37.151s），`go build ./...`、`go vet ./...` 通过；docedit/doctable 全套 race（1.340s/1.125s）、M03/M01/M02/表格文档专项 race（43.289s）通过；扩展全部主题字号窗口组合后追加 M03 全套 race（107.676s）通过。精确命令、日志和临时截图路径见来源报告。diff/staged 检查只纳入本卡源码、测试和报告；未 skip 测试。对象 inline/复杂容器仍保留既有 Markdown/源码回退范围，不声称所有对象布局等价。
+- 保持交互会话；未 merge/main、push、部署、重启用户应用，未改全局配置、依赖/模块缓存，未操作主目录用户数据/debug 产物。集成与实机验收由集成人后续完成，不据自动化证据勾选完整 M03/B09。
