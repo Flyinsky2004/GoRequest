@@ -694,6 +694,40 @@ func TestRollbackOnMidWriteFailure(t *testing.T) {
 	}
 }
 
+func TestApplyMatchesManifestDirectoryDigest(t *testing.T) {
+	opts := testOptions(t)
+	plan, err := Preview([]byte(petSpec), opts)
+	if err != nil {
+		t.Fatalf("Preview: %v", err)
+	}
+	if _, err := Apply(plan); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	m, _, err := readManifest(opts.TargetDir)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if m == nil {
+		t.Fatal("manifest missing after apply")
+	}
+	for _, e := range m.Files {
+		data, err := os.ReadFile(filepath.Join(opts.TargetDir, filepath.FromSlash(e.Path)))
+		if err != nil {
+			t.Fatalf("manifest file %s missing: %v", e.Path, err)
+		}
+		if got := digestBytes(data); got != e.Digest {
+			t.Fatalf("manifest digest mismatch for %s: %s vs %s", e.Path, got, e.Digest)
+		}
+	}
+	entries, err := os.ReadDir(opts.TargetDir)
+	if err != nil {
+		t.Fatalf("read target dir: %v", err)
+	}
+	if len(entries) != len(m.Files)+1 {
+		t.Fatalf("target has %d entries, manifest lists %d files (+manifest)", len(entries), len(m.Files))
+	}
+}
+
 func TestLimits(t *testing.T) {
 	opts := testOptions(t)
 	opts.MaxFiles = 1
