@@ -252,9 +252,15 @@ func (a *App) buildTrackedTabPlan(ctx context.Context, tab *Tab) (*core.Request,
 		ProjectRoot:    projectRoot,
 		LocalFiles:     a.localFilesFor(ps),
 		MaxUploadBytes: core.DefaultMaxUploadBytes,
+		AllowGraphQL:   true,
 	})
 	if err != nil {
 		return req, nil, red, err
+	}
+	if tab != nil {
+		// Keep the newest plan's redactor for result-side masking (GraphQL
+		// errors/extensions); it does not alter the raw response body.
+		tab.respRedactor = red
 	}
 	if auth != nil {
 		if t := strings.ToLower(strings.TrimSpace(auth.Type)); t == "oauth2" || t == "oidc" {

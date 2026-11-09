@@ -400,7 +400,7 @@ func (t *trackingSecrets) InspectSecret(name string) SecretStatus {
 // and custom API Key slots into the returned *Redactor. Any error produced
 // during resolution is scrubbed via redactor.RedactError before returning.
 func BuildTrackedPlan(req *Request, vars map[string]string, secrets SecretProvider, authScheme *AuthScheme, opts *ResolveOptions) (*Plan, *Redactor, error) {
-	return BuildTrackedPlanWithOptions(context.Background(), req, vars, secrets, authScheme, opts, PlanOptions{})
+	return BuildTrackedPlanWithOptions(context.Background(), req, vars, secrets, authScheme, opts, PlanOptions{AllowGraphQL: true})
 }
 
 // BuildTrackedPlanWithOptions combines sensitive-value tracking with bounded file/body encoding.
@@ -408,6 +408,16 @@ func BuildTrackedPlanWithOptions(ctx context.Context, req *Request, vars map[str
 	red := NewRedactor()
 	if req == nil || req.HTTP == nil {
 		return nil, red, configErrorf("request has no http definition")
+	}
+	// GraphQL requests derive an HTTP plan so URL/header/auth resolution and
+	// secret tracking stay on this one path. The derived request is protocol
+	// http, so this branch cannot recurse. Automation paths must opt in
+	// explicitly; otherwise they reject GraphQL instead of running it as HTTP.
+	if isGraphQLRequest(req) {
+		if !bodyOpts.AllowGraphQL {
+			return nil, red, configErrorf("GraphQL requests are not supported by this execution path yet")
+		}
+		return buildGraphQLTrackedPlan(ctx, req, vars, secrets, authScheme, opts, bodyOpts)
 	}
 
 	merged := MergeVars(vars)

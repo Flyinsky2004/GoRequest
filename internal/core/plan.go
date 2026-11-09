@@ -92,6 +92,10 @@ func renderNode(n *yaml.Node, r *Resolver) (any, error) {
 // BuildPlan resolves a request into a Plan. vars are the merged variables;
 // authScheme is the resolved reusable scheme (nil for none).
 func BuildPlan(req *Request, vars map[string]string, secrets SecretProvider, authScheme *AuthScheme) (*Plan, error) {
+	if isGraphQLRequest(req) {
+		plan, _, err := BuildTrackedPlan(req, vars, secrets, authScheme, nil)
+		return plan, err
+	}
 	return BuildPlanWithOptions(context.Background(), req, vars, secrets, authScheme, PlanOptions{})
 }
 

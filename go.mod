@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	github.com/egoist/mygo v0.7.4
 	github.com/gorilla/websocket v1.5.3
+	github.com/vektah/gqlparser/v2 v2.5.64
 	github.com/yuin/goldmark v1.8.2
 	gopkg.in/yaml.v3 v3.0.1
 )

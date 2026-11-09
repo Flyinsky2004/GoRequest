@@ -420,6 +420,10 @@ func (p *Project) newRequestWith(collectionRel, name, protocol string) (*Request
 		req.HTTP = &HTTPDef{Method: WebSocketMethod, URL: "{{wsUrl}}"}
 		req.WS = &WSDef{}
 	}
+	if protocol == ProtocolGraphQL {
+		req.HTTP = &HTTPDef{Method: "POST", URL: "{{baseUrl}}"}
+		req.GraphQL = &GraphQLDef{Document: "query {\n  __typename\n}"}
+	}
 	data, err := p.EncodeRequest(req)
 	if err != nil {
 		return nil, err

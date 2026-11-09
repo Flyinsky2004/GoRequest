@@ -119,6 +119,16 @@ type Tab struct {
 	// coexist with separate drafts, sessions, mailboxes and generations.
 	ws *wsTabState
 
+	// gql holds this tab's GraphQL editor state. It is non-nil only for
+	// protocol: graphql request tabs; the document/variables drafts and result
+	// section belong to this tab, never to a global "current project".
+	gql *gqlTabState
+
+	// respRedactor is the redactor of the newest built plan, kept so GraphQL
+	// error messages/extensions can be masked in the result pane. It never
+	// replaces the normal response body display.
+	respRedactor *core.Redactor
+
 	// sse is the live server-sent-events state for the current send. It is set
 	// on the UI thread when a send starts and closed when the tab is removed,
 	// its window is destroyed, or a newer send supersedes it, so an old stream
@@ -157,6 +167,24 @@ func requestFromTab(tab *Tab) (*core.Request, error) {
 		base.Protocol = core.ProtocolWebSocket
 		base.HTTP = httpDef
 		base.WS = tab.wsDef()
+		base.Timeout = strings.TrimSpace(tab.Timeout)
+		base.Auth = authRef
+		return &base, nil
+	}
+	if isGraphQLTab(tab) {
+		// GraphQL requests share the HTTP target and auth, but the document and
+		// variables live only in the graphql block. http.body is never written,
+		// so the document cannot be duplicated or flattened by the Body editor.
+		httpDef := &core.HTTPDef{
+			Method:  tab.gqlMethod(),
+			URL:     tab.URL,
+			Query:   query,
+			Headers: headers,
+		}
+		base.Protocol = core.ProtocolGraphQL
+		base.HTTP = httpDef
+		base.WS = nil
+		base.GraphQL = tab.gqlDef()
 		base.Timeout = strings.TrimSpace(tab.Timeout)
 		base.Auth = authRef
 		return &base, nil
