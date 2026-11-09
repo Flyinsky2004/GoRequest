@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/markdown"
 
 	"gorequest/internal/doctable"
 )
@@ -293,12 +294,14 @@ func TestDocTableColumnWidthMeasuresCJKAndClamps(t *testing.T) {
 	if cjk <= ascii {
 		t.Fatalf("a CJK column (%v) is not wider than an ASCII one (%v)", cjk, ascii)
 	}
-	if got := docTableColumnWidth([]string{""}); got != docTableCellMinWidth {
-		t.Fatalf("empty column width = %v, want the minimum %v", got, docTableCellMinWidth)
+	th := markdown.DefaultTheme(ui.LightTheme())
+	pad := 2*th.FontSize*th.TableCellPadding[0] + 1
+	if got := docTableColumnWidth([]string{""}); got != pad {
+		t.Fatalf("empty column=%v, padding=%v", got, pad)
 	}
 	long := strings.Repeat("很长的中文内容", 40)
-	if got := docTableColumnWidth([]string{long}); got != docTableCellMaxWidth {
-		t.Fatalf("long column width = %v, want the maximum %v", got, docTableCellMaxWidth)
+	if got := docTableColumnWidth([]string{long}); got != th.FontSize*th.TableMaxColumn+pad {
+		t.Fatalf("maximum width=%v", got)
 	}
 }
 
@@ -317,7 +320,7 @@ func TestDocTableAlignMapping(t *testing.T) {
 }
 
 func TestDocTableWideTableShowsScrollHint(t *testing.T) {
-	h, tt := newDocTableHarnessSize(t, "| a | b | c | d | e | f |\n| --- | --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 | 6 |", 360, 400)
+	h, tt := newDocTableHarnessSize(t, "| header a | header b | header c | header d | header e | header f |\n| --- | --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 | 6 |", 360, 400)
 	tt.Frame() // the first frame measures the frame; the hint follows it
 	if !tt.HasText("横向滚动") {
 		t.Fatalf("a table wider than the canvas did not show its scroll hint: %v", tt.Texts())

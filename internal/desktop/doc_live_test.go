@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/markdown"
 
 	"gorequest/internal/core"
 	"gorequest/internal/docedit"
@@ -205,7 +206,7 @@ func TestDocCanvasTableHookReplacesBlockWithOneEdit(t *testing.T) {
 	old := docTableRenderer
 	defer func() { docTableRenderer = old }()
 	called := false
-	docTableRenderer = func(c *ui.Context, th *ui.Theme, root ui.Element, source string, replace func(string)) bool {
+	docTableRenderer = func(c *ui.Context, th *ui.Theme, root ui.Element, source string, replace func(string), style *markdown.Theme) bool {
 		called = true
 		if !strings.HasPrefix(source, "| A | B |") {
 			t.Errorf("table source = %q", source)
@@ -609,7 +610,7 @@ func TestDocCanvasTableHookOwnsClicks(t *testing.T) {
 	openDocForTest(t, ps, "docs/tableclick.md", src)
 	old := docTableRenderer
 	defer func() { docTableRenderer = old }()
-	docTableRenderer = func(c *ui.Context, th *ui.Theme, root ui.Element, source string, replace func(string)) bool {
+	docTableRenderer = func(c *ui.Context, th *ui.Theme, root ui.Element, source string, replace func(string), style *markdown.Theme) bool {
 		ui.Text(c, "smart table").FontSize(12)
 		return true
 	}

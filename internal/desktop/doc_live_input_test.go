@@ -462,8 +462,9 @@ func TestDocCanvasSlashOnListLine(t *testing.T) {
 	if !ok {
 		t.Fatalf("list block missing; texts=%v", tt.Texts())
 	}
-	// Click the first line, where the slash query is.
-	tt.ClickAt(r.X+8, r.Y+8)
+	// Click after the first line's query; the marker gutter now maps to
+	// the beginning of its content rather than forcing a caret at line end.
+	tt.ClickAt(r.X+100, r.Y+8)
 	tt.Frame()
 	if !tt.HasText("Insert block") {
 		t.Fatalf("menu missing on a list line; texts=%v", tt.Texts())

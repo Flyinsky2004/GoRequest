@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/egoist/mygo/ui/markdown/parser"
+
 	"gorequest/internal/markdown"
 )
 
@@ -15,8 +17,8 @@ import (
 // markers it hid (the "## " of a heading, the "> " of each quote line, the
 // "- " of each list item) and puts them back in Commit, so saving still
 // writes correct Markdown and a heading never loses its level. Blocks that
-// cannot be projected safely (code, tables, HTML, rules, front matter,
-// nested or loose lists, complex or lazy quotes, ...) report Active() == false
+// cannot be projected safely (tables, HTML, rules, front matter, lists
+// containing non-text blocks, complex or lazy quotes, ...) report Active() == false
 // and are edited as their exact source.
 type Projection struct {
 	mode projMode
@@ -29,6 +31,7 @@ type Projection struct {
 	// headings, suffix holds eol + underline.
 	prefix, suffix string
 	setextLevel    int
+	fence          bool
 
 	// lines: one entry per source line for Quote and List blocks.
 	lines []projLine
@@ -56,8 +59,8 @@ var (
 	setextRuleRe      = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
 	thematicLineRe    = regexp.MustCompile(`^ {0,3}(?:-[ \t]*-[ \t]*-[-\t ]*|\*[ \t]*\*[ \t]*\*[*\t ]*|_[ \t]*_[ \t]*_[_\t ]*)$`)
 
-	// Only flat top-level items are projected: a nested item's indentation is
-	// structure the content view would hide.
+	// Source prefix recognition follows an already parsed list; AST metadata
+	// supplies item depth and numbering for its native marker gutter.
 	flatItemRe     = regexp.MustCompile(`^(?:[-*+]|\d{1,9}[.)])(?:[ \t]+(?:\[[ xX]\](?:[ \t]+|$))?|$)`)
 	orderedPartsRe = regexp.MustCompile(`^(\d{1,9})([.)])(.*)$`)
 	checkedTaskRe  = regexp.MustCompile(`\[[xX]\]`)
@@ -87,6 +90,10 @@ func NewProjection(b Block) Projection {
 		}
 	case markdown.Quote:
 		if p, ok := projectQuote(src, eol); ok {
+			return p
+		}
+	case markdown.CodeBlock:
+		if p, ok := projectFence(src, eol); ok {
 			return p
 		}
 	case markdown.List:
@@ -232,16 +239,98 @@ func quoteInnerStartsBlock(rest string, afterText bool) bool {
 	return false
 }
 
+// ListLine describes the source prefix of one visible logical line. A blank
+// Marker denotes a continuation/loose line; Indent still aligns wrapped text.
+type ListLine struct {
+	Prefix, Marker   string
+	Indent           int
+	Task, Checked    bool
+	Depth, List      int
+	GapBefore, Loose bool
+}
+
+func (p Projection) ListLines(text string) []ListLine {
+	r := p.render(normalizeLF(text))
+	lines := strings.Split(r.src, p.lineEnding())
+	out := make([]ListLine, len(lines))
+	for i, l := range lines {
+		if i >= len(r.pre) {
+			break
+		}
+		pre := l[:min(r.pre[i], len(l))]
+		out[i].Prefix = pre
+		trimmed := strings.TrimLeft(pre, " \t")
+		out[i].Indent = len(pre) - len(trimmed)
+		if m := flatItemRe.FindString(trimmed); m != "" {
+			marker := strings.Fields(m)
+			if len(marker) > 0 {
+				out[i].Marker = marker[0]
+			}
+			out[i].Task = strings.Contains(m, "[ ]") || strings.Contains(m, "[x]") || strings.Contains(m, "[X]")
+			out[i].Checked = checkedTaskRe.MatchString(m)
+		}
+	}
+	// Derive nesting, item starts and visible numbering from the real AST.
+	// Source indentation can vary (tabs, padded markers); it is not a depth.
+	d := parser.Parse(r.src)
+	counts := map[int]int{}
+	for i := 0; i < d.Len(); i++ {
+		item := d.Block(i)
+		if item.Kind != parser.Item {
+			continue
+		}
+		parent := d.Block(item.Parent)
+		depth := 0
+		for p := parent.Parent; p > 0; p = d.Block(p).Parent {
+			if d.Block(p).Kind == parser.List {
+				depth++
+			}
+		}
+		first := strings.Count(r.src[:item.Start], "\n")
+		last := strings.Count(r.src[:item.End], "\n")
+		for line := first; line <= last && line < len(out); line++ {
+			out[line].Depth = depth
+			out[line].List = item.Parent
+		}
+		if first < len(out) {
+			out[first].GapBefore = counts[item.Parent] > 0
+			out[first].Loose = !parent.Tight
+			if parent.Ordered {
+				out[first].Marker = strconv.Itoa(parent.Number+counts[item.Parent]) + string(parent.Marker)
+			}
+		}
+		counts[item.Parent]++
+	}
+	return out
+}
+
 func projectList(src, eol string) (Projection, bool) {
+	parsed := parser.Parse(src)
+	for i := 0; i < parsed.Len(); i++ {
+		switch parsed.Block(i).Kind {
+		case parser.CodeBlock, parser.HTMLBlock, parser.Table, parser.Heading, parser.Quote, parser.ThematicBreak:
+			return Projection{}, false
+		}
+	}
+
 	raw := strings.Split(src, "\n")
 	lines := make([]projLine, len(raw))
 	texts := make([]string, len(raw))
 	for i, l := range raw {
-		pre := flatItemRe.FindString(l)
-		if pre == "" {
-			return Projection{}, false
+		indent := len(l) - len(strings.TrimLeft(l, " \t"))
+		pre := flatItemRe.FindString(l[indent:])
+		if pre != "" {
+			pre = l[:indent] + pre
+		} else {
+			// Continuations and blank lines belong to the already parsed list.
+			pre = l[:indent]
+			if i == 0 {
+				return Projection{}, false
+			}
 		}
 		rest := l[len(pre):]
+		// Embedded block structures need their own adapters; report the source
+		// fallback explicitly instead of stripping their significant indentation.
 		if listInnerStartsBlock(rest) {
 			return Projection{}, false
 		}
@@ -249,6 +338,26 @@ func projectList(src, eol string) (Projection, bool) {
 		texts[i] = rest
 	}
 	return Projection{mode: projLines, text: strings.Join(texts, "\n"), eol: eol, lines: lines}, true
+}
+
+func projectFence(src, eol string) (Projection, bool) {
+	lines := strings.Split(src, "\n")
+	if len(lines) < 2 {
+		return Projection{}, false
+	}
+	open := strings.TrimLeft(lines[0], " ")
+	if len(open) < 3 || (open[0] != '`' && open[0] != '~') {
+		return Projection{}, false
+	}
+	n := 0
+	for n < len(open) && open[n] == open[0] {
+		n++
+	}
+	close := strings.TrimSpace(lines[len(lines)-1])
+	if len(close) < n || strings.Trim(close, string(open[0])) != "" {
+		return Projection{}, false
+	}
+	return Projection{mode: projHeading, text: strings.Join(lines[1:len(lines)-1], "\n"), eol: eol, prefix: lines[0] + eol, suffix: eol + lines[len(lines)-1], fence: true}, true
 }
 
 func listInnerStartsBlock(rest string) bool {
@@ -374,6 +483,14 @@ func (p Projection) render(text string) rendering {
 }
 
 func (p Projection) renderHeading(text string) rendering {
+	if p.fence {
+		r := Projection{eol: p.eol}.render(text)
+		for i := range r.srcStart {
+			r.srcStart[i] += len(p.prefix)
+		}
+		r.src = p.prefix + r.src + p.suffix
+		return r
+	}
 	eol := p.lineEnding()
 	first, rest, more := strings.Cut(text, "\n")
 	// Pressing Enter at the very start of a non-empty heading pushes the

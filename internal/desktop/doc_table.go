@@ -6,8 +6,11 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
+	"github.com/egoist/mygo/ui/markdown"
 
 	"gorequest/internal/desktop/uikit"
+	"gorequest/internal/docedit"
 	"gorequest/internal/doctable"
 )
 
@@ -33,19 +36,8 @@ type docTableCell struct {
 	Active   bool
 }
 
-// The table's metrics are fixed here so every table in a document shares
-// one rhythm: a 30 DIP body row, a slightly taller header, 10 DIP side
-// padding, and column widths measured in character units and clamped so a
-// long cell cannot push every other column off the canvas.
-const (
-	docTableCellPadX     float32 = 10
-	docTableCellMinWidth float32 = 88
-	docTableCellMaxWidth float32 = 360
-	docTableCellCharW    float32 = 7.2
-	docTableRowHeight    float32 = 30
-	docTableHeaderHeight float32 = 32
-	docTableToolbarH     float32 = 32
-)
+// Toolbar uses the application UI scale; content metrics come from Markdown.
+const docTableToolbarH float32 = 32
 
 // docTableState is what one table block keeps between frames.
 type docTableState struct {
@@ -61,7 +53,11 @@ type docTableState struct {
 	// gridWidth is the measured width of the table's frame in the
 	// previous frame; 0 before the first layout. It decides whether the
 	// sideways-scroll hint is shown.
-	gridWidth float32
+	gridWidth     float32
+	style         markdown.Theme
+	rich          [][]*docRichInput
+	measuredStyle string
+	heights       []float32
 }
 
 // renderDocTable renders a complete GFM table block as an editable table
@@ -76,6 +72,15 @@ type docTableState struct {
 // doctable's limits, returns false and draws nothing, which lets the
 // canvas fall back to showing it as source.
 func renderDocTable(c *ui.Context, t *ui.Theme, root ui.Element, source string, replace func(string)) bool {
+	if c == nil {
+		return false
+	}
+	if t == nil {
+		t = c.Theme()
+	}
+	return renderDocTableStyled(c, t, root, source, replace, markdown.DefaultTheme(t))
+}
+func renderDocTableStyled(c *ui.Context, t *ui.Theme, root ui.Element, source string, replace func(string), style *markdown.Theme) bool {
 	if c == nil || replace == nil || !root.Valid() {
 		return false
 	}
@@ -86,6 +91,10 @@ func renderDocTable(c *ui.Context, t *ui.Theme, root ui.Element, source string, 
 	if st == nil {
 		return false
 	}
+	if style == nil {
+		style = markdown.DefaultTheme(t)
+	}
+	st.style = *style
 	if st.table == nil || source != st.src {
 		tb, err := doctable.Parse(source)
 		if err != nil {
@@ -93,11 +102,18 @@ func renderDocTable(c *ui.Context, t *ui.Theme, root ui.Element, source string, 
 		}
 		st.table = tb
 		st.src = source
-		st.focus = docTableCell{}
+		if !st.valid(st.focus) {
+			st.focus = docTableCell{}
+		}
 		st.notice = ""
 		st.rebuild()
 	}
 
+	signature := fmt.Sprintf("%s:%s:%g:%g:%g:%v:%g:%d", style.Font, style.CodeFont, style.FontSize, style.LineHeight, style.CodeSize, style.TableCellPadding, style.TableMaxColumn, style.StrongWeight)
+	if signature != st.measuredStyle {
+		st.measureWidths()
+		st.measuredStyle = signature
+	}
 	p := uikit.PaletteFor(t)
 	active := st.focus
 	root.Children(func() {
@@ -125,35 +141,48 @@ func (st *docTableState) rebuild() {
 			st.values[r][col] = st.table.CellText(r, col)
 		}
 	}
+	st.rich = make([][]*docRichInput, rows)
+	for r := range st.rich {
+		st.rich[r] = make([]*docRichInput, cols)
+	}
+	st.measureWidths()
+}
+func (st *docTableState) measureWidths() {
+	if st.table == nil {
+		return
+	}
+	rows, cols := st.table.RowCount(), st.table.Columns()
 	st.widths = make([]float32, cols)
 	column := make([]string, rows)
 	for col := 0; col < cols; col++ {
 		for r := 0; r < rows; r++ {
 			column[r] = st.values[r][col]
 		}
-		st.widths[col] = docTableColumnWidth(column)
+		st.widths[col] = docTableStyledColumnWidth(column, &st.style)
+	}
+	st.heights = make([]float32, rows)
+	for row := range st.heights {
+		st.heights[row] = st.measureRowHeight(row)
 	}
 }
 
 // docTableColumnWidth picks a column's width from its widest cell. The
-// header is column[0]. Widths are in character units (a CJK rune counts
-// two), clamped to the table's minimum and maximum, so one long Chinese
-// cell widens its own column but never squeezes the rest of the table.
+// header is column[0]. As in MyGo Markdown, shaped inline runs determine
+// its width, bounded by the theme's maximum column width and padded in ems.
 func docTableColumnWidth(column []string) float32 {
-	units := 4
-	for _, s := range column {
-		if u := docTableUnits(s); u > units {
-			units = u
+	return docTableStyledColumnWidth(column, markdown.DefaultTheme(ui.LightTheme()))
+}
+func docTableStyledColumnWidth(column []string, th *markdown.Theme) float32 {
+	var width float32
+	for row, src := range column {
+		font := ui.Font{Family: th.Font, Size: th.FontSize, Weight: 400, LineHeight: th.LineHeight}
+		if row == 0 {
+			font.Weight = th.StrongWeight
 		}
+		w, _ := ui.ShapeRichText(docInlineSpans(docedit.NewInlineView(src), th), font, 0).Size()
+		width = max(width, min(w, th.FontSize*th.TableMaxColumn)+2*th.FontSize*th.TableCellPadding[0]+1)
 	}
-	w := 2*docTableCellPadX + 4 + float32(units)*docTableCellCharW
-	if w < docTableCellMinWidth {
-		w = docTableCellMinWidth
-	}
-	if w > docTableCellMaxWidth {
-		w = docTableCellMaxWidth
-	}
-	return w
+	return max(1, width)
 }
 
 // docTableTextAlign maps a GFM column alignment to the native text
@@ -169,12 +198,20 @@ func docTableTextAlign(a doctable.Align) ui.Align {
 	return ui.Start
 }
 
-// rowHeight returns the height of row r; the header is slightly taller.
-func (st *docTableState) rowHeight(r int) float32 {
-	if r == 0 {
-		return docTableHeaderHeight
+// rowHeight uses retained measurements shared by focused and idle cells.
+func (st *docTableState) rowHeight(r int) float32 { return st.heights[r] }
+func (st *docTableState) measureRowHeight(r int) float32 {
+	th := &st.style
+	h := th.FontSize * th.LineHeight
+	for col, src := range st.values[r] {
+		f := ui.Font{Family: th.Font, Size: th.FontSize, Weight: 400, LineHeight: th.LineHeight}
+		if r == 0 {
+			f.Weight = th.StrongWeight
+		}
+		_, height := ui.ShapeRichText(docInlineSpans(docedit.NewInlineView(src), th), f, max(1, st.widths[col]-2*th.FontSize*th.TableCellPadding[0]-1)).Size()
+		h = max(h, height)
 	}
-	return docTableRowHeight
+	return h + 2*th.FontSize*th.TableCellPadding[1]
 }
 
 // totalWidth is the width of the whole grid, separators included.
@@ -343,14 +380,13 @@ func (st *docTableState) toolbar(c *ui.Context, p uikit.Palette, active docTable
 // table's outer border; the rows draw only the inner hairlines.
 func (st *docTableState) grid(c *ui.Context, p uikit.Palette, active docTableCell, replace func(string)) {
 	total := st.totalWidth()
-	frame := ui.Box(c).FillWidth().MarginY(4).
-		BorderWidth(1).BorderColor(p.Hairline).Radius(6).Clip()
+	frame := ui.Box(c).FillWidth().MarginY(4)
 	frame.Children(func() {
 		ui.ScrollHorizontal(c).FillWidth().Scrollbars(true).ScrollbarInsets(0, 2, 2, 0).Label("Table grid").Children(func() {
-			ui.Column(c).MinWidth(total).Children(func() {
+			ui.Column(c).Width(total).Border(1, st.style.TableBorder).Radius(st.style.FontSize * 0.3).Clip().Shrink(0).Children(func() {
 				for r := 0; r < st.table.RowCount(); r++ {
 					if r > 0 {
-						ui.Box(c).FillWidth().Height(1).Background(p.Hairline)
+						ui.Box(c).FillWidth().Height(1).Background(st.style.TableBorder)
 					}
 					st.row(c, p, r, active, replace)
 				}
@@ -370,49 +406,68 @@ func (st *docTableState) row(c *ui.Context, p uikit.Palette, r int, active docTa
 	ui.Row(c).Children(func() {
 		for col := 0; col < st.table.Columns(); col++ {
 			if col > 0 {
-				ui.Box(c).Width(1).Height(st.rowHeight(r)).Background(p.Hairline)
+				ui.Box(c).Width(1).Height(st.rowHeight(r)).Background(st.style.TableBorder)
 			}
 			st.cell(c, p, r, col, active, replace)
 		}
 	})
 }
 
-// cell draws one editable cell. The header is bold on a shaded band; a
-// data cell stays clean until hovered. The active cell gets an accent
-// tint and a 1.5 DIP ring drawn above the input, so its editing state is
-// unmistakable without shifting the text by a border width.
+// cell retains one native rich input in both idle and focused states.
+// Focus adds only a painted ring; it never changes typography or padding.
 func (st *docTableState) cell(c *ui.Context, p uikit.Palette, row, col int, active docTableCell, replace func(string)) {
+	th := &st.style
 	isActive := active.Active && active.Row == row && active.Col == col
-	box := ui.Box(c).Width(st.widths[col]).Height(st.rowHeight(row)).
-		PaddingX(docTableCellPadX).Center()
-	switch {
-	case isActive:
-		box.Background(p.InputFill)
-	case row == 0:
-		box.Background(p.Hover)
-	case box.Hovered():
-		box.Background(p.Hover)
+	padX, padY := th.FontSize*th.TableCellPadding[0], th.FontSize*th.TableCellPadding[1]
+	box := ui.Box(c).Width(st.widths[col]).Height(st.rowHeight(row)).Padding(padY, padX)
+	if row == 0 {
+		box.Background(th.TableHeader)
+	} else if row%2 == 1 {
+		box.Background(th.TableStripe)
 	}
 	box.Children(func() {
-		in := ui.TextInputBase(c, &st.values[row][col]).FillWidth().FontSize(13).
-			TextColor(p.Text).FocusRing(false)
-		in.TextAlign(docTableTextAlign(st.table.Align(col)))
-		if row == 0 {
-			in.FontWeight(600)
+		w := st.rich[row][col]
+		if w == nil {
+			w = &docRichInput{ed: &editor.State{Buffer: editor.NewBuffer(st.values[row][col])}}
+			st.rich[row][col] = w
 		}
+		w.font = ui.Font{Family: th.Font, Size: th.FontSize, Weight: 400, LineHeight: th.LineHeight}
+		if row == 0 {
+			w.font.Weight = th.StrongWeight
+		}
+		w.ed.Theme = editor.DefaultTheme(c.Theme())
+		w.theme = th
+		w.align = docTableTextAlign(st.table.Align(col))
+		w.width = max(1, st.widths[col]-2*padX-1)
+		w.changed = func() { st.values[row][col] = w.ed.Buffer.String(); st.setCell(row, col, replace) }
+		services := c.Services()
+		w.beforeReplace = func(s string) bool { return st.paste(s, row, col, replace) }
+		w.structure = func(ev ui.InputEvent) bool {
+			if ev.Kind == ui.InputKeyDown {
+				switch ev.Key {
+				case ui.KeyTab:
+					dir := 1
+					if ev.Mods&ui.Shift != 0 {
+						dir = -1
+					}
+					st.tabFrom(row, col, dir, replace)
+					return true
+				case ui.KeyEscape:
+					st.focus = docTableCell{}
+					return true
+				case ui.KeyEnter:
+					return true
+				}
+			}
+			if (ev.Kind == ui.InputCommand && (ev.Text == "paste" || ev.Text == "pasteAndMatchStyle")) || (ev.Kind == ui.InputKeyDown && (ev.Mods == ui.Cmd || ev.Mods == ui.Ctrl) && ev.Key == ui.KeyV) {
+				return st.paste(services.ReadClipboard(), row, col, replace)
+			}
+			return false
+		}
+		in := w.element(c, fmt.Sprintf("Table cell %d,%d", row+1, col+1))
 		in.FocusBind(&st.focus, docTableCell{Row: row, Col: col, Active: true})
-		in.Label(fmt.Sprintf("Table cell %d,%d", row+1, col+1))
-		in.OnChange(func() { st.setCell(row, col, replace) })
-		in.OnShortcut(0, ui.KeyTab, func() { st.tabFrom(row, col, 1, replace) })
-		in.OnShortcut(ui.Shift, ui.KeyTab, func() { st.tabFrom(row, col, -1, replace) })
-		in.OnShortcut(0, ui.KeyEscape, func() { st.focus = docTableCell{} })
-		// Enter is deliberately a no-op: an input method uses it to
-		// confirm a composition, so it must never move the focus out of
-		// the cell while Chinese text is being composed.
-		in.OnPaste(func(text string) bool { return st.paste(text, row, col, replace) })
 		if isActive {
-			ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).
-				BorderWidth(1.5).BorderColor(p.InputBorder).Radius(3).PassThrough()
+			ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).BorderWidth(1.5).BorderColor(p.InputBorder).Radius(3).PassThrough()
 		}
 	})
 }
@@ -424,8 +479,14 @@ func (st *docTableState) setCell(row, col int, replace func(string)) {
 	if err := st.table.SetCell(row, col, st.values[row][col]); err != nil {
 		st.notice = docTableNotice(err)
 		st.values[row][col] = st.table.CellText(row, col)
+		if w := st.rich[row][col]; w != nil {
+			caret := min(w.ed.Cursor(), len(st.values[row][col]))
+			w.ed.Buffer.Reset(st.values[row][col])
+			w.ed.Select(caret, caret)
+		}
 		return
 	}
+	st.heights[row] = st.measureRowHeight(row)
 	st.emit(replace)
 }
 
@@ -533,20 +594,6 @@ func docTableBlockEnd(src string, start int) int {
 		end += i + 1
 	}
 	return end
-}
-
-// docTableUnits approximates a text's display width in character units:
-// a CJK or other wide rune counts two.
-func docTableUnits(s string) int {
-	n := 0
-	for _, r := range s {
-		if r >= 0x2e80 {
-			n += 2
-		} else {
-			n++
-		}
-	}
-	return n
 }
 
 // docTableNotice turns a model error into a short message the table

@@ -565,15 +565,15 @@ func TestDocCanvasChineseIMENoFinalNewlineCRLFFallbacks(t *testing.T) {
 		t.Fatalf("canvas save changed the document line endings: %q", saved)
 	}
 
-	// 3. Complex blocks (fenced code, nested list, mixed-depth quote) fall back
-	// to lossless source in the active editor.
+	// 3. Fenced code and ordinary nested lists now edit their projected
+	// content; mixed-depth quotes keep their lossless source fallback.
 	complexSrc := "```go\nfmt.Println(1)\n```\n\n- parent\n  - child\n\n> outer\n>> inner\n"
 	complexTab := openDocForTest(t, ps, "docs/complex.md", complexSrc)
 	ps.activateTab(complexTab)
 	tt.Frame()
 	for idx, wantRaw := range []string{
-		"```go\nfmt.Println(1)\n```",
-		"- parent\n  - child",
+		"fmt.Println(1)",
+		"parent\nchild",
 		"> outer\n>> inner",
 	} {
 		if err := tt.Click(canvasBlockLabel(t, complexSrc, idx)); err != nil {
@@ -581,7 +581,7 @@ func TestDocCanvasChineseIMENoFinalNewlineCRLFFallbacks(t *testing.T) {
 		}
 		tt.Frame()
 		if got := activeBlockEditor(t, observed, complexTab).Buffer.String(); got != wantRaw {
-			t.Fatalf("complex block %d buffer = %q, want lossless source %q", idx, got, wantRaw)
+			t.Fatalf("complex block %d buffer = %q, want block content %q", idx, got, wantRaw)
 		}
 	}
 }
