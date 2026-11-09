@@ -32,6 +32,8 @@ type Projection struct {
 	prefix, suffix string
 	setextLevel    int
 	fence          bool
+	emptyFence     bool
+	bareFence      bool
 
 	// lines: one entry per source line for Quote and List blocks.
 	lines []projLine
@@ -342,22 +344,111 @@ func projectList(src, eol string) (Projection, bool) {
 
 func projectFence(src, eol string) (Projection, bool) {
 	lines := strings.Split(src, "\n")
-	if len(lines) < 2 {
-		return Projection{}, false
-	}
 	open := strings.TrimLeft(lines[0], " ")
-	if len(open) < 3 || (open[0] != '`' && open[0] != '~') {
-		return Projection{}, false
+	if len(lines[0])-len(open) > 3 || len(open) < 3 || (open[0] != '`' && open[0] != '~') {
+		// Indented code uses the same editor, keeping each source indentation.
+		raw := make([]projLine, len(lines))
+		texts := make([]string, len(lines))
+		for i, l := range lines {
+			pre := ""
+			if strings.HasPrefix(l, "    ") {
+				pre = "    "
+			} else if strings.HasPrefix(l, "\t") {
+				pre = "\t"
+			} else if strings.TrimSpace(l) != "" {
+				return Projection{}, false
+			}
+			raw[i] = projLine{prefix: pre, text: l[len(pre):]}
+			texts[i] = l[len(pre):]
+		}
+		return Projection{mode: projLines, text: strings.Join(texts, "\n"), eol: eol, lines: raw}, true
 	}
 	n := 0
 	for n < len(open) && open[n] == open[0] {
 		n++
 	}
-	close := strings.TrimSpace(lines[len(lines)-1])
-	if len(close) < n || strings.Trim(close, string(open[0])) != "" {
+	if n < 3 {
 		return Projection{}, false
 	}
-	return Projection{mode: projHeading, text: strings.Join(lines[1:len(lines)-1], "\n"), eol: eol, prefix: lines[0] + eol, suffix: eol + lines[len(lines)-1], fence: true}, true
+	p := Projection{mode: projHeading, eol: eol, prefix: lines[0] + eol, fence: true}
+	if len(lines) == 1 {
+		p.prefix = lines[0]
+		p.bareFence = true
+	}
+	end := len(lines)
+	if end > 1 && fenceClosingLength(lines[end-1], open[0]) >= n {
+		p.suffix = eol + lines[end-1]
+		end--
+		p.emptyFence = end == 1
+	}
+	body := append([]string(nil), lines[1:end]...)
+	indent := len(lines[0]) - len(open)
+	if indent > 0 && len(body) > 0 {
+		p.lines = make([]projLine, len(body))
+		for i, line := range body {
+			spaces := min(indent, len(line)-len(strings.TrimLeft(line, " ")))
+			p.lines[i] = projLine{prefix: line[:spaces], text: line[spaces:]}
+			body[i] = line[spaces:]
+		}
+	}
+	p.text = strings.Join(body, "\n")
+	return p, true
+}
+
+// CommonMark permits at most three leading spaces and only whitespace after
+// a closing run. A backtick in a string/comment is not a closing fence.
+func fenceClosingLength(line string, ch byte) int {
+	trim := strings.TrimLeft(line, " ")
+	if len(line)-len(trim) > 3 {
+		return 0
+	}
+	n := 0
+	for n < len(trim) && trim[n] == ch {
+		n++
+	}
+	if strings.Trim(trim[n:], " \t") != "" {
+		return 0
+	}
+	return n
+}
+
+func (p Projection) fenceMarkers(text string) (string, string) {
+	prefix, suffix := p.prefix, p.suffix
+	if p.bareFence && text != "" {
+		prefix += p.lineEnding()
+	}
+	open := strings.TrimLeft(prefix, " ")
+	n := 0
+	for n < len(open) && open[n] == open[0] {
+		n++
+	}
+	collisionText := text
+	if len(p.lines) > 0 {
+		collisionText = normalizeLF((Projection{mode: projLines, eol: p.eol, lines: p.lines}).render(text).src)
+	}
+	longest := 0
+	for _, line := range strings.Split(collisionText, "\n") {
+		longest = max(longest, fenceClosingLength(line, open[0]))
+	}
+	if longest >= n {
+		extra := strings.Repeat(string(open[0]), longest+1-n)
+		at := len(prefix) - len(open)
+		prefix = prefix[:at] + extra + prefix[at:]
+		if suffix != "" {
+			close := strings.TrimPrefix(suffix, p.lineEnding())
+			trimmed := strings.TrimLeft(close, " ")
+			old := fenceClosingLength(close, open[0])
+			if old <= longest {
+				at = len(close) - len(trimmed)
+				close = close[:at] + strings.Repeat(string(open[0]), longest+1-old) + close[at:]
+			}
+			suffix = p.lineEnding() + close
+		}
+	}
+	if p.emptyFence && text == "" {
+		suffix = strings.TrimPrefix(suffix, p.lineEnding())
+	}
+	return prefix, suffix
 }
 
 func listInnerStartsBlock(rest string) bool {
@@ -484,11 +575,17 @@ func (p Projection) render(text string) rendering {
 
 func (p Projection) renderHeading(text string) rendering {
 	if p.fence {
-		r := Projection{eol: p.eol}.render(text)
-		for i := range r.srcStart {
-			r.srcStart[i] += len(p.prefix)
+		prefix, suffix := p.fenceMarkers(text)
+		sub := Projection{eol: p.eol}
+		if len(p.lines) > 0 {
+			sub.mode = projLines
+			sub.lines = p.lines
 		}
-		r.src = p.prefix + r.src + p.suffix
+		r := sub.render(text)
+		for i := range r.srcStart {
+			r.srcStart[i] += len(prefix)
+		}
+		r.src = prefix + r.src + suffix
 		return r
 	}
 	eol := p.lineEnding()

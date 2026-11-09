@@ -37,6 +37,11 @@ var (
 // adopt points the block editor state at parsed block b: its range, its
 // projected content text and the markers that projection hides.
 func (be *docBlockEdit) adopt(b docedit.Block) {
+	opening := strings.TrimLeft(b.EditText(), " ")
+	isFence := len(b.EditText())-len(opening) <= 3 && (strings.HasPrefix(opening, "```") || strings.HasPrefix(opening, "~~~"))
+	if be.ed != nil && be.kind != docmd.CodeBlock && b.Kind == docmd.CodeBlock && isFence && !strings.Contains(b.EditText(), "\n") {
+		be.codeEnterPending = true
+	}
 	be.synthetic = false
 	be.start, be.end = b.Start, b.End
 	be.proj = docedit.NewProjection(b)
@@ -56,6 +61,9 @@ func (a *App) syncDocBlock(tab *Tab, st *docViewState) {
 		return
 	}
 	be := lv.block
+	if be.kind == docmd.CodeBlock && be.ed != nil && docCodeComposing(be.ed) {
+		return
+	}
 	if be.ed == nil {
 		lv.block = nil
 		return
@@ -122,6 +130,9 @@ func (a *App) commitDocBlock(tab *Tab, st *docViewState) {
 		return
 	}
 	be := lv.block
+	if be.kind == docmd.CodeBlock && be.ed != nil && docCodeComposing(be.ed) {
+		return
+	}
 	if be.ed == nil {
 		return
 	}
@@ -140,6 +151,10 @@ func (a *App) commitDocBlock(tab *Tab, st *docViewState) {
 		newText += be.terminator
 	}
 	oldText := tab.DocEditor.Buffer.Slice(be.start, be.end)
+	if oldText == newText {
+		return
+	}
+	tab.Dirty = true
 	deltaStart, deltaEnd, replacement := docedit.MinimalChange(oldText, newText)
 	tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.start + deltaStart, End: be.start + deltaEnd, Text: replacement})
 	a.relocateDocBlockSelection(tab, st, be.start+srcAnchor, be.start+srcHead)
@@ -291,7 +306,12 @@ func (a *App) newDocBlockEditor(t *ui.Theme, tab *Tab, st *docViewState, be *doc
 		Theme:           a.docCanvasEditorTheme(t, be.kind),
 	}
 	ed.OnInput = func(ev ui.InputEvent) bool { return a.docBlockInput(tab, st, be, ev) }
-	if installDocMentionHooks != nil {
+	if be.kind == docmd.CodeBlock {
+		ed.SoftWrap = false
+		ed.TabSize = docCodeTabSize(text)
+		ed.Buffer.SetLanguage(editor.LanguageNamed(docCodeLanguage(be.srcBase)))
+	}
+	if be.kind != docmd.CodeBlock && installDocMentionHooks != nil {
 		installDocMentionHooks(a, tab, ed)
 	}
 	return ed
@@ -306,6 +326,13 @@ func (a *App) syncDocBlockTheme(be *docBlockEdit, t *ui.Theme) {
 	be.ed.Font = a.docBlockFont(t, be.kind, be.level)
 	be.ed.LineHeight = a.docBlockLineHeight(t, be.kind, be.level)
 	be.ed.Theme = a.docCanvasEditorTheme(t, be.kind)
+	if be.kind == docmd.CodeBlock {
+		be.ed.Buffer.SetLanguage(editor.LanguageNamed(docCodeLanguage(be.srcBase)))
+		be.ed.SoftWrap = false
+		be.ed.OnCompletion = nil
+		be.ed.OnHover = nil
+		be.ed.OnDefinition = nil
+	}
 }
 
 // docBlockFont returns the editor font that matches the rendered block.
@@ -385,6 +412,14 @@ func (a *App) docCanvasEditorTheme(t *ui.Theme, kind docmd.Kind) *editor.Theme {
 	ct.Selection = p.Accent.Alpha(0.25)
 	ct.InactiveSelection = p.Accent.Alpha(0.14)
 	ct.Cursor = p.Accent
+	if kind == docmd.CodeBlock {
+		th := a.docMarkdownTheme(t)
+		code := *th.CodeColors
+		ct = &code
+		ct.Background = th.CodeBlockBackground.Over(p.BG)
+		ct.Cursor = p.Accent
+		ct.Selection = p.Accent.Alpha(0.25)
+	}
 	if kind == docmd.Quote {
 		ct.Text = p.Muted
 	}
@@ -438,11 +473,12 @@ func (a *App) docBlockInput(tab *Tab, st *docViewState, be *docBlockEdit, ev ui.
 	// Mark the tab dirty as the key comes, so an external refresh in that
 	// window goes through the conflict flow instead of replacing the edit.
 	if ev.Kind == ui.InputText {
+		be.codeEnterPending = false
 		tab.Dirty = true
 	}
 	if ev.Kind == ui.InputKeyDown {
 		switch ev.Key {
-		case ui.KeyBackspace, ui.KeyDelete, ui.KeyEnter:
+		case ui.KeyBackspace, ui.KeyDelete, ui.KeyEnter, ui.KeyTab:
 			tab.Dirty = true
 		}
 	}
@@ -543,6 +579,22 @@ func (a *App) docBlockInput(tab *Tab, st *docViewState, be *docBlockEdit, ev ui.
 		a.docBlockWrap(be, "*", "*")
 		return true
 	}
+	if be.kind == docmd.CodeBlock {
+		if be.codeEnterPending {
+			be.codeEnterPending = false
+			if ev.Mods == 0 && ev.Key == ui.KeyEnter {
+				// Typing an opening fence reprojects its empty body immediately.
+				// The first Enter enters that body rather than inserting a blank line.
+				if be.terminator == "" {
+					tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.end, End: be.end, Text: "\n"})
+					be.end++
+					be.terminator = "\n"
+				}
+				return true
+			}
+		}
+		return false
+	}
 	if ev.Mods == 0 && ev.Key == ui.KeyBackspace {
 		sel := be.ed.Selection()
 		if sel.Start() == 0 && sel.End() == 0 {
@@ -580,7 +632,7 @@ func docInputEdits(ev ui.InputEvent) bool {
 		}
 	case ui.InputKeyDown:
 		switch ev.Key {
-		case ui.KeyBackspace, ui.KeyDelete, ui.KeyEnter:
+		case ui.KeyBackspace, ui.KeyDelete, ui.KeyEnter, ui.KeyTab:
 			return true
 		}
 	}

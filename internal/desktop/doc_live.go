@@ -55,6 +55,7 @@ type docLiveState struct {
 	slashDismissedSet bool
 
 	canvasOpts *markdown.Options
+	codeBlocks map[int]*docBlockEdit
 	// keyUpIgnore is the key whose release a handled press must not handle
 	// again.
 	keyUpIgnore ui.Key
@@ -97,11 +98,12 @@ type docBlockEdit struct {
 	// block yet.
 	synthetic bool
 
-	rich         *docRichInput
-	ed           *editor.State
-	focusPending bool
-	initialClick *ui.Point
-	initialWidth float32
+	rich             *docRichInput
+	ed               *editor.State
+	focusPending     bool
+	initialClick     *ui.Point
+	initialWidth     float32
+	codeEnterPending bool
 }
 
 type docCardCacheEntry struct {
@@ -114,6 +116,12 @@ func (lv *docLiveState) blocksFor(src string) []docedit.Block {
 	if lv.parsedSrc != src || lv.parsedBlocks == nil {
 		lv.parsedSrc = src
 		lv.parsedBlocks = docedit.Parse(src)
+		for start := range lv.codeBlocks {
+			b, ok := docedit.BlockAt(lv.parsedBlocks, start)
+			if !ok || b.Start != start || b.Kind != docmd.CodeBlock {
+				delete(lv.codeBlocks, start)
+			}
+		}
 	}
 	return lv.parsedBlocks
 }
@@ -245,6 +253,10 @@ func (a *App) docCanvasAddArea(c *ui.Context, t *ui.Theme, p uikit.Palette, tab 
 // docCanvasRenderedBlock draws one block in its Markdown form and activates
 // its in-place editor on a click.
 func (a *App) docCanvasRenderedBlock(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, st *docViewState, b docedit.Block, opts *markdown.Options, dm *docLiveMessages) {
+	if b.Kind == docmd.CodeBlock {
+		a.docCanvasCodeBlock(c, t, tab, st, b, nil)
+		return
+	}
 	if docBlockIsSourceFallback(b) {
 		a.docCanvasSourceBlock(c, t, p, tab, st, b, dm)
 		return
@@ -348,6 +360,10 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 		return
 	}
 	a.syncDocBlockTheme(be, t)
+	if be.kind == docmd.CodeBlock {
+		a.docCanvasCodeBlock(c, t, tab, st, docedit.Block{}, be)
+		return
+	}
 	// The editor must be keyed by an element around it, not by Key on the
 	// editor itself: editor.View reads its focus at the start of its build,
 	// before a Key applied to the returned element would give it the id
@@ -362,7 +378,7 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 	}
 	host.Children(func() {
 		var view ui.Element
-		richNeeded := be.rich != nil || be.kind == docmd.List || be.kind == docmd.CodeBlock
+		richNeeded := be.rich != nil || be.kind == docmd.List
 		if !richNeeded {
 			inline := docedit.NewInlineView(be.ed.Buffer.String())
 			richNeeded = inline.Text != inline.Source
