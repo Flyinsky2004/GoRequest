@@ -1403,3 +1403,11 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - dev.yaml、document.md 及用户 debug 二进制 SHA-256 与合并开始一致，保留未提交状态。未 push、部署、重启用户应用或运行安装器。
 
 只读 composition 兼容桥依赖锁定 MyGo v0.7.4 的私有布尔字段，升级时须复核；真实 IME/三平台与报告所列嵌入代码/混合缩进等边界仍待验收，完整目标不勾通过。
+
+## 49. M03：文档进入编辑态的布局位移（2026-11-09）
+
+用户提供 README 画布截图，反馈点击编辑后单行突然换行、组件位移。主代理已核对实际 README 对应源码为三行普通 softbreak，rich input 当前按源码换行逐行布局，疑似将软换行显示成硬换行；另需审计纯文本/富文本两条路径的 inset、主题和文字度量。
+
+- [ ] M03 / Herdr Codex，分支 `codex/M03-stable-document-layout`，worktree `/private/tmp/gorequest-M03-20261109`，起点 main `0ff698b`，实际创建基线为本方案登记提交。
+- [实施方案](task-briefs/M03-stable-document-layout.md)：softbreak/hardbreak/容器语义与源码映射、共用 idle/active 排版几何、首次点击/滚动锚点、临界折行宽度与逐帧前后位置验证；回归已认可 M01/M02 行为。单代理、无并行公共文件竞争，不触碰用户示例数据和debug产物。
+- 状态：方案已完成，准备通过 Herdr 启动 Codex；句柄/实际基线后补。实现/验证/集成/实机验收待交付，不勾完成。
