@@ -1,0 +1,24 @@
+diff --git a/internal/desktop/app.go b/internal/desktop/app.go
+index 2d8b842..2a0d9c0 100644
+--- a/internal/desktop/app.go
++++ b/internal/desktop/app.go
+@@ -231,6 +231,7 @@ func (a *App) View(c *ui.Context) {
+ 	a.b03CustomMethodModal(c, t)
+ 	a.InteropModals(c, t)
+ 	a.SnippetModals(c, t)
++	a.SDKModals(c, t)
+ 	a.OpenAPIModals(c, t)
+ 	a.RunnerModals(c, t)
+ 	a.MockModals(c, t)
+diff --git a/internal/desktop/workspace.go b/internal/desktop/workspace.go
+index 03ed7d7..01d540d 100644
+--- a/internal/desktop/workspace.go
++++ b/internal/desktop/workspace.go
+@@ -85,6 +85,7 @@ func (a *App) buildProjectMenu(c *ui.Context, mm *ui.Menu, ps *projectState) {
+ 	}
+ 	a.BuildInteropProjectMenuItems(c, mm)
+ 	a.BuildSnippetProjectMenuItems(mm)
++	a.BuildSDKProjectMenuItems(mm)
+ 	a.BuildOpenAPIProjectMenuItems(c, mm)
+ 	a.BuildRunnerProjectMenuItems(mm)
+ 	a.BuildMockProjectMenuItems(mm)
