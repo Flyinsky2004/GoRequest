@@ -51,6 +51,37 @@ func (d *dataset) placeholderVars() map[string]string {
 	return out
 }
 
+// datasetParams validates a dataset spec and returns the effective format and
+// resource limits. It is shared by execution (loadDataset) and the read-only
+// editor preview so both apply exactly the same hard limits.
+func datasetParams(spec *DatasetSpec) (format string, maxRows int, maxBytes int64, err error) {
+	if spec == nil {
+		return "", 0, 0, fmt.Errorf("dataset is not configured")
+	}
+	format = strings.ToLower(strings.TrimSpace(spec.Format))
+	if format != "csv" && format != "json" {
+		return "", 0, 0, fmt.Errorf("dataset format must be csv or json, got %q", spec.Format)
+	}
+	if strings.TrimSpace(spec.File) == "" {
+		return "", 0, 0, fmt.Errorf("dataset file is empty")
+	}
+	maxBytes = spec.MaxBytes
+	if maxBytes <= 0 {
+		maxBytes = DefaultMaxDatasetBytes
+	}
+	if maxBytes > maxDatasetBytesLimit {
+		return "", 0, 0, fmt.Errorf("dataset maxBytes %d exceeds hard limit %d", maxBytes, maxDatasetBytesLimit)
+	}
+	maxRows = spec.MaxRows
+	if maxRows <= 0 {
+		maxRows = DefaultMaxRows
+	}
+	if maxRows > maxDatasetRowsLimit {
+		return "", 0, 0, fmt.Errorf("dataset maxRows %d exceeds hard limit %d", maxRows, maxDatasetRowsLimit)
+	}
+	return format, maxRows, maxBytes, nil
+}
+
 // loadDataset reads a bounded CSV/JSON dataset through core.Store so relative
 // paths cannot escape the project. Format, columns, row count and value types
 // are all validated before the first request is sent.
@@ -61,26 +92,9 @@ func loadDataset(project *core.Project, spec *DatasetSpec) (*dataset, error) {
 	if project == nil || project.Store == nil {
 		return nil, fmt.Errorf("dataset requires a loaded project")
 	}
-	format := strings.ToLower(strings.TrimSpace(spec.Format))
-	if format != "csv" && format != "json" {
-		return nil, fmt.Errorf("dataset format must be csv or json, got %q", spec.Format)
-	}
-	if strings.TrimSpace(spec.File) == "" {
-		return nil, fmt.Errorf("dataset file is empty")
-	}
-	maxBytes := spec.MaxBytes
-	if maxBytes <= 0 {
-		maxBytes = DefaultMaxDatasetBytes
-	}
-	if maxBytes > maxDatasetBytesLimit {
-		return nil, fmt.Errorf("dataset maxBytes %d exceeds hard limit %d", maxBytes, maxDatasetBytesLimit)
-	}
-	maxRows := spec.MaxRows
-	if maxRows <= 0 {
-		maxRows = DefaultMaxRows
-	}
-	if maxRows > maxDatasetRowsLimit {
-		return nil, fmt.Errorf("dataset maxRows %d exceeds hard limit %d", maxRows, maxDatasetRowsLimit)
+	format, maxRows, maxBytes, err := datasetParams(spec)
+	if err != nil {
+		return nil, err
 	}
 
 	raw, _, err := project.Store.ReadBounded(spec.File, maxBytes)
@@ -147,6 +161,15 @@ func loadDataset(project *core.Project, spec *DatasetSpec) (*dataset, error) {
 }
 
 func parseCSVDataset(raw []byte, delimiter string, maxRows int) ([]string, []map[string]string, error) {
+	fields, rows, _, err := parseCSVDatasetRows(raw, delimiter, maxRows, false)
+	return fields, rows, err
+}
+
+// parseCSVDatasetRows is the shared CSV reader. With truncate=true it stops
+// after maxRows complete rows (or at a prefix boundary) and reports truncation
+// instead of failing, which is what the editor preview needs. Execution always
+// passes truncate=false so exceeding maxRows stays a hard config error.
+func parseCSVDatasetRows(raw []byte, delimiter string, maxRows int, truncate bool) ([]string, []map[string]string, bool, error) {
 	raw = bytes.TrimPrefix(raw, []byte{0xEF, 0xBB, 0xBF})
 	r := csv.NewReader(bytes.NewReader(raw))
 	r.FieldsPerRecord = -1
@@ -155,41 +178,52 @@ func parseCSVDataset(raw []byte, delimiter string, maxRows int) ([]string, []map
 	if delimiter != "" {
 		runes := []rune(delimiter)
 		if len(runes) != 1 {
-			return nil, nil, fmt.Errorf("delimiter must be exactly one character")
+			return nil, nil, false, fmt.Errorf("delimiter must be exactly one character")
 		}
 		r.Comma = runes[0]
 	}
 	header, err := r.Read()
 	if err != nil {
-		return nil, nil, fmt.Errorf("reading header: %w", err)
+		return nil, nil, false, fmt.Errorf("reading header: %w", err)
 	}
 	fields := make([]string, 0, len(header))
 	seen := map[string]bool{}
 	for _, h := range header {
 		h = strings.TrimSpace(h)
 		if h == "" {
-			return nil, nil, fmt.Errorf("header contains an empty column name")
+			return nil, nil, false, fmt.Errorf("header contains an empty column name")
 		}
 		if seen[h] {
-			return nil, nil, fmt.Errorf("duplicate column %q", h)
+			return nil, nil, false, fmt.Errorf("duplicate column %q", h)
 		}
 		seen[h] = true
 		fields = append(fields, h)
 	}
 	var rows []map[string]string
+	truncated := false
 	for {
 		rec, err := r.Read()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, nil, fmt.Errorf("row %d: %w", len(rows)+1, err)
+			if truncate && errors.Is(err, io.ErrUnexpectedEOF) {
+				truncated = true
+				break
+			}
+			return nil, nil, false, fmt.Errorf("row %d: %w", len(rows)+1, err)
+		}
+		// A bounded preview stops before inspecting the first row beyond its
+		// display cap; execution keeps the original column-check-first order.
+		if truncate && len(rows) >= maxRows {
+			truncated = true
+			break
 		}
 		if len(rec) != len(fields) {
-			return nil, nil, fmt.Errorf("row %d has %d columns, header has %d", len(rows)+1, len(rec), len(fields))
+			return nil, nil, false, fmt.Errorf("row %d has %d columns, header has %d", len(rows)+1, len(rec), len(fields))
 		}
 		if len(rows) >= maxRows {
-			return nil, nil, fmt.Errorf("dataset exceeds maxRows %d", maxRows)
+			return nil, nil, false, fmt.Errorf("dataset exceeds maxRows %d", maxRows)
 		}
 		m := make(map[string]string, len(fields))
 		for i, f := range fields {
@@ -197,10 +231,10 @@ func parseCSVDataset(raw []byte, delimiter string, maxRows int) ([]string, []map
 		}
 		rows = append(rows, m)
 	}
-	if len(rows) == 0 {
-		return nil, nil, fmt.Errorf("dataset has no data rows")
+	if len(rows) == 0 && !truncated {
+		return nil, nil, false, fmt.Errorf("dataset has no data rows")
 	}
-	return fields, rows, nil
+	return fields, rows, truncated, nil
 }
 
 func parseJSONDataset(raw []byte, maxRows int) ([]string, []map[string]string, error) {
@@ -258,6 +292,82 @@ func parseJSONDataset(raw []byte, maxRows int) ([]string, []map[string]string, e
 		rows = append(rows, row)
 	}
 	return fields, rows, nil
+}
+
+// parseJSONDatasetRows is the shared JSON entry point. Execution passes
+// truncate=false and keeps the exact full-document validation above. The editor
+// preview passes truncate=true so a large array is streamed only until the
+// display row cap, without decoding the rest of the document.
+func parseJSONDatasetRows(raw []byte, maxRows int, truncate bool) ([]string, []map[string]string, bool, error) {
+	if !truncate {
+		fields, rows, err := parseJSONDataset(raw, maxRows)
+		return fields, rows, false, err
+	}
+	return parseJSONDatasetPreview(raw, maxRows)
+}
+
+// parseJSONDatasetPreview streams array elements and stops at maxRows. A prefix
+// cut mid-element yields the complete rows read so far plus truncated=true.
+func parseJSONDatasetPreview(raw []byte, maxRows int) ([]string, []map[string]string, bool, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("invalid JSON: %w", err)
+	}
+	delim, ok := tok.(json.Delim)
+	if !ok || delim != '[' {
+		return nil, nil, false, fmt.Errorf("dataset must be an array of objects")
+	}
+	var fields []string
+	fieldSeen := map[string]bool{}
+	rows := make([]map[string]string, 0, maxRows)
+	truncated := false
+	for dec.More() {
+		if len(rows) >= maxRows {
+			truncated = true
+			break
+		}
+		var item any
+		if err := dec.Decode(&item); err != nil {
+			if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
+				return fields, rows, true, nil
+			}
+			return nil, nil, false, fmt.Errorf("invalid JSON: %w", err)
+		}
+		obj, ok := item.(map[string]any)
+		if !ok {
+			return nil, nil, false, fmt.Errorf("row %d is not an object", len(rows)+1)
+		}
+		if len(rows) == 0 {
+			for k := range obj {
+				fields = append(fields, k)
+			}
+			sort.Strings(fields)
+			for _, f := range fields {
+				fieldSeen[f] = true
+			}
+		}
+		if len(obj) != len(fields) {
+			return nil, nil, false, fmt.Errorf("row %d has a different field set than row 1", len(rows)+1)
+		}
+		row := make(map[string]string, len(obj))
+		for k, v := range obj {
+			if !fieldSeen[k] {
+				return nil, nil, false, fmt.Errorf("row %d has unknown field %q", len(rows)+1, k)
+			}
+			s, err := jsonCellString(v)
+			if err != nil {
+				return nil, nil, false, fmt.Errorf("row %d field %q: %w", len(rows)+1, k, err)
+			}
+			row[k] = s
+		}
+		rows = append(rows, row)
+	}
+	if len(rows) == 0 && !truncated {
+		return nil, nil, false, fmt.Errorf("dataset has no data rows")
+	}
+	return fields, rows, truncated, nil
 }
 
 // jsonCellString accepts only scalars. Nested objects/arrays are rejected
