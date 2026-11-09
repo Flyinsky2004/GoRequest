@@ -1309,7 +1309,7 @@ U36 已从 `9d9c724` 启动，terminal `t5y`、tab `tb22e5a2a9bb459cd71adeca6bb8
 | N04 | `t62` | `tb45970f6981774215c0b9f0252746c3c0` | 同当前默认模型；目录/分支正确；working，读取方案与仓库约定 |
 | N05 | `t63` | `tbc138a3a0764f507c66fade1ae77e395b` | 同当前默认模型；目录/分支正确；working，读取方案与仓库约定 |
 
-五卡均已领取/实现中，尚无功能交付、集成或验收声明。首个prompt、精确启动返回、首屏与hc状态保存于本机 `/private/tmp/gorequest-next5-20261109/`，长期方案在 `docs/task-briefs/`。其他原有 GoRequest 和 Proxy-Rules 会话未操作。用户 dev.yaml/document.md 以启动前摘要保护；不纳入本批提交。三个旧未合并补充分支继续保留。
+以上为启动时记录；五卡当前均已阶段集成验证并清理，见 §46。首个prompt、精确启动返回、首屏与hc状态保存于本机 `/private/tmp/gorequest-next5-20261109/`，长期方案在 `docs/task-briefs/`。其他原有 GoRequest 和 Proxy-Rules 会话未操作。用户 dev.yaml/document.md 以启动前摘要保护；不纳入本批提交。三个旧补充分支已在 §46 合入后安全删除。
 
 ## 46. INT-N01–N05：集成、旧分支回收与任务状态同步（2026-11-09）
 
@@ -1334,3 +1334,11 @@ N02/N03/N04/N05入口patch已依次check并应用，组合Runner编排/Mock配�
 上述勾选仅表示本批明确阶段的开发与集成自动化，不关闭第3节的完整A02/C01/P02/C04/R01主卡。最终build/vet与不skip普通全仓测试全通过（desktop35.343s），全仓race无skip通过（desktop146.352s，无race）；最后无效GraphQL指纹增量另以SDK/Suite/Handoff专项race通过（4.028s），随后全仓普通测试再通过。详细命令/限制见 [集成报告](task-results/integration-N01-N05-2026-11-09.md)。
 
 本轮最终main快进/打包与清理待后续节登记；不得把来源agent的done状态或本节阶段勾选视为完整正式版实机验收。
+
+### 46.2 main、打包与最终清理完成
+
+main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-macos-app.sh` 退出0，更新 `bin/GoRequest.app`，未启动安装器或重启用户应用。
+
+清理前复核五来源工作区干净、八来源头与登记一致且均为main祖先、五个终端done/idle且tab归属匹配。精确关闭N01 `t5z` / N02 `t60` / N03 `t61` / N04 `t62` / N05 `t63` 的 §45.1 标签页，逐条确认hc finished后rm。非force移除五来源worktree与分支、旧U32/U35/U36三条已合并分支，最后移除干净且已并入main的集成worktree/分支；共六个worktree、九条分支，现只保留main/主worktree。
+
+其他用户终端 `t1h/t2s/t4q/t5c` 和 Proxy-Rules `t4k` 未动。用户dev.yaml/document.md摘要与本轮开始一致，仍作为未提交用户修改保留。本批五项阶段已集成并完成必要自动化验证；人工实机、三平台及各主卡未交付部分仍未勾通过。清理精确句柄见 [集成报告](task-results/integration-N01-N05-2026-11-09.md)，本机cleanup.json/sources-cleaned.json保留证据；未push。

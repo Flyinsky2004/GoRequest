@@ -16,6 +16,8 @@
 
 本轮同时合入上轮 U32 提示对比度、U35 退出草稿指纹、U36 存储边界文档补充。新依赖只有固定 GraphQL parser `github.com/vektah/gqlparser/v2 v2.5.64`，无 MyGo/Go 版本升级。真实桌面、输入法、系统凭据/OAuth 及三平台验收仍待补，不宣称完整正式版已完成。
 
+最终构建、vet、不 skip 普通全仓测试全部通过；全仓 race 无 skip 通过（desktop 146.352s），最后 GraphQL 指纹增量另以相关专项 race 通过。main 已集成 `545d91f`，macOS app 打包通过；五个 CC、六个临时 worktree、九条已合并分支均已安全清理，仅保留 main/主工作区。原四项基线失败已消除，不再作为后续 skip 清单。
+
 > 变更：2026-11-05 用户决定取消独立产品 CLI（见 [ADR-009](decisions.md)）。本文反映取消后的状态：GoRequest 只有一个产品入口——MyGo 原生桌面应用。
 
 ## 1. 已实现（MVP）

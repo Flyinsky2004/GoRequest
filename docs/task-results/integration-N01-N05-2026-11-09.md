@@ -49,4 +49,18 @@
 
 ## main 与清理
 
-待最终提交/验证完成后记录 main 快进、app 打包及精确清理证据。清理前必须确认来源头未变、工作区干净且提交已是 main 祖先；只操作本批登记的五个 CC 与八条来源分支，保留其他用户终端/项目和本地未提交示例文件。非 force 删除，不 push。
+main 已从 `5a60910` ff-only 快进到 `545d91f`（集成修正 `0503adc` 和阶段状态/验证文档）。在 main 执行 `sh scripts/make-macos-app.sh` 退出 0，更新 `bin/GoRequest.app`；没有启动真实安装器或重启用户应用。
+
+逐一复核八个来源头未变化且已是 main 祖先，五个来源 worktree 干净、终端 done/idle 且 tab 归属匹配后，精确清理：
+
+| 任务 | terminal | 关闭的 tab | 结果 |
+| --- | --- | --- | --- |
+| N01 | `t5z` | `tbecf51f3fc656f6b3855496679a1879b0` | tab.close 成功，hc finished 后 rm |
+| N02 | `t60` | `tb1dc0e246c1d82d7c771dff74416b822e` | 同上 |
+| N03 | `t61` | `tb715a7ecb766143a48bd48198d15c5d66` | 同上 |
+| N04 | `t62` | `tb45970f6981774215c0b9f0252746c3c0` | 同上 |
+| N05 | `t63` | `tbc138a3a0764f507c66fade1ae77e395b` | 同上 |
+
+随后非 force 移除五个来源 worktree 和分支、三个旧 U32/U35/U36 已合并分支；最后确认集成 worktree 干净且头已在 main，非 force 移除集成 worktree 和 `codex/integrate-N01-N05`。共移除六个 worktree、九条已合并分支；现在只保留 main 和主 worktree。精确本机证据在 `cleanup.json`、`sources-cleaned.json`。
+
+其他 GoRequest 终端 `t1h/t2s/t4q/t5c` 和 Proxy-Rules `t4k` 未操作；主工作区 dev.yaml/document.md 的 SHA-256 与本轮开始一致，继续保留用户修改，不纳入提交。未 push、部署或强制删除。
