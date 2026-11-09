@@ -1351,3 +1351,7 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - [ ] M01 / Herdr Codex：`codex/M01-typora-live-editing`，实际 worktree `/private/tmp/gorequest-M01-20261109`。归属 `internal/docedit/`、desktop doc_live/doc_table/文档样式相关文件及必要测试/原生编辑适配层；单代理串行，无其他本轮开发者竞争公共文件。
 - 详细实施方案：[M01](task-briefs/M01-typora-live-editing.md)，包含列表和inline内容投影、真实可见样式编辑、canonical buffer/偏移/IME/undo保护、表格共用主题与尺寸、逐项验收。
 - 状态：方案已完成，准备从本登记提交创建 worktree 并在 GoRequest Space 新建 Codex 标签；启动句柄/实际共同基线后续补记。来源提交和本轮验证待交付；不得据此勾完整B09或实机验收。不push，不改用户数据。
+
+### 47.1 启动确认
+
+方案/共同基线提交 `9f88d29dafd3577899e7c64ae107203b29cad5c6`；worktree 已从该提交建立。通过 `herdr-app do tab.new` 在 GoRequest Space 启动交互式 `codex --no-daemon -a never -s danger-full-access`（沿用默认模型，未改全局配置）。Tab `tb6460f9de62c1242954497fcb7a32ed33`，terminal `t65`，标签「M01 Typora式编辑修复」。hc 已确认 cwd 正确、app=codex、working，首屏可见完整初始任务；任务已送达。代码实现/测试/提交待该代理交付，未集成、未勾完成。
