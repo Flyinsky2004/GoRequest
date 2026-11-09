@@ -72,6 +72,10 @@ func (b *Body) UnmarshalYAML(n *yaml.Node) error {
 const (
 	ProtocolHTTP      = "http"
 	ProtocolWebSocket = "websocket"
+	// ProtocolGraphQL is a first-class GraphQL Query/Mutation request. It shares
+	// the HTTP request target (URL/query/headers/auth) but stores the GraphQL
+	// document, operationName and variables in its own block, never in http.body.
+	ProtocolGraphQL = "graphql"
 	// WebSocketMethod is the display tag stored in the shared HTTPDef.Method
 	// field for WebSocket requests. It is never sent as an HTTP method: the
 	// desktop WebSocket workspace drives internal/websocket.Session instead.
@@ -98,6 +102,19 @@ type HTTPDef struct {
 type WSDef struct {
 	Subprotocols []string `yaml:"subprotocols,omitempty"`
 	Compression  bool     `yaml:"compression,omitempty"`
+}
+
+// GraphQLDef holds the GraphQL-specific parts of a request with
+// protocol: graphql. Document keeps the user's exact source text (never
+// reformatted); Variables keeps the user's JSON text so integers are not
+// rounded through float64. The HTTP target, headers and auth reuse HTTPDef.
+//
+// The document is stored in exactly one place: a graphql request must not also
+// carry http.body, which would create two conflicting sources of truth.
+type GraphQLDef struct {
+	Document      string `yaml:"document"`
+	OperationName string `yaml:"operationName,omitempty"`
+	Variables     string `yaml:"variables,omitempty"`
 }
 
 // AuthRef is the request/folder-level auth reference. It is either the scalar
@@ -187,6 +204,7 @@ type Request struct {
 	Variables     map[string]string `yaml:"variables,omitempty"`
 	HTTP          *HTTPDef          `yaml:"http"`
 	WS            *WSDef            `yaml:"ws,omitempty"`
+	GraphQL       *GraphQLDef       `yaml:"graphql,omitempty"`
 	Auth          *AuthRef          `yaml:"auth,omitempty"`
 	Timeout       string            `yaml:"timeout,omitempty"`
 	Assert        []yaml.Node       `yaml:"assert,omitempty"`

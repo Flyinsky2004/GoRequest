@@ -74,8 +74,9 @@ func validateRequest(r *Request, path string, p *Project) []Issue {
 	}
 	proto := strings.TrimSpace(r.Protocol)
 	websocket := proto == ProtocolWebSocket
-	if proto != "" && proto != ProtocolHTTP && !websocket {
-		add("protocol", fmt.Sprintf("protocol %q is not supported (supported: http, websocket)", r.Protocol))
+	graphql := proto == ProtocolGraphQL
+	if proto != "" && proto != ProtocolHTTP && !websocket && !graphql {
+		add("protocol", fmt.Sprintf("protocol %q is not supported (supported: http, websocket, graphql)", r.Protocol))
 	}
 	if r.HTTP == nil {
 		add("http-missing", "request has no http block")
@@ -87,10 +88,22 @@ func validateRequest(r *Request, path string, p *Project) []Issue {
 		if m := strings.TrimSpace(r.HTTP.Method); m != "" && !strings.EqualFold(m, WebSocketMethod) {
 			add("method", fmt.Sprintf("websocket request method must be %q, got %q", WebSocketMethod, r.HTTP.Method))
 		}
+	} else if graphql {
+		if r.HTTP.Body != nil {
+			add("graphql-body", "graphql requests must not define http.body; the document lives only in the graphql block")
+		}
+		if r.GraphQL == nil {
+			add("graphql-missing", "graphql request has no graphql block")
+		} else if err := ValidateGraphQL(r.GraphQL, r.HTTP.Method); err != nil {
+			add("graphql", err.Error())
+		}
 	} else if strings.TrimSpace(r.HTTP.Method) != "" {
 		if err := ValidateHTTPMethod(r.HTTP.Method); err != nil {
 			add("method", err.Error())
 		}
+	}
+	if !graphql && r.GraphQL != nil {
+		add("graphql-protocol", "graphql block requires protocol: graphql")
 	}
 	if strings.TrimSpace(r.HTTP.URL) == "" {
 		add("url", "request url is empty")

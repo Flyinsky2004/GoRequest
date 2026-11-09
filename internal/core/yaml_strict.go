@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
@@ -384,6 +385,38 @@ func auditRequestAST(root *yaml.Node) error {
 			valNode := mappingValue(bodyNode, "value")
 			if fileNode != nil && fileNode.Value != "" && valNode != nil && !(valNode.Kind == yaml.ScalarNode && valNode.Tag == "!!null") {
 				return configErrorf("http.body cannot specify both file and inline value (line %d)", bodyNode.Line)
+			}
+		}
+	}
+	// Audit the GraphQL block's shape and its single-source rule. The struct
+	// decoder already rejects unknown fields; this adds precise scalar checks
+	// and refuses a graphql block on an HTTP/WebSocket request.
+	if gqlNode := mappingValue(root, "graphql"); gqlNode != nil {
+		if gqlNode.Kind != yaml.MappingNode {
+			return configErrorf("graphql must be a mapping (line %d)", gqlNode.Line)
+		}
+		protoNode := mappingValue(root, "protocol")
+		if protoNode == nil || protoNode.Kind != yaml.ScalarNode || !strings.EqualFold(strings.TrimSpace(protoNode.Value), ProtocolGraphQL) {
+			return configErrorf("graphql block requires protocol: graphql (line %d)", gqlNode.Line)
+		}
+		for i := 0; i+1 < len(gqlNode.Content); i += 2 {
+			k := gqlNode.Content[i]
+			v := gqlNode.Content[i+1]
+			switch k.Value {
+			case "document", "operationName", "variables":
+				if v.Kind != yaml.ScalarNode {
+					return configErrorf("graphql.%s must be a string scalar (line %d)", k.Value, v.Line)
+				}
+			default:
+				return configErrorf("unknown graphql field %q (line %d)", k.Value, k.Line)
+			}
+		}
+	}
+	if protoNode := mappingValue(root, "protocol"); protoNode != nil &&
+		protoNode.Kind == yaml.ScalarNode && strings.EqualFold(strings.TrimSpace(protoNode.Value), ProtocolGraphQL) {
+		if httpNode := mappingValue(root, "http"); httpNode != nil && httpNode.Kind == yaml.MappingNode {
+			if mappingValue(httpNode, "body") != nil {
+				return configErrorf("graphql requests must not define http.body; the document lives only in the graphql block")
 			}
 		}
 	}

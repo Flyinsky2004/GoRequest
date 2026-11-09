@@ -31,6 +31,11 @@ type PlanOptions struct {
 	LocalFiles LocalFileProvider
 	// MaxUploadBytes caps total encoded request body bytes (0 => DefaultMaxUploadBytes).
 	MaxUploadBytes int64
+	// AllowGraphQL opts this execution path into GraphQL Query/Mutation
+	// planning. Interactive request sending sets it; Runner, diagnostics and
+	// other automation leave it false so a GraphQL request is rejected rather
+	// than silently executed as ordinary HTTP with HTTP-only assertions.
+	AllowGraphQL bool
 }
 
 // EncodedBody is the result of encoding a Request's HTTP Body.
@@ -492,6 +497,11 @@ func OpenBodyStream(ctx context.Context, b *Body, r *Resolver, opts PlanOptions)
 func BuildPlanWithOptions(ctx context.Context, req *Request, vars map[string]string, secrets SecretProvider, authScheme *AuthScheme, opts PlanOptions) (*Plan, error) {
 	if req == nil || req.HTTP == nil {
 		return nil, configErrorf("request has no http definition")
+	}
+	if isGraphQLRequest(req) {
+		// GraphQL needs tracked variable resolution and a JSON envelope; the
+		// plain builder must not silently send it as an ordinary HTTP request.
+		return nil, configErrorf("GraphQL requests must be built through BuildTrackedPlan so variables and secrets are tracked")
 	}
 	if strings.EqualFold(strings.TrimSpace(req.Protocol), ProtocolWebSocket) {
 		// WebSocket requests share the request target fields but are driven by

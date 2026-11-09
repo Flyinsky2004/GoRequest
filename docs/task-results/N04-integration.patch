@@ -1,0 +1,35 @@
+diff --git a/internal/desktop/project_state.go b/internal/desktop/project_state.go
+index 5da21b7..3431e45 100644
+--- a/internal/desktop/project_state.go
++++ b/internal/desktop/project_state.go
+@@ -221,6 +221,7 @@ func fillTabFromRequest(tab *Tab, entry *core.RequestEntry, p *core.Project) {
+ 	}
+ 	tab.resetBodyState()
+ 	fillAuth(p, tab, req)
++	fillGraphQLTab(tab, req)
+ 	if strings.EqualFold(strings.TrimSpace(req.Protocol), core.ProtocolWebSocket) {
+ 		// Keep a live session across a discard/reload: only the persisted drafts
+ 		// are refreshed. The endpoint/headers/auth already live on the tab.
+diff --git a/internal/desktop/workspace.go b/internal/desktop/workspace.go
+index 03ed7d7..b6f863c 100644
+--- a/internal/desktop/workspace.go
++++ b/internal/desktop/workspace.go
+@@ -111,6 +111,9 @@ func (a *App) buildNewMenu(mm *ui.Menu, ps *projectState) {
+ 	if mm.Item(a.wsWorkspaceMsg().NewWebSocket).Chosen() {
+ 		a.openNewWebSocket()
+ 	}
++	if mm.Item(a.gqlMsg().NewGraphQL).Chosen() {
++		a.openNewGraphQL()
++	}
+ 	if mm.Item(m.NewFolder).Chosen() {
+ 		a.openNewFolder()
+ 	}
+@@ -212,6 +215,8 @@ func (a *App) tabsAndEditor(c *ui.Context, t *ui.Theme, ps *projectState) {
+ 				switch {
+ 				case isWebSocketTab(tab):
+ 					a.wsTabView(c, t, tab)
++				case isGraphQLTab(tab):
++					a.gqlTabView(c, t, tab)
+ 				case tab.Kind == "request":
+ 					a.requestView(c, t, tab)
+ 				default:
