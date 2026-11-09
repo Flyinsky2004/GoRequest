@@ -20,6 +20,8 @@ type docRichRow struct {
 	start, end    int // UTF-16 visible range
 	x, y, h       float32
 	marker        string
+	markerX       float32
+	markerLayout  *ui.TextLayout
 	task, checked bool
 }
 type docRichInput struct {
@@ -123,6 +125,16 @@ func (w *docRichInput) layout(width float32) {
 	w.rows = nil
 	w.height = 0
 	spans := w.styledSpans()
+	gutters := map[int]float32{}
+	for _, meta := range w.prefixes {
+		width := w.theme.ListIndent * w.font.Size
+		if meta.Marker != "" && !meta.Task && strings.ContainsAny(meta.Marker, "0123456789") {
+			mw, _ := ui.ShapeText(meta.Marker, w.font, 0).Size()
+			width = max(width, mw+w.font.Size*0.5)
+		}
+		gutters[meta.List] = max(gutters[meta.List], width)
+	}
+	depthWidths := map[int]float32{}
 	byteStart, units := 0, 0
 	for i, line := range strings.Split(text, "\n") {
 		var runs []ui.Span
@@ -145,7 +157,28 @@ func (w *docRichInput) layout(width float32) {
 			row.marker = meta.Marker
 			row.task = meta.Task
 			row.checked = meta.Checked
-			row.x = float32(meta.Depth+1) * w.theme.ListIndent * w.font.Size
+			gutter := gutters[meta.List]
+			depthWidths[meta.Depth] = gutter
+			for depth := 0; depth <= meta.Depth; depth++ {
+				row.x += depthWidths[depth]
+			}
+			if row.marker != "" {
+				marker := row.marker
+				if row.task {
+					marker = "☐"
+					if row.checked {
+						marker = "☑"
+					}
+				} else if !strings.ContainsAny(marker, "0123456789") {
+					marker = []string{"•", "◦", "▪"}[min(meta.Depth, 2)]
+				}
+				row.markerLayout = ui.ShapeText(marker, w.font, 0)
+				markerWidth, _ := row.markerLayout.Size()
+				row.markerX = row.x - w.font.Size*0.4 - markerWidth
+				if !strings.ContainsAny(row.marker, "0123456789") {
+					row.markerX = row.x - gutter + (gutter-w.font.Size*0.5-markerWidth)/2
+				}
+			}
 			if i > 0 && meta.Marker != "" && meta.GapBefore && strings.TrimSpace(strings.Split(text, "\n")[i-1]) != "" {
 				gap := w.theme.ItemSpacing
 				if meta.Loose {
@@ -522,17 +555,8 @@ func (w *docRichInput) element(c *ui.Context, label string) ui.Element {
 					p.Fill(rect, w.ed.Theme.Selection, 0)
 				}
 			}
-			if r.marker != "" {
-				marker := r.marker
-				if r.task {
-					marker = "☐"
-					if r.checked {
-						marker = "☑"
-					}
-				} else if !strings.ContainsAny(marker, "0123456789") {
-					marker = "•"
-				}
-				p.TextLayout(ui.ShapeText(marker, w.font, 0), b.X+max(0, r.x-w.font.Size*1.4), b.Y+r.y, w.theme.Text)
+			if r.markerLayout != nil {
+				p.TextLayout(r.markerLayout, b.X+max(0, r.markerX), b.Y+r.y, w.theme.Muted)
 			}
 			p.TextLayout(r.layout, b.X+r.x, b.Y+r.y, w.theme.Text)
 		}

@@ -399,3 +399,20 @@ func TestM01ListBoundaryActions(t *testing.T) {
 		})
 	}
 }
+
+func TestM01LongOrderedMarkersReserveRealGutterWidth(t *testing.T) {
+	src := "123456789) **first**\n123456790) second\n"
+	projection := docedit.NewProjection(docedit.Parse(src)[0])
+	th := markdown.DefaultTheme(ui.LightTheme())
+	w := &docRichInput{ed: &editor.State{Buffer: editor.NewBuffer(projection.Text())}, font: ui.Font{Size: th.FontSize, LineHeight: th.LineHeight}, theme: th, prefixes: projection.ListLines(projection.Text())}
+	w.layout(500)
+	for _, row := range w.rows {
+		markerWidth, _ := row.markerLayout.Size()
+		if row.x < markerWidth+th.FontSize*0.4 {
+			t.Fatalf("number overlaps editable content: gutter %v, marker %v", row.x, markerWidth)
+		}
+	}
+	if w.rows[0].x != w.rows[1].x {
+		t.Fatal("ordered items do not share gutter geometry")
+	}
+}

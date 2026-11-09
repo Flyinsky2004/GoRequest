@@ -245,7 +245,7 @@ type ListLine struct {
 	Prefix, Marker   string
 	Indent           int
 	Task, Checked    bool
-	Depth            int
+	Depth, List      int
 	GapBefore, Loose bool
 }
 
@@ -290,6 +290,7 @@ func (p Projection) ListLines(text string) []ListLine {
 		last := strings.Count(r.src[:item.End], "\n")
 		for line := first; line <= last && line < len(out); line++ {
 			out[line].Depth = depth
+			out[line].List = item.Parent
 		}
 		if first < len(out) {
 			out[first].GapBefore = counts[item.Parent] > 0
