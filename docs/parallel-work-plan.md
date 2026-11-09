@@ -1374,10 +1374,20 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 
 用户反馈 M01 其他编辑体验大致符合要求，代码块没有提升。延续先方案再通过 Herdr 启动 Codex 实现。主代理静态确认代码块仍使用 literal 通用 rich input，未保留预览容器/语言栏/高亮，Enter 直接插入换行，代码专用键盘与坐标映射待补。
 
-- [ ] M02 / Herdr Codex；分支 `codex/M02-code-block-editing`，计划实际 worktree `/private/tmp/gorequest-M02-20261109`，从本方案登记提交创建。起点 main `f6cd400`，用户示例数据和debug产物不动。
+- [ ] M02 / Herdr Codex；分支 `codex/M02-code-block-editing`，实际 worktree `/private/tmp/gorequest-M02-20261109`，从本方案登记提交创建。起点 main `f6cd400`，用户示例数据和debug产物不动。
 - [实施方案](task-briefs/M02-code-block-editing.md)：原生代码编辑器分流、共用代码容器与主题/高亮、缩进与长行滚动/光标定位、围栏碰撞与源范围保护、真实入口测试和视觉对照。归属 doc_live 代码块分流、新增代码编辑适配及必要 docedit/测试；单代理，无公共文件并行竞争，不重做已认可列表/表格。
-- 状态：方案完成，准备启动。实际基线/句柄后补；来源提交/验证/集成/实机验收待交付。
+- 状态：本交互 Herdr Codex 单代理已实施并本地提交；实际基线 `bfbaa3927f7dfeb30a2a79203d4894e1f172f0c1`，实现来源提交 `b3b7ea5274aa663c2d7b30e58b86518eb0439eb4`。未另开子代理；交互会话保留。
+
 
 ### 48.1 启动确认
 
 实际共同基线 `bfbaa39`，分支/worktree 已按 §48 创建。GoRequest Space 新建标签「M02 代码块编辑体验」，Tab `tb0d797b06055370abc1e28ba9a16c1aa0`，terminal `t68`。通过 `codex --no-daemon -a never -s danger-full-access` 启动，沿用默认模型，未修改全局配置。hc 已确认 cwd 正确、app=codex、working，首屏完整任务已送达。功能修改和验证仍待交付，不据启动状态勾完成。
+
+### 48.2 M02 来源交付与验证（未集成）
+
+- 原生 `editor.View` 分流；canvas idle/active 共用代码容器、语言栏/复制、Markdown 主题与 lexer。补齐首击/滚动命中、Tab/Shift+Tab/Enter、字面输入、格式入口隔离、IME preedit 提交屏障与 Dirty 标记。
+- 修复源范围扫描仅检查三个字符的问题；空块、未闭合 fence、常规缩进代码、CRLF/UTF-8、围栏碰撞增宽及 canonical 单步 undo/redo 均有测试。
+- 最终 `go test ./internal/docedit ./internal/doctable ./internal/desktop -count=1` 通过（0.108s / 0.307s / 33.384s）；`go build ./...`、`go vet ./...` 通过。docedit/doctable 全套 race 通过（1.356s / 1.136s）；desktop `TestM02|TestM01|TestDocTable|TestAuthoringIntegratedTableEditUndo|TestDocCanvasSlashOffset|TestDocCanvasCrossLine` 专项 race 通过（25.113s），无 skip。
+- 16 张亮/暗、100%/150%、两种窗口尺寸的同源 idle/active PNG 位于临时目录；活动态 keyword 像素、真实 caret 和聚焦前后 bounds 有断言。截图路径、基线失败日志、精确命令和实现矩阵见 [M02 交付报告](task-results/M02-code-block-editing.md)。
+- MyGo v0.7.4 无公开 composition 查询；使用只读 reflection 布尔桥接并有版本契约测试，无 unsafe、无依赖/缓存修改。该维护边界和混合缩进/内嵌代码限制已在报告明确登记。
+- **未集成 main、未实机 IME/三平台验收**；本卡和完整 B09 保持未勾选。未 push、部署、重启应用或触碰主目录用户数据、全局配置、依赖版本及模块缓存。

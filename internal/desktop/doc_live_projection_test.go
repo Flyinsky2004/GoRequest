@@ -576,7 +576,11 @@ func TestDocCanvasChineseIMENoFinalNewlineCRLFFallbacks(t *testing.T) {
 		"parent\nchild",
 		"> outer\n>> inner",
 	} {
-		if err := tt.Click(canvasBlockLabel(t, complexSrc, idx)); err != nil {
+		target := canvasBlockLabel(t, complexSrc, idx)
+		if idx == 0 {
+			target = "doc-canvas-editor"
+		} // code header is deliberately not an editing target
+		if err := tt.Click(target); err != nil {
 			t.Fatalf("click complex block %d: %v", idx, err)
 		}
 		tt.Frame()

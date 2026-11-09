@@ -130,7 +130,7 @@ func Parse(src string) []Block {
 				pos = next
 			}
 		}
-		if b.Kind == markdown.CodeBlock {
+		if b.Kind == markdown.CodeBlock && b.Fenced {
 			end = fencedCodeEnd(body, start, end)
 		}
 		if b.Kind == markdown.Heading {
@@ -253,19 +253,20 @@ func expandRange(src string, start, end int) (int, int) {
 func fencedCodeEnd(src string, start, end int) int {
 	openEnd := LineEnd(src, start)
 	open := strings.TrimLeft(src[start:openEnd], " \t")
-	fence := ""
-	switch {
-	case strings.HasPrefix(open, "```"):
-		fence = "```"
-	case strings.HasPrefix(open, "~~~"):
-		fence = "~~~"
-	default:
+	if len(open) < 3 || (open[0] != '`' && open[0] != '~') {
+		return end
+	}
+	n := 0
+	for n < len(open) && open[n] == open[0] {
+		n++
+	}
+	if n < 3 {
 		return end
 	}
 	pos := openEnd
 	for pos < len(src) {
 		next := LineEnd(src, pos)
-		if strings.HasPrefix(strings.TrimSpace(src[pos:next]), fence) {
+		if fenceClosingLength(strings.TrimRight(src[pos:next], "\r\n"), open[0]) >= n {
 			return next
 		}
 		pos = next

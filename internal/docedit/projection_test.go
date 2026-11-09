@@ -304,8 +304,8 @@ func TestFenceContentEditingPreservesLanguageAndDelimiter(t *testing.T) {
 		t.Fatalf("fence edit %q", got)
 	}
 	_, open := projOf(t, "```go\nunfinished\n")
-	if open.Active() {
-		t.Fatal("unclosed fence concealed")
+	if !open.Active() || open.Text() != "unfinished" {
+		t.Fatal("unclosed fence did not project its body")
 	}
 }
 

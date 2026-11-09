@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 
 	"gorequest/internal/docedit"
+	docmd "gorequest/internal/markdown"
 )
 
 // This file continues the canvas with formatting actions, the U07 table
@@ -16,7 +17,7 @@ import (
 // docBlockWrap wraps the active editor's selection, one local edit that the
 // next frame commits as one undo step.
 func (a *App) docBlockWrap(be *docBlockEdit, left, right string) {
-	if be == nil || be.ed == nil {
+	if be == nil || be.ed == nil || be.kind == docmd.CodeBlock {
 		return
 	}
 	sel := be.ed.Selection()
@@ -44,6 +45,9 @@ func (a *App) docInsertLink(tab *Tab, st *docViewState) {
 		return
 	}
 	be := st.live.block
+	if be.kind == docmd.CodeBlock {
+		return
+	}
 	sel := be.ed.Selection()
 	start, end := sel.Start(), sel.End()
 	text := be.ed.Buffer.Slice(start, end)
@@ -66,6 +70,9 @@ func (a *App) docInsertTemplate(tab *Tab, st *docViewState, before, after string
 		return
 	}
 	be := st.live.block
+	if be.kind == docmd.CodeBlock {
+		return
+	}
 	if be.proj.Active() {
 		a.commitDocBlock(tab, st)
 		be = st.live.block
