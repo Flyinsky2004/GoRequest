@@ -302,8 +302,14 @@ func TestM01ActiveListThemeScreenshots(t *testing.T) {
 				if len(w.rows[1].layout.Lines()) < 2 {
 					t.Fatal("wrapping was not exercised")
 				}
-				if w.rows[1].x != w.rows[2].x {
-					t.Fatalf("continuation loses native indentation: %v vs %v", w.rows[1].x, w.rows[2].x)
+				continuation := strings.Index(w.view.Text, "续行内容")
+				if continuation < 0 || continuation >= ui.UTF16ByteOffset(w.view.Text, w.rows[1].end) || w.rows[1].sourceLine != 1 {
+					t.Fatal("soft continuation is not in the nested item's native layout")
+				}
+				for _, line := range w.rows[1].layout.Lines() {
+					if line.Rect.X < 0 {
+						t.Fatal("wrapped continuation escapes the item gutter")
+					}
 				}
 				saveM01Image(t, tt, filepath.Join(dir, fmt.Sprintf("%v-%d-%dx%d-active.png", dark, percent, window[0], window[1])))
 			}

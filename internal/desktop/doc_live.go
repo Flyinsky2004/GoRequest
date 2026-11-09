@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/markdown"
+	"github.com/egoist/mygo/ui/markdown/parser"
 
 	"gorequest/internal/core"
 	"gorequest/internal/desktop/uikit"
@@ -56,6 +57,7 @@ type docLiveState struct {
 
 	canvasOpts *markdown.Options
 	codeBlocks map[int]*docBlockEdit
+	textBlocks map[int]*docBlockEdit
 	// keyUpIgnore is the key whose release a handled press must not handle
 	// again.
 	keyUpIgnore ui.Key
@@ -116,6 +118,12 @@ func (lv *docLiveState) blocksFor(src string) []docedit.Block {
 	if lv.parsedSrc != src || lv.parsedBlocks == nil {
 		lv.parsedSrc = src
 		lv.parsedBlocks = docedit.Parse(src)
+		for start, be := range lv.textBlocks {
+			b, ok := docedit.BlockAt(lv.parsedBlocks, start)
+			if !ok || b.Start != start || b.EditText() != be.srcBase {
+				delete(lv.textBlocks, start)
+			}
+		}
 		for start := range lv.codeBlocks {
 			b, ok := docedit.BlockAt(lv.parsedBlocks, start)
 			if !ok || b.Start != start || b.Kind != docmd.CodeBlock {
@@ -261,6 +269,10 @@ func (a *App) docCanvasRenderedBlock(c *ui.Context, t *ui.Theme, p uikit.Palette
 		a.docCanvasSourceBlock(c, t, p, tab, st, b, dm)
 		return
 	}
+	if docSharedTextBlock(b) && len(docmention.ScanRequestLinks(tabProject(tab), b.Source)) == 0 {
+		a.docCanvasTextBlock(c, t, tab, st, dm, a.docCachedTextBlock(t, tab, st, b), false)
+		return
+	}
 	row := ui.Column(c).FillWidth().Padding(2, 8).Radius(4).Key(fmt.Sprintf("doc-block:%d", b.Start))
 	if row.Hovered() {
 		row.Background(p.Hover)
@@ -364,25 +376,59 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 		a.docCanvasCodeBlock(c, t, tab, st, docedit.Block{}, be)
 		return
 	}
-	// The editor must be keyed by an element around it, not by Key on the
-	// editor itself: editor.View reads its focus at the start of its build,
-	// before a Key applied to the returned element would give it the id
-	// Focus sets. A Key after the build would leave the editor reading a
-	// different node's focus every frame, so its caret never drew. The
-	// keyed host keeps the editor's own id stable across frames, so Focus
-	// and Focused agree and the real caret shows.
-	host := ui.Column(c).FillWidth().Padding(2, 8).Key("doc-canvas-editor-host")
+	a.docCanvasTextBlock(c, t, tab, st, dm, be, true)
+	if st.live.slashOpen {
+		a.docSlashMenu(c, t, tab, st, dm)
+	}
+}
+
+func docSharedTextBlock(b docedit.Block) bool {
+	if !(b.Kind == docmd.Paragraph || b.Kind == docmd.Heading || ((b.Kind == docmd.List || b.Kind == docmd.Quote) && docedit.NewProjection(b).Active())) {
+		return false
+	}
+	// Object inlines still belong to the Markdown renderer; do not replace
+	// images, HTML or math with their source spelling in an idle canvas.
+	d := parser.Parse(docedit.NewProjection(b).Text())
+	for i := 0; i < d.Len(); i++ {
+		for _, n := range d.Inlines(i) {
+			switch n.Kind {
+			case parser.Image, parser.HTML, parser.Math, parser.FootnoteRef:
+				return false
+			case parser.Text:
+				if n.Start >= 0 && n.End <= len(d.Source()) && n.Text != d.Source()[n.Start:n.End] {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+func (a *App) docCachedTextBlock(t *ui.Theme, tab *Tab, st *docViewState, b docedit.Block) *docBlockEdit {
+	lv := docLiveFor(st)
+	if lv.textBlocks == nil {
+		lv.textBlocks = map[int]*docBlockEdit{}
+	}
+	be := lv.textBlocks[b.Start]
+	if be == nil || be.srcBase != b.EditText() {
+		be = &docBlockEdit{}
+		be.adopt(b)
+		be.ed = a.newDocBlockEditor(t, tab, st, be, be.base)
+		lv.textBlocks[b.Start] = be
+	}
+	return be
+}
+func (a *App) docCanvasTextBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *docViewState, dm *docLiveMessages, be *docBlockEdit, active bool) {
+	a.syncDocBlockTheme(be, t)
+	// Idle and active frames use the same keyed host and native text
+	// children. Focus adds input/selection/caret only, never a new measure.
+	host := ui.Column(c).FillWidth().Padding(2, 8).Key(fmt.Sprintf("doc-block:%d", be.start))
 	if be.kind == docmd.Quote && be.proj.Active() {
-		p := uikit.PaletteFor(t)
-		host.BorderWidth(0, 0, 0, 3).BorderColor(p.Hairline).Padding(0, 10)
+		th := a.docMarkdownTheme(t)
+		host.BorderWidth(0, 0, 0, th.QuoteBarWidth).BorderColor(th.QuoteBar).Padding(2, 8, 2, 8+th.FontSize*0.85)
 	}
 	host.Children(func() {
 		var view ui.Element
-		richNeeded := be.rich != nil || be.kind == docmd.List
-		if !richNeeded {
-			inline := docedit.NewInlineView(be.ed.Buffer.String())
-			richNeeded = inline.Text != inline.Source
-		}
+		richNeeded := true
 		if be.kind == docmd.List && !be.proj.Active() {
 			ui.Text(c, dm.SourceBlock).FontSize(11).TextColor(t.TextMuted)
 			richNeeded = false
@@ -393,9 +439,13 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 				be.rich = &docRichInput{ed: be.ed}
 			}
 			w := be.rich
+			w.idle = !active
 			w.font = be.ed.Font
 			w.font.LineHeight = be.ed.LineHeight
 			w.theme = a.docMarkdownTheme(t)
+			if be.kind == docmd.Quote {
+				w.theme.Text = w.theme.QuoteText
+			}
 			w.literal = be.kind == docmd.CodeBlock
 			if be.kind == docmd.List && be.proj.Active() {
 				key := be.srcBase + "\x00" + be.ed.Buffer.String()
@@ -414,7 +464,11 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 			if be.initialClick != nil {
 				w.width = max(1, be.initialWidth-16)
 			}
-			view = w.element(c, "doc-canvas-editor")
+			label := "doc-canvas-editor"
+			if !active {
+				label = fmt.Sprintf("doc-text:%d", be.start)
+			}
+			view = w.element(c, label)
 			if be.initialClick != nil {
 				pt := *be.initialClick
 				pt.X -= 8
@@ -426,7 +480,7 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 		} else {
 			view = editor.View(c, be.ed).FillWidth()
 		}
-		if be.focusPending {
+		if active && be.focusPending {
 			view.Focus()
 			be.focusPending = false
 			// Focus takes effect on the next frame, when the editor first
@@ -434,13 +488,39 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 			// not wait for the next keystroke.
 			c.Invalidate()
 		}
-		view.Label("doc-canvas-editor")
-		if be.rich != nil {
+		if active {
+			view.Label("doc-canvas-editor")
+		}
+		if active && be.rich != nil {
 			a.docRichMentionMenu(c, t, tab, st, be)
 		}
 	})
-	if st.live.slashOpen {
-		a.docSlashMenu(c, t, tab, st, dm)
+	b := docedit.Block{Start: be.start, Kind: be.kind}
+	host.Label(docBlockLabel(b))
+	if be.kind == docmd.Heading {
+		th := a.docMarkdownTheme(t)
+		h := th.Headings[max(0, min(5, be.level-1))]
+		if h.Rule {
+			host.BorderWidth(0, 0, 1, 0).BorderColor(th.Rule).Padding(2, 8, 2+th.FontSize*0.3, 8)
+		}
+	}
+	if !active && host.Clicked() {
+		x, y, _ := host.PointerPosition()
+		a.commitDocBlock(tab, st)
+		st.live.block = be
+		st.live.slashOpen = false
+		st.live.slashMode = 0
+		st.live.slashIndex = 0
+		st.live.slashDismissed = ""
+		st.live.slashDismissedSet = false
+		be.focusPending = true
+		if be.rich != nil {
+			// PointerPosition is host-relative. Convert through the painted
+			// text bounds so borders, quote gutters and padding are counted once.
+			box := host.Bounds()
+			index, _ := be.rich.IndexForPoint(ui.Point{X: box.X + x - be.rich.bounds.X, Y: box.Y + y - be.rich.bounds.Y})
+			be.rich.selectVisible(index, index)
+		}
 	}
 }
 

@@ -23,6 +23,7 @@ type docRichRow struct {
 	markerX       float32
 	markerLayout  *ui.TextLayout
 	task, checked bool
+	sourceLine    int
 }
 type docRichInput struct {
 	ed               *editor.State
@@ -31,10 +32,13 @@ type docRichInput struct {
 	font             ui.Font
 	theme            *markdown.Theme
 	width, height    float32
+	bounds           ui.Rect
 	align            ui.Align
 	prefixes         []docedit.ListLine
 	literal          bool
 	viewLiteral      bool
+	viewPrefixes     []docedit.ListLine
+	idle             bool
 	changed          func()
 	structure        func(ui.InputEvent) bool
 	beforeReplace    func(string) bool
@@ -88,14 +92,19 @@ func (w *docRichInput) refresh() {
 		return
 	}
 	src := w.ed.Buffer.String()
-	if src == w.view.Source && w.view.Runs != nil && w.literal == w.viewLiteral {
+	if src == w.view.Source && w.view.Runs != nil && w.literal == w.viewLiteral && slices.Equal(w.prefixes, w.viewPrefixes) {
 		return
 	}
 	w.viewLiteral = w.literal
+	w.viewPrefixes = slices.Clone(w.prefixes)
 	if w.literal {
 		w.view = docedit.InlineView{Source: src, Text: src, Runs: []docedit.InlineRun{{End: len(src), SourceEnd: len(src)}}}
 	} else {
-		w.view = docedit.NewInlineView(src)
+		if len(w.prefixes) > 0 {
+			w.view = docedit.NewListInlineView(src, w.prefixes)
+		} else {
+			w.view = docedit.NewInlineView(src)
+		}
 	}
 }
 func (w *docRichInput) display() string {
@@ -136,7 +145,23 @@ func (w *docRichInput) layout(width float32) {
 	}
 	depthWidths := map[int]float32{}
 	byteStart, units := 0, 0
-	for i, line := range strings.Split(text, "\n") {
+	lines := strings.Split(text, "\n")
+	if len(w.prefixes) == 0 {
+		lines = []string{text}
+	}
+	for _, line := range lines {
+		sourceByte := byteStart
+		if w.marked {
+			a, b := ui.UTF16ByteOffset(w.view.Text, w.mark.Start), ui.UTF16ByteOffset(w.view.Text, w.mark.End)
+			if sourceByte > a {
+				if sourceByte < a+len(w.preedit) {
+					sourceByte = a
+				} else {
+					sourceByte += b - a - len(w.preedit)
+				}
+			}
+		}
+		i := strings.Count(w.view.Source[:w.view.SourceOffset(sourceByte)], "\n")
 		var runs []ui.Span
 		offset := 0
 		for _, sp := range spans {
@@ -151,7 +176,7 @@ func (w *docRichInput) layout(width float32) {
 		if len(runs) == 0 {
 			runs = []ui.Span{{Text: line}}
 		}
-		row := docRichRow{start: units, end: units + ui.UTF16Len(line), y: w.height}
+		row := docRichRow{start: units, end: units + ui.UTF16Len(line), y: w.height, sourceLine: i}
 		if i < len(w.prefixes) {
 			meta := w.prefixes[i]
 			row.marker = meta.Marker
@@ -179,7 +204,7 @@ func (w *docRichInput) layout(width float32) {
 					row.markerX = row.x - gutter + (gutter-w.font.Size*0.5-markerWidth)/2
 				}
 			}
-			if i > 0 && meta.Marker != "" && meta.GapBefore && strings.TrimSpace(strings.Split(text, "\n")[i-1]) != "" {
+			if i > 0 && meta.Marker != "" && meta.GapBefore && strings.TrimSpace(strings.Split(w.view.Source, "\n")[i-1]) != "" {
 				gap := w.theme.ItemSpacing
 				if meta.Loose {
 					gap = w.theme.BlockSpacing
@@ -217,7 +242,18 @@ func (w *docRichInput) selection() (int, int) {
 }
 func (w *docRichInput) selectVisible(a, b int) {
 	text := w.view.Text
-	w.ed.Select(w.view.SourceOffset(ui.UTF16ByteOffset(text, a)), w.view.SourceOffset(ui.UTF16ByteOffset(text, b)))
+	va, vb := ui.UTF16ByteOffset(text, a), ui.UTF16ByteOffset(text, b)
+	if a == b {
+		off := w.view.SourceOffset(va)
+		w.ed.Select(off, off)
+		return
+	}
+	start, end := w.view.SourceRange(min(va, vb), max(va, vb))
+	if a > b {
+		w.ed.Select(end, start)
+	} else {
+		w.ed.Select(start, end)
+	}
 }
 func (w *docRichInput) replace(r ui.TextInputRange, text string) {
 	if w.beforeReplace != nil && w.beforeReplace(text) {
@@ -340,9 +376,9 @@ func (w *docRichInput) input(c ui.Services, ev ui.InputEvent) bool {
 		return false
 	} // candidate keys belong to native input services
 	if ev.Kind == ui.InputPointerDown && ev.Button == 0 {
-		for i, row := range w.rows {
+		for _, row := range w.rows {
 			if row.task && ev.Y >= row.y && ev.Y < row.y+row.h && ev.X < row.x && w.toggleTask != nil {
-				w.toggleTask(i)
+				w.toggleTask(row.sourceLine)
 				return true
 			}
 		}
@@ -532,20 +568,69 @@ func (w *docRichInput) boundary(at, dir int) int {
 	}
 	return at
 }
+
+// docRichLayoutObserve is a test-only observer of final paint geometry.
+var docRichLayoutObserve func(*docRichInput, ui.Rect)
+
 func (w *docRichInput) element(c *ui.Context, label string) ui.Element {
-	e := ui.Box(c).FillWidth().Focusable().Role(ui.RoleTextField).Label(label)
+	paragraph := len(w.prefixes) == 0
+	var e ui.Element
+	if paragraph {
+		w.refresh()
+		e = ui.Column(c).FillWidth().Children(func() {
+			ui.RichText(c, w.styledSpans()...).FillWidth().MinHeight(w.font.Size * w.font.LineHeight).Font(w.font.Family).FontSize(w.font.Size).FontWeight(w.font.Weight).LineHeight(w.font.LineHeight).TextAlign(w.align).TextColor(w.theme.Text)
+		})
+	} else {
+		e = ui.Column(c).FillWidth()
+	}
+	e = e.Label(label)
+	if !w.idle {
+		e = e.Focusable().Role(ui.RoleTextField)
+	}
 	width := e.Bounds().W
 	if width <= 0 {
 		width = w.width
 	}
 	if width <= 0 {
-		width = 600
+		width = 1
 	}
 	w.layout(width)
 	services := c.Services()
-	e.Height(w.height).HandleTextInput(w).HandleInput(func(ev ui.InputEvent) bool { return w.input(services, ev) })
+	if !paragraph {
+		e.Children(func() {
+			spans := w.styledSpans()
+			bottom := float32(0)
+			for _, row := range w.rows {
+				a, b := ui.UTF16ByteOffset(w.display(), row.start), ui.UTF16ByteOffset(w.display(), row.end)
+				var runs []ui.Span
+				offset := 0
+				for _, sp := range spans {
+					start, end := max(a, offset), min(b, offset+len(sp.Text))
+					if end > start {
+						cp := sp
+						cp.Text = sp.Text[start-offset : end-offset]
+						runs = append(runs, cp)
+					}
+					offset += len(sp.Text)
+				}
+				ui.RichText(c, runs...).FillWidth().PaddingStart(row.x).Margin(row.y-bottom, 0, 0, 0).MinHeight(w.font.Size * w.font.LineHeight).Font(w.font.Family).FontSize(w.font.Size).FontWeight(w.font.Weight).LineHeight(w.font.LineHeight).TextColor(w.theme.Text)
+				bottom = row.y + row.h
+			}
+		})
+	}
+	if !w.idle {
+		e.HandleTextInput(w).HandleInput(func(ev ui.InputEvent) bool { return w.input(services, ev) })
+	}
 	e.Draw(func(p *ui.Painter, b ui.Rect) {
+		w.layout(b.W)
+		w.bounds = b
+		if docRichLayoutObserve != nil {
+			docRichLayoutObserve(w, b)
+		}
 		a, z := w.selection()
+		if w.idle {
+			a, z = 0, 0
+		}
 		rg := ui.TextInputRange{Start: min(a, z), End: max(a, z)}
 		for _, r := range w.rows {
 			for _, rect := range r.layout.SelectionRects(ui.TextInputRange{Start: max(0, rg.Start-r.start), End: max(0, min(r.end-r.start, rg.End-r.start))}) {
@@ -558,9 +643,8 @@ func (w *docRichInput) element(c *ui.Context, label string) ui.Element {
 			if r.markerLayout != nil {
 				p.TextLayout(r.markerLayout, b.X+max(0, r.markerX), b.Y+r.y, w.theme.Muted)
 			}
-			p.TextLayout(r.layout, b.X+r.x, b.Y+r.y, w.theme.Text)
 		}
-		if e.Focused() {
+		if !w.idle && e.Focused() {
 			caret := w.caret(z)
 			caret.X += b.X
 			caret.Y += b.Y
