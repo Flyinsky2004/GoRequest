@@ -1358,3 +1358,14 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 
 方案/共同基线提交 `9f88d29dafd3577899e7c64ae107203b29cad5c6`；worktree 已从该提交建立。通过 `herdr-app do tab.new` 在 GoRequest Space 启动交互式 `codex --no-daemon -a never -s danger-full-access`（沿用默认模型，未改全局配置）。Tab `tb6460f9de62c1242954497fcb7a32ed33`，terminal `t65`，标签「M01 Typora式编辑修复」。hc 已确认 cwd 正确、app=codex、working，首屏可见完整初始任务；任务已送达。代码实现/测试/提交待该代理交付，未集成、未勾完成。
 
+### 47.2 main 集成验证与清理完成
+
+用户明确要求合并 main、清理旧分支和 agent。main 从 `1028463` 以 no-ff 合并来源头 `36d886b`，合并提交 `3c60d09`；包括实现 `a97da79`、gutter 修正 `ae2f660`、交付报告 `36d886b`。唯一冲突是本账本，保留来源交付证据及主线 §47.1 启动记录。
+
+- [x] M01 已交付实现的 main 集成和本轮自动化验证完成；不是完整 B09 或所有编辑语法/实机验收完成。
+- main 本轮 `go test ./...` 无 skip 全部通过（desktop 40.453s）；`go build ./...`、`go vet ./...` 通过。
+- `go test -race ./internal/docedit ./internal/doctable` 全部通过；desktop 专项 `go test -race ./internal/desktop -run 'TestM01|TestDocTable|TestAuthoringIntegratedTableEditUndo|TestDocCanvasSlashOffset|TestDocCanvasCrossLine' -count=1` 通过（17.441s）。没有据此声称全仓 race 或真实 IME 通过。
+- 确认来源 worktree 干净、头不变、提交均为 main 祖先后，精确关闭 M01 Tab `tb6460f9de62c1242954497fcb7a32ed33`；确认 `t65` finished 后 `hc rm t65`。非 force 移除 worktree `/private/tmp/gorequest-M01-20261109`，以 `git branch -d` 删除已合并分支 `codex/M01-typora-live-editing`。当前只保留 main 和主 worktree。其他项目/用户会话未操作。
+- 用户 dev.yaml/document.md SHA-256 与本次合并开始一致，保留未提交状态。未 push、部署、重启应用或运行安装器。
+
+真实中文 IME/三平台交互待验收；复杂嵌入块列表仍保真回退源码，reference link/图片等边界见交付报告。第47节原始完整目标保持未勾，避免将部分交付或自动化验证误写为所有用户体验已验收。

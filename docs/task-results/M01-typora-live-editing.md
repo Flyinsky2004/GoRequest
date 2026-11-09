@@ -1,6 +1,6 @@
 # M01 实施记录
 
-负责人：当前 Herdr Codex 会话。分支 `codex/M01-typora-live-editing`，worktree `/private/tmp/gorequest-M01-20261109`，实际代码基线 `9f88d29dafd3577899e7c64ae107203b29cad5c6`。未集成、未实机验收。
+负责人：当前 Herdr Codex 会话。分支 `codex/M01-typora-live-editing`，worktree `/private/tmp/gorequest-M01-20261109`，实际代码基线 `9f88d29dafd3577899e7c64ae107203b29cad5c6`。以下为来源交付时记录；后续 main 集成状态见文末。
 
 ## 复现与 API 选择（实现前确认）
 
@@ -72,3 +72,9 @@
 - CRLF 与无最终换行已测试；混合换行风格沿用现有 canonical editor 的行尾策略，未增加逐行混合行尾存储。
 - 新控件是有界文档适配层，未替换源码模式的完整 code-editor 功能；跨块复杂选区、完整 bidi 视觉亲和选区、图片对象编辑仍不在本轮已验证范围。
 - 所有用户示例数据、主仓库 dev.yaml/document.md/debug 文件、全局配置、Go module cache 均未修改。没有启动子代理。
+
+## 集成人后续记录（2026-11-09）
+
+已按用户要求通过 `3c60d09` 合入 main，来源头 `36d886b`。main 上无 skip 的 `go test ./...`（desktop 40.453s）、build/vet 全部通过；docedit/doctable 全套 race 与 desktop M01/表格/画布专项 race（17.441s）通过。未运行全仓 race。账本冲突保留启动和交付证据。
+
+M01 Herdr tab 已关闭，`t65` 确认 finished 后移除记录；干净且已合并的来源 worktree 与分支已非 force 删除。只保留 main/主 worktree。用户未提交文件摘要不变，其他会话未操作，未 push 或重启应用。以上来源报告的“未集成/保持会话”状态由本节更新；实机 IME/三平台与已列功能限制仍有效，完整目标不勾验收完成。
