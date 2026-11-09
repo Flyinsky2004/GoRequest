@@ -1457,3 +1457,15 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - 中英文/emoji Backspace/Delete、正反选区替换、实际反向拖选、Ctrl/Cmd+Z 和 Shift 重做、逐帧选区/原生 caret 几何及像素、多次 undo/redo、相同变化不同原 caret、新输入清 redo、跨块/合并、源码模式和 native/rich IME 活动 preedit 直接确认均有自动化证据。
 - 最终 `go test ./internal/docedit ./internal/doctable ./internal/desktop -count=1` 通过（0.128s/0.107s/42.398s）；build/vet exit 0；docedit/doctable race 通过（1.360s/1.328s），M04/M01–M03核心/表格/跨行/slash 专项 race 通过（31.545s）；强化 IME 确认后普通专项通过（0.870s），M04 全套 race 再通过（7.927s）。精确命令、日志、选型及限制见报告；无 skip，未声称全仓 race 或实机验收。
 - 审 diff/staged 和 whitespace 检查通过，只本地提交本卡文件。会话保持交互；未 merge/main、push、部署、重启应用，未改全局配置/依赖/模块缓存，未操作主目录用户数据/debug 或其他会话。集成人后续复核及实机验收，不据此勾选 M04/完整 B09。
+
+### 50.3 main 集成验证与清理完成
+
+用户要求合并 main、清理旧分支和 agent。main 从 `74030e8` 以 no-ff 合入来源头 `2a311c4`，合并提交 `c45afc6`，含实现 `4783c7f`、强化 IME 测试 `7a17822`、交付报告 `2a311c4`。唯一冲突在账本，保留启动与交付证据，将来源交付顺延为 §50.2。
+
+- [x] M04 已交付实现的 main 集成与自动化验证完成，不表示完整 B09/实机 IME/三平台验收完成。
+- main `go test ./...` 无 skip 全通过（desktop 42.860s）；`go build ./...`、`go vet ./...` 通过。
+- `go test -race ./internal/docedit ./internal/doctable -count=1` 通过（1.565s/1.541s）；`go test -race ./internal/desktop -run 'TestM04|TestM03(Readme|SoftBreak|Scroll|Critical|Native|Inline|List)|TestM02|TestM01|TestDocTable|TestAuthoringIntegratedTableEditUndo|TestDocCanvasUndo|TestDocCanvasSlashOffset|TestDocCanvasCrossLine' -count=1` 通过（33.180s）。未运行全仓 race，也未无必要重跑完整截图矩阵专项race。
+- 来源 worktree 干净、头 `2a311c4` 不变且已是 main 祖先、agent idle 后，精确关闭 M04 Tab `tbe38757bf0dc131c0b9d32459e4df081f`；确认 `t6b` finished 后移除记录。非 force 删除 `/private/tmp/gorequest-M04-20261109` 和已合并分支 `codex/M04-undo-caret`。当前只保留 main/主 worktree，其他用户/项目会话未操作。
+- 用户 dev.yaml、document.md、debug 二进制摘要均与本次合并开始一致，保留未提交状态，未纳入提交。未 push、部署、重启应用或运行安装器。
+
+未知事务或超过512条元数据的旧历史仍按实际源变化定位，不能恢复未知的原定向选区；真实 IME/三平台及既有复杂对象编辑范围仍待验收，完整目标不勾通过。
