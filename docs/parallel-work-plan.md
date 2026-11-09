@@ -1342,3 +1342,12 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 清理前复核五来源工作区干净、八来源头与登记一致且均为main祖先、五个终端done/idle且tab归属匹配。精确关闭N01 `t5z` / N02 `t60` / N03 `t61` / N04 `t62` / N05 `t63` 的 §45.1 标签页，逐条确认hc finished后rm。非force移除五来源worktree与分支、旧U32/U35/U36三条已合并分支，最后移除干净且已并入main的集成worktree/分支；共六个worktree、九条分支，现只保留main/主worktree。
 
 其他用户终端 `t1h/t2s/t4q/t5c` 和 Proxy-Rules `t4k` 未动。用户dev.yaml/document.md摘要与本轮开始一致，仍作为未提交用户修改保留。本批五项阶段已集成并完成必要自动化验证；人工实机、三平台及各主卡未交付部分仍未勾通过。清理精确句柄见 [集成报告](task-results/integration-N01-N05-2026-11-09.md)，本机cleanup.json/sources-cleaned.json保留证据；未push。
+
+
+## 47. M01：Typora 式渲染编辑一致性（2026-11-09）
+
+用户要求通过 Herdr 开一个 Codex，先由主代理逐项制定实施方案再让 agent 修改。已读取 Herdr AGENTS/hc 手册、当前账本和代码；派工前 main `a1c06ae`，用户 dev.yaml/document.md 和 debug 产物不属于本卡。
+
+- [ ] M01 / Herdr Codex：`codex/M01-typora-live-editing`，实际 worktree `/private/tmp/gorequest-M01-20261109`。归属 `internal/docedit/`、desktop doc_live/doc_table/文档样式相关文件及必要测试/原生编辑适配层；单代理串行，无其他本轮开发者竞争公共文件。
+- 详细实施方案：[M01](task-briefs/M01-typora-live-editing.md)，包含列表和inline内容投影、真实可见样式编辑、canonical buffer/偏移/IME/undo保护、表格共用主题与尺寸、逐项验收。
+- 状态：方案已完成，准备从本登记提交创建 worktree 并在 GoRequest Space 新建 Codex 标签；启动句柄/实际共同基线后续补记。来源提交和本轮验证待交付；不得据此勾完整B09或实机验收。不push，不改用户数据。
