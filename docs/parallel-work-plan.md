@@ -1276,3 +1276,23 @@ U36 已从 `9d9c724` 启动，terminal `t5y`、tab `tb22e5a2a9bb459cd71adeca6bb8
 已关闭本轮五个 Herdr 标签页并结束 `t5t`、`t5v`、`t5w`、`t5x`、`t5y`，清理其终端记录；其他项目/用户终端未动。逐一确认工作区干净后，以非 force 方式移除本轮七个 worktree；删除已合入 main 的 U33、U34、integration 与 raw-results 分支。
 
 清理时发现 U32、U35、U36 来源分支有 main 尚未包含的补充提交：`cd82d47`（提示对比度像素测试）、`d22ae13`（更新草稿指纹/文档刷新）、`953723e`（存储界限文档）。这些分支保留，未强删、未在清理任务中擅自合并；工作区已移除，提交可从原分支访问。主工作区用户数据不纳入提交。
+
+## 45. N01–N05：正式版补齐五路 CC（2026-11-09）
+
+用户要求：通过 Herdr 打开五个 Claude Code，主代理为当前模型提供完善实施方案。已读取 `~/.config/herdr-app/AGENTS.md`、hc 手册与当前账本。派工前代码 `3bed514`，main 只有用户 dev.yaml 修改及未跟踪 document.md；已有三个未合并 U32/U35/U36 补充分支保留，不在本批擅自合并/删除。
+
+主代理本轮实际验证 `go build ./...`、`go vet ./...` 通过；不 skip 的全仓测试仅四项既有失败（desktop 31.859s）：Mock ID 建议、Runner 断言描述、Suite 提取注释、diagnostics 生产预检。静态进一步核对发现断言计数/索引、Mock taken 集合和生产 GET 测试夹具有契约错配线索，不能将四项一律认定为生产缺陷；N01 负责证据化修复，不弱化安全规则。
+
+共同约束：[next5-common-20261109](task-briefs/next5-common-20261109.md)。所有来源从本登记提交作为实际共同基线创建；精确基线、终端/tab 与首屏确认由 §45.1 补记。沿用当前 CC 默认模型，禁止改全局配置。每卡先读详细实施方案并实际验证、本地 commit、交本卡报告；不派子代理、不 merge/push、不操作其他会话、不访问真实 Secret/生产目标。五条线均是独立阶段交付，不能直接勾完整主卡。
+
+| ID / 负责人 | 分支 / 实际 worktree | 归属与实施方案 | 状态 |
+| --- | --- | --- | --- |
+| N01 / CC | `cc/N01-release-regressions` / `/private/tmp/gorequest-next5-20261109/regressions` | 四项失败根因和契约修复；Runner旧编辑器、Mock规则编辑器、diagnostics预检相关最小修正；[方案](task-briefs/N01-release-regressions.md) | 已规划，待启动 |
+| N02 / CC | `cc/N02-suite-editor` / `/private/tmp/gorequest-next5-20261109/suite-editor` | A02-phase3：新 Suite 可视化创建/步骤/依赖/排序/数据配置与预览、安全保存；新 suiteedit包与suite_editor文件；[方案](task-briefs/N02-suite-editor.md) | 已规划，待启动 |
+| N03 / CC | `cc/N03-mock-runner` / `/private/tmp/gorequest-next5-20261109/mock-runner` | C01-phase3：Mock受控启动/变量注入/Runner/取消回收，独占runner.go/runner_snapshot.go与专属Mock生命周期；[方案](task-briefs/N03-mock-runner.md) | 已规划，待启动 |
+| N04 / CC | `cc/N04-graphql-http` / `/private/tmp/gorequest-next5-20261109/graphql` | P02-phase1：GraphQL Query/Mutation存储/原生编辑/发送/结果分类；独占必要Core协议模型/构建和tab接线；唯一go.mod/go.sum写入者，只允许固定gqlparser v2.5.64；[方案](task-briefs/N04-graphql-http.md) | 已规划，待启动 |
+| N05 / CC | `cc/N05-go-sdk` / `/private/tmp/gorequest-next5-20261109/go-sdk` | C04-phase2：OpenAPI驱动Go SDK、确定性输出/manifest/差异预览/手工文件保护与原生入口；新sdkgen/sdk模块；[方案](task-briefs/N05-go-sdk.md) | 已规划，待启动 |
+
+公共 app/workspace/manager/project_state/i18n、runner_ui由集成人统一接线，来源交最小integration.patch。N02和N03的Runner UI patch分别限制在编排入口与Mock配置区，不能整文件替换；N04模型文件的直接写入为本批明确单一归属例外，其余来源只读。N04不改Runner启动/快照，未接入的协议自动化必须明确拒绝，不能按HTTP200假通过；N05不改Snippet/OpenAPI引擎。N01修旧编辑器，N02新编排模块，不交叉写。
+
+必要检查为build/vet/专项测试与race、不skip普通全仓测试；其他卡只能记录上述四项旧失败，N01可依契约修fixture但不得删除断言/skip。真实窗口/三平台未验收必须明记。生产入口patch须临时应用验证，集成人后续审阅/集成/验收，本次授权为启动与开发，不据此执行push/部署。
