@@ -1377,3 +1377,7 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - [ ] M02 / Herdr Codex；分支 `codex/M02-code-block-editing`，计划实际 worktree `/private/tmp/gorequest-M02-20261109`，从本方案登记提交创建。起点 main `f6cd400`，用户示例数据和debug产物不动。
 - [实施方案](task-briefs/M02-code-block-editing.md)：原生代码编辑器分流、共用代码容器与主题/高亮、缩进与长行滚动/光标定位、围栏碰撞与源范围保护、真实入口测试和视觉对照。归属 doc_live 代码块分流、新增代码编辑适配及必要 docedit/测试；单代理，无公共文件并行竞争，不重做已认可列表/表格。
 - 状态：方案完成，准备启动。实际基线/句柄后补；来源提交/验证/集成/实机验收待交付。
+
+### 48.1 启动确认
+
+实际共同基线 `bfbaa39`，分支/worktree 已按 §48 创建。GoRequest Space 新建标签「M02 代码块编辑体验」，Tab `tb0d797b06055370abc1e28ba9a16c1aa0`，terminal `t68`。通过 `codex --no-daemon -a never -s danger-full-access` 启动，沿用默认模型，未修改全局配置。hc 已确认 cwd 正确、app=codex、working，首屏完整任务已送达。功能修改和验证仍待交付，不据启动状态勾完成。
