@@ -1287,11 +1287,11 @@ U36 已从 `9d9c724` 启动，terminal `t5y`、tab `tb22e5a2a9bb459cd71adeca6bb8
 
 | ID / 负责人 | 分支 / 实际 worktree | 归属与实施方案 | 状态 |
 | --- | --- | --- | --- |
-| N01 / CC | `cc/N01-release-regressions` / `/private/tmp/gorequest-next5-20261109/regressions` | 四项失败根因和契约修复；Runner旧编辑器、Mock规则编辑器、diagnostics预检相关最小修正；[方案](task-briefs/N01-release-regressions.md) | 已领取/实现中，见 §45.1 |
-| N02 / CC | `cc/N02-suite-editor` / `/private/tmp/gorequest-next5-20261109/suite-editor` | A02-phase3：新 Suite 可视化创建/步骤/依赖/排序/数据配置与预览、安全保存；新 suiteedit包与suite_editor文件；[方案](task-briefs/N02-suite-editor.md) | 已领取/实现中，见 §45.1 |
-| N03 / CC | `cc/N03-mock-runner` / `/private/tmp/gorequest-next5-20261109/mock-runner` | C01-phase3：Mock受控启动/变量注入/Runner/取消回收，独占runner.go/runner_snapshot.go与专属Mock生命周期；[方案](task-briefs/N03-mock-runner.md) | 已领取/实现中，见 §45.1 |
-| N04 / CC | `cc/N04-graphql-http` / `/private/tmp/gorequest-next5-20261109/graphql` | P02-phase1：GraphQL Query/Mutation存储/原生编辑/发送/结果分类；独占必要Core协议模型/构建和tab接线；唯一go.mod/go.sum写入者，只允许固定gqlparser v2.5.64；[方案](task-briefs/N04-graphql-http.md) | 已领取/实现中，见 §45.1 |
-| N05 / CC | `cc/N05-go-sdk` / `/private/tmp/gorequest-next5-20261109/go-sdk` | C04-phase2：OpenAPI驱动Go SDK、确定性输出/manifest/差异预览/手工文件保护与原生入口；新sdkgen/sdk模块；[方案](task-briefs/N05-go-sdk.md) | 已领取/实现中，见 §45.1 |
+| N01 / CC | `cc/N01-release-regressions` / `/private/tmp/gorequest-next5-20261109/regressions` | 四项失败根因和契约修复；Runner旧编辑器、Mock规则编辑器、diagnostics预检相关最小修正；[方案](task-briefs/N01-release-regressions.md) | 阶段已集成验证，见 §46.1 |
+| N02 / CC | `cc/N02-suite-editor` / `/private/tmp/gorequest-next5-20261109/suite-editor` | A02-phase3：新 Suite 可视化创建/步骤/依赖/排序/数据配置与预览、安全保存；新 suiteedit包与suite_editor文件；[方案](task-briefs/N02-suite-editor.md) | 阶段已集成验证，见 §46.1 |
+| N03 / CC | `cc/N03-mock-runner` / `/private/tmp/gorequest-next5-20261109/mock-runner` | C01-phase3：Mock受控启动/变量注入/Runner/取消回收，独占runner.go/runner_snapshot.go与专属Mock生命周期；[方案](task-briefs/N03-mock-runner.md) | 阶段已集成验证，见 §46.1 |
+| N04 / CC | `cc/N04-graphql-http` / `/private/tmp/gorequest-next5-20261109/graphql` | P02-phase1：GraphQL Query/Mutation存储/原生编辑/发送/结果分类；独占必要Core协议模型/构建和tab接线；唯一go.mod/go.sum写入者，只允许固定gqlparser v2.5.64；[方案](task-briefs/N04-graphql-http.md) | 阶段已集成验证，见 §46.1 |
+| N05 / CC | `cc/N05-go-sdk` / `/private/tmp/gorequest-next5-20261109/go-sdk` | C04-phase2：OpenAPI驱动Go SDK、确定性输出/manifest/差异预览/手工文件保护与原生入口；新sdkgen/sdk模块；[方案](task-briefs/N05-go-sdk.md) | 阶段已集成验证，见 §46.1 |
 
 公共 app/workspace/manager/project_state/i18n、runner_ui由集成人统一接线，来源交最小integration.patch。N02和N03的Runner UI patch分别限制在编排入口与Mock配置区，不能整文件替换；N04模型文件的直接写入为本批明确单一归属例外，其余来源只读。N04不改Runner启动/快照，未接入的协议自动化必须明确拒绝，不能按HTTP200假通过；N05不改Snippet/OpenAPI引擎。N01修旧编辑器，N02新编排模块，不交叉写。
 
@@ -1310,3 +1310,27 @@ U36 已从 `9d9c724` 启动，terminal `t5y`、tab `tb22e5a2a9bb459cd71adeca6bb8
 | N05 | `t63` | `tbc138a3a0764f507c66fade1ae77e395b` | 同当前默认模型；目录/分支正确；working，读取方案与仓库约定 |
 
 五卡均已领取/实现中，尚无功能交付、集成或验收声明。首个prompt、精确启动返回、首屏与hc状态保存于本机 `/private/tmp/gorequest-next5-20261109/`，长期方案在 `docs/task-briefs/`。其他原有 GoRequest 和 Proxy-Rules 会话未操作。用户 dev.yaml/document.md 以启动前摘要保护；不纳入本批提交。三个旧未合并补充分支继续保留。
+
+## 46. INT-N01–N05：集成、旧分支回收与任务状态同步（2026-11-09）
+
+用户授权合并交付、清理旧分支和agent、同步任务完成状况。集成人主代理，分支 `codex/integrate-N01-N05`，worktree `/private/tmp/gorequest-next5-20261109/integration`，main起点 `5a60910`。五来源均干净，实际头为N01 `a7c2025`、N02 `c1094eb`、N03 `a67ea36`、N04 `be6e960`、N05 `01d72ac`。精确来源、会话句柄和用户文件当前摘要保存于本机 `integration-start.json`。
+
+另审查并合入上轮保留的U32 `cd82d47`（提示对比度）、U35 `d22ae13`（退出指纹）、U36 `953723e`（存储边界说明）。八分支逐项no-ff合并；唯一冲突为U36报告，保留补充的256MiB/512MiB边界和验证清单，同时保留main中已完成的原始SSE/错误输出接线说明，不恢复过时“执行器尚未接线”限制。
+
+N02/N03/N04/N05入口patch已依次check并应用，组合Runner编排/Mock配置、GraphQL新建/视图/草稿刷新、Go SDK菜单/模态。集成人继续审查、修复与完整验证；当前尚未宣称验收完成。必要检查为build/vet、不skip普通全仓测试及race；不访问真实Secret/生产服务，不push/部署/运行安装器。
+
+清理仅在来源头不变、工作区干净、提交已是main祖先后执行：精确关闭N01–N05登记tab、确认终端finished再rm，非force移除五来源与集成worktree/分支，以及三个旧已合并分支。其他用户终端与Proxy-Rules会话不动。用户dev.yaml/document.md以本轮开始摘要保护，不纳入提交。最终检查、完成边界和清理结果待后续登记。
+
+### 46.1 集成与验证完成
+
+八来源合并提交依次为 `07f31c7`、`7ff853c`、`eaef3b9`、`f64dd78`、`c3ec43e`、`38fc2af`、`1cb412a`、`8af2270`；集成人接线/修正 `0503adc`。补齐Suite草稿退出/更新保护、父子模态输入隔离、无效GraphQL草稿指纹、SDK过期预览与外部写入/回滚/symlink保护、复合Secret脱敏。
+
+- [x] N01：四项旧失败根因修复和契约回归已集成验证。
+- [x] N02：Suite编排/数据源配置首阶段开发、公共入口与自动化集成完成；实机/三平台待验收。
+- [x] N03：受控Mock/桌面Runner首阶段开发、公共入口与自动化集成完成；实机待验收。
+- [x] N04：GraphQL Query/Mutation首阶段开发、公共入口与自动化集成完成；订阅/SDL/Explorer/自动化及实机仍待后续。
+- [x] N05：Go HTTP SDK首阶段开发、公共入口与自动化集成完成；其他语言SDK/Proto/完整类型模型及实机仍待后续。
+
+上述勾选仅表示本批明确阶段的开发与集成自动化，不关闭第3节的完整A02/C01/P02/C04/R01主卡。最终build/vet与不skip普通全仓测试全通过（desktop35.343s），全仓race无skip通过（desktop146.352s，无race）；最后无效GraphQL指纹增量另以SDK/Suite/Handoff专项race通过（4.028s），随后全仓普通测试再通过。详细命令/限制见 [集成报告](task-results/integration-N01-N05-2026-11-09.md)。
+
+本轮最终main快进/打包与清理待后续节登记；不得把来源agent的done状态或本节阶段勾选视为完整正式版实机验收。

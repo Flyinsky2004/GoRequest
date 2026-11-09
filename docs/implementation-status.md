@@ -1,6 +1,20 @@
 # 实现状态与运行说明
 
-状态日期：2026-11-06。本文记录**已实现的可运行代码**，与设计基线文档（`README`、`docs/*.md`）中的未来规划分开。设计文档仍描述完整目标；本文只写实际存在、已通过验证的能力。
+状态日期：2026-11-09。本文记录**已实现的可运行代码**，与设计基线文档（`README`、`docs/*.md`）中的未来规划分开。设计文档仍描述完整目标；本文只写实际存在、已通过验证的能力。
+
+## 当前状态（N01–N05 集成更新）
+
+以下是最新实现范围，后文按日期记录的“未接线/未测试”属于当轮历史状态，不能作为当前缺口重复派工。最终组合验证和清理证据见 [N01–N05 集成报告](task-results/integration-N01-N05-2026-11-09.md)、[账本 §46](parallel-work-plan.md)。
+
+| 任务 | 当前实现与产品入口 | 保留边界 |
+| --- | --- | --- |
+| N01 发布回归 | 修复 Suite 提取编辑丢注释；修正断言计数、Mock 占用集合和生产 GET 测试夹具，保留 Core 安全策略；原四项失败已在第一轮组合测试消除 | 不以自动化代替实机验收 |
+| N02 / A02-phase3 | Runner → 编辑 Suite：新建/编辑、跨集合请求、needs/排序、CSV/JSON 数据配置和有界脱敏预览、AST 保存与摘要冲突；草稿参与关闭/退出/更新保存保护 | 不含数据单元格编辑、已有 step ID 重命名和完整结果分页；非 HTTP 自动化未支持 |
+| N03 / C01-phase3 | Runner 可显式启用受控 Mock，冻结规则/场景后绑定回环端口、注入本次 Suite、执行后关闭，取消/失败也回收；显示实际端口/摘要/释放结果 | 不导出 Mock 元数据到 JSON/JUnit；复杂 Schema 示例生成仍有范围限制 |
+| N04 / P02-phase1 | 新建 GraphQL → 独立标签：保存/重开、Document/Variables/operationName、POST Query/Mutation 与 GET Query、data/errors/部分成功分类；复用网络/鉴权/取消 | 无 Subscription/SDL Explorer/Introspection/Schema 补全；Runner/diagnostics 明确拒绝；不是完整 P02 |
+| N05 / C04-phase2 | 项目菜单 → 生成 Go SDK：显式 OpenAPI 快照、Go 标准库客户端、支持矩阵、输出预览/manifest/重复生成/人工文件和外部更改保护；过期输入/契约必须重新预览 | 首阶段仅 Go HTTP SDK 和 Raw JSON 响应；无其他语言 SDK/Proto/完整 Schema 类型生成 |
+
+本轮同时合入上轮 U32 提示对比度、U35 退出草稿指纹、U36 存储边界文档补充。新依赖只有固定 GraphQL parser `github.com/vektah/gqlparser/v2 v2.5.64`，无 MyGo/Go 版本升级。真实桌面、输入法、系统凭据/OAuth 及三平台验收仍待补，不宣称完整正式版已完成。
 
 > 变更：2026-11-05 用户决定取消独立产品 CLI（见 [ADR-009](decisions.md)）。本文反映取消后的状态：GoRequest 只有一个产品入口——MyGo 原生桌面应用。
 
@@ -150,8 +164,8 @@ FIX10与BRAND01已合并：Mock复选框参数顺序与性能诊断相关编译�
 
 ## 5. 尚未实现（保持设计计划，未宣称完成）
 
-- A02 Suite编排/数据编辑、完整结果分页等仍待补；本轮已合并断言/提取可视化编辑和结果详情，尚未编译/测试/人工验收，见§4.6。
-- GraphQL / gRPC、Mermaid原生渲染与SDK生成尚缺；WebSocket手工会话、五语言Snippet和派生文档离线导出本轮已合并但未编译/测试（见§4.6）。Mock新增规则/场景编辑器，完整主卡与性能诊断功能验证仍待补。
+- A02 已有 Suite 编排、依赖、数据源配置/预览及断言/提取编辑；数据内容编辑、完整结果分页与实机验收仍待补。
+- GraphQL Query/Mutation、受控 Mock/Runner 联动、Go HTTP SDK 首阶段已接入；仍缺 GraphQL Subscription/SDL Explorer/Introspection/自动化、gRPC、Mermaid 原生渲染、其他语言 SDK/Proto。WebSocket 手工会话、五语言 Snippet、派生文档离线导出均已进入后续构建/测试，不沿用 §4.6 的历史“未验证”状态；WebSocket 完整 Runner 调度和各模块完整主卡验收继续保留。
 - 文件夹拖拽排序及相关真实窗口验收待补。全局工作区、本地历史、最近项目管理已见 §4.1。
 - 真实窗口/三平台实机验收：macOS 顶部拖动、系统钥匙串录入与浏览器 OAuth 真实流程、系统证书/代理与原生文件保存对话框；凭据后端与高级网络设置已接入，见 §4/4.1/4.2。
 - 完整 Git 分支/提交历史/冲突解决 UI、真实远程凭据接入与人工验收；基础文件管理与 Git 状态/Diff/Commit 已实现。
