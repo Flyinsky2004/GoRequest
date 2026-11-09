@@ -1411,3 +1411,7 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - [ ] M03 / Herdr Codex，分支 `codex/M03-stable-document-layout`，worktree `/private/tmp/gorequest-M03-20261109`，起点 main `0ff698b`，实际创建基线为本方案登记提交。
 - [实施方案](task-briefs/M03-stable-document-layout.md)：softbreak/hardbreak/容器语义与源码映射、共用 idle/active 排版几何、首次点击/滚动锚点、临界折行宽度与逐帧前后位置验证；回归已认可 M01/M02 行为。单代理、无并行公共文件竞争，不触碰用户示例数据和debug产物。
 - 状态：方案已完成，准备通过 Herdr 启动 Codex；句柄/实际基线后补。实现/验证/集成/实机验收待交付，不勾完成。
+
+### 49.1 启动确认
+
+实际共同基线 `2aa2aba`，已创建登记分支/worktree。GoRequest Space 新标签「M03 编辑态排版稳定」，Tab `tbdd4eae163c0d4b56aedddab9cdefb549`，terminal `t69`。交互启动 `codex --no-daemon -a never -s danger-full-access`，附只读截图 `/private/tmp/gorequest-M03-reference.png`，沿用默认模型未改全局配置。hc 确认 cwd 正确、app=codex、working，首屏确认已读方案/账本/仓库约定且已查看截图，开始复现。实现与验收待交付。
