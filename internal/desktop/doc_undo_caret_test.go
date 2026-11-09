@@ -257,8 +257,7 @@ func TestM04NativeCodeAndComposition(t *testing.T) {
 	if tab.DocEditor.Buffer.String() != changed {
 		t.Fatal("preedit entered canonical buffer")
 	}
-	tt.Compose("", 0)
-	tt.Type("中文")
+	tt.Type("中文") // native confirmation while preedit is still active
 	tt.Frame()
 	tt.Key(ui.Cmd, ui.KeyZ)
 	tt.Frame()
@@ -332,8 +331,7 @@ func TestM04RichCompositionAndFormat(t *testing.T) {
 	if tab.DocEditor.Buffer.String() != src || tab.DocEditor.Buffer.CanUndo() {
 		t.Fatal("rich preedit entered history")
 	}
-	tt.Compose("", 0)
-	tt.Type("中文")
+	tt.Type("中文") // native confirmation while preedit is still active
 	tt.Frame()
 	tt.Key(ui.Cmd, ui.KeyZ)
 	tt.Frame()
