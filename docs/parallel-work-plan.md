@@ -1436,3 +1436,11 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - 用户 dev.yaml/document.md 摘要与开始一致；debug 二进制在验证期间发生变化，主代理未操作该文件，保留其当前未跟踪状态，未纳入提交。未 push、部署、重启应用或运行安装器。
 
 本轮验证期间用户新增“段落中间删除字后 Ctrl+Z 光标跳段首”反馈，独立后续 M04 处理；不把该新问题混入 M03 已有验收证据。
+
+## 50. M04：撤销删除后的光标恢复（2026-11-09）
+
+用户在 M03 合并验证期间新增反馈：段落中间删除一字，Ctrl+Z 撤销后光标跳首字前。主代理已定位 docBlockUndo 无条件 `be.ed.Select(0,0)`；后续修复必须正确保存/恢复操作前后选区及源码/可见偏移，不能简单保留撤销后的当前偏移。
+
+- [ ] M04 / Herdr Codex，分支 `codex/M04-undo-caret`，worktree `/private/tmp/gorequest-M04-20261109`，起点 main `d9e6a4f`，实际基线为本方案登记提交。
+- [实施方案](task-briefs/M04-undo-caret.md)：先真实按键复现，canonical单一撤销历史、前后定向选区与source映射、Ctrl/Cmd+Z和redo、中文/emoji/softbreak/inline分隔符及跨块回归。单代理，公共事务文件无其他开发者竞争。
+- 状态：方案已完成，准备通过Herdr启动；句柄/实际基线后补。用户示例数据与debug文件不动；不push，不重启应用。未集成/实机不勾通过。
