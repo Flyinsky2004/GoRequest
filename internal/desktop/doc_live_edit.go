@@ -61,6 +61,9 @@ func (a *App) syncDocBlock(tab *Tab, st *docViewState) {
 		return
 	}
 	be := lv.block
+	if be.ed != nil {
+		be.rememberCaret()
+	}
 	if be.kind == docmd.CodeBlock && be.ed != nil && docCodeComposing(be.ed) {
 		return
 	}
@@ -156,7 +159,16 @@ func (a *App) commitDocBlock(tab *Tab, st *docViewState) {
 	}
 	tab.Dirty = true
 	deltaStart, deltaEnd, replacement := docedit.MinimalChange(oldText, newText)
-	tab.DocEditor.Buffer.Edit(editor.Edit{Start: be.start + deltaStart, End: be.start + deltaEnd, Text: replacement})
+	buf := tab.DocEditor.Buffer
+	lv.carets.sync(buf)
+	before := editor.Selection{Anchor: be.start + deltaEnd, Head: be.start + deltaEnd}
+	if be.caretBefore != nil {
+		before = *be.caretBefore
+	}
+	after := editor.Selection{Anchor: be.start + srcAnchor, Head: be.start + srcHead}
+	buf.Edit(editor.Edit{Start: be.start + deltaStart, End: be.start + deltaEnd, Text: replacement})
+	lv.carets.record(buf, before, after)
+	be.caretBefore = nil
 	a.relocateDocBlockSelection(tab, st, be.start+srcAnchor, be.start+srcHead)
 }
 
@@ -466,8 +478,11 @@ func (a *App) docBlockInput(tab *Tab, st *docViewState, be *docBlockEdit, ev ui.
 	// Push the text typed so far into the canonical buffer before this event
 	// edits it, so a save or an external refresh that lands between frames
 	// sees every keystroke but the one being handled.
-	if docInputEdits(ev) && tab.DocEditor.Buffer.Len() <= 256<<10 {
-		a.commitDocBlock(tab, st)
+	if docInputEdits(ev) {
+		if tab.DocEditor.Buffer.Len() <= 256<<10 {
+			a.commitDocBlock(tab, st)
+		}
+		be.rememberCaret()
 	}
 	// The transient edit is not in the canonical buffer until the next frame.
 	// Mark the tab dirty as the key comes, so an external refresh in that
@@ -566,10 +581,10 @@ func (a *App) docBlockInput(tab *Tab, st *docViewState, be *docBlockEdit, ev ui.
 		return true
 	}
 	switch {
-	case ev.Mods == ui.Cmd && ev.Key == ui.KeyZ:
+	case (ev.Mods == ui.Cmd || ev.Mods == ui.Ctrl) && ev.Key == ui.KeyZ:
 		a.docBlockUndo(tab, st, false)
 		return true
-	case ev.Mods == (ui.Cmd|ui.Shift) && ev.Key == ui.KeyZ:
+	case (ev.Mods == (ui.Cmd|ui.Shift) || ev.Mods == (ui.Ctrl|ui.Shift)) && ev.Key == ui.KeyZ:
 		a.docBlockUndo(tab, st, true)
 		return true
 	case ev.Mods == ui.Cmd && ev.Key == ui.KeyB:
@@ -647,6 +662,13 @@ func (a *App) docBlockUndo(tab *Tab, st *docViewState, redo bool) {
 	}
 	a.commitDocBlock(tab, st)
 	buf := tab.DocEditor.Buffer
+	h := &st.live.carets
+	h.sync(buf)
+	step := h.current.undo
+	if redo {
+		step = h.current.redo
+	}
+	old := buf.String()
 	var ok bool
 	if redo {
 		ok = buf.Redo()
@@ -657,15 +679,31 @@ func (a *App) docBlockUndo(tab *Tab, st *docViewState, redo bool) {
 		return
 	}
 	src := buf.String()
-	blocks := docLiveFor(st).blocksFor(src)
-	if b, found := docedit.BlockAt(blocks, be.start); found {
-		be.adopt(b)
-		be.ed.Buffer.Reset(be.base)
-		be.ed.Select(0, 0)
-		be.focusPending = true
-		return
+	// Unknown transactions still target the actual changed source range. No
+	// stale caret record is replayed after another view has changed history.
+	start, _, replacement := docedit.MinimalChange(old, src)
+	target := editor.Selection{Anchor: start + len(replacement), Head: start + len(replacement)}
+	if step != nil {
+		target = step.before
+		h.current = step.from
+		if redo {
+			target = step.after
+			h.current = step.to
+		}
+		h.version = buf.Version()
+	} else {
+		h.sync(buf)
 	}
-	st.live.block = nil
+	be.caretBefore = nil
+	be.initialClick = nil
+	be.codeEnterPending = false
+	a.relocateDocBlockSelection(tab, st, target.Anchor, target.Head)
+	if st.live.block != nil {
+		st.live.block.focusPending = true
+		st.live.block.rememberCaret()
+	}
+	tab.DocEditor.Select(target.Anchor, target.Head)
+	tab.Dirty = buf.Modified()
 }
 
 // docUnprojectBlock turns the active block into plain paragraph text: it

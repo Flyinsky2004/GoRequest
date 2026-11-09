@@ -20,6 +20,7 @@ func (a *App) docBlockWrap(be *docBlockEdit, left, right string) {
 	if be == nil || be.ed == nil || be.kind == docmd.CodeBlock {
 		return
 	}
+	be.rememberCaret()
 	sel := be.ed.Selection()
 	start, end := sel.Start(), sel.End()
 	text := be.ed.Buffer.Slice(start, end)
@@ -48,6 +49,7 @@ func (a *App) docInsertLink(tab *Tab, st *docViewState) {
 	if be.kind == docmd.CodeBlock {
 		return
 	}
+	be.rememberCaret()
 	sel := be.ed.Selection()
 	start, end := sel.Start(), sel.End()
 	text := be.ed.Buffer.Slice(start, end)

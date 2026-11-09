@@ -1443,8 +1443,17 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 
 - [ ] M04 / Herdr Codex，分支 `codex/M04-undo-caret`，worktree `/private/tmp/gorequest-M04-20261109`，起点 main `d9e6a4f`，实际基线为本方案登记提交。
 - [实施方案](task-briefs/M04-undo-caret.md)：先真实按键复现，canonical单一撤销历史、前后定向选区与source映射、Ctrl/Cmd+Z和redo、中文/emoji/softbreak/inline分隔符及跨块回归。单代理，公共事务文件无其他开发者竞争。
-- 状态：方案已完成，准备通过Herdr启动；句柄/实际基线后补。用户示例数据与debug文件不动；不push，不重启应用。未集成/实机不勾通过。
+- 状态：当前 Herdr 交互 Codex 单代理交付，实际共同基线 `fe3a9b5`（包含 M03 main 集成 `4a69141`）；实际 worktree/分支同本卡登记，未启动子代理。实现提交 `4783c7f75ad6a83dd75025409d7e192ace8ff86b`，加强活动 preedit 直接确认的测试提交 `7a178223b38441c8face912fa138a5a338e6c763`。来源报告：[M04 交付报告](task-results/M04-undo-caret.md)。未集成 main、未实机 IME/三平台验收，本卡保持未勾选。
+
 
 ### 50.1 启动确认
 
 实际共同基线 `fe3a9b5`，已创建登记分支/worktree。GoRequest Space 标签「M04 撤销光标恢复」，Tab `tbe38757bf0dc131c0b9d32459e4df081f`，terminal `t6b`。通过 `codex --no-daemon -a never -s danger-full-access` 交互启动，沿用默认模型未改全局配置；hc 确认 cwd正确、app=codex、working，首屏完整任务已送达。实现/验证待交付，未集成/未勾验收。
+
+### 50.2 M04 来源交付与验证（未集成）
+
+- 基线真实 App.View 按键复现：删除“甲乙丙丁戊”中“丙”后 Cmd+Z，正文恢复但选区 `{0,0}`，应为 UTF-8 `{9,9}`；caret X=0，应为 38.6965 DIP。日志 `/tmp/M04-baseline-repro.log`。
+- 输入前/后定向选区以 canonical source 坐标关联 Buffer 对象/版本；最多 512 条选区元数据，不保存正文快照，不改变 canonical Edit/undo 历史。撤销/重做成功后按目标块及 Projection/InlineView 恢复，覆盖 source/visible、UTF-8/UTF-16、隐藏 inline、softbreak 和跨块。未知或失效关联按实际源变化定位；旧历史仍可撤销，但不能恢复未知的原方向选区。
+- 中英文/emoji Backspace/Delete、正反选区替换、实际反向拖选、Ctrl/Cmd+Z 和 Shift 重做、逐帧选区/原生 caret 几何及像素、多次 undo/redo、相同变化不同原 caret、新输入清 redo、跨块/合并、源码模式和 native/rich IME 活动 preedit 直接确认均有自动化证据。
+- 最终 `go test ./internal/docedit ./internal/doctable ./internal/desktop -count=1` 通过（0.128s/0.107s/42.398s）；build/vet exit 0；docedit/doctable race 通过（1.360s/1.328s），M04/M01–M03核心/表格/跨行/slash 专项 race 通过（31.545s）；强化 IME 确认后普通专项通过（0.870s），M04 全套 race 再通过（7.927s）。精确命令、日志、选型及限制见报告；无 skip，未声称全仓 race 或实机验收。
+- 审 diff/staged 和 whitespace 检查通过，只本地提交本卡文件。会话保持交互；未 merge/main、push、部署、重启应用，未改全局配置/依赖/模块缓存，未操作主目录用户数据/debug 或其他会话。集成人后续复核及实机验收，不据此勾选 M04/完整 B09。
