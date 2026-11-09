@@ -1444,3 +1444,7 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - [ ] M04 / Herdr Codex，分支 `codex/M04-undo-caret`，worktree `/private/tmp/gorequest-M04-20261109`，起点 main `d9e6a4f`，实际基线为本方案登记提交。
 - [实施方案](task-briefs/M04-undo-caret.md)：先真实按键复现，canonical单一撤销历史、前后定向选区与source映射、Ctrl/Cmd+Z和redo、中文/emoji/softbreak/inline分隔符及跨块回归。单代理，公共事务文件无其他开发者竞争。
 - 状态：方案已完成，准备通过Herdr启动；句柄/实际基线后补。用户示例数据与debug文件不动；不push，不重启应用。未集成/实机不勾通过。
+
+### 50.1 启动确认
+
+实际共同基线 `fe3a9b5`，已创建登记分支/worktree。GoRequest Space 标签「M04 撤销光标恢复」，Tab `tbe38757bf0dc131c0b9d32459e4df081f`，terminal `t6b`。通过 `codex --no-daemon -a never -s danger-full-access` 交互启动，沿用默认模型未改全局配置；hc 确认 cwd正确、app=codex、working，首屏完整任务已送达。实现/验证待交付，未集成/未勾验收。
