@@ -68,3 +68,9 @@ MyGo `ui/markdown/spans.go` 明确将 parser.SoftBreak 显示为空格、LineBre
 - canonical editor 原本将 CRLF 内存文本规范化为 LF，并保留文件换行元数据；本轮测试同时验证磁盘 CRLF 原样保存。混合行尾文件仍遵从既有统一行尾策略。
 - 没有操作用户正在运行的应用或真实候选窗；headless 原生客户端协议和 PNG 不等于实机 IME 验收。不声称全仓 race 已通过。
 - 未 merge/main、push、部署、重启应用，未操作主目录用户数据/debug 产物、全局设置、依赖版本或模块缓存。只本地提交本卡源码、测试及交付记录。
+
+## 集成人后续记录（2026-11-09）
+
+来源头 `880babf` 已通过 `4a69141` 合入 main。main 全仓普通测试无 skip 通过（desktop 37.817s），build/vet 通过；docedit/doctable 全套 race（1.460s/1.430s）及 M01–M03/表格/画布专项 race（129.098s，含完整矩阵）通过。未运行全仓 race。账本冲突保留两方证据。
+
+确认来源干净且全部提交已在 main 中后，关闭登记的 M03 tab，确认 `t69` finished 后移除记录；非 force 删除来源 worktree 与分支。用户 dev.yaml/document.md 摘要不变；debug 产物期间发生变化但未被主代理操作/提交，保持当前状态。其他会话未操作，未 push 或重启应用。本节更新历史“未集成/保留会话”状态，实机及对象编辑边界仍有效。新增撤销光标问题由后续 M04 独立修复。

@@ -1424,3 +1424,15 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - 104 对/208 张临时 PNG 覆盖 13 类文本、亮暗、100%/150%、1200×820/1024×640；断言每帧文字行末/baseline/起点、caret 外像素、后续标题 Y、临界折行宽度两侧、滚动锚点及无输入不改 Dirty/Undo，详见来源报告。没有以容器等高代替文字布局证据。
 - 最终三包 `go test` 通过（0.109s/0.100s/37.151s），`go build ./...`、`go vet ./...` 通过；docedit/doctable 全套 race（1.340s/1.125s）、M03/M01/M02/表格文档专项 race（43.289s）通过；扩展全部主题字号窗口组合后追加 M03 全套 race（107.676s）通过。精确命令、日志和临时截图路径见来源报告。diff/staged 检查只纳入本卡源码、测试和报告；未 skip 测试。对象 inline/复杂容器仍保留既有 Markdown/源码回退范围，不声称所有对象布局等价。
 - 保持交互会话；未 merge/main、push、部署、重启用户应用，未改全局配置、依赖/模块缓存，未操作主目录用户数据/debug 产物。集成与实机验收由集成人后续完成，不据自动化证据勾选完整 M03/B09。
+
+### 49.3 main 集成验证与清理完成
+
+用户要求合并 main、清理旧分支和 agent。main 从 `f230a05` 以 no-ff 合入来源头 `880babf`，合并提交 `4a69141`，包含实现 `2222d88` 与交付报告 `880babf`。唯一冲突在账本，保留启动记录及来源交付，将来源交付顺延为 §49.2。
+
+- [x] M03 已交付实现的 main 集成及自动化验证完成，不表示完整 B09/实机 IME/三平台验收完成。
+- main `go test ./...` 无 skip 全部通过（desktop 37.817s）；`go build ./...`、`go vet ./...` 通过。
+- `go test -race ./internal/docedit ./internal/doctable -count=1` 通过（1.460s/1.430s）；`go test -race ./internal/desktop -run 'TestM03|TestM02|TestM01|TestDocTable|TestAuthoringIntegratedTableEditUndo|TestDocCanvasSlashOffset|TestDocCanvasCrossLine' -count=1` 通过（129.098s，含完整截图矩阵）。未运行全仓 race。
+- 确认来源干净、头不变、已是 main 祖先后，关闭 M03 Tab `tbdd4eae163c0d4b56aedddab9cdefb549`，确认 `t69` finished 后移除记录；非 force 删除来源 worktree `/private/tmp/gorequest-M03-20261109` 及已合并分支 `codex/M03-stable-document-layout`。其他用户/项目会话未操作。
+- 用户 dev.yaml/document.md 摘要与开始一致；debug 二进制在验证期间发生变化，主代理未操作该文件，保留其当前未跟踪状态，未纳入提交。未 push、部署、重启应用或运行安装器。
+
+本轮验证期间用户新增“段落中间删除字后 Ctrl+Z 光标跳段首”反馈，独立后续 M04 处理；不把该新问题混入 M03 已有验收证据。
