@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gorequest/internal/core"
@@ -41,6 +42,11 @@ type SuiteMockConfig struct {
 	Snapshot *CompiledSnapshot
 	// Limits bounds the controlled Mock Server's resources.
 	Limits ServerLimits
+	// Redactor, when non-nil, is installed on the server before it starts
+	// listening. Callers must register every project/environment secret here so
+	// access records are scrubbed from the first accepted request; there is no
+	// window where the listener is up but unredacted.
+	Redactor *core.Redactor
 }
 
 // SuiteMockRunOutcome wraps the Runner's RunResult together with metadata from
@@ -119,6 +125,7 @@ func (m *ControlledSuiteMock) StartForSuite(ctx context.Context, project *core.P
 		Port:     m.Config.Port,
 		AllowLAN: false,
 		Limits:   m.Config.Limits,
+		Redactor: m.Config.Redactor,
 	})
 	if err := srv.Start(ctx, snap); err != nil {
 		_ = srv.Stop(context.Background())
@@ -148,6 +155,126 @@ func (m *ControlledSuiteMock) StartForSuite(ctx context.Context, project *core.P
 		return srv.Stop(stopCtx)
 	}
 	return vars, stopFn, nil
+}
+
+// SuiteMockLease is a started, frozen controlled Mock Server scoped to one Suite
+// run. It exposes the injected run variables and actual bound endpoint so a
+// caller can prepare its Runner against the real address, and it guarantees an
+// idempotent, concurrency-safe Stop that reports the true shutdown outcome.
+type SuiteMockLease struct {
+	server *Server
+	snap   *CompiledSnapshot
+	vars   map[string]string
+
+	stopOnce sync.Once
+	mu       sync.Mutex
+	stopErr  error
+	stopped  bool
+}
+
+// StartSuiteMockLease validates/compiles the frozen snapshot, binds the loopback
+// listener (port 0 allocates an ephemeral port), checks readiness, and returns a
+// lease. The caller must Stop it on every path.
+func StartSuiteMockLease(ctx context.Context, project *core.Project, cfg SuiteMockConfig) (*SuiteMockLease, error) {
+	ctrl := &ControlledSuiteMock{Config: cfg}
+	vars, _, err := ctrl.StartForSuite(ctx, project)
+	if err != nil {
+		return nil, err
+	}
+	return &SuiteMockLease{server: ctrl.server, snap: ctrl.snap, vars: vars}, nil
+}
+
+// Variables returns a copy of the run variables injected for this lease
+// (mockUrl/mockBaseUrl/mockHost/mockPort plus the optional EndpointVar).
+func (l *SuiteMockLease) Variables() map[string]string {
+	if l == nil {
+		return nil
+	}
+	out := make(map[string]string, len(l.vars))
+	for k, v := range l.vars {
+		out[k] = v
+	}
+	return out
+}
+
+// BaseURL returns the actual `http://127.0.0.1:<port>` bound for this lease.
+func (l *SuiteMockLease) BaseURL() string {
+	if l == nil {
+		return ""
+	}
+	return l.server.BaseURL()
+}
+
+// BoundAddr returns the actual bound `host:port`, or "" once stopped.
+func (l *SuiteMockLease) BoundAddr() string {
+	if l == nil {
+		return ""
+	}
+	return l.server.BoundAddr()
+}
+
+// Port returns the actual bound TCP port, or 0 once stopped.
+func (l *SuiteMockLease) Port() int {
+	if l == nil {
+		return 0
+	}
+	return l.server.Port()
+}
+
+// Scenario returns the frozen scenario served by this lease.
+func (l *SuiteMockLease) Scenario() string {
+	if l == nil || l.snap == nil {
+		return ""
+	}
+	return l.snap.Scenario
+}
+
+// SnapshotDigest returns the frozen rule snapshot digest served by this lease.
+func (l *SuiteMockLease) SnapshotDigest() string {
+	if l == nil || l.snap == nil {
+		return ""
+	}
+	return l.snap.SnapshotDigest
+}
+
+// AccessRecords returns the bounded, already-sanitized access records captured
+// while this lease was running.
+func (l *SuiteMockLease) AccessRecords() []AccessRecord {
+	if l == nil || l.server == nil || l.server.AccessLog() == nil {
+		return nil
+	}
+	return l.server.AccessLog().Entries()
+}
+
+// ServerStopped reports whether Stop completed without error and the listener is
+// no longer running. It never reports true for a failed shutdown.
+func (l *SuiteMockLease) ServerStopped() bool {
+	if l == nil {
+		return true
+	}
+	l.mu.Lock()
+	stopped := l.stopped
+	l.mu.Unlock()
+	return stopped && !l.server.IsRunning()
+}
+
+// Stop shuts the controlled Mock Server down. It is idempotent and safe to call
+// concurrently; only the first call performs the shutdown and the returned error
+// is that call's real result.
+func (l *SuiteMockLease) Stop(ctx context.Context) error {
+	if l == nil {
+		return nil
+	}
+	l.stopOnce.Do(func() {
+		err := l.server.Stop(ctx)
+		l.mu.Lock()
+		l.stopErr = err
+		l.stopped = err == nil
+		l.mu.Unlock()
+	})
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.stopErr
 }
 
 // RunSuiteWithControlledMock executes a runner.Suite against a dedicated,
@@ -187,6 +314,11 @@ func RunSuiteWithControlledMock(
 	}
 
 	ctrl := &ControlledSuiteMock{Config: mockCfg}
+	// Register project/environment secrets before the listener accepts requests so
+	// no access record can be captured unredacted.
+	if ctrl.Config.Redactor == nil {
+		ctrl.Config.Redactor = buildProjectSecretRedactor(project, opts.Secrets)
+	}
 	injectedVars, stopMock, startErr := ctrl.StartForSuite(ctx, project)
 	if startErr != nil {
 		res := configErrorRunResult(suite, opts.Environment, startErr.Error())
@@ -229,20 +361,22 @@ func RunSuiteWithControlledMock(
 	}()
 
 	// Clone Suite so injected run variables never mutate the caller's Suite or project.
-	suiteCopy := cloneSuiteWithInjectedVars(suite, injectedVars)
+	suiteCopy := InjectSuiteVariables(suite, injectedVars)
 
 	r := runner.New(project, suiteCopy, opts)
-	// Register declared project/environment secrets into the mock server's
-	// redactor so access logs scrub them even if sent in custom headers or body.
-	red := buildProjectSecretRedactor(project, opts.Secrets)
-	ctrl.server.SetRedactor(red)
 
 	res, runErr := r.Run(ctx)
 	outcome.Result = res
 	return outcome, runErr
 }
 
-func cloneSuiteWithInjectedVars(s *runner.Suite, injected map[string]string) *runner.Suite {
+// InjectSuiteVariables returns a copy of s whose run variables merge injected on
+// top of the caller's Suite.Variables. The caller's Suite and project are never
+// mutated, so a controlled Mock endpoint stays scoped to one run.
+func InjectSuiteVariables(s *runner.Suite, injected map[string]string) *runner.Suite {
+	if s == nil {
+		return nil
+	}
 	cp := *s
 	merged := make(map[string]string, len(s.Variables)+len(injected))
 	for k, v := range s.Variables {
