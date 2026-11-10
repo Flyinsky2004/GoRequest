@@ -55,6 +55,7 @@ const (
 	KindDefinition    FailureKind = "definition"
 	KindMissingSecret FailureKind = "missing_secret"
 	KindTemplate      FailureKind = "template"
+	KindAuth          FailureKind = "auth"
 	KindReport        FailureKind = "report"
 	KindPanic         FailureKind = "panic"
 	KindOther         FailureKind = "other"
@@ -142,6 +143,50 @@ func classifyRunKind(err error, lower string) FailureKind {
 // KindCanceled is used while interpreting run errors; classifyError rewrites the
 // category to FailureCanceled via the generic cancel detection.
 const KindCanceled FailureKind = "canceled"
+
+// classifyAuthError maps an OAuth/OIDC provider failure. Credential and
+// configuration problems are config errors (never retried); token-endpoint
+// transport failures are run errors. Either way the business request has not
+// been sent.
+func classifyAuthError(err error) *Failure {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) {
+		return newFailure(FailureCanceled, KindOther, err.Error())
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return newFailure(FailureRun, KindTimeout, err.Error())
+	}
+	var oe *core.OAuthError
+	if errors.As(err, &oe) {
+		switch oe.Category {
+		case core.OAuthErrInteractionRequired, core.OAuthErrReauthRequired,
+			core.OAuthErrInvalidConfig, core.OAuthErrDiscoveryMismatch,
+			core.OAuthErrIDTokenMalformed, core.OAuthErrIDTokenInvalidSignature,
+			core.OAuthErrIDTokenInvalidClaims, core.OAuthErrIDTokenExpired,
+			core.OAuthErrStateMismatch, core.OAuthErrNonceMismatch,
+			core.OAuthErrCallbackFailed, core.OAuthErrStoreUnavailable,
+			core.OAuthErrAccessDenied, core.OAuthErrExpiredDeviceCode:
+			return newFailure(FailureConfig, KindAuth, err.Error())
+		case core.OAuthErrTargetPolicyDenied:
+			return newFailure(FailureConfig, KindTargetPolicy, err.Error())
+		case core.OAuthErrTokenExchangeFailed, core.OAuthErrRefreshFailed:
+			// A 4xx token-endpoint rejection needs operator action; 5xx/429 is a
+			// transport-level run failure worth surfacing as such.
+			if oe.StatusCode >= 400 && oe.StatusCode < 500 {
+				return newFailure(FailureConfig, KindAuth, err.Error())
+			}
+			return newFailure(FailureRun, KindAuth, err.Error())
+		case core.OAuthErrDiscoveryFailed, core.OAuthErrJWKSFetchFailed, core.OAuthErrJWKSKeyNotFound:
+			return newFailure(FailureRun, KindAuth, err.Error())
+		}
+	}
+	if core.IsConfig(err) {
+		return newFailure(FailureConfig, KindAuth, err.Error())
+	}
+	return newFailure(FailureInternal, KindAuth, err.Error())
+}
 
 // HeaderKV is one redacted response header retained for reporting.
 type HeaderKV struct {
@@ -252,25 +297,27 @@ type DatasetInfo struct {
 // RunResult is the complete, report-safe result of one suite run. It contains
 // protocol facts and verdicts, never raw request/response bodies.
 type RunResult struct {
-	FormatVersion int          `json:"formatVersion"`
-	ProjectID     string       `json:"projectId"`
-	ProjectName   string       `json:"projectName,omitempty"`
-	SchemaVersion int          `json:"schemaVersion"`
-	SuiteID       string       `json:"suiteId"`
-	SuiteName     string       `json:"suiteName,omitempty"`
-	RunID         string       `json:"runId"`
-	Snapshot      string       `json:"snapshotDigest"`
-	Environment   string       `json:"environment,omitempty"`
-	Seed          int64        `json:"seed"`
-	StartedAt     time.Time    `json:"startedAt"`
-	FinishedAt    time.Time    `json:"finishedAt"`
-	DurationMs    int64        `json:"durationMs"`
-	Status        Status       `json:"status"`
-	Failure       *Failure     `json:"failure,omitempty"`
-	Dataset       *DatasetInfo `json:"dataset,omitempty"`
-	Rows          []RowResult  `json:"rows"`
-	Summary       Summary      `json:"summary"`
-	Canceled      bool         `json:"canceled,omitempty"`
+	FormatVersion   int          `json:"formatVersion"`
+	ProjectID       string       `json:"projectId"`
+	ProjectName     string       `json:"projectName,omitempty"`
+	SchemaVersion   int          `json:"schemaVersion"`
+	SuiteID         string       `json:"suiteId"`
+	SuiteName       string       `json:"suiteName,omitempty"`
+	RunID           string       `json:"runId"`
+	Snapshot        string       `json:"snapshotDigest"`
+	Environment     string       `json:"environment,omitempty"`
+	Seed            int64        `json:"seed"`
+	StepConcurrency int          `json:"stepConcurrency"`
+	RowConcurrency  int          `json:"rowConcurrency"`
+	StartedAt       time.Time    `json:"startedAt"`
+	FinishedAt      time.Time    `json:"finishedAt"`
+	DurationMs      int64        `json:"durationMs"`
+	Status          Status       `json:"status"`
+	Failure         *Failure     `json:"failure,omitempty"`
+	Dataset         *DatasetInfo `json:"dataset,omitempty"`
+	Rows            []RowResult  `json:"rows"`
+	Summary         Summary      `json:"summary"`
+	Canceled        bool         `json:"canceled,omitempty"`
 }
 
 // finalize recomputes the summary from row/step results.
