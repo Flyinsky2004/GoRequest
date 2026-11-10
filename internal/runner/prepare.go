@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -52,6 +53,14 @@ type Options struct {
 	Clock  func() time.Time
 	Seed   int64
 
+	// Auth is the optional OAuth/OIDC token port. When a step resolves to an
+	// oauth2/oidc scheme and no provider is injected, preflight fails before any
+	// request is sent. See docs/contracts/F01-runner-extension.md.
+	Auth AuthProvider
+	// Protocol is the optional non-HTTP execution port. Steps whose request
+	// protocol is not "http" are rejected at preflight when the port is absent.
+	Protocol ProtocolExecutor
+
 	StepConcurrency int
 	RowConcurrency  int
 }
@@ -82,10 +91,35 @@ type Runner struct {
 	clock      func() time.Time
 	prepareErr *preflightError
 
+	// knownSecrets is read by every step goroutine when it builds an attempt plan
+	// and appended to when a token response publishes new secrets. All access
+	// goes through knownSecretSnapshot/rememberSecrets under secretsMu.
+	secretsMu    sync.Mutex
 	knownSecrets []string
 	red          *redactorGuard
 	events       *eventBus
 	prepared     bool
+}
+
+// rememberSecrets records additional bound secret values for later redaction.
+// It is safe to call from row/step goroutines.
+func (r *Runner) rememberSecrets(values ...string) {
+	r.secretsMu.Lock()
+	defer r.secretsMu.Unlock()
+	for _, v := range values {
+		if v == "" || containsString(r.knownSecrets, v) {
+			continue
+		}
+		r.knownSecrets = append(r.knownSecrets, v)
+	}
+}
+
+// knownSecretSnapshot returns a copy so callers can register the values on a
+// per-attempt redactor without holding the lock during that work.
+func (r *Runner) knownSecretSnapshot() []string {
+	r.secretsMu.Lock()
+	defer r.secretsMu.Unlock()
+	return append([]string(nil), r.knownSecrets...)
 }
 
 // New constructs a Runner without reading any file beyond the already loaded
@@ -100,14 +134,14 @@ func New(project *core.Project, suite *Suite, opts Options) *Runner {
 	if opts.StepConcurrency <= 0 {
 		opts.StepConcurrency = DefaultStepConcurrency
 	}
-	if opts.StepConcurrency > 64 {
-		opts.StepConcurrency = 64
+	if opts.StepConcurrency > MaxStepConcurrency {
+		opts.StepConcurrency = MaxStepConcurrency
 	}
 	if opts.RowConcurrency <= 0 {
 		opts.RowConcurrency = DefaultRowConcurrency
 	}
-	if opts.RowConcurrency > 16 {
-		opts.RowConcurrency = 16
+	if opts.RowConcurrency > MaxRowConcurrency {
+		opts.RowConcurrency = MaxRowConcurrency
 	}
 	if opts.Executor == nil {
 		opts.Executor = execFunc(core.ExecuteWithOptions)
@@ -234,9 +268,7 @@ func (r *Runner) prepare(ctx context.Context) error {
 		for name, value := range row.Vars {
 			if value != "" && sensitiveJSONKeyPattern.MatchString(name) {
 				r.red.RegisterSecret(value)
-				if !containsString(r.knownSecrets, value) {
-					r.knownSecrets = append(r.knownSecrets, value)
-				}
+				r.rememberSecrets(value)
 			}
 		}
 	}
@@ -305,8 +337,31 @@ func (r *Runner) prepare(ctx context.Context) error {
 		if eff != nil {
 			auth = eff.Scheme
 		}
-		if auth != nil && (strings.EqualFold(auth.Type, "oauth2") || strings.EqualFold(auth.Type, "oidc")) {
-			return preflightf(KindDefinition, "runner OAuth/OIDC token integration is unavailable; no requests sent")
+		if auth != nil && isOAuthScheme(auth) {
+			if r.opts.Auth == nil {
+				return preflightf(KindDefinition, "runner OAuth/OIDC token integration requires an injected auth provider; no requests sent")
+			}
+			authRed := core.NewRedactor()
+			for _, s := range r.knownSecretSnapshot() {
+				authRed.RegisterSecret(s)
+			}
+			authReq := AuthRequest{
+				StepID:         sp.Step.ID,
+				SchemeID:       oauthSchemeID(sp, auth),
+				SchemeType:     strings.ToLower(strings.TrimSpace(auth.Type)),
+				Scheme:         core.CloneAuthScheme(auth),
+				Variables:      vars,
+				Secrets:        r.opts.Secrets,
+				ExecuteOptions: r.preflightNetworkOptions(authRed, auth),
+				EnvID:          r.opts.Environment,
+				Redactor:       authRed,
+			}
+			if err := r.opts.Auth.PreflightAuth(ctx, authReq); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				return preflightf(KindAuth, "step %q: %s", sp.Step.ID, authRed.RedactString(err.Error()))
+			}
 		}
 		strs := requestTemplateStrings(sp.Entry.Request, auth)
 		for _, a := range sp.Assertions {
@@ -360,6 +415,34 @@ func (r *Runner) prepare(ctx context.Context) error {
 			}
 			return preflightf(kind, "step %q: %v", sp.Step.ID, err)
 		}
+		// Non-HTTP protocols must be handled by an injected executor; without one
+		// the suite fails here, before any business request.
+		if isNonHTTPProtocol(sp.Entry.Request) {
+			if r.opts.Protocol == nil {
+				return preflightf(KindProtocol, "step %q: protocol %q requires an injected protocol executor; no requests sent",
+					sp.Step.ID, sp.Entry.Request.Protocol)
+			}
+			if !r.opts.Protocol.Supports(sp.Entry.Request) {
+				return preflightf(KindProtocol, "step %q: injected protocol executor does not support protocol %q",
+					sp.Step.ID, sp.Entry.Request.Protocol)
+			}
+			protoRed := core.NewRedactor()
+			for _, s := range r.knownSecretSnapshot() {
+				protoRed.RegisterSecret(s)
+			}
+			if err := r.opts.Protocol.PreflightProtocol(ctx, ProtocolRequest{
+				StepID:         sp.Step.ID,
+				Entry:          sp.Entry,
+				Plan:           plan,
+				ExecuteOptions: r.preflightNetworkOptions(protoRed, auth),
+				Redactor:       protoRed,
+			}); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				return preflightf(KindProtocol, "step %q: protocol preflight: %s", sp.Step.ID, protoRed.RedactString(err.Error()))
+			}
+		}
 		// A suite must not send earlier steps before discovering a static target
 		// requires confirmation. Real row/output URLs are checked again by Core.
 		if r.opts.ExecuteOptions.HasTargetPolicy {
@@ -389,7 +472,7 @@ func (r *Runner) prepare(ctx context.Context) error {
 			continue
 		}
 		if v, ok := r.opts.Secrets.Get(name); ok && v != "" {
-			r.knownSecrets = append(r.knownSecrets, v)
+			r.rememberSecrets(v)
 			r.red.RegisterSecret(v)
 		}
 	}
@@ -528,6 +611,7 @@ func (r *Runner) snapshotDigest() string {
 		fmt.Fprintf(h, "schemas:%s\n", schema.SchemaSnapshotDigest())
 	}
 	fmt.Fprintf(h, "environment:%s\n", r.opts.Environment)
+	fmt.Fprintf(h, "concurrency:%d:%d\n", r.opts.StepConcurrency, r.opts.RowConcurrency)
 	if env := r.envEntry(); env != nil {
 		fmt.Fprintf(h, "environmentDigest:%s:%s\n", env.RelPath, env.BaselineDigest)
 	}
@@ -640,4 +724,48 @@ func matcherStrings(m Matcher) []string {
 func digestBytes(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// oauthSchemeID gives every resolved scheme a stable, non-secret identity for
+// cache isolation. Named schemes use their ID; inline schemes are scoped to the
+// request they are attached to.
+func oauthSchemeID(sp *StepPlan, auth *core.AuthScheme) string {
+	if auth != nil && strings.TrimSpace(auth.ID) != "" {
+		return strings.TrimSpace(auth.ID)
+	}
+	rel := ""
+	if sp != nil && sp.Entry != nil {
+		rel = normalizeRel(sp.Entry.RelPath)
+	}
+	if rel == "" && sp != nil && sp.Step != nil {
+		rel = sp.Step.Request
+	}
+	if rel == "" {
+		return "inline:default"
+	}
+	return "inline:" + rel
+}
+
+// preflightNetworkOptions is the token/protocol port view of the frozen network
+// configuration. It never carries a business CookieJar and forces the
+// non-interactive run context.
+func (r *Runner) preflightNetworkOptions(red *core.Redactor, auth *core.AuthScheme) core.ExecuteOptions {
+	opts := r.opts.ExecuteOptions
+	opts.Interactive = false
+	opts.Confirmed = false
+	opts.EnvID = r.opts.Environment
+	opts.AuthScheme = auth
+	opts.Redactor = red
+	opts.Secrets = r.opts.Secrets
+	opts.CookieJar = nil
+	if opts.ProjectRoot == "" {
+		opts.ProjectRoot = r.opts.PlanOptions.ProjectRoot
+	}
+	if opts.ProjectFiles == nil {
+		opts.ProjectFiles = r.opts.PlanOptions.ProjectFiles
+	}
+	if opts.LocalFiles == nil {
+		opts.LocalFiles = r.opts.PlanOptions.LocalFiles
+	}
+	return opts
 }

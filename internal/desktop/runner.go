@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"weak"
@@ -31,6 +32,18 @@ type runnerState struct {
 	result                                     *runner.RunResult
 	cancel                                     context.CancelFunc
 	generation                                 uint64
+
+	// Concurrency is frozen at StartRunner. The text fields are the user input;
+	// the integers are the last validated values. Both default to 1 to preserve
+	// the previous sequential desktop behavior.
+	stepConcurrencyText, rowConcurrencyText string
+	stepConcurrency, rowConcurrency         int
+
+	// Final-result viewport: status filter, free text and a bounded page.
+	resultFilterText string
+	resultFilter     int
+	resultOffset     int
+	resultLimit      int
 
 	// This-run Mock configuration and result. The values are frozen into locals
 	// at StartRunner; the panel must not mutate them while running.
@@ -61,9 +74,14 @@ func (a *App) runnerState(create bool) *runnerState {
 		return nil
 	}
 	s := &runnerState{
-		mockScenario:    mockserver.DefaultScenario,
-		mockPort:        "0",
-		mockEndpointVar: mockserver.DefaultMockURLVar,
+		mockScenario:        mockserver.DefaultScenario,
+		mockPort:            "0",
+		mockEndpointVar:     mockserver.DefaultMockURLVar,
+		stepConcurrencyText: "1",
+		rowConcurrencyText:  "1",
+		stepConcurrency:     1,
+		rowConcurrency:      1,
+		resultLimit:         50,
 	}
 	runnerStates.byWindow[key] = s
 	runtime.AddCleanup(a, func(k weak.Pointer[App]) {
@@ -83,6 +101,30 @@ func (a *App) runnerState(create bool) *runnerState {
 		})
 	}
 	return s
+}
+
+// freezeConcurrency validates the UI input and stores the frozen values used by
+// the next run. Invalid input is reported to the user, not silently clamped.
+func (s *runnerState) freezeConcurrency() error {
+	step, err := strconv.Atoi(strings.TrimSpace(s.stepConcurrencyText))
+	if err != nil {
+		return fmt.Errorf("step concurrency must be a whole number between 1 and %d", runner.MaxStepConcurrency)
+	}
+	row, err := strconv.Atoi(strings.TrimSpace(s.rowConcurrencyText))
+	if err != nil {
+		return fmt.Errorf("row concurrency must be a whole number between 1 and %d", runner.MaxRowConcurrency)
+	}
+	if err := runner.ValidateConcurrency(step, row); err != nil {
+		return err
+	}
+	if step == 0 {
+		step = 1
+	}
+	if row == 0 {
+		row = 1
+	}
+	s.stepConcurrency, s.rowConcurrency = step, row
+	return nil
 }
 
 func (a *App) OpenRunner() {
@@ -186,6 +228,10 @@ func (a *App) StartRunner() {
 	if s.running || a.ps == nil || a.win == nil {
 		return
 	}
+	if err := s.freezeConcurrency(); err != nil {
+		s.notice = err.Error()
+		return
+	}
 	p, err := core.OpenProject(a.ps.root)
 	if err != nil {
 		s.reject(a.runnerMsg().SnapshotFailed, a.ps.root)
@@ -264,7 +310,8 @@ func (a *App) StartRunner() {
 	tab := &Tab{Owner: a.ps}
 	net := a.buildExecuteOptionsForTab(a.ps, tab, nil, nil, nil)
 	net.EnvID = s.environment
-	r, err := prepareDesktopRunner(ctx, p, runSuite, s.environment, net, a.mgrSecrets(), func(e runner.Event) { mailbox.publish(&e, nil, false) })
+	r, err := prepareDesktopRunner(ctx, p, runSuite, s.environment, net, a.mgrSecrets(), func(e runner.Event) { mailbox.publish(&e, nil, false) },
+		desktopRunnerOptions{StepConcurrency: s.stepConcurrency, RowConcurrency: s.rowConcurrency, OAuth: a.ps.OAuthService()})
 	if err != nil {
 		// Preparing the Runner failed after the Mock listener was bound; release it
 		// immediately instead of waiting for a worker that will never start.
@@ -280,6 +327,7 @@ func (a *App) StartRunner() {
 	s.result = nil
 	s.events = nil
 	s.exportNotice = ""
+	s.resultOffset = 0
 	// Publish the actual bound endpoint while the run is active; the finalized
 	// result replaces this on completion. Nil for a non-Mock run.
 	s.mockResult = mockMeta

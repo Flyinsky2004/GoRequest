@@ -96,8 +96,8 @@ func (r *Runner) registerBoundSecrets() {
 		}
 	}
 	for _, name := range names {
-		if value, found := r.opts.Secrets.Get(name); found && value != "" && !containsString(r.knownSecrets, value) {
-			r.knownSecrets = append(r.knownSecrets, value)
+		if value, found := r.opts.Secrets.Get(name); found && value != "" {
+			r.rememberSecrets(value)
 			r.red.RegisterSecret(value)
 		}
 	}

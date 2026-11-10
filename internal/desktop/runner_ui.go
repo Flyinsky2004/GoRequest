@@ -64,6 +64,13 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
 							runnerSelect(c, m.Suite, &s.suite, s.suites, m.Empty)
 						}
 						runnerSelect(c, m.Environment, &s.environment, s.environments, m.Empty)
+						ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, m.StepConcurrency).FontSize(12)
+							ui.TextInput(c, &s.stepConcurrencyText).Width(64)
+							ui.Text(c, m.RowConcurrency).FontSize(12)
+							ui.TextInput(c, &s.rowConcurrencyText).Width(64)
+						})
+						ui.Text(c, m.ConcurrencyHint).FontSize(11).TextColor(p.Muted)
 					} else {
 						ui.Text(c, m.Environment+": "+runnerValue(s.environment)).FontSize(12)
 					}
@@ -91,54 +98,77 @@ func (a *App) RunnerModals(c *ui.Context, t *ui.Theme) {
 						}
 					}
 					a.runnerMockResultUI(c, t, p, s)
-					ui.Text(c, m.EventLimit).FontSize(11).TextColor(p.Muted)
-					ui.Scroll(c).FillWidth().Height(220).Padding(8).Background(p.Sidebar).Radius(6).Children(func() {
-						ui.Column(c).FillWidth().Gap(4).Children(func() {
-							for _, e := range s.events {
-								ui.Text(c, fmt.Sprintf("%d · row %d · %s · attempt %d · %s · %s · HTTP %d %s", e.Seq, e.Row, e.StepID, e.Attempt, e.Kind, e.Status, e.HTTPStatus, e.Message)).Font("monospace").FontSize(11).TextColor(p.Text)
+					// Live events matter while a run is active (and before the first
+					// run). Once a final result exists, the filtered/paged result view
+					// replaces the event tail instead of overflowing the panel.
+					if s.running || s.result == nil {
+						ui.Text(c, m.EventLimit).FontSize(11).TextColor(p.Muted)
+						ui.Scroll(c).FillWidth().Height(220).Padding(8).Background(p.Sidebar).Radius(6).Children(func() {
+							ui.Column(c).FillWidth().Gap(4).Children(func() {
+								for _, e := range s.events {
+									ui.Text(c, fmt.Sprintf("%d · row %d · %s · attempt %d · %s · %s · HTTP %d %s", e.Seq, e.Row, e.StepID, e.Attempt, e.Kind, e.Status, e.HTTPStatus, e.Message)).Font("monospace").FontSize(11).TextColor(p.Text)
+								}
+							})
+						})
+					}
+					// Final rows include skipped steps that emitted no live event. The
+					// view is filtered and paged; the full RunResult still backs export.
+					if s.result != nil {
+						labels := []string{m.FilterAll, m.FilterFailed, m.FilterSkipped, m.FilterCanceled, m.FilterConfig, m.FilterInternal, m.FilterPassed}
+						if s.resultFilter < 0 || s.resultFilter >= len(labels) {
+							s.resultFilter = 0
+						}
+						failures := runner.FailureLocations(s.result, 0)
+						page := runner.QueryResult(s.result, runner.ResultFilter{Statuses: runnerFilterStatuses(s.resultFilter), Text: s.resultFilterText}, s.resultOffset, s.resultLimit)
+						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, m.ResultFilter).FontSize(12)
+							uikit.MenuButton(c, labels[s.resultFilter], func(mm *ui.Menu) {
+								for i, label := range labels {
+									if mm.Item(label).Chosen() {
+										s.resultFilter = i
+										s.resultOffset = 0
+									}
+								}
+							})
+							if ui.TextInput(c, &s.resultFilterText).Grow(1).Placeholder(m.FilterText).Changed() {
+								s.resultOffset = 0
+							}
+							if ui.Button(c, m.ShowFailures).Disabled(failures.Total == 0).Clicked() {
+								s.resultFilter = 1
+								s.resultOffset = 0
 							}
 						})
-					})
-					// Final rows include skipped steps, which may not have emitted live events.
-					if s.result != nil {
-						ui.Scroll(c).FillWidth().Height(125).Children(func() {
+						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+							if ui.Button(c, m.PrevPage).Disabled(s.resultOffset == 0).Clicked() {
+								s.resultOffset = max(0, s.resultOffset-s.resultLimit)
+							}
+							if ui.Button(c, m.NextPage).Disabled(!page.HasMore).Clicked() {
+								s.resultOffset += s.resultLimit
+							}
+							if len(page.Items) == 0 {
+								ui.Text(c, m.NoMatches).FontSize(12).TextColor(p.Muted)
+							} else {
+								ui.Text(c, fmt.Sprintf(m.PageInfo, s.resultOffset+1, s.resultOffset+len(page.Items), page.Total)).FontSize(12).TextColor(p.Muted)
+							}
+							ui.Box(c).Grow(1)
+							ui.Text(c, fmt.Sprintf(m.FailureSummary, failures.Total)).FontSize(12).TextColor(p.Muted)
+						})
+						ui.Scroll(c).FillWidth().Height(180).Children(func() {
 							ui.Column(c).FillWidth().Gap(4).Children(func() {
-								count := 0
-								for _, row := range s.result.Rows {
-									for _, step := range row.Steps {
-										if count >= runnerEventLimit {
-											continue
-										}
-										count++
-										ui.Text(c, fmt.Sprintf("row %d · %s · %s · attempts %d · retries %d · %s", row.Index, step.ID, step.Status, len(step.Attempts), step.RetryCount(), step.Reason)).FontSize(12).TextColor(p.Text)
-										for _, attempt := range step.Attempts {
-											if count >= runnerEventLimit {
-												break
-											}
-											count++
-											ui.Text(c, fmt.Sprintf("  attempt %d · %s · HTTP %d · %s", attempt.Number, attempt.Status, attempt.HTTPStatus, formatDurationMs(float64(attempt.DurationMs)))).FontSize(11).TextColor(p.Muted)
-											if attempt.Failure != nil {
-												ui.Text(c, string(attempt.Failure.Category)+" / "+string(attempt.Failure.Kind)+": "+attempt.Failure.Message).FontSize(11).TextColor(t.Danger)
-											}
-										}
-										for _, ar := range step.Assertions {
-											if count >= runnerEventLimit {
-												break
-											}
-											count++
-											ui.Text(c, runnerAssertionDetailText(ar)).FontSize(11).SingleLine().TextColor(runnerResultDetailColor(p, t, ar.Passed)).Tooltip(runnerAssertionDetailText(ar))
-										}
-										for _, er := range step.Extractions {
-											if count >= runnerEventLimit {
-												break
-											}
-											count++
-											ui.Text(c, runnerExtractionDetailText(er)).FontSize(11).SingleLine().TextColor(runnerResultDetailColor(p, t, er.Published)).Tooltip(runnerExtractionDetailText(er))
-										}
-										if step.Failure != nil {
-											ui.Text(c, string(step.Failure.Category)+" / "+string(step.Failure.Kind)+": "+step.Failure.Message).FontSize(11).TextColor(t.Danger)
-										}
+								for _, item := range page.Items {
+									detail := fmt.Sprintf("row %d · %s · %s · %s · attempts %d", item.Row, item.StepID, item.Status, item.Request, item.Attempts)
+									if item.Retries > 0 {
+										detail += fmt.Sprintf(" · retries %d", item.Retries)
 									}
+									if item.HTTPStatus > 0 {
+										detail += fmt.Sprintf(" · HTTP %d", item.HTTPStatus)
+									}
+									if item.FailureCategory != "" {
+										detail += fmt.Sprintf(" · %s/%s: %s", item.FailureCategory, item.FailureKind, item.FailureMessage)
+									} else if item.Reason != "" {
+										detail += " · " + item.Reason
+									}
+									ui.Text(c, detail).FontSize(12).SingleLine().TextColor(runnerItemColor(p, t, item.Status)).Tooltip(detail)
 								}
 							})
 						})
@@ -291,4 +321,36 @@ func runnerExtractionDetailText(er runner.ExtractionResult) string {
 		parts = append(parts, er.Message)
 	}
 	return strings.Join(parts, " · ")
+}
+
+// runnerFilterStatuses maps the compact filter menu to engine statuses. Index 0
+// (All) returns nil so QueryResult keeps every step.
+func runnerFilterStatuses(index int) []runner.Status {
+	switch index {
+	case 1:
+		return []runner.Status{runner.StatusFailed}
+	case 2:
+		return []runner.Status{runner.StatusSkipped}
+	case 3:
+		return []runner.Status{runner.StatusCanceled}
+	case 4:
+		return []runner.Status{runner.StatusConfigError}
+	case 5:
+		return []runner.Status{runner.StatusInternalError}
+	case 6:
+		return []runner.Status{runner.StatusPassed}
+	default:
+		return nil
+	}
+}
+
+func runnerItemColor(p uikit.Palette, t *ui.Theme, status runner.Status) ui.Color {
+	switch status {
+	case runner.StatusFailed, runner.StatusConfigError, runner.StatusInternalError:
+		return t.Danger
+	case runner.StatusCanceled:
+		return t.Warning
+	default:
+		return p.Text
+	}
 }

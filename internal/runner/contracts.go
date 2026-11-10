@@ -16,6 +16,7 @@
 package runner
 
 import (
+	"fmt"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -42,9 +43,28 @@ const (
 	// DefaultRowConcurrency keeps dataset rows sequential by default so row
 	// isolation and report ordering stay deterministic.
 	DefaultRowConcurrency = 1
+	// MaxStepConcurrency is the effective upper bound accepted by Options and
+	// ValidateConcurrency.
+	MaxStepConcurrency = 64
+	// MaxRowConcurrency is the effective upper bound accepted by Options and
+	// ValidateConcurrency.
+	MaxRowConcurrency = 16
 	// MaxBackoff caps retry backoff.
 	MaxBackoff = 30 * time.Second
 )
+
+// ValidateConcurrency validates user-provided concurrency bounds. Zero selects
+// the engine default; negative or above-limit values are explicit errors rather
+// than being silently clamped by the desktop.
+func ValidateConcurrency(step, row int) error {
+	if step < 0 || step > MaxStepConcurrency {
+		return fmt.Errorf("step concurrency must be between 0 and %d", MaxStepConcurrency)
+	}
+	if row < 0 || row > MaxRowConcurrency {
+		return fmt.Errorf("row concurrency must be between 0 and %d", MaxRowConcurrency)
+	}
+	return nil
+}
 
 // OnFailure controls what happens after a step fails inside one row.
 type OnFailure string

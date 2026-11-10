@@ -43,3 +43,27 @@ Seen 只统计有证据的独立发生事件；补文档、同一事件的重复
 - 修复 commit：`545d91f`、`a1c06ae` 的集成状态记录提供当前证据；`33c0338` 记录复核规则。旧报告保留为历史，不代表所有状态文档已完成统一更新。
 - Done right: 先查HEAD、生产入口、最新集成报告和账本，明确区分来源时状态与当前状态；合并记录保留双方证据并追加新状态，不单边取旧记录、不丢弃另一方记录。
 - Seen 1× (2026-11-10).
+
+**行/步骤并发共享的可变状态必须在锁内读写，新增的并发入口要单独跑 `-race` 验证。**
+- F01 第二阶段（`e3ba1c4` 之后的未提交改动）新增 OAuth `ApplyAuth` 成功后向 `Runner.knownSecrets` 追加令牌值，同时 `buildAttemptPlan`/`dataset.go` 在其他行 goroutine 中读同一底层数组；普通 `go test` 全绿，只有 `go test -race ./internal/desktop -run TestRunnerOAuth` 报 data race。若只跑默认测试就会把真实并发缺陷当成通过交付。
+- 修复 commit：`568285c`（`internal/runner/prepare.go` 增加 `secretsMu sync.Mutex` 与 `rememberSecrets`/`knownSecretSnapshot`，`runner.go`、`schema_adapter_report.go` 全部改走这两个入口）。
+- Done right: 先列出哪些字段会被 row/step goroutine 并发访问，读路径返回快照副本、写路径统一走加锁方法，不在持锁期间做注册/校验等重活；新增任何并发路径后至少对该包跑一次 `-race`，而不是只跑全量默认测试。
+- Seen 1× (2026-11-10).
+
+**headless UI 断言不能依赖固定高度内层滚动区里行的几何位置。**
+- F01 第二阶段 `TestRunnerResultViewRendersInLightAndDarkThemes` 用 `tt.Find("step-039")` 断言结果行可见，返回 `{X:0 Y:0 W:0 H:0}`；换成 `step-000` 同样为零，说明结果行位于 180px `ui.Scroll` 内时 `Find` 不返回可命中的几何。最初据此判断“最后一行未渲染”是错误结论，白改了一轮。
+- 修复 commit：`568285c`（测试改为对分页 chrome 断言几何，对行内容用 `tt.HasText`）。
+- Done right: 只对模态窗口内直接布局的控件断言 X/Y/W/H 与窗口边界；滚动区内容用 `HasText`/内容断言，并单独覆盖滚动可用性。断言失败时先区分“元素不存在”“元素存在但不在视口”“元素在滚动容器内”，再改实现或测试。
+- Seen 1× (2026-11-10).
+
+**局部编辑必须确认没有顺带删掉相邻分支，编辑后立即跑该包测试与格式检查。**
+- F01 开发中一次对 `classifyRunKind` 的局部替换误删了 `timeout` 分支，同一轮还出现过 Edit 遗留多余 tab；两者都由随后的编译/测试暴露，但如果只做格式化提交就会带出行为回退。
+- 修复 commit：当场恢复，未进入任何提交（无独立修复 commit）。
+- Done right: 编辑前把待改函数完整读一遍，替换片段只覆盖目标分支；编辑后先 `gofmt -l` 与 `go build ./...`/该包测试，再继续下一处；提交前 `git diff` 逐 hunk 复核，确认没有删除无关分支。
+- Seen 2× (2026-11-10, 2026-11-10).
+
+**改公共内部函数签名时，先枚举全部调用点并确认归属，测试调用点与生产调用点一起改。**
+- F01 第二阶段给 `prepareDesktopRunner` 增加 `desktopRunnerOptions` 参数；若不先枚举，`runner_test.go`/`runner_integration_test.go` 会编译失败，或误改到其他路文件。实际三处调用点（1 生产 + 2 测试）都在本卡文件内，无需 integration patch。
+- 修复 commit：`568285c`（调用点同步更新）。
+- Done right: 改签名前 `grep -rn` 全仓枚举调用点，逐个确认文件归属；跨卡公共文件只出 `integration.patch`，不直接改；改完 `go build ./...` + `go vet ./...` + 相关包测试，并在报告中写明“仅本卡内接线，无公共 patch”。
+- Seen 1× (2026-11-10).

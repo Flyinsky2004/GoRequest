@@ -184,16 +184,18 @@ func (r *Runner) Run(ctx context.Context) (*RunResult, error) {
 
 func (r *Runner) baseResult() *RunResult {
 	res := &RunResult{
-		FormatVersion: ReportFormatVersion,
-		SchemaVersion: r.suite.SchemaVersion,
-		SuiteID:       r.suite.ID,
-		SuiteName:     r.suite.Name,
-		RunID:         r.runID,
-		Snapshot:      r.snap,
-		Environment:   r.opts.Environment,
-		Seed:          r.opts.Seed,
-		Status:        StatusPassed,
-		Rows:          []RowResult{},
+		FormatVersion:   ReportFormatVersion,
+		SchemaVersion:   r.suite.SchemaVersion,
+		SuiteID:         r.suite.ID,
+		SuiteName:       r.suite.Name,
+		RunID:           r.runID,
+		Snapshot:        r.snap,
+		Environment:     r.opts.Environment,
+		Seed:            r.opts.Seed,
+		StepConcurrency: r.opts.StepConcurrency,
+		RowConcurrency:  r.opts.RowConcurrency,
+		Status:          StatusPassed,
+		Rows:            []RowResult{},
 	}
 	if r.project != nil && r.project.File != nil {
 		res.ProjectID = r.project.File.ID
@@ -504,7 +506,7 @@ func (r *Runner) runStep(ctx context.Context, rs *rowState, rowNo int, sp *StepP
 			break
 		}
 
-		plan, stepRed, auth, err := r.buildAttemptPlan(ctx, sp, rs, stepVars, outputs)
+		plan, stepRed, auth, vars, err := r.buildAttemptPlan(ctx, sp, rs, stepVars, outputs)
 		if err != nil {
 			f := r.redactFailure(stepRed, classifyError(err))
 			attempt.Status = statusForFailure(f)
@@ -520,7 +522,53 @@ func (r *Runner) runStep(ctx context.Context, rs *rowState, rowNo int, sp *StepP
 		}
 
 		r.events.send(Event{Kind: EventAttemptStarted, Row: rowNo, StepID: sp.Step.ID, Attempt: attemptNo})
-		execRes, execErr := r.opts.Executor.Execute(ctx, plan, execOpts)
+		// OAuth/OIDC token acquisition happens before the business request. A
+		// failure here never sends the request and is never retried.
+		if auth != nil && isOAuthScheme(auth) {
+			authReq := AuthRequest{
+				StepID:         sp.Step.ID,
+				SchemeID:       oauthSchemeID(sp, auth),
+				SchemeType:     strings.ToLower(strings.TrimSpace(auth.Type)),
+				Scheme:         core.CloneAuthScheme(auth),
+				Variables:      vars,
+				Secrets:        r.opts.Secrets,
+				ExecuteOptions: r.preflightNetworkOptions(stepRed, auth),
+				EnvID:          r.opts.Environment,
+				Redactor:       stepRed,
+			}
+			var authRes AuthResult
+			var authErr error
+			if r.opts.Auth == nil {
+				authErr = fmt.Errorf("OAuth/OIDC auth provider is missing")
+			} else {
+				authRes, authErr = r.opts.Auth.ApplyAuth(ctx, plan, authReq)
+			}
+			if authErr != nil {
+				f := r.redactFailure(stepRed, classifyAuthError(authErr))
+				if ctx.Err() != nil {
+					f = newFailure(FailureCanceled, KindOther, "run canceled")
+				}
+				attempt.Status = statusForFailure(f)
+				attempt.Failure = f
+				attempt.DurationMs = time.Since(attemptReal).Milliseconds()
+				sr.Attempts = append(sr.Attempts, attempt)
+				lastFail, lastStatus = f, attempt.Status
+				r.events.send(Event{
+					Kind: EventAttemptFinished, Row: rowNo, StepID: sp.Step.ID, Attempt: attemptNo,
+					Status: attempt.Status, DurationMs: attempt.DurationMs, Message: f.Message,
+				})
+				break
+			}
+			for _, secret := range authRes.Secrets {
+				if secret == "" {
+					continue
+				}
+				stepRed.RegisterSecret(secret)
+				r.red.RegisterSecret(secret)
+				r.rememberSecrets(secret)
+			}
+		}
+		execRes, execErr := r.executeAttempt(ctx, sp, plan, execOpts, stepRed)
 		if execErr != nil {
 			f := r.redactFailure(stepRed, classifyError(execErr))
 			if ctx.Err() != nil {
@@ -674,15 +722,15 @@ func (r *Runner) runStep(ctx context.Context, rs *rowState, rowNo int, sp *StepP
 // the run-level redactor before any reports are emitted. Names are never
 // included; only values are used for masking.
 func (r *Runner) PreloadSecrets(values []string) {
+	r.rememberSecrets(values...)
 	for _, v := range values {
-		if v != "" && !containsString(r.knownSecrets, v) {
-			r.knownSecrets = append(r.knownSecrets, v)
+		if v != "" {
 			r.red.RegisterSecret(v)
 		}
 	}
 }
 
-func (r *Runner) buildAttemptPlan(ctx context.Context, sp *StepPlan, rs *rowState, stepVars map[string]string, outputs map[string]core.StepOutput) (*core.Plan, *core.Redactor, *core.AuthScheme, error) {
+func (r *Runner) buildAttemptPlan(ctx context.Context, sp *StepPlan, rs *rowState, stepVars map[string]string, outputs map[string]core.StepOutput) (*core.Plan, *core.Redactor, *core.AuthScheme, map[string]string, error) {
 	opts := &core.ResolveOptions{
 		RunVars:     rs.vars,
 		StepVars:    stepVars,
@@ -691,11 +739,11 @@ func (r *Runner) buildAttemptPlan(ctx context.Context, sp *StepPlan, rs *rowStat
 	}
 	vars, _, err := r.project.ResolveVarsWith(sp.Entry, r.opts.Environment, opts)
 	if err != nil {
-		return nil, core.NewRedactor(), nil, err
+		return nil, core.NewRedactor(), nil, nil, err
 	}
 	eff, err := r.project.ResolveEffectiveAuth(sp.Entry, nil)
 	if err != nil {
-		return nil, core.NewRedactor(), nil, err
+		return nil, core.NewRedactor(), nil, nil, err
 	}
 	var auth *core.AuthScheme
 	if eff != nil {
@@ -707,12 +755,34 @@ func (r *Runner) buildAttemptPlan(ctx context.Context, sp *StepPlan, rs *rowStat
 		if red == nil {
 			red = core.NewRedactor()
 		}
-		return nil, red, auth, err
+		return nil, red, auth, vars, err
 	}
-	for _, s := range r.knownSecrets {
+	for _, s := range r.knownSecretSnapshot() {
 		red.RegisterSecret(s)
 	}
-	return plan, red, auth, nil
+	return plan, red, auth, vars, nil
+}
+
+// executeAttempt dispatches one attempt to the protocol adapter or the HTTP
+// executor. Preflight guarantees that a non-HTTP request never reaches here
+// without an adapter.
+func (r *Runner) executeAttempt(ctx context.Context, sp *StepPlan, plan *core.Plan, opts core.ExecuteOptions, red *core.Redactor) (*core.ExecResult, error) {
+	if isNonHTTPProtocol(sp.Entry.Request) {
+		if r.opts.Protocol == nil {
+			return nil, &core.ConfigError{Err: errors.New("protocol executor is not configured")}
+		}
+		return r.opts.Protocol.ExecuteProtocol(ctx, ProtocolRequest{
+			StepID:         sp.Step.ID,
+			Entry:          sp.Entry,
+			Plan:           plan,
+			ExecuteOptions: opts,
+			Redactor:       red,
+		})
+	}
+	if r.opts.Executor == nil {
+		return nil, &core.ConfigError{Err: errors.New("executor is not configured")}
+	}
+	return r.opts.Executor.Execute(ctx, plan, opts)
 }
 
 func (r *Runner) executeOptions(red *core.Redactor, auth *core.AuthScheme, rs *rowState) core.ExecuteOptions {
