@@ -130,36 +130,72 @@ Seen 只统计有证据的独立发生事件；补文档、同一事件的重复
 
 **新增 i18n 字段必须同一提交内补齐全部语言字面量，并靠反射测试兜住遗漏。**
 - F02 的 WebSocket 脚本工作区一次性给 `wsWorkspaceMessages` 增加 32 个字段，只改了结构体就继续接线，`wsWorkspaceMessagesEn/Zh` 留空；若不补齐，`TestWSWorkspaceMessagesCoverEveryField` 会直接失败，界面也会出现空白标签。
-- 修复 commit：本卡交付提交（F02 脚本工作区），未单独拆分修复 commit。
+- 修复 commit：`9db46f1`（F02交付，F02 脚本工作区），未单独拆分修复 commit。
 - Done right: 加字段时立即补 EN/ZH 两份字面量并跑 `go test ./internal/desktop -run TestWSWorkspaceMessagesCoverEveryField`；反射测试是最后一道闸，不能等 UI 接线完成才发现。
 - Seen 1× (2026-11-10).
 
 **新增 UI 分区必须同时接线标签、分区 case 和上下两栏路由，否则功能实际不可达。**
 - F02 实现了 `wsPlanSection`/`wsPlanResultPane` 全套渲染，却没有第四个 tab 标签、没有 `wsConfigSection` 分支、下方面板也未按分区切换；编译和单测都通过，但用户永远看不到脚本入口，等于未交付。
-- 修复 commit：本卡交付提交（`websocket_ui.go` 三处接线），未单独拆分修复 commit。
+- 修复 commit：`9db46f1`（F02交付，`websocket_ui.go` 三处接线），未单独拆分修复 commit。
 - Done right: 新分区落地时按“标签 → 分区渲染 → 上下两栏路由”三处清单逐项核对，并写 `ui.NewTester` 测试断言该分区可见且手动面板被替换；只测纯函数渲染不足以证明入口可达。
 - Seen 1× (2026-11-10).
 
 **调用依赖 entry 作用域的解析前，必须显式检查 `tab.Entry == nil`。**
 - `wsPlanRun` 直接调用 `core.Project.ResolveVars(tab.Entry, …)`，而 `ResolveVars` 会解引用 `entry.CollectionVars`；未挂接请求的 tab 会 panic，而不是给出可读错误。
-- 修复 commit：本卡交付提交（`websocket_plan.go` 的 nil-entry 守卫），未单独拆分修复 commit。
+- 修复 commit：`9db46f1`（F02交付，`websocket_plan.go` 的 nil-entry 守卫），未单独拆分修复 commit。
 - Done right: 在获取路径/项目检查之后立即守卫 `tab.Entry == nil` 并返回用户可读错误；测试用一个只设置 `Owner` 的 `&Tab{}` 断言走错误分支而非崩溃。
 - Seen 1× (2026-11-10).
 
 **给标签/徽标并行数组插入分区时，必须同步移动徽标下标或改为按标签推导，不能用旧下标。**
 - F02 在 GraphQL 工作区 `labels` 的索引 2 插入 Schema 分区后，`graphql_ui.go` 仍保留 `badges[2] = badgeCount(kvCount(tab.HeaderRows))`，Header 数量徽标因此渲染到 Schema 标签上；编译、vet 和既有测试都不会发现，因为徽标是纯视觉输出。`git show HEAD:` 证实基线四标签版本中 Headers 就在索引 2，是本卡插入分区引入的回归。
-- 修复 commit：本卡交付提交（`graphql_ui.go` 改为 `badges[3]` 并加注释、`graphql.go` 的 section 注释同步改为五分区），未单独拆分修复 commit。
+- 修复 commit：`9db46f1`（F02交付，`graphql_ui.go` 改为 `badges[3]` 并加注释、`graphql.go` 的 section 注释同步改为五分区），未单独拆分修复 commit。
 - Done right: 插入/删除分区后同时核对标签数组、分区 case、上下栏路由和徽标下标四处；`uikit.UnderlineTabs` 的下标与标签并行，最好按标签值或常量推导而非硬编码；至少用 `ui.NewTester` 断言徽标出现在预期分区。
 - Seen 1× (2026-11-10).
 
 **异步启动的 UI 动作，测试必须用真实完成信号同步，不能假设调用返回后状态已就绪。**
 - 新增 `websocket_plan_test.go` 时，`wsPlanRun` 在 goroutine 内连接，测试却在其后同步断言 `running`，必然失败；取消测试还错误断言失败步为 1，实际取消发生在尚未连接完成时，首个适用守卫/步骤才是事实。
-- 修复 commit：本卡交付提交（测试以服务器握手 `accepted` 信号为同步点），未单独拆分修复 commit。
+- 修复 commit：`9db46f1`（F02交付，测试以服务器握手 `accepted` 信号为同步点），未单独拆分修复 commit。
 - Done right: 用测试服务器握手/回显信号或 `waitWS` 等待真实状态变化，不用 sleep 也不假设同步完成；断言按实际执行顺序取“最后一个已执行步骤”，并核对 `FailedStep` 与 `len(res.Steps)-1` 一致。
 - Seen 1× (2026-11-10).
 
 **给协议适配器设计前，必须先核对端口结构体实际透出的上下文，不能假设从 Plan 推断。**
 - F02 第二阶段设计 Runner 适配器时发现 `runner.ProtocolRequest` 只含 `{StepID, Entry, Plan, ExecuteOptions, Redactor}`，没有计划文件路径、也没有变量表；若想当然“从 Plan 取步骤与模板值”，计划的 send/await 步骤和 `{{var}}` 模板都无处而来，适配器会变成不可用的假接线。端口设计 `e3ba1c4` 即如此，无单一回归 commit。
-- 修复 commit：本卡交付提交（新增 `internal/protocolrun/planref.go` 用请求扩展 `Extensions["wsPlan"]` 携带计划引用；接线补丁提出 `Variables map[string]string` 的最小端口扩展）。
+- 修复 commit：`9db46f1`（F02交付，新增 `internal/protocolrun/planref.go` 用请求扩展 `Extensions["wsPlan"]` 携带计划引用；接线补丁提出 `Variables map[string]string` 的最小端口扩展）。
 - Done right: 设计 adapter 前先读端口源码，把所需上下文分成“端口已透出 / 需最小端口扩展 / 可用 Extensions 兼容入口绕过”三类；能走扩展的就不动冻结端口，必须动端口的在 patch 里给出最小改动与理由，并临时应用端口验证编译后再撤回。
+- Seen 1× (2026-11-10).
+
+**模块编译通过不代表产品可达，跨卡接口必须以真实端到端路径验收。**
+- F01 `e3ba1c4`/`568285c` 与 F02 `9db46f1` 分别交付端口/协议模块，但变量没有透传、桌面没有装配适配器，Suite仍只选HTTP；F03 `8cf6a91` 的画布和诊断也依赖未应用的公共patch。只合并来源会留下“有模块无入口”的功能缺口。
+- 修复 commit：`c1f17ce`（Mermaid入口）、`bd1978d`（Runner适配、Suite选择、变量/数据/依赖校验、失败事实）。
+- Done right: 在集成树实际点击Schema入口，并以同一Runner跑loopback GraphQL/WS；检查业务errors、失败close码、报告JSON与未知计划/本机路径拒绝，不能仅测试fake port或适配器能编译。
+- Seen 1× (2026-11-10).
+
+**新后台操作必须随所属标签和窗口关闭取消，并阻止旧代际回写。**
+- F02 `9db46f1` 的订阅/Introspection有启动和按钮取消，但未接removeTab/cancelAllRequests；Introspection worker还读取UI状态，关闭或修改界面可能留下连接或产生旧结果回写。
+- 修复 commit：`bd1978d`。
+- Done right: 共用gqlTeardownTab取消所有操作，在UI线程冻结计划/网络/鉴权输入，worker只执行冻结值，回写校验generation；测试关闭实际标签后服务端观察到订阅和Introspection连接终止。
+- Seen 1× (2026-11-10).
+
+**保存生成的Schema必须保护已有手写文件，不能直接WriteAtomic覆盖固定文件名。**
+- F02 `9db46f1` 将Introspection固定写入schemas/introspected.graphql，第二次保存可能覆盖用户已有Schema；原子写保证写入完整，不代表允许覆盖。
+- 修复 commit：`bd1978d`。
+- Done right: 选择未占用目标并以SaveChecked空基线创建；UI点击保存回归先放置手写文件，断言其字节不变且新引用指向另一个文件。
+- Seen 1× (2026-11-10).
+
+**SDK类型必须忠实表达契约，不能用可声明但无法正确赋值的交叉类型掩盖不支持项。**
+- F04 `0859b95` 将命名字段与受约束additionalProperties输出为TypeScript Record交集；索引签名也约束命名字段，可能令合法JSON无法赋值，或让实现者被迫放宽类型。
+- 修复 commit：`bd1978d`。
+- Done right: 纯map和unknown开放对象照常生成；TypeScript对“命名字段+受约束额外键”明确拒绝，Go不受该限制；回归测试同时检查TS拒绝和Go仍可生成，并实跑tsc。
+- Seen 1× (2026-11-10).
+
+**调用已有接口前也要核实参数类型，不能凭变量名猜测签名。**
+- 本次集成未提交编辑中，将Plan误传给buildExecuteOptionsForTab的AuthScheme参数，编译立即失败；没有进入来源或功能提交。
+- 修复 commit：`bd1978d`（改为解析并传入实际有效AuthScheme）。
+- Done right: 修改调用前读取声明与相邻调用点，随后立即编译最小相关包；静态类型错误在继续组合验证前解决，不把失败输出掩盖为通过。
+- Seen 1× (2026-11-10).
+
+**HTTP取消测试的服务端必须先消费请求体，再观察断连，并在失败时清理连接。**
+- 本次集成临时TestFormal4CloseCancelsIntrospection的handler未读POST正文就等待Context.Done，出现取消断言失败并在Server.Close阻塞，最终30秒测试超时；这是测试夹具错误，不是据此证明产品取消失败。
+- 修复 commit：`bd1978d`（夹具读完正文，补CloseClientConnections兜底；订阅/取消专项随后通过）。
+- Done right: 用io.Copy(io.Discard,r.Body)读完请求，再通过明确channel观察服务端Context取消；有独立超时和连接清理，保留首次失败及修正后的证据。
 - Seen 1× (2026-11-10).

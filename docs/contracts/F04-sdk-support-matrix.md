@@ -28,8 +28,8 @@
 | `number` | `float64` | `number` | `format: float/double` 不区分 |
 | `boolean` | `bool` | `boolean` | |
 | `array` + `items` | `[]T` | `Array<T>` | 无 `items` → `array schema has no items` |
-| `object` + `additionalProperties`（true/schema） | `map[string]T`（根级）/ 结构体字段 `AdditionalProperties map[string]T` | `Record<string, T>` | 声明字段与额外属性冲突 → `<Model>: additional property %q collides with a declared field` |
-| `object` + `properties` | 具名 struct | `interface`（封闭）/ `type X = {...} & Record<string, unknown|T>`（开放） | 模型名由 `names.go` 分配 |
+| `object` + `additionalProperties`（true/schema） | `map[string]T`（根级）/ 结构体字段 `AdditionalProperties map[string]T` | 纯 map 为 `Record<string,T>`；开放 unknown 与命名字段可组合；同时有命名字段和受约束额外属性则阻断 | Go 声明字段与额外属性冲突会报错；TS 无法精确表达“仅额外键”约束时拒绝生成，避免不可能的交叉类型 |
+| `object` + `properties` | 具名 struct | `interface`（封闭）/ `type X = {...} & Record<string, unknown>`（开放；受约束额外键见上一行） | 模型名由 `names.go` 分配 |
 | `enum` | 具名常量类型 + `Validate` | `const X = {...} as const` + `type X = (typeof X)[keyof typeof X]` | 混合 JSON 类型 → `enum values mix incompatible JSON types` |
 | `allOf` | 合并后的 struct | 合并后的 interface/交叉类型 | 仅支持全部为 object 模型的成员 |
 | `oneOf`/`anyOf` + `discriminator.propertyName` | 带 `Kind` 判别字段的 union + 解码 | `(A & { d: "v" }) \| ...` | 无 discriminator → `%s requires a discriminator (propertyName) to generate an accurate tagged union` |

@@ -1,5 +1,7 @@
 # F01 Runner 扩展端口契约（非交互鉴权与协议执行）
 
+> 2026-11-10 集成更新：最终协议端口 `ProtocolRequest` 增加 `Variables map[string]string`、`ResolveOptions *core.ResolveOptions` 与 `CheckTemplates func([]string) error`，用于冻结变量、执行时数据集/步骤输出及外部计划的依赖闭包检查。桌面 Runner/Mock 已注入 `runneradapter.New()`。 详见 [集成报告](../task-results/integration-F01-F04-2026-11-10.md)。
+
 状态：F01 第一阶段交付，2026-11-10。基于真实 `internal/runner` API 编写，供 F02 及集成人接线使用。字段为**新增可选端口**，HTTP 默认路径与 A01/A02 已有行为不变；不是完整 1.0-A 验收声明。
 
 依据：[F01 任务卡](../task-briefs/F01-automation-completion.md)、[共同约定](../task-briefs/formal4-common-20261110.md)、[Runner Core 契约](../specs/runner-core-contracts.md)、[桌面自动化规格](../specs/desktop-test-automation.md)、[OAuth 证据](../specs/oauth-evidence.md)、[OpenAPI/鉴权规格](../specs/openapi-auth.md)、[AC-06/07/09](../acceptance.md)。

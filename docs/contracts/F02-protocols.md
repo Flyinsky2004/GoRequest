@@ -1,5 +1,7 @@
 # F02 协议能力契约与兼容矩阵（GraphQL / WebSocket / 有界 WS 脚本）
 
+> 2026-11-10 集成更新：最终适配器位于 `internal/protocolrun/runneradapter`，已接入桌面 Runner/Mock 与 Suite 请求选择器。WS 事实以 `AttemptResult.ProtocolFacts` 脱敏保存，失败时仍保留，HTTPStatus 不伪造成功。GraphQL 业务 errors 默认失败；显式保存 `Extensions["graphqlAllowErrors"]=true` 可接受预期错误响应。订阅不进入 Runner。 详见 [集成报告](../task-results/integration-F01-F04-2026-11-10.md)。
+
 状态：F02 第一阶段交付，2026-11-10。基于本 worktree 的真实代码编写，供集成人接线与后续维护使用。
 本文件只描述**已实现并自动化验证**的能力；未实现项在第 6 节单列，不以“后续补充”混同为已完成。
 

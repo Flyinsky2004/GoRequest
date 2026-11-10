@@ -1478,12 +1478,12 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 
 | ID / 负责人 | 分支 / 实际 worktree | 归属与阶段目标 | 状态 |
 | --- | --- | --- | --- |
-| F01 / Herdr CC | `cc/F01-automation-completion` / `/private/tmp/gorequest-formal4-20261110/automation` | Runner/OAuth/契约/并发与结果；独占runner及runner/suite UI；[方案](task-briefs/F01-automation-completion.md) | 方案完成，准备启动 |
-| F02 / Herdr CC | `cc/F02-protocols` / `/private/tmp/gorequest-formal4-20261110/protocols` | GraphQL SDL/Explorer/订阅与WS有界自动化，新增protocolrun；Runner接线依赖F01端口；[方案](task-briefs/F02-protocols.md) | 方案完成，准备启动 |
-| F03 / Herdr CC | `cc/F03-mermaid` / `/private/tmp/gorequest-formal4-20261110/mermaid` | 原生离线flowchart/sequence子集、诊断和导出；独占diagram/docgen图表；[方案](task-briefs/F03-mermaid.md) | 方案完成，准备启动 |
-| F04 / Herdr CC | `cc/F04-sdk` / `/private/tmp/gorequest-formal4-20261110/sdk` | Go类型模型和TS HTTP SDK阶段、生成保护；独占sdkgen/sdk UI；[方案](task-briefs/F04-sdk.md) | 方案完成，准备启动 |
+| F01 / Herdr CC | `cc/F01-automation-completion` / `/private/tmp/gorequest-formal4-20261110/automation` | Runner/OAuth/契约/并发与结果；独占runner及runner/suite UI；[方案](task-briefs/F01-automation-completion.md) | 已集成并通过阶段自动化验收，见 §51.2 |
+| F02 / Herdr CC | `cc/F02-protocols` / `/private/tmp/gorequest-formal4-20261110/protocols` | GraphQL SDL/Explorer/订阅与WS有界自动化，新增protocolrun；Runner接线依赖F01端口；[方案](task-briefs/F02-protocols.md) | 已集成并通过阶段自动化验收，见 §51.2 |
+| F03 / Herdr CC | `cc/F03-mermaid` / `/private/tmp/gorequest-formal4-20261110/mermaid` | 原生离线flowchart/sequence子集、诊断和导出；独占diagram/docgen图表；[方案](task-briefs/F03-mermaid.md) | 已集成并通过阶段自动化验收，见 §51.2 |
+| F04 / Herdr CC | `cc/F04-sdk` / `/private/tmp/gorequest-formal4-20261110/sdk` | Go类型模型和TS HTTP SDK阶段、生成保护；独占sdkgen/sdk UI；[方案](task-briefs/F04-sdk.md) | 已集成并通过阶段自动化验收，见 §51.2 |
 
-本批不意味着完整1.0-A/B/C已完成；gRPC本体/Python SDK/全部Mermaid等后续仍保留。各路实际实现与验证、来源hash待交付；仅集成验收后登记阶段完成。主代理承担组合回归与可访问的实机验收，不把全套验收转给用户。启动句柄/共同基线与本轮基线验证后补。
+本批不意味着完整1.0-A/B/C已完成；gRPC本体/Python SDK/全部Mermaid等后续仍保留。启动时各路实现与来源hash待交付；目前阶段验收结果更新于§51.2。主代理承担组合回归与可访问的实机验收，不把全套验收转给用户。启动句柄/共同基线与本轮基线验证后补。
 
 ### 51.1 实际基线、启动与初始验证
 
@@ -1499,3 +1499,17 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 | F04 | `t6m` | `tba6a095e22a8a8286a80b1d05e9951f6f` | sdk / CC working，方案已送达 |
 
 精确启动返回、用户文件摘要与状态保存在本机 `/private/tmp/gorequest-formal4-20261110/launch-baseline.json`、`launches.json`、`startup-check.json`。已有 `t6g` 等用户/其他项目会话未操作。仅确认启动，不宣称功能已完成/集成/实机验收。
+
+
+### 51.2 四路交付、公共入口集成与验收
+
+- [x] F01 阶段交付及自动化集成验收完成（来源 `7a260da`）。
+- [x] F02 阶段交付及自动化集成验收完成（来源 `9db46f1`）。
+- [x] F03 阶段交付及自动化集成验收完成（来源 `fb9b177`）。
+- [x] F04 阶段交付及自动化集成验收完成（来源 `5bf90d1`）。
+
+集成人负责公共入口，使用 `/private/tmp/gorequest-formal4-20261110/integration`、`cc/integrate-F01-F04` 从 main `6a0d2a6` 集成。合并 `b99a1d5` / `638b63e` / `f0e3d74` / `15f6583`，入口接线 `c1f17ce`，组合修正 `bd1978d`。所有 LESSONS.md 条目保留合并，新增集成教训按用户要求的四条格式记录。
+
+全仓普通测试无测试级 skip 通过（desktop 46.065s），全仓 race 通过（desktop 301.691s），最终 TS 增量 SDK race 6.721s、桌面接线专项 race 3.215s 通过，build/vet 通过。详细命令、协议/取消/保存/类型修正与证据见 [集成报告](task-results/integration-F01-F04-2026-11-10.md)。来源报告保留其交付时状态，以本节和集成报告更新为准。
+
+仅勾选四张阶段卡，不等于完整 1.0-A/B/C。真实窗口/IME/三平台验收未完成；gRPC、Python SDK、全部 Mermaid、GraphQL Schema 代码补全与 Runner 订阅仍有范围限制。
