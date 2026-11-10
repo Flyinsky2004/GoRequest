@@ -1,0 +1,229 @@
+diff --git a/internal/core/doclinks.go b/internal/core/doclinks.go
+index 8869bd3..d9cc1ea 100644
+--- a/internal/core/doclinks.go
++++ b/internal/core/doclinks.go
+@@ -1,6 +1,7 @@
+ package core
+ 
+ import (
++	"context"
+ 	"fmt"
+ 	"io"
+ 	"net/url"
+@@ -9,6 +10,7 @@ import (
+ 	"sort"
+ 	"strings"
+ 
++	"gorequest/internal/diagram"
+ 	"gorequest/internal/markdown"
+ )
+ 
+@@ -357,7 +359,17 @@ func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
+ 			add(b.Start, SeverityInfo, DiagHTMLNotExecuted, "", "raw HTML is shown as source text and is never executed")
+ 		case markdown.CodeBlock:
+ 			if strings.EqualFold(b.Language(), "mermaid") {
+-				add(b.Start, SeverityInfo, DiagMermaid, "", "Mermaid rendering is not part of this build; the source is shown")
++				body := fencedCodeBody(src, b)
++				if _, d := diagram.Render(context.Background(), body, diagram.Options{}); d != nil {
++					// Report the line in document coordinates. The diagram
++					// parser knows the line within the fence.
++					line, _, _ := lineColumnAt(src, b.Start)
++					out = append(out, DocDiagnostic{
++						RelPath: docRel, Line: line + d.Line, Column: d.Column,
++						Severity: SeverityWarning, Kind: DiagMermaid,
++						Message: "Mermaid diagram is not rendered: " + d.Message + "; the source is kept",
++					})
++				}
+ 			}
+ 		}
+ 		for _, in := range d.Inlines(i) {
+@@ -409,6 +421,23 @@ func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
+ 	return out
+ }
+ 
++// fencedCodeBody extracts a fenced block's content. The project parser ends
++// a fenced block at its last content line, so the closing fence is optional.
++func fencedCodeBody(src string, b markdown.Block) string {
++	raw := src[b.Start:b.End]
++	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
++	if len(lines) > 0 {
++		lines = lines[1:]
++	}
++	if len(lines) > 0 {
++		last := strings.TrimSpace(lines[len(lines)-1])
++		if strings.HasPrefix(last, "```") || strings.HasPrefix(last, "~~~") {
++			lines = lines[:len(lines)-1]
++		}
++	}
++	return strings.Join(lines, "\n")
++}
++
+ // --- destination helpers --------------------------------------------------
+ 
+ func containsControl(s string) bool {
+diff --git a/internal/core/doclinks_test.go b/internal/core/doclinks_test.go
+index 60dab1c..73742ce 100644
+--- a/internal/core/doclinks_test.go
++++ b/internal/core/doclinks_test.go
+@@ -123,6 +123,13 @@ func TestDiagnoseDocReportsPositionedFindings(t *testing.T) {
+ 		"![remote](https://example.com/x.png)",
+ 		"```mermaid",
+ 		"graph TD",
++		"  A --> B",
++		"```",
++		"```mermaid",
++		"flowchart TD",
++		"  subgraph S",
++		"  A --> B",
++		"  end",
+ 		"```",
+ 		"<script>alert(1)</script>",
+ 		"",
+@@ -144,8 +151,15 @@ func TestDiagnoseDocReportsPositionedFindings(t *testing.T) {
+ 	if len(byKind[DiagRemoteImage]) != 1 || byKind[DiagRemoteImage][0].Line != 6 {
+ 		t.Errorf("remote image: %+v", byKind[DiagRemoteImage])
+ 	}
+-	if len(byKind[DiagMermaid]) != 1 || byKind[DiagMermaid][0].Line != 7 {
+-		t.Errorf("mermaid: %+v", byKind[DiagMermaid])
++	// A supported flowchart is drawn, so it reports nothing. The unsupported
++	// subgraph reports one warning at the real document line, never a
++	// partial diagram.
++	if len(byKind[DiagMermaid]) != 1 {
++		t.Fatalf("mermaid diagnostics: %+v", byKind[DiagMermaid])
++	}
++	md := byKind[DiagMermaid][0]
++	if md.Line != 13 || md.Severity != SeverityWarning || !strings.Contains(md.Message, "subgraph") {
++		t.Fatalf("mermaid diagnostic: %+v", md)
+ 	}
+ 	if len(byKind[DiagHTMLNotExecuted]) < 1 {
+ 		t.Errorf("html: %+v", byKind[DiagHTMLNotExecuted])
+diff --git a/internal/core/documentation.go b/internal/core/documentation.go
+index 2a98f7d..fa069c0 100644
+--- a/internal/core/documentation.go
++++ b/internal/core/documentation.go
+@@ -1,12 +1,14 @@
+ package core
+ 
+ import (
++	"context"
+ 	"path/filepath"
+ 	"sort"
+ 	"strings"
+ 	"unicode"
+ 	"unicode/utf8"
+ 
++	"gorequest/internal/diagram"
+ 	"gorequest/internal/markdown"
+ )
+ 
+@@ -428,7 +430,7 @@ func MarkdownCompatibility() []MarkdownFeature {
+ 		feature("Extension", "Dollar math", "$x$", dollarMath, "Requires ExtDollarMath; off in this build."),
+ 		feature("Unsupported", "YAML front matter", "---\ntitle: x\n---", frontMatter, "Parsed as a rule and text, not as metadata."),
+ 		feature("Unsupported", "Definition lists", "Term\n: definition", definitionList, "No definition-list syntax."),
+-		feature("Unsupported", "Mermaid rendering", "```mermaid\ngraph TD\n```", mermaidRender, "Source shown in a code block; rendering belongs to C03."),
++		feature("Extension", "Mermaid (offline subset)", "```mermaid\nflowchart TD\n  A-->B\n```", mermaidRender, "Offline flowchart and sequenceDiagram subset; unsupported syntax keeps its source and reports the exact reason."),
+ 	}
+ }
+ 
+@@ -649,13 +651,15 @@ func definitionList() bool {
+ }
+ 
+ func mermaidRender() bool {
+-	d := parseDoc("```mermaid\ngraph TD\nA-->B\n```\n")
+-	b, ok := firstBlock(d, markdown.CodeBlock)
+-	// Parsing the fence is not rendering it; the native Mermaid renderer is
+-	// explicitly out of this task (C03), so the row stays unsupported even
+-	// though the source round-trips as a Mermaid-labelled code block.
+-	_ = ok && b.Language() == "mermaid"
+-	return false
++	// The offline renderer must handle both delivered diagram types before
++	// this row claims support.
++	if _, d := diagram.Render(context.Background(), "flowchart TD\n  A-->B\n", diagram.Options{}); d != nil {
++		return false
++	}
++	if _, d := diagram.Render(context.Background(), "sequenceDiagram\n  A->>B: hi\n", diagram.Options{}); d != nil {
++		return false
++	}
++	return true
+ }
+ 
+ // --- small path helpers ---------------------------------------------------
+diff --git a/internal/core/documentation_test.go b/internal/core/documentation_test.go
+index 75e7629..f032fb6 100644
+--- a/internal/core/documentation_test.go
++++ b/internal/core/documentation_test.go
+@@ -183,7 +183,7 @@ func TestMarkdownCompatibilityMatrixMatchesParser(t *testing.T) {
+ 		"Inline HTML": true, "Backslash escapes and entities": true,
+ 		"Tables": true, "Task lists": true, "Strikethrough": true, "Bare autolinks": true,
+ 		"Footnotes": true, "Math": true, "Dollar math": false,
+-		"YAML front matter": false, "Definition lists": false, "Mermaid rendering": false,
++		"YAML front matter": false, "Definition lists": false, "Mermaid (offline subset)": true,
+ 	}
+ 	if len(m) != len(want) {
+ 		t.Fatalf("matrix has %d rows, want %d", len(m), len(want))
+diff --git a/internal/desktop/derived_docs_ui.go b/internal/desktop/derived_docs_ui.go
+index 60a20a0..88f8310 100644
+--- a/internal/desktop/derived_docs_ui.go
++++ b/internal/desktop/derived_docs_ui.go
+@@ -190,6 +190,9 @@ func (a *App) derivedDiagText(d core.DocDiagnostic) string {
+ 	case core.DiagHTMLNotExecuted:
+ 		return base.DiagHTML
+ 	case core.DiagMermaid:
++		if d.Message != "" {
++			return d.Message
++		}
+ 		return base.DiagMermaid
+ 	case core.DiagBadLink:
+ 		return fmt.Sprintf(base.DiagBadLink, d.Dest)
+diff --git a/internal/desktop/doc_live.go b/internal/desktop/doc_live.go
+index 95b19a1..5924ca9 100644
+--- a/internal/desktop/doc_live.go
++++ b/internal/desktop/doc_live.go
+@@ -268,6 +268,9 @@ func (a *App) docCanvasAddArea(c *ui.Context, t *ui.Theme, p uikit.Palette, tab
+ // its in-place editor on a click.
+ func (a *App) docCanvasRenderedBlock(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, st *docViewState, b docedit.Block, opts *markdown.Options, dm *docLiveMessages) {
+ 	if b.Kind == docmd.CodeBlock {
++		if a.docDiagramCodeBlock(c, t, tab, st, b, nil) {
++			return
++		}
+ 		a.docCanvasCodeBlock(c, t, tab, st, b, nil)
+ 		return
+ 	}
+@@ -379,6 +382,7 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
+ 	}
+ 	a.syncDocBlockTheme(be, t)
+ 	if be.kind == docmd.CodeBlock {
++		a.docDiagramEditToolbar(c, t, tab, st, be)
+ 		a.docCanvasCodeBlock(c, t, tab, st, docedit.Block{}, be)
+ 		return
+ 	}
+@@ -558,6 +562,7 @@ func (a *App) docCanvasMarkdownOptions(c *ui.Context, root ui.Element, tab *Tab,
+ 		return ui.DecodeBitmap(data)
+ 	}
+ 	o.OnLink = func(dest string) { a.handleDocLink(c, root, tab, st, dest) }
++	a.installDocDiagramCode(o, st)
+ 	o.Anchor = ""
+ 	o.AnchorVersion = 0
+ 	return o
+diff --git a/internal/desktop/documentation.go b/internal/desktop/documentation.go
+index 2933c36..5976fba 100644
+--- a/internal/desktop/documentation.go
++++ b/internal/desktop/documentation.go
+@@ -610,6 +610,9 @@ func (dm *docMessages) diagText(d core.DocDiagnostic) string {
+ 	case core.DiagHTMLNotExecuted:
+ 		return dm.DiagHTML
+ 	case core.DiagMermaid:
++		if d.Message != "" {
++			return d.Message
++		}
+ 		return dm.DiagMermaid
+ 	case docgen.DiagBadReference, docgen.DiagRefNoCard, docgen.DiagStrayEnd, docgen.DiagTooManyRefs, docgen.DiagScrubbed:
+ 		return d.Message
+@@ -677,6 +680,7 @@ func (a *App) docMarkdownOptions(c *ui.Context, root ui.Element, tab *Tab, st *d
+ 		return ui.DecodeBitmap(data)
+ 	}
+ 	o.OnLink = func(dest string) { a.handleDocLink(c, root, tab, st, dest) }
++	a.installDocDiagramCode(o, st)
+ 	o.Anchor = st.anchor
+ 	o.AnchorVersion = st.anchorVersion
+ 	return o

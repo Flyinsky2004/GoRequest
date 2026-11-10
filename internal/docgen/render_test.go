@@ -93,8 +93,8 @@ func TestRenderHTMLTablesAndLists(t *testing.T) {
 	}
 }
 
-func TestRenderHTMLMermaidAndHTMLBlockStaysInert(t *testing.T) {
-	src := "before\n\n<script>alert(1)</script>\n\n```mermaid\ngraph TD\n\tA-->B\n```\n\nafter\n"
+func TestRenderHTMLSupportedMermaidBecomesSafeSVG(t *testing.T) {
+	src := "before\n\n<script>alert(1)</script>\n\n```mermaid\ngraph TD\n\tA[开始] --> B{判断}\n\tB -->|是| C[完成]\n```\n\nafter\n"
 	out := RenderHTML(src, RenderOptions{})
 	if strings.Contains(out, "<script>") {
 		t.Fatalf("script tag leaked: %s", out)
@@ -102,11 +102,50 @@ func TestRenderHTMLMermaidAndHTMLBlockStaysInert(t *testing.T) {
 	if !strings.Contains(out, "&lt;script&gt;alert(1)&lt;/script&gt;") {
 		t.Fatalf("HTML block must be shown escaped as source: %s", out)
 	}
-	if !strings.Contains(out, "docgen-mermaid-note") {
-		t.Fatalf("mermaid warning missing: %s", out)
+	if !strings.Contains(out, `class="docgen-diagram"`) || !strings.Contains(out, "<svg ") {
+		t.Fatalf("supported diagram not rendered as SVG: %s", out)
+	}
+	if strings.Contains(out, "docgen-mermaid-note") {
+		t.Fatalf("supported diagram must not carry the not-rendered warning: %s", out)
+	}
+	for _, bad := range []string{"href=", "javascript:", "foreignObject", "<script"} {
+		if strings.Contains(strings.ToLower(out), bad) {
+			t.Fatalf("unsafe SVG construct %q: %s", bad, out)
+		}
+	}
+	if !strings.Contains(out, "开始") || !strings.Contains(out, "判断") {
+		t.Fatalf("CJK labels missing from SVG: %s", out)
 	}
 	if !strings.Contains(out, "graph TD") || !strings.Contains(out, "language-mermaid") {
-		t.Fatalf("mermaid source must be kept verbatim: %s", out)
+		t.Fatalf("mermaid source must be kept verbatim in the details block: %s", out)
+	}
+}
+
+func TestRenderHTMLUnsupportedMermaidKeepsSourceAndReason(t *testing.T) {
+	src := "```mermaid\nflowchart TD\n subgraph S\n A --> B\n end\n```\n"
+	out := RenderHTML(src, RenderOptions{})
+	if !strings.Contains(out, "docgen-mermaid-note") {
+		t.Fatalf("unsupported diagram must carry the warning: %s", out)
+	}
+	if !strings.Contains(out, "subgraph") || !strings.Contains(out, "line 3") {
+		t.Fatalf("reason with line number missing: %s", out)
+	}
+	if !strings.Contains(out, "language-mermaid") || !strings.Contains(out, "subgraph S") {
+		t.Fatalf("full source must be kept: %s", out)
+	}
+	if strings.Contains(out, `class="docgen-diagram"`) {
+		t.Fatalf("unsupported syntax must not draw a partial figure: %s", out)
+	}
+}
+
+func TestRenderHTMLDiagramDisableRestoresSourceOnly(t *testing.T) {
+	src := "```mermaid\nflowchart TD\n A --> B\n```\n"
+	out := RenderHTML(src, RenderOptions{Diagram: DiagramOptions{Disable: true}})
+	if strings.Contains(out, `class="docgen-diagram"`) {
+		t.Fatalf("Disable must keep the source-only fallback: %s", out)
+	}
+	if !strings.Contains(out, "docgen-mermaid-note") || !strings.Contains(out, "language-mermaid") {
+		t.Fatalf("fallback lost note or source: %s", out)
 	}
 }
 

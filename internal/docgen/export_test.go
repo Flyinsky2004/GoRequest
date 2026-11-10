@@ -245,3 +245,78 @@ func TestPreviewNilProjectFailsCleanly(t *testing.T) {
 		t.Fatalf("nil project must set Err, not diagnostics: %+v", prev.Diagnostics)
 	}
 }
+
+func findDiagramFiles(files []ExportFile) []ExportFile {
+	var out []ExportFile
+	for _, f := range files {
+		if strings.HasPrefix(f.TargetPath, "diagrams/") && strings.HasSuffix(f.TargetPath, ".svg") {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+func TestMarkdownExportCarriesStandaloneDiagramSVG(t *testing.T) {
+	p := newDocgenProjectWithDocs(t)
+	target := freshTarget(t)
+	opts := baseOpts(target)
+	prev := PreviewExport(p, opts)
+	if prev.Err != nil {
+		t.Fatalf("preview: %v", prev.Err)
+	}
+	diagrams := findDiagramFiles(prev.Files)
+	if len(diagrams) != 1 {
+		t.Fatalf("expected one standalone SVG, got %+v", prev.Files)
+	}
+	if _, err := RunExport(p, opts); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(target, filepath.FromSlash(diagrams[0].TargetPath)))
+	if err != nil {
+		t.Fatalf("diagram SVG not written: %v", err)
+	}
+	svg := string(data)
+	if !strings.HasPrefix(svg, GeneratedFileMarker) || !strings.Contains(svg, "<svg ") {
+		t.Fatalf("SVG asset is not a generated, self-contained SVG: %.120q", svg)
+	}
+	for _, bad := range []string{"<script", "href=", "foreignObject", "url("} {
+		if strings.Contains(strings.ToLower(svg), bad) {
+			t.Fatalf("unsafe SVG construct %q: %s", bad, svg)
+		}
+	}
+	// The Markdown document keeps the Mermaid source verbatim.
+	doc, err := os.ReadFile(filepath.Join(target, "docs/api.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(doc), "```mermaid") || !strings.Contains(string(doc), "graph TD") {
+		t.Fatalf("Markdown export must preserve the Mermaid source: %s", doc)
+	}
+}
+
+func TestHTMLExportEmbedsDiagramAndStillWritesSVG(t *testing.T) {
+	p := newDocgenProjectWithDocs(t)
+	target := freshTarget(t)
+	opts := baseOpts(target)
+	opts.Format = ExportHTML
+	prev := PreviewExport(p, opts)
+	if prev.Err != nil {
+		t.Fatalf("preview: %v", prev.Err)
+	}
+	if len(findDiagramFiles(prev.Files)) != 1 {
+		t.Fatalf("HTML set must carry the standalone SVG too: %+v", prev.Files)
+	}
+	if _, err := RunExport(p, opts); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	page, err := os.ReadFile(filepath.Join(target, "docs/api.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), `class="docgen-diagram"`) || !strings.Contains(string(page), "<svg ") {
+		t.Fatalf("HTML page does not embed the diagram: %s", page)
+	}
+	if strings.Contains(strings.ToLower(string(page)), "<script") {
+		t.Fatalf("HTML export must stay script-free")
+	}
+}

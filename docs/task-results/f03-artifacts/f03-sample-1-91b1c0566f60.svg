@@ -1,0 +1,29 @@
+<!-- gorequest:generated -->
+<svg xmlns="http://www.w3.org/2000/svg" width="244.0" height="324.5" viewBox="0 0 244.0 324.5" role="img" aria-label="flowchart TD">
+<title>flowchart TD</title>
+<desc>Offline Mermaid subset rendered by GoRequest: flowchart TD</desc>
+<g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif" font-size="14.0" fill="#1f2328">
+<rect x="0" y="0" width="244.0" height="324.5" fill="#ffffff"/>
+<polyline points="98.0,57.5 98.0,121.5" fill="none" stroke="#57606a" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="98.0,121.5 94.0,113.5 102.0,113.5" fill="#57606a"/>
+<polyline points="86.1,185.5 59.0,258.2" fill="none" stroke="#57606a" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="59.0,258.2 58.0,249.4 65.5,252.1" fill="#57606a"/>
+<rect x="45.1" y="205.3" width="23.4" height="21.5" rx="3" fill="#ffffff"/>
+<text x="56.8" y="220.8" text-anchor="middle" fill="#1f2328">是</text>
+<polyline points="109.9,185.5 133.8,249.5" fill="none" stroke="#57606a" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="133.8,249.5 127.2,243.4 134.7,240.6" fill="#57606a"/>
+<rect x="125.8" y="200.9" width="23.4" height="21.5" rx="3" fill="#ffffff"/>
+<text x="137.5" y="216.4" text-anchor="middle" fill="#1f2328">否</text>
+<polyline points="176.0,277.0 224.0,277.0 224.0,38.8 139.4,38.8" fill="none" stroke="#57606a" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="139.4,38.8 147.4,34.8 147.4,42.8" fill="#57606a"/>
+<rect x="56.6" y="20.0" width="82.9" height="37.5" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="98.0" y="43.5" text-anchor="middle" fill="#1f2328">开始 😀</text>
+<polygon points="98.0,121.5 143.0,153.5 98.0,185.5 53.0,153.5" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="98.0" y="158.3" text-anchor="middle" fill="#1f2328">判断</text>
+<rect x="20.0" y="258.2" width="64.0" height="37.5" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="52.0" y="281.8" text-anchor="middle" fill="#1f2328">完成</text>
+<rect x="112.0" y="249.5" width="64.0" height="55.0" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="144.0" y="273.0" text-anchor="middle" fill="#1f2328">多行</text>
+<text x="144.0" y="290.5" text-anchor="middle" fill="#1f2328">标签</text>
+</g>
+</svg>
