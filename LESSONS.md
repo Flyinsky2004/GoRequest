@@ -46,18 +46,18 @@ Seen 只统计有证据的独立发生事件；补文档、同一事件的重复
 
 **测试断言必须对照生成器的实际渲染规则书写，不能凭“应该长这样”的直觉写期望值。**
 - F04（`cc/F04-sdk`，共同基线 `08eb3d66`）`model_test.go` 的 `TestCJKModelAndFieldNames` 对可选字段断言 `"类型 string"`，而 Go 后端对非必填字段渲染为 `Optional[string]`；测试首次运行即失败，需回头核对 `goPropertyType` 才定位，浪费一轮验证。详见 `docs/task-results/F04.md`。
-- 修复 commit：本卡本地提交（修正与报告同次提交；哈希用 `git log -1 --format=%H -- docs/task-results/F04.md` 查询）。
+- 修复 commit：`0859b95`（F04 本卡提交，修正与报告同次提交）。
 - Done right: 写断言前先读后端映射函数（本例 `goPropertyType`/`tsType`），按必填/可空/可选三种组合各取一个真实样例；断言可执行的最小片段（`名称 string`、`类型 Optional[string]`、`fields["类型"]`）而不是整段文本。
 - Seen 1× (2026-11-10).
 
 **本机 PATH 上的工具链版本不满足生成物要求时，测试必须明确 skip 并说明“未执行”，不能报失败也不能报通过。**
 - F04 中 `TestTypeScriptTypecheckIfAvailable` 直接调用 PATH 上的 `tsc`，本机为 TypeScript 2.9.2，无法解析生成物的 `.ts` import specifier 与 `rewriteRelativeImportExtensions`；表现为编译错误，容易被误读为生成器缺陷。
-- 修复 commit：本卡本地提交（加入 `tsc --version` 版本闸门与 `GOREQUEST_TSC` 覆盖；哈希同上）。
+- 修复 commit：`0859b95`（加入 `tsc --version` 版本闸门与 `GOREQUEST_TSC` 覆盖）。
 - Done right: 先 `--version` 判定 5.7+ 门槛，低于门槛 `t.Skipf("TypeScript %s is too old (5.7+ required); type checking was not run")`；缺工具时 skip 文案写明“未运行类型检查”；交付报告同步写“仅用本地缓存 5.9.3 验证过一次，生成器不捆绑、不自动安装 TypeScript”。
 - Seen 1× (2026-11-10).
 
 **生成的文档必须引用实际实现的名字，不能按常见写法描述。**
 - F04 生成的 TypeScript README 写路径参数使用 `encodeURIComponent`，而实现是自写的 `encodePathValue`（为与 Go `net/url.PathEscape` 逐字节对齐）；文档与代码不一致会让使用者按错误语义排查。
-- 修复 commit：本卡本地提交（修正生成 README 文案并纳入生成测试断言；哈希同上）。
+- 修复 commit：`0859b95`（修正生成 README 文案并纳入生成测试断言）。
 - Done right: 生成 README 的每个行为描述都对应一个被测试覆盖的标识符；改名或替换实现时同步改文案，并把该文案纳入生成测试的 `strings.Contains` 断言集合。
 - Seen 1× (2026-11-10).
