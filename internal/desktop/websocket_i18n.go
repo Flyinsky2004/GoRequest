@@ -26,6 +26,8 @@ type wsMessages struct {
 	SendModeText      string
 	SendModeBinary    string
 	SendBinaryHint    string
+	BtnPickFile       string
+	BtnSendFile       string
 	DirFilterAll      string
 	DirFilterIn       string
 	DirFilterOut      string
@@ -89,6 +91,8 @@ var wsMessagesEn = wsMessages{
 	SendModeText:      "Text",
 	SendModeBinary:    "Binary",
 	SendBinaryHint:    "Hex bytes (e.g. 00ff0a21)",
+	BtnPickFile:       "Pick File…",
+	BtnSendFile:       "Send File",
 	DirFilterAll:      "All",
 	DirFilterIn:       "In",
 	DirFilterOut:      "Out",
@@ -152,6 +156,8 @@ var wsMessagesZh = wsMessages{
 	SendModeText:      "文本",
 	SendModeBinary:    "二进制",
 	SendBinaryHint:    "十六进制字节（如 00ff0a21）",
+	BtnPickFile:       "选择文件…",
+	BtnSendFile:       "发送文件",
 	DirFilterAll:      "全部",
 	DirFilterIn:       "收",
 	DirFilterOut:      "发",

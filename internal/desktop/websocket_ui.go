@@ -53,7 +53,9 @@ func (a *App) wsTabView(c *ui.Context, t *ui.Theme, tab *Tab) {
 	ui.Column(c).Grow(1).FillHeight().Padding(12, 16).Gap(10).Children(func() {
 		a.wsURLRow(c, t, tab, st, m, wm, p)
 
-		labels := []string{wm.SectionHeaders, wm.SectionAuth, wm.SectionSettings}
+		// Script is a sibling section, not a mode toggle: selecting it replaces
+		// the hand-driven message pane with the bounded, replayable plan surface.
+		labels := []string{wm.SectionHeaders, wm.SectionAuth, wm.SectionSettings, wm.SectionScript}
 		badges := make([]string, len(labels))
 		if n := kvCount(tab.HeaderRows); n > 0 {
 			badges[0] = badgeCount(n)
@@ -162,6 +164,8 @@ func (a *App) wsConfigSection(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabSta
 		ui.Column(c).Grow(1).FillWidth().Children(func() {
 			a.authEditor(c, t, tab)
 		})
+	case wsSectionScript:
+		a.wsPlanSection(c, t, tab, st, wm, p)
 	default:
 		a.wsSettingsSection(c, t, tab, st, m, wm, p)
 	}
@@ -198,6 +202,13 @@ func (a *App) wsSettingsSection(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabS
 // wsMessagePane is the lower half: live facts, timeline/detail and the send
 // area. It is shown even before connecting so the layout never jumps.
 func (a *App) wsMessagePane(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m *wsMessages, wm *wsWorkspaceMessages, p uikit.Palette) {
+	// The Script section owns the lower pane too: a bounded plan's per-step
+	// facts replace the manual timeline, so a scripted run is never displayed
+	// as if it were a hand-driven session.
+	if st.section == wsSectionScript {
+		a.wsPlanResultPane(c, t, tab, st, wm, p)
+		return
+	}
 	ui.Column(c).Grow(1).FillHeight().Gap(6).Children(func() {
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, wm.MessagesTitle).FontSize(12).FontWeight(600).TextColor(p.Text)
@@ -430,6 +441,12 @@ func (a *App) wsSendArea(c *ui.Context, t *ui.Theme, tab *Tab, st *wsTabState, m
 			} else {
 				hexIn := uikit.ActionCursor(ui.TextInput(c, &st.binaryDraft))
 				hexIn.FillWidth().Placeholder(m.SendBinaryHint).Disabled(!open)
+				if uikit.ActionCursor(ui.Button(c, m.BtnPickFile).Disabled(!open)).Clicked() {
+					a.wsTabPickBinaryFile(tab)
+				}
+				if uikit.ActionCursor(ui.Button(c, m.BtnSendFile).Disabled(!open || strings.TrimSpace(st.binaryFilePath) == "")).Clicked() {
+					a.wsTabSendBinaryFile(tab)
+				}
 			}
 			if uikit.ActionCursor(uikit.PrimaryButton(c, m.BtnSend).Disabled(!open)).Clicked() {
 				a.wsTabSend(tab)

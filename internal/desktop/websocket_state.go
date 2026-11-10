@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,6 +51,7 @@ type wsTabState struct {
 	sendModeIdx      int // 0 = text, 1 = binary
 	textDraft        string
 	binaryDraft      string
+	binaryFilePath   string
 	closeCodeDraft   string
 	closeReasonDraft string
 	dirFilterIdx     int // 0 = all, 1 = in, 2 = out
@@ -76,6 +79,11 @@ type wsTabState struct {
 	confirmChecked bool
 	confirmAsked   bool
 	notice         string
+
+	// plan holds the bounded script-action workspace. It is independent of the
+	// manual session above: a plan run owns its own connection and its own
+	// cancellation, and never reuses the manual session's credentials.
+	plan *wsPlanState
 }
 
 // ensureWSState returns this tab's WebSocket state, creating it on first use.
@@ -112,6 +120,19 @@ func wsTeardownTab(tab *Tab) {
 	st.busy = false
 	st.confirmAsked = false
 	st.promptFacts = ""
+	// A plan run owns its own connection and cancellation; tear it down too so
+	// closing a tab can never leave a bounded run driving a dead surface.
+	if st.plan != nil {
+		st.plan.gen++
+		if st.plan.cancel != nil {
+			st.plan.cancel()
+			st.plan.cancel = nil
+		}
+		st.plan.running = false
+		st.plan.busy = false
+		st.plan.confirmAsked = false
+		st.plan.promptFacts = ""
+	}
 }
 
 // wsMailbox is the bounded live-event pump driving window redraws. It never
@@ -356,6 +377,15 @@ func (a *App) wsTabConnect(tab *Tab) {
 	// runner): values are copied into the options that travel to the connect
 	// goroutine; no App/Tab pointer crosses the boundary.
 	net := a.buildExecuteOptionsForTab(ps, tab, nil, nil, red)
+	// The handshake must use the project's isolated CookieJar so cookies set by
+	// HTTP requests in the same project are visible here, and never elsewhere.
+	jar := net.CookieJar
+	if net.DisableCookies {
+		jar = nil
+	}
+	if jar != nil {
+		jar.RegisterSecrets(red)
+	}
 
 	opts := gows.Options{
 		URL:               endpoint,
@@ -380,6 +410,7 @@ func (a *App) wsTabConnect(tab *Tab) {
 		LocalFiles:      net.LocalFiles,
 		ProjectRoot:     net.ProjectRoot,
 		Redactor:        red,
+		CookieJar:       jar,
 	}
 
 	// Preflight the exact decision so the confirm step is visible BEFORE an
@@ -557,6 +588,76 @@ func (a *App) wsTabSend(tab *Tab) {
 		return
 	}
 	st.notice = m.SendDone
+}
+
+// wsTabPickBinaryFile opens the native picker and records the chosen path. The
+// file is read only when the user sends, so choosing a file never blocks.
+func (a *App) wsTabPickBinaryFile(tab *Tab) {
+	st := tab.ensureWSState()
+	if st == nil {
+		return
+	}
+	a.pickLocalFileDialog(func(chosen string) {
+		d := tab.ws
+		if d == nil {
+			return
+		}
+		d.binaryFilePath = chosen
+		d.sendModeIdx = 1
+	})
+}
+
+// wsTabSendBinaryFile sends the picked file's bytes as one binary message. The
+// read is bounded by the session's message limit before allocation, and the
+// bytes are registered as a secret when the path came from a template.
+func (a *App) wsTabSendBinaryFile(tab *Tab) {
+	st := tab.ensureWSState()
+	m := a.websocketMsg()
+	if st == nil || st.session == nil {
+		return
+	}
+	sess := st.session
+	if sess.State() != gows.StateOpen {
+		st.notice = m.SendNotOpen
+		return
+	}
+	path := strings.TrimSpace(st.binaryFilePath)
+	if path == "" {
+		st.notice = m.SendBinaryHint
+		return
+	}
+	limit := sess.Snapshot().MaxMessage
+	if limit <= 0 {
+		limit = gows.DefaultMaxMessageBytes
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		st.notice = fmt.Sprintf(m.SendFailedFmt, err.Error())
+		return
+	}
+	defer f.Close()
+	if info, serr := f.Stat(); serr == nil && info.Size() > limit {
+		st.notice = fmt.Sprintf("file is %s; the session limit is %s", formatByteSize(info.Size()), formatByteSize(limit))
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		st.notice = fmt.Sprintf(m.SendFailedFmt, err.Error())
+		return
+	}
+	if int64(len(data)) > limit {
+		st.notice = fmt.Sprintf("file exceeds the session limit (%s)", formatByteSize(limit))
+		return
+	}
+	if err := sess.SendBinary(context.Background(), data, false); err != nil {
+		if errors.Is(err, gows.ErrSessionClosed) {
+			st.notice = m.SendNotOpen
+		} else {
+			st.notice = fmt.Sprintf(m.SendFailedFmt, err.Error())
+		}
+		return
+	}
+	st.notice = fmt.Sprintf("%s (%s)", m.SendDone, formatByteSize(int64(len(data))))
 }
 
 // wsTabPing sends one manual ping and reports the RTT fact.

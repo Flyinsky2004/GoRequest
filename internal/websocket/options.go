@@ -136,6 +136,27 @@ type Options struct {
 	// Session creates a private one when nil. The dialer registers proxy
 	// credentials and mTLS private keys into it.
 	Redactor *core.Redactor
+
+	// FrameHandler, when set, observes every inbound data frame (text or
+	// binary) after the session has recorded it. It runs synchronously on the
+	// read pump: implementations must be fast and must never block. It is for
+	// in-process protocol drivers (GraphQL subscriptions, bounded action
+	// plans) that need the exact frame bytes rather than the bounded, redacted
+	// event-log preview. Nil keeps the manual-session behavior unchanged.
+	FrameHandler func(messageType int, data []byte)
+
+	// InboundSensitive marks every retained inbound payload as sensitive, so
+	// the shared Redactor scrubs values it already knows (for example an auth
+	// token echoed by a server) from the timeline and inbox. Binary payloads
+	// are masked. Protocol sessions that carry credentials in messages set
+	// this; the raw bytes are still delivered to FrameHandler for the driver.
+	InboundSensitive bool
+
+	// CookieJar is the isolated project cookie jar (or any http.CookieJar).
+	// Cookies are sent on the upgrade request and Set-Cookie response headers
+	// are stored. nil sends no cookies. Matching (domain/path/Secure) is the
+	// jar's responsibility, so credentials never cross origins implicitly.
+	CookieJar http.CookieJar
 }
 
 // EffectiveMaxMessageBytes returns the per-message bound.

@@ -95,6 +95,7 @@ type Session struct {
 	log  *stream.Log
 	red  *core.Redactor
 
+	frameHandler  func(messageType int, data []byte)
 	sessionCtx    context.Context
 	sessionCancel context.CancelFunc
 
@@ -168,8 +169,9 @@ func Connect(ctx context.Context, opts Options) (*Session, error) {
 		opts.Redactor = core.NewRedactor()
 	}
 	s := &Session{
-		opts: opts,
-		red:  opts.Redactor,
+		opts:         opts,
+		red:          opts.Redactor,
+		frameHandler: opts.FrameHandler,
 	}
 	evOpts := opts.EventOptions()
 	evOpts.Redactor = opts.Redactor
@@ -375,6 +377,7 @@ func (s *Session) buildDialer(rp *resolvedWSProxy, tlsCfg *tls.Config) (*websock
 		HandshakeTimeout:  s.opts.EffectiveHandshake(),
 		TLSClientConfig:   tlsCfg,
 		NetDialContext:    base.DialContext,
+		Jar:               s.opts.CookieJar,
 	}
 	plan, err := rp.plan(strings.TrimSpace(s.opts.URL), base, func(label string) {
 		s.mu.mu.Lock()
@@ -410,7 +413,8 @@ func (s *Session) startReadLoop(conn *websocket.Conn) {
 	}()
 }
 
-// handleDataFrame records inbound text/binary into the shared log and inbox.
+// handleDataFrame records inbound text/binary into the shared log and inbox,
+// then hands the exact frame to an in-process protocol driver.
 func (s *Session) handleDataFrame(mt int, data []byte) {
 	isText := mt == websocket.TextMessage
 	dataCopy := append([]byte(nil), data...)
@@ -421,7 +425,12 @@ func (s *Session) handleDataFrame(mt int, data []byte) {
 		IsText:    isText,
 		Payload:   dataCopy,
 		Summary:   frameSummary(stream.DirIn, isText, len(data)),
+		Sensitive: s.opts.InboundSensitive,
 	})
+	inboxData := dataCopy
+	if s.opts.InboundSensitive {
+		inboxData = s.redactPayload(dataCopy, isText)
+	}
 
 	s.mu.mu.Lock()
 	s.mu.received++
@@ -431,9 +440,33 @@ func (s *Session) handleDataFrame(mt int, data []byte) {
 		Direction: stream.DirIn,
 		Kind:      stream.KindReceive,
 		IsText:    isText,
-		Data:      dataCopy,
+		Data:      inboxData,
+		Sensitive: s.opts.InboundSensitive,
 	}, s.opts.EffectiveInboxCapacity())
 	s.mu.mu.Unlock()
+	s.invokeFrameHandler(mt, dataCopy)
+}
+
+// invokeFrameHandler runs the protocol driver callback without letting a
+// misbehaving handler take down the read pump: a panic becomes an explicit
+// error fact and ends this session instead of crashing the process.
+func (s *Session) invokeFrameHandler(mt int, data []byte) {
+	if s.frameHandler == nil {
+		return
+	}
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.log.Append(stream.Event{
+					Kind:      stream.KindError,
+					Direction: stream.DirNone,
+					Summary:   fmt.Sprintf("protocol frame handler panicked: %v", r),
+				})
+				s.finish(EndAborted, nil)
+			}
+		}()
+		s.frameHandler(mt, data)
+	}()
 }
 
 // pushInboxLocked appends a bounded full-payload item (caller holds mu).

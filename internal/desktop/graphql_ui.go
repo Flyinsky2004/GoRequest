@@ -36,16 +36,21 @@ func (a *App) gqlTabView(c *ui.Context, t *ui.Theme, tab *Tab) {
 		ps = a.ps
 	}
 	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.saveActiveWithFeedback() })
-	c.OnShortcut(ui.Cmd, ui.KeyEnter, func() { a.trySend(tab) })
+	c.OnShortcut(ui.Cmd, ui.KeyEnter, func() { a.gqlTrySend(tab) })
 
 	ui.Column(c).Grow(1).FillHeight().Padding(12, 16).Gap(10).Children(func() {
+		a.gqlEnsureSchema(tab)
 		st.gqlRefreshAnalysis()
 		a.gqlURLRow(c, t, tab, st, m, p)
+		// Introspection results are a preview until the user saves them.
+		a.gqlIntrospectionModal(c, t, tab, st, m, p)
 
-		labels := []string{m.SectionDocument, m.SectionVariables, m.SectionHeaders, m.SectionAuth}
+		labels := []string{m.SectionDocument, m.SectionVariables, m.SectionSchema, m.SectionHeaders, m.SectionAuth}
 		badges := make([]string, len(labels))
 		if n := kvCount(tab.HeaderRows); n > 0 {
-			badges[2] = badgeCount(n)
+			// Badge the Headers tab, not whichever section sits at index 2:
+			// inserting Schema shifted Headers to index 3.
+			badges[3] = badgeCount(n)
 		}
 		uikit.UnderlineTabs(c, p, &st.section, labels, badges)
 
@@ -58,6 +63,8 @@ func (a *App) gqlTabView(c *ui.Context, t *ui.Theme, tab *Tab) {
 					case 1:
 						a.gqlVariablesSection(c, t, tab, st, m, p)
 					case 2:
+						a.gqlSchemaSection(c, t, tab, st, m, p)
+					case 3:
 						a.kvForm(c, t, tab, kvHeader)
 					default:
 						a.authEditor(c, t, tab)
@@ -112,7 +119,7 @@ func (a *App) gqlURLRow(c *ui.Context, t *ui.Theme, tab *Tab, st *gqlTabState, m
 					Radius(8).Background(p.Sidebar)
 				urlBox.Children(func() {
 					urlInput = ui.TextInputBase(c, &tab.URL).Grow(1).Font("monospace").Label("graphql URL")
-					urlInput.OnShortcut(0, ui.KeyEnter, func() { a.trySend(tab) })
+					urlInput.OnShortcut(0, ui.KeyEnter, func() { a.gqlTrySend(tab) })
 					if urlInput.Changed() {
 						tab.Dirty = true
 					}
@@ -132,12 +139,12 @@ func (a *App) gqlURLRow(c *ui.Context, t *ui.Theme, tab *Tab, st *gqlTabState, m
 				}
 			})
 			a.renderTimeoutBadge(c, t, tab)
-			if tab.Sending {
+			if gqlBusy(tab) {
 				if _, clicked := uikit.SendButton(c, p, true, a.msg().CancelRequest); clicked {
 					a.gqlCancel(tab)
 				}
 			} else if _, clicked := uikit.SendButton(c, p, false, a.msg().Send); clicked {
-				a.trySend(tab)
+				a.gqlTrySend(tab)
 			}
 		})
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
@@ -249,8 +256,13 @@ func (a *App) gqlVariablesSection(c *ui.Context, t *ui.Theme, tab *Tab, st *gqlT
 	ui.Text(c, m.VariablesHint).FontSize(11).TextColor(p.Faint)
 }
 
-// gqlResultPane is the lower half: HTTP facts plus Data/Errors/Raw/Headers.
+// gqlResultPane is the lower half: HTTP facts plus Data/Errors/Raw/Headers, or
+// the live graphql-transport-ws event pane when a subscription is active.
 func (a *App) gqlResultPane(c *ui.Context, t *ui.Theme, tab *Tab, st *gqlTabState, m *gqlMessages, p uikit.Palette) {
+	if gqlSubscriptionActive(st) {
+		a.gqlSubscriptionPane(c, t, tab, st, m, p)
+		return
+	}
 	if tab.Sending {
 		uikit.SendProgress(c, p)
 		if tab.Resp == nil {
