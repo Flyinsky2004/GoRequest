@@ -144,9 +144,18 @@ func freezeRunnerTLS(ctx context.Context, opts *core.ExecuteOptions, files *runn
 	return nil
 }
 
+// desktopRunnerOptions carries the frozen per-run knobs decided by the UI
+// thread. OAuth is the project-isolated service; the adapter seals it into a
+// non-interactive runner.AuthProvider.
+type desktopRunnerOptions struct {
+	StepConcurrency int
+	RowConcurrency  int
+	OAuth           *core.OAuthService
+}
+
 // prepareDesktopRunner accepts only saved objects owned by this run. The
 // returned Runner and all its options are independent of App/projectState/Tab.
-func prepareDesktopRunner(ctx context.Context, p *core.Project, suite *runner.Suite, env string, network core.ExecuteOptions, source core.SecretProvider, emit runner.Emitter) (*runner.Runner, error) {
+func prepareDesktopRunner(ctx context.Context, p *core.Project, suite *runner.Suite, env string, network core.ExecuteOptions, source core.SecretProvider, emit runner.Emitter, ro desktopRunnerOptions) (*runner.Runner, error) {
 	secrets := &runnerSecrets{source: source, values: core.MapSecrets{}}
 	switch provider := source.(type) {
 	case interface{ SecretNames() []string }:
@@ -222,7 +231,26 @@ func prepareDesktopRunner(ctx context.Context, p *core.Project, suite *runner.Su
 	network.Interactive = false
 	network.Confirmed = false
 	network.ProjectFiles = files
-	opts := runner.Options{Environment: env, Secrets: secrets, ExecuteOptions: network, PlanOptions: core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes}, Schema: runner.NewProjectSchemaAdapter(p), Emit: emit, StepConcurrency: 1, RowConcurrency: 1}
+	// The desktop keeps the historical sequential default when the caller does
+	// not pass an explicit value. ValidateConcurrency rejects out-of-range input
+	// supplied by the UI instead of silently clamping it.
+	if ro.StepConcurrency == 0 {
+		ro.StepConcurrency = 1
+	}
+	if ro.RowConcurrency == 0 {
+		ro.RowConcurrency = 1
+	}
+	if err := runner.ValidateConcurrency(ro.StepConcurrency, ro.RowConcurrency); err != nil {
+		return nil, err
+	}
+	opts := runner.Options{Environment: env, Secrets: secrets, ExecuteOptions: network, PlanOptions: core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes}, Schema: runner.NewProjectSchemaAdapter(p), Emit: emit, StepConcurrency: ro.StepConcurrency, RowConcurrency: ro.RowConcurrency}
+	if ro.OAuth != nil {
+		slug := ""
+		if p.File != nil {
+			slug = p.File.ID
+		}
+		opts.Auth = newRunnerOAuthProvider(ro.OAuth, p.Dir, slug, env, secrets)
+	}
 	r := runner.New(p, suite, opts)
 	// Run will return the cached, reportable configuration error. Sealing after
 	// Prepare also prevents unknown/dynamic file references from reading disk.

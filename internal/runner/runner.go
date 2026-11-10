@@ -565,9 +565,7 @@ func (r *Runner) runStep(ctx context.Context, rs *rowState, rowNo int, sp *StepP
 				}
 				stepRed.RegisterSecret(secret)
 				r.red.RegisterSecret(secret)
-				if !containsString(r.knownSecrets, secret) {
-					r.knownSecrets = append(r.knownSecrets, secret)
-				}
+				r.rememberSecrets(secret)
 			}
 		}
 		execRes, execErr := r.executeAttempt(ctx, sp, plan, execOpts, stepRed)
@@ -724,9 +722,9 @@ func (r *Runner) runStep(ctx context.Context, rs *rowState, rowNo int, sp *StepP
 // the run-level redactor before any reports are emitted. Names are never
 // included; only values are used for masking.
 func (r *Runner) PreloadSecrets(values []string) {
+	r.rememberSecrets(values...)
 	for _, v := range values {
-		if v != "" && !containsString(r.knownSecrets, v) {
-			r.knownSecrets = append(r.knownSecrets, v)
+		if v != "" {
 			r.red.RegisterSecret(v)
 		}
 	}
@@ -759,7 +757,7 @@ func (r *Runner) buildAttemptPlan(ctx context.Context, sp *StepPlan, rs *rowStat
 		}
 		return nil, red, auth, vars, err
 	}
-	for _, s := range r.knownSecrets {
+	for _, s := range r.knownSecretSnapshot() {
 		red.RegisterSecret(s)
 	}
 	return plan, red, auth, vars, nil

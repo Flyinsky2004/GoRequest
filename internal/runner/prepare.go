@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -90,10 +91,35 @@ type Runner struct {
 	clock      func() time.Time
 	prepareErr *preflightError
 
+	// knownSecrets is read by every step goroutine when it builds an attempt plan
+	// and appended to when a token response publishes new secrets. All access
+	// goes through knownSecretSnapshot/rememberSecrets under secretsMu.
+	secretsMu    sync.Mutex
 	knownSecrets []string
 	red          *redactorGuard
 	events       *eventBus
 	prepared     bool
+}
+
+// rememberSecrets records additional bound secret values for later redaction.
+// It is safe to call from row/step goroutines.
+func (r *Runner) rememberSecrets(values ...string) {
+	r.secretsMu.Lock()
+	defer r.secretsMu.Unlock()
+	for _, v := range values {
+		if v == "" || containsString(r.knownSecrets, v) {
+			continue
+		}
+		r.knownSecrets = append(r.knownSecrets, v)
+	}
+}
+
+// knownSecretSnapshot returns a copy so callers can register the values on a
+// per-attempt redactor without holding the lock during that work.
+func (r *Runner) knownSecretSnapshot() []string {
+	r.secretsMu.Lock()
+	defer r.secretsMu.Unlock()
+	return append([]string(nil), r.knownSecrets...)
 }
 
 // New constructs a Runner without reading any file beyond the already loaded
@@ -242,9 +268,7 @@ func (r *Runner) prepare(ctx context.Context) error {
 		for name, value := range row.Vars {
 			if value != "" && sensitiveJSONKeyPattern.MatchString(name) {
 				r.red.RegisterSecret(value)
-				if !containsString(r.knownSecrets, value) {
-					r.knownSecrets = append(r.knownSecrets, value)
-				}
+				r.rememberSecrets(value)
 			}
 		}
 	}
@@ -318,7 +342,7 @@ func (r *Runner) prepare(ctx context.Context) error {
 				return preflightf(KindDefinition, "runner OAuth/OIDC token integration requires an injected auth provider; no requests sent")
 			}
 			authRed := core.NewRedactor()
-			for _, s := range r.knownSecrets {
+			for _, s := range r.knownSecretSnapshot() {
 				authRed.RegisterSecret(s)
 			}
 			authReq := AuthRequest{
@@ -403,7 +427,7 @@ func (r *Runner) prepare(ctx context.Context) error {
 					sp.Step.ID, sp.Entry.Request.Protocol)
 			}
 			protoRed := core.NewRedactor()
-			for _, s := range r.knownSecrets {
+			for _, s := range r.knownSecretSnapshot() {
 				protoRed.RegisterSecret(s)
 			}
 			if err := r.opts.Protocol.PreflightProtocol(ctx, ProtocolRequest{
@@ -448,7 +472,7 @@ func (r *Runner) prepare(ctx context.Context) error {
 			continue
 		}
 		if v, ok := r.opts.Secrets.Get(name); ok && v != "" {
-			r.knownSecrets = append(r.knownSecrets, v)
+			r.rememberSecrets(v)
 			r.red.RegisterSecret(v)
 		}
 	}

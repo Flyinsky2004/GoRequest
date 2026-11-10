@@ -189,7 +189,7 @@ func TestRunnerDesktopHTTPFlowTwoRowsCSVJSON(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r, err := prepareDesktopRunner(context.Background(), p, suite, s.result.Environment, initialNet, core.MapSecrets{}, nil)
+			r, err := prepareDesktopRunner(context.Background(), p, suite, s.result.Environment, initialNet, core.MapSecrets{}, nil, desktopRunnerOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}

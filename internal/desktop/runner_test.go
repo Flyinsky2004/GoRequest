@@ -56,7 +56,7 @@ func TestRunnerSnapshotProvidersSealed(t *testing.T) {
 	}
 	source := core.MapSecrets{"key": "snapshot-secret-71"}
 	suite := &runner.Suite{SchemaVersion: 1, ID: "fixed", Steps: []runner.SuiteStep{{ID: "one", Request: entry.Request.ID}}}
-	r, err := prepareDesktopRunner(context.Background(), ps.project, suite, "", core.ExecuteOptions{}, source, nil)
+	r, err := prepareDesktopRunner(context.Background(), ps.project, suite, "", core.ExecuteOptions{}, source, nil, desktopRunnerOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

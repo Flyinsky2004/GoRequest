@@ -84,13 +84,21 @@ func TestSchemaAdapterOperation(t *testing.T) {
 		t.Fatal(issues, e)
 	}
 	ref.Status = 200
+	ref.Headers = [][2]string{{"Content-Type", "application/json"}}
 	if issues, e = a.ValidateSchema([]byte(`{}`), ref); e != nil || len(issues) != 0 {
 		t.Fatal(issues, e)
 	}
 	op.Responses["200"] = core.ResponseContract{}
 	_ = core.SetRequestOpenAPI(req, op)
-	if NewProjectSchemaAdapter(p).PreflightSchema(ref) == nil {
-		t.Fatal("missing schema passed")
+	a = NewProjectSchemaAdapter(p)
+	if err := a.PreflightSchema(ref); err != nil {
+		t.Fatalf("an explicitly empty response contract should preflight: %v", err)
+	}
+	if issues, e = a.ValidateSchema([]byte(`{}`), ref); e != nil || len(issues) == 0 {
+		t.Fatalf("a body against a no-content contract must fail: %+v %v", issues, e)
+	}
+	if issues, e = a.ValidateSchema(nil, ref); e != nil || len(issues) != 0 {
+		t.Fatalf("an empty body against a no-content contract should pass: %+v %v", issues, e)
 	}
 }
 
