@@ -1,11 +1,13 @@
 package docgen
 
 import (
+	"context"
 	"html"
 	"strconv"
 	"strings"
 
 	"gorequest/internal/core"
+	"gorequest/internal/diagram"
 	"gorequest/internal/markdown"
 )
 
@@ -26,13 +28,27 @@ type RenderOptions struct {
 	// Cards locate derived card headings (line numbers in the expanded
 	// text) so they become anchor targets of gorequest links.
 	Cards []CardSite
-	// MermaidNote is the visible warning attached to Mermaid sources; the
-	// source is always kept and never rendered in this build.
+	// MermaidNote is the visible warning attached to Mermaid sources that
+	// are outside the supported offline subset. Source is always kept.
 	MermaidNote string
+	// Diagram configures the offline flowchart/sequence renderer. The zero
+	// value renders the supported subset; Disable restores the source-only
+	// fallback for callers that need byte-stable old output.
+	Diagram DiagramOptions
+}
+
+// DiagramOptions control the offline Mermaid renderer of the HTML export.
+type DiagramOptions struct {
+	// Disable keeps every Mermaid fence as source with the fallback note.
+	Disable bool
+	// Theme is the SVG palette; the zero value uses the light palette.
+	Theme diagram.SVGTheme
+	// FontSize is the scene base text size in DIP; zero uses 14.
+	FontSize float32
 }
 
 // DefaultMermaidNote is the warning used when opts.MermaidNote is empty.
-const DefaultMermaidNote = "This build does not render Mermaid; the diagram source below is kept as-is."
+const DefaultMermaidNote = "This Mermaid diagram is outside the supported offline subset (flowchart, sequenceDiagram); the source is kept as-is."
 
 // RenderHTML renders one Markdown text (already docgen-expanded) into a
 // static body fragment. The output contains no scripts, no remote resources,
@@ -91,6 +107,11 @@ th{background:#f6f8fa}
 img{max-width:100%}
 hr{border:0;border-top:1px solid #d0d7de;margin:2em 0}
 .docgen-mermaid-note{background:#fff8c5;border:1px solid #d4a72c;border-radius:8px;margin:1em 0;padding:.5em .9em;font-size:.92em}
+.docgen-diagram{border:1px solid #d0d7de;border-radius:8px;margin:1em 0;padding:.6em;background:#fff}
+.docgen-diagram svg{display:block;height:auto;max-width:100%;margin:0 auto}
+.docgen-diagram figcaption{color:#6e7781;font-size:.85em;margin-top:.4em;text-align:center}
+.docgen-diagram-source{margin-top:.4em;font-size:.9em}
+.docgen-diagram-source summary{cursor:pointer;color:#57606a}
 .docgen-html-source{background:#fff8c5}
 .docgen-badref{color:#cf222e}
 .docgen-remote-img{color:#9a6700;font-size:.9em}
@@ -255,15 +276,64 @@ func (r *htmlRenderer) writeCodeBlock(n *blockNode) {
 	b := n.block
 	lang := b.Language()
 	if strings.EqualFold(lang, "mermaid") {
-		r.b.WriteString("<div class=\"docgen-mermaid-note\">" + html.EscapeString(r.opts.MermaidNote) + "</div>\n")
+		r.writeMermaid(b)
+		return
 	}
+	r.writeCodeSource(lang, r.codeText(b))
+}
+
+// writeCodeSource writes one inert code block with its language class.
+func (r *htmlRenderer) writeCodeSource(lang, code string) {
 	r.b.WriteString("<pre><code")
 	if lang != "" {
 		r.b.WriteString(" class=\"language-" + html.EscapeString(lang) + "\"")
 	}
 	r.b.WriteString(">")
-	r.b.WriteString(html.EscapeString(r.codeText(b)))
+	r.b.WriteString(html.EscapeString(code))
 	r.b.WriteString("</code></pre>\n")
+}
+
+// writeMermaid renders a supported diagram as a self-contained inline SVG
+// and keeps the source in an inert <details> block. Unsupported syntax
+// keeps the source and states the exact reason; it never draws a partial
+// picture.
+func (r *htmlRenderer) writeMermaid(b markdown.Block) {
+	source := r.codeText(b)
+	fenceLine := 1 + strings.Count(r.src[:b.Start], "\n")
+	if !r.opts.Diagram.Disable {
+		scene, d := diagram.Render(context.Background(), source, diagram.Options{FontSize: r.opts.Diagram.FontSize})
+		if d == nil {
+			limits := diagram.DefaultLimits
+			svg, sd := diagram.RenderSVG(scene, r.opts.Diagram.Theme, limits)
+			if sd == nil {
+				r.b.WriteString("<figure class=\"docgen-diagram\">\n")
+				r.b.WriteString(svg)
+				r.b.WriteString("<figcaption>" + html.EscapeString(diagramCaption(scene)) + "</figcaption>\n")
+				r.b.WriteString("<details class=\"docgen-diagram-source\"><summary>Mermaid source</summary>\n")
+				r.writeCodeSource("mermaid", source)
+				r.b.WriteString("</details>\n</figure>\n")
+				return
+			}
+			d = sd
+		}
+		// Report the line in document coordinates, not within the fence.
+		at := *d
+		if at.Line > 0 {
+			at.Line += fenceLine
+		}
+		r.b.WriteString("<div class=\"docgen-mermaid-note\">" + html.EscapeString(r.opts.MermaidNote+" Reason: "+at.Error()) + "</div>\n")
+		r.writeCodeSource("mermaid", source)
+		return
+	}
+	r.b.WriteString("<div class=\"docgen-mermaid-note\">" + html.EscapeString(r.opts.MermaidNote) + "</div>\n")
+	r.writeCodeSource("mermaid", source)
+}
+
+func diagramCaption(s *diagram.Scene) string {
+	if s.Kind == diagram.KindSequence {
+		return "Mermaid sequenceDiagram (offline subset: participants, messages, notes)"
+	}
+	return "Mermaid flowchart " + strings.TrimPrefix(s.Title, "flowchart ") + " (offline subset)"
 }
 
 // codeText extracts the literal code content, stripping the fences of a
@@ -272,10 +342,7 @@ func (r *htmlRenderer) codeText(b markdown.Block) string {
 	raw := r.src[b.Start:b.End]
 	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
 	if b.Fenced {
-		if len(lines) >= 2 {
-			lines = lines[1 : len(lines)-1]
-		}
-		return strings.Join(lines, "\n")
+		return fencedCodeText(lines)
 	}
 	for i, line := range lines {
 		if strings.HasPrefix(line, "    ") {
@@ -285,6 +352,25 @@ func (r *htmlRenderer) codeText(b markdown.Block) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// fencedCodeText drops the opening fence and, when the block span includes
+// it, the closing fence. The project Markdown parser ends a fenced block at
+// the last content line, so only the opening fence is guaranteed.
+func fencedCodeText(lines []string) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	lines = lines[1:]
+	if len(lines) > 0 && isClosingFence(lines[len(lines)-1]) {
+		lines = lines[:len(lines)-1]
+	}
+	return strings.Join(lines, "\n")
+}
+
+func isClosingFence(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")
 }
 
 func (r *htmlRenderer) writeList(n *blockNode) {

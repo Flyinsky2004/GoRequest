@@ -1,15 +1,18 @@
 package docgen
 
 import (
+	"context"
 	"fmt"
 	"html"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gorequest/internal/core"
+	"gorequest/internal/diagram"
 	"gorequest/internal/markdown"
 )
 
@@ -54,6 +57,9 @@ type ExportOptions struct {
 	Labels CardLabels
 	// MermaidNote overrides the default HTML Mermaid warning.
 	MermaidNote string
+	// Diagram configures the offline flowchart/sequence renderer shared by
+	// HTML pages and the standalone SVG assets of the export set.
+	Diagram DiagramOptions
 	// Limits bound the set; zero values take the defaults.
 	Limits ExportLimits
 }
@@ -172,8 +178,12 @@ type exportSet struct {
 	docsInSet map[string]bool
 	files     []ExportFile
 	conflicts []ExportConflict
-	truncF    bool
-	truncB    bool
+	// generated carries content produced during planning (diagram SVGs)
+	// keyed by target path; writeFile writes it verbatim.
+	generated      map[string][]byte
+	diagramPlanned []ExportFile
+	truncF         bool
+	truncB         bool
 	// indexTarget/indexContent carry the computed index so preview and the
 	// writer cannot drift.
 	indexTarget  string
@@ -282,6 +292,7 @@ func buildExportSet(project *core.Project, opts ExportOptions) (*exportSet, erro
 		opts: opts, project: project,
 		content: map[string]string{}, expanded: map[string]*Expansion{},
 		docsInSet: map[string]bool{},
+		generated: map[string][]byte{},
 	}
 
 	docs, err := exportDocs(project, opts)
@@ -313,6 +324,13 @@ func buildExportSet(project *core.Project, opts ExportOptions) (*exportSet, erro
 		set.expanded[rel] = exp
 	}
 
+	// Render supported Mermaid diagrams into standalone SVG files shared by
+	// both export formats. The Markdown documents keep their source verbatim;
+	// the HTML pages additionally embed the same scene inline.
+	if !opts.Diagram.Disable {
+		set.collectDiagramAssets()
+	}
+
 	// Collect assets from the sources.
 	if opts.IncludeAssets {
 		seen := map[string]bool{}
@@ -340,6 +358,9 @@ func buildExportSet(project *core.Project, opts ExportOptions) (*exportSet, erro
 	}
 	for _, a := range set.assets {
 		set.addFile(ExportFile{TargetPath: a.rel, Bytes: a.size, SourceRel: a.rel, Copied: true})
+	}
+	for _, f := range set.diagramFiles() {
+		set.addFile(f)
 	}
 	idx := set.indexFile()
 	set.indexTarget, set.indexContent = idx.TargetPath, idx.content
@@ -394,6 +415,70 @@ func exportDocs(project *core.Project, opts ExportOptions) ([]string, error) {
 
 func (s *exportSet) addFile(f ExportFile) { s.files = append(s.files, f) }
 
+// collectDiagramAssets renders every supported Mermaid fence of the
+// exported sources into a standalone SVG file. The documents themselves
+// keep their source unchanged, so a Markdown round trip stays lossless.
+func (s *exportSet) collectDiagramAssets() {
+	for _, rel := range s.docs {
+		d := markdown.Parse(s.content[rel])
+		blockIndex := 0
+		for _, b := range d.Blocks() {
+			if b.Kind != markdown.CodeBlock || !strings.EqualFold(b.Language(), "mermaid") {
+				continue
+			}
+			source := codeTextOf(s.content[rel], b)
+			blockIndex++
+			scene, diag := diagram.Render(context.Background(), source, diagram.Options{FontSize: s.opts.Diagram.FontSize})
+			if diag != nil {
+				continue
+			}
+			svg, diag := diagram.RenderSVG(scene, s.opts.Diagram.Theme, diagram.DefaultLimits)
+			if diag != nil {
+				continue
+			}
+			content := GeneratedFileMarker + "\n" + svg
+			target := diagramTargetPath(rel, blockIndex, source)
+			s.generated[target] = []byte(content)
+			s.diagramPlanned = append(s.diagramPlanned, ExportFile{
+				TargetPath: target, Bytes: int64(len(content)), SourceRel: rel, Generated: true,
+			})
+		}
+	}
+}
+
+func (s *exportSet) diagramFiles() []ExportFile { return s.diagramPlanned }
+
+// diagramTargetPath names an SVG deterministically from the source digest,
+// so repeated exports overwrite their own previous file and never orphan a
+// new name for unchanged input.
+func diagramTargetPath(rel string, block int, source string) string {
+	base := strings.TrimSuffix(path.Base(rel), path.Ext(rel))
+	var sb strings.Builder
+	for _, r := range base {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			sb.WriteRune(r)
+		default:
+			sb.WriteByte('-')
+		}
+	}
+	name := strings.Trim(sb.String(), "-")
+	if name == "" {
+		name = "diagram"
+	}
+	return "diagrams/" + name + "-" + strconv.Itoa(block) + "-" + core.Digest([]byte(source))[:12] + ".svg"
+}
+
+// codeTextOf extracts the literal content of a fenced code block.
+func codeTextOf(src string, b markdown.Block) string {
+	raw := src[b.Start:b.End]
+	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
+	if b.Fenced {
+		return fencedCodeText(lines)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // htmlTargetPath maps docs/a/b.md to docs/a/b.html.
 func htmlTargetPath(rel string) string {
 	return strings.TrimSuffix(rel, ".md") + ".html"
@@ -406,6 +491,7 @@ func (s *exportSet) html(rel string) string {
 		SourceRel:    rel,
 		Cards:        exp.Cards,
 		MermaidNote:  s.opts.MermaidNote,
+		Diagram:      s.opts.Diagram,
 		ResolveLink:  s.resolveLink,
 		ResolveImage: s.resolveImage,
 	}
@@ -806,21 +892,25 @@ func (s *exportSet) apply() (*Result, error) {
 // writeFile produces one target file.
 func (s *exportSet) writeFile(f ExportFile) error {
 	var data []byte
-	switch {
-	case f.Generated && f.SourceRel == "" && f.TargetPath == s.indexTarget:
-		data = []byte(s.indexContent)
-	case f.Generated && s.opts.Format == ExportHTML:
-		data = []byte(s.html(f.SourceRel))
-	case f.Generated:
-		data = []byte(s.markdown(f.SourceRel))
-	case f.Copied:
-		b, err := os.ReadFile(filepath.Join(s.project.Store.Root, filepath.FromSlash(f.SourceRel)))
-		if err != nil {
-			return err
+	if g, ok := s.generated[f.TargetPath]; ok {
+		data = g
+	} else {
+		switch {
+		case f.Generated && f.SourceRel == "" && f.TargetPath == s.indexTarget:
+			data = []byte(s.indexContent)
+		case f.Generated && s.opts.Format == ExportHTML:
+			data = []byte(s.html(f.SourceRel))
+		case f.Generated:
+			data = []byte(s.markdown(f.SourceRel))
+		case f.Copied:
+			b, err := os.ReadFile(filepath.Join(s.project.Store.Root, filepath.FromSlash(f.SourceRel)))
+			if err != nil {
+				return err
+			}
+			data = b
+		default:
+			return fmt.Errorf("internal error: unplannable file %s", f.TargetPath)
 		}
-		data = b
-	default:
-		return fmt.Errorf("internal error: unplannable file %s", f.TargetPath)
 	}
 	absTarget := filepath.Join(s.opts.TargetDir, filepath.FromSlash(f.TargetPath))
 	if err := mkdirAllNoSymlink(filepath.Dir(absTarget), s.opts.TargetDir); err != nil {
