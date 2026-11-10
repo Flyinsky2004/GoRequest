@@ -34,3 +34,5 @@ F01开工第一阶段产出 `docs/contracts/F01-runner-extension.md`：只基于
 ## 用户新增强制规则：LESSONS.md（2026-11-10）
 
 开工/续做必须先读仓库根 LESSONS.md，并检查本卡是否重犯已有问题。实际犯过的错误、用户指出的问题及复盘得到的教训，必须及时写入本 worktree 的 LESSONS.md，记录场景/根因/修正/预防和证据，不能只口头总结。旧worktree缺文件时先读取主工作区 `/Users/flyinsky/Documents/Coding/GoLang/GoRequest/LESSONS.md` 并复制为本地起始版本再追加。不要写主工作区文件；集成人合并各路教训。交付前核对新增教训已落盘。如获授权再创建其他agent，首条任务必须明确宣告这条规则；本批原有“不启动子代理”仍有效。
+
+用户指定条目格式：`**<一句话规则>**` 后依次四个 bullet：事发commit/issue与后果、修复commit、`Done right: <做对的例子>`、`Seen N× (YYYY-MM-DD, YYYY-MM-DD).`。Seen只计独立事件，不把重复测试/提醒计成重犯；未知哈希明确待定位。按主线最新LESSONS模板整理本路条目，保留已新增教训，不覆盖丢失。
