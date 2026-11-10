@@ -1469,3 +1469,18 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 - 用户 dev.yaml、document.md、debug 二进制摘要均与本次合并开始一致，保留未提交状态，未纳入提交。未 push、部署、重启应用或运行安装器。
 
 未知事务或超过512条元数据的旧历史仍按实际源变化定位，不能恢复未知的原定向选区；真实 IME/三平台及既有复杂对象编辑范围仍待验收，完整目标不勾通过。
+
+## 51. F01–F04：正式版功能四路 Claude Code（2026-11-10）
+
+用户同意上一轮四路安排并明确要求通过Herdr开CC功能开发。主代理先核对main `d0be2fa`和完整设计/代码：N01–N05、M01–M04已集成；无待合并分支，仅用户dev.yaml和document.md未提交。已有GoRequest `t6g` CC及其他用户/项目会话不属于本批，保留不动。
+
+共同约定：[formal4-common](task-briefs/formal4-common-20261110.md)。四路从本方案登记提交作为实际共同基线建立；每路独立worktree，本批无子代理，不改全局模型/配置。集成人独占公共入口/依赖/总账本，来源各写报告和必要integration patch；不自行merge/push/部署。
+
+| ID / 负责人 | 分支 / 实际 worktree | 归属与阶段目标 | 状态 |
+| --- | --- | --- | --- |
+| F01 / Herdr CC | `cc/F01-automation-completion` / `/private/tmp/gorequest-formal4-20261110/automation` | Runner/OAuth/契约/并发与结果；独占runner及runner/suite UI；[方案](task-briefs/F01-automation-completion.md) | 方案完成，准备启动 |
+| F02 / Herdr CC | `cc/F02-protocols` / `/private/tmp/gorequest-formal4-20261110/protocols` | GraphQL SDL/Explorer/订阅与WS有界自动化，新增protocolrun；Runner接线依赖F01端口；[方案](task-briefs/F02-protocols.md) | 方案完成，准备启动 |
+| F03 / Herdr CC | `cc/F03-mermaid` / `/private/tmp/gorequest-formal4-20261110/mermaid` | 原生离线flowchart/sequence子集、诊断和导出；独占diagram/docgen图表；[方案](task-briefs/F03-mermaid.md) | 方案完成，准备启动 |
+| F04 / Herdr CC | `cc/F04-sdk` / `/private/tmp/gorequest-formal4-20261110/sdk` | Go类型模型和TS HTTP SDK阶段、生成保护；独占sdkgen/sdk UI；[方案](task-briefs/F04-sdk.md) | 方案完成，准备启动 |
+
+本批不意味着完整1.0-A/B/C已完成；gRPC本体/Python SDK/全部Mermaid等后续仍保留。各路实际实现与验证、来源hash待交付；仅集成验收后登记阶段完成。主代理承担组合回归与可访问的实机验收，不把全套验收转给用户。启动句柄/共同基线与本轮基线验证后补。
