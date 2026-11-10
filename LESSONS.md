@@ -45,26 +45,26 @@ Seen 只统计有证据的独立发生事件；补文档、同一事件的重复
 - Seen 1× (2026-11-10).
 
 **界面测试的“有像素/尺寸在范围内”断言通过，不等于画面正确；必须实际查看渲染图。**
-- F03 首次实现的原生 diagram 卡片只断言“ink 像素 > 0、宽度不超过窗口”，全部通过，但实际渲染 PNG 是全宽卡片、图形缩在左上、大片空白。仅靠计数断言无法发现，查看截图后才定位；相关证据 `docs/task-results/f03-visuals/`。引入 commit 待定位（本卡提交后回填）。
-- 修复 commit：待定位（本卡提交后回填）。
+- F03 首次实现的原生 diagram 卡片只断言“ink 像素 > 0、宽度不超过窗口”，全部通过，但实际渲染 PNG 是全宽卡片、图形缩在左上、大片空白。仅靠计数断言无法发现，查看截图后才定位；相关证据 `docs/task-results/f03-visuals/`。引入于本卡实现期间的工作区，未单独提交，故无独立引入 commit。
+- 修复 commit：`8cf6a911`（本卡首个提交，含比例断言与 8 张 PNG）。
 - Done right: 除计数外增加 ink 包围盒与卡片尺寸的比例断言（`inkBounds` 要求图形占卡片 70% 以上、卡片不超过窗口 60%），并实际打开 PNG 目视核对亮/暗、两档字号、窄宽窗口各一张。
 - Seen 1× (2026-11-10).
 
 **跨卡公共文件的改动只交 patch 时，依赖它的测试必须在未应用 patch 时显式 skip，并给出可执行的补丁路径。**
-- F03 的 diagram 画布/预览测试依赖 `doc_live.go`/`documentation.go` 的公共 hook；若直接 `t.Fatal` 会让本卡在干净基线上红，若静默通过又会掩盖未接线。未定位单一引入 commit，属于新卡实现中的设计问题；证据见 `internal/desktop/doc_diagram_test.go` 的 `docDiagramWired` 门控与 skip 文本。
-- 修复 commit：待定位（本卡提交后回填）。
+- F03 的 diagram 画布/预览测试依赖 `doc_live.go`/`documentation.go` 的公共 hook；若直接 `t.Fatal` 会让本卡在干净基线上红，若静默通过又会掩盖未接线。未定位单一引入 commit，属于新卡实现中的设计问题，未单独提交；证据见 `internal/desktop/doc_diagram_test.go` 的 `docDiagramWired` 门控与 skip 文本。
+- 修复 commit：`8cf6a911`（本卡首个提交，门控随实现一并交付）。
 - Done right: 用原子标志在安装 hook 时置位，测试在渲染两帧后检查该标志并以 “requires docs/task-results/F03-integration.patch (public … hooks)” 跳过；同时保留不依赖接线、始终运行的 painter/布局断言，避免整包测试在无 patch 时全空。
 - Seen 1× (2026-11-10).
 
 **契约和报告里写的诊断 kind、行号语义、改动文件清单，必须逐条对照真实代码核对，不能按设计意图书写。**
-- F03 首版 `docs/contracts/F03-mermaid-subset.md` §7 写了并不存在的 `mermaid-error`/`mermaid-rendered` 诊断 kind 和 `doc_code.go` 改动，实际实现复用 `core.DiagMermaid` 且改动的是另外 7 个文件；照此交付会让集成人按错误文件接线。引入 commit 待定位（本卡提交后回填）。
-- 修复 commit：待定位（本卡提交后回填）。
+- F03 首版 `docs/contracts/F03-mermaid-subset.md` §7 写了并不存在的 `mermaid-error`/`mermaid-rendered` 诊断 kind 和 `doc_code.go` 改动，实际实现复用 `core.DiagMermaid` 且改动的是另外 7 个文件；照此交付会让集成人按错误文件接线。引入于本卡实现期间的工作区，未单独提交。
+- 修复 commit：`8cf6a911`（本卡首个提交，契约 §7 已改为 `DiagMermaid` + 真实 7 个文件）。
 - Done right: 写完契约后用 `git diff --name-only` 与 `grep` 逐项核对 kind 常量、文件路径和行号换算代码，并在报告里列出 patch 的 7 个文件与行号语义（围栏起始行 + 图内行号）。
 - Seen 1× (2026-11-10).
 
 **围栏内代码的诊断行号必须换算到文档坐标，且不能假设闭合围栏一定存在。**
-- F03 在 docgen 与 core 诊断里直接使用图内行号会指向错误行；同时项目解析器的 fenced block 可能止于最后一行内容，闭合围栏可省略，按“最后一行一定是围栏”处理会吃掉真实源码行。引入 commit 待定位（本卡提交后回填）。
-- 修复 commit：待定位（本卡提交后回填）。
+- F03 在 docgen 与 core 诊断里直接使用图内行号会指向错误行；同时项目解析器的 fenced block 可能止于最后一行内容，闭合围栏可省略，按“最后一行一定是围栏”处理会吃掉真实源码行。引入于本卡实现期间的工作区，未单独提交。
+- 修复 commit：`8cf6a911`（本卡首个提交，docgen 与 core patch 均换算文档坐标）。
 - Done right: 用 `1 + strings.Count(src[:b.Start], "\n")`（core 用 `lineColumnAt`）加图内行号得到文档行；剥离围栏时仅在最后一行确以 ``` 或 ~~~ 开头时删除，并用真实文档样例断言 `line 22:3` 这类跨围栏行号。
 - Seen 1× (2026-11-10).
 
@@ -75,8 +75,8 @@ Seen 只统计有证据的独立发生事件；补文档、同一事件的重复
 - Seen 1× (2026-11-10).
 
 **按固定前缀长度切字符串前，必须先确认长度足够；能表达“去掉前缀”的意图时用 `strings.TrimPrefix`，不要用字节切片。**
-- F03 的 `internal/docgen/render.go` 中 `diagramCaption` 写成 `s.Title[len("flowchart "):]`，`Scene.Title` 若短于 10 字节（如未来非 `flowchart ` 前缀或异常场景）会 panic；当前调用路径恰好总有该前缀所以测试未暴露，属自查发现未上线缺陷。引入 commit 待定位（本卡提交后回填）。
-- 修复 commit：待定位（本卡提交后回填）。
+- F03 的 `internal/docgen/render.go` 中 `diagramCaption` 写成 `s.Title[len("flowchart "):]`，`Scene.Title` 若短于 10 字节（如未来非 `flowchart ` 前缀或异常场景）会 panic；当前调用路径恰好总有该前缀所以测试未暴露，属自查发现未上线缺陷；引入于本卡实现期间的工作区，未单独提交。
+- 修复 commit：`8cf6a911`（本卡首个提交）。
 - Done right: 改为 `strings.TrimPrefix(s.Title, "flowchart ")`，语义即“去掉前缀”，短字符串安全；改后 `gofmt -l` 干净并重跑 `go test -count=1 ./internal/docgen ./internal/diagram`（`ok 1.531s` / `ok 0.297s`）。
 - Seen 1× (2026-11-10).
 
