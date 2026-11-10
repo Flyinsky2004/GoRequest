@@ -462,3 +462,22 @@ func mustJSON(v any) string {
 	}
 	return string(b)
 }
+
+func TestTypeScriptRejectsMisleadingAdditionalPropertiesIntersection(t *testing.T) {
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(richSpec), &spec); err != nil {
+		t.Fatal(err)
+	}
+	schemas := spec["components"].(map[string]any)["schemas"].(map[string]any)
+	schemas["Pet"].(map[string]any)["additionalProperties"] = map[string]any{"type": "integer"}
+	raw, err := json.Marshal(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Generate(raw, tsOptions(t)); !errors.Is(err, ErrUnsupportedOperations) || !strings.Contains(err.Error(), "typed additionalProperties") {
+		t.Fatalf("misleading TypeScript type was accepted: %v", err)
+	}
+	if _, err := Generate(raw, richOptions(t)); err != nil {
+		t.Fatalf("Go backend was restricted by TypeScript limitation: %v", err)
+	}
+}

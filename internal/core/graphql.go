@@ -118,6 +118,9 @@ func parseGraphQLDocument(document string) (*ast.QueryDocument, *GraphQLAnalysis
 	if strings.TrimSpace(document) == "" {
 		return nil, nil, configErrorf("graphql document is required")
 	}
+	if err := checkGraphQLNesting(document); err != nil {
+		return nil, nil, err
+	}
 	doc, err := parser.ParseQueryWithTokenLimit(&ast.Source{
 		Name:  "request.graphql",
 		Input: document,

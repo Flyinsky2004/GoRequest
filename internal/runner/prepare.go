@@ -431,6 +431,9 @@ func (r *Runner) prepare(ctx context.Context) error {
 				protoRed.RegisterSecret(s)
 			}
 			if err := r.opts.Protocol.PreflightProtocol(ctx, ProtocolRequest{
+				ResolveOptions: resolveOpts,
+				CheckTemplates: func(texts []string) error { return r.checkStepDependencies(sp, texts) },
+				Variables:      vars,
 				StepID:         sp.Step.ID,
 				Entry:          sp.Entry,
 				Plan:           plan,
@@ -445,7 +448,7 @@ func (r *Runner) prepare(ctx context.Context) error {
 		}
 		// A suite must not send earlier steps before discovering a static target
 		// requires confirmation. Real row/output URLs are checked again by Core.
-		if r.opts.ExecuteOptions.HasTargetPolicy {
+		if r.opts.ExecuteOptions.HasTargetPolicy && !strings.EqualFold(sp.Entry.Request.Protocol, core.ProtocolWebSocket) {
 			hasCredentials := auth != nil && !strings.EqualFold(auth.Type, "none")
 			for _, h := range plan.Headers {
 				if strings.EqualFold(h[0], "Authorization") || strings.EqualFold(h[0], "Cookie") || strings.EqualFold(h[0], "Proxy-Authorization") {

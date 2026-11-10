@@ -50,6 +50,9 @@ type AuthProvider interface {
 
 // ProtocolRequest is the input shared by protocol preflight and execution.
 type ProtocolRequest struct {
+	ResolveOptions *core.ResolveOptions
+	CheckTemplates func([]string) error
+	Variables      map[string]string
 	StepID         string
 	Entry          *core.RequestEntry
 	Plan           *core.Plan

@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"weak"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
@@ -44,7 +46,7 @@ type docDiagramStore struct {
 	entries map[string]*docDiagramEntry
 }
 
-var docDiagramStores sync.Map // *docViewState -> *docDiagramStore
+var docDiagramStores sync.Map // weak.Pointer[docViewState] -> *docDiagramStore
 
 // docDiagramWired records that the integration patch installed the Markdown
 // code hook. The wiring lives in public files (doc_live.go / documentation.go)
@@ -53,11 +55,15 @@ var docDiagramStores sync.Map // *docViewState -> *docDiagramStore
 var docDiagramWired atomic.Bool
 
 func docDiagramStoreFor(st *docViewState) *docDiagramStore {
-	if v, ok := docDiagramStores.Load(st); ok {
+	key := weak.Make(st)
+	if v, ok := docDiagramStores.Load(key); ok {
 		return v.(*docDiagramStore)
 	}
 	s := &docDiagramStore{entries: map[string]*docDiagramEntry{}}
-	actual, _ := docDiagramStores.LoadOrStore(st, s)
+	actual, loaded := docDiagramStores.LoadOrStore(key, s)
+	if !loaded {
+		runtime.AddCleanup(st, func(k weak.Pointer[docViewState]) { docDiagramStores.Delete(k) }, key)
+	}
 	return actual.(*docDiagramStore)
 }
 

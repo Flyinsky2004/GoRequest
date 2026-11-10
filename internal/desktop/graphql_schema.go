@@ -155,17 +155,55 @@ func (a *App) gqlIntrospect(tab *Tab) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	st.introspectCancel = cancel
+	st.introspectGen++
+	gen := st.introspectGen
 	st.introspecting = true
 	st.introspectErr = ""
 	st.introspect = nil
 	win := a.win
 	key := weak.Make(a)
 	psRef := ps
+	plan, red, err := a.gqlBuildPlanForRequest(ctx, ps, tab, req)
+	if err != nil {
+		cancel()
+		st.introspecting = false
+		st.introspectErr = red.RedactError(err).Error()
+		return
+	}
+	effectiveAuth, err := ps.project.ResolveEffectiveAuth(tab.Entry, req)
+	if err != nil {
+		cancel()
+		st.introspecting = false
+		st.introspectErr = red.RedactError(err).Error()
+		return
+	}
+	var auth *core.AuthScheme
+	if effectiveAuth != nil {
+		auth = effectiveAuth.Scheme
+	}
+	network := a.buildExecuteOptionsForTab(ps, tab, req, auth, red)
+	// Freeze all UI-owned OAuth inputs before the worker starts.
+	var oauthRequest *core.OAuthFlowRequest
+	var oauthService *core.OAuthService
+	if scheme, _ := a.resolveActiveOAuthScheme(ps, tab); scheme != nil {
+		oauthState := getOrCreateOAuthTabState(tab)
+		a.syncOAuthTabStateFromScheme(ps, tab, oauthState)
+		oauthState.mu.Lock()
+		flow := a.buildOAuthFlowRequestLocked(ps, tab, oauthState, true)
+		oauthState.mu.Unlock()
+		flow.Redactor = red
+		oauthRequest = &flow
+		oauthService = ps.OAuthService()
+	}
 	go func() {
-		plan, red, err := a.gqlBuildPlanForRequest(ctx, psRef, tab, req)
+		defer cancel()
+		var err error
+		if oauthRequest != nil {
+			_, err = oauthService.ApplyOAuthToPlan(ctx, plan, *oauthRequest)
+		}
 		if err == nil {
 			var res *core.ExecResult
-			res, err = a.executeTabPlan(ctx, tab, req, plan, red)
+			res, err = core.ExecuteWithOptions(ctx, plan, network)
 			if err == nil {
 				sdl, model, perr := core.ParseGraphQLIntrospection(res.Body)
 				if perr != nil {
@@ -177,7 +215,7 @@ func (a *App) gqlIntrospect(tab *Tab) {
 							return
 						}
 						d := tab.gql
-						if d == nil || psRef.indexOfTab(tab) < 0 {
+						if d == nil || d.introspectGen != gen || psRef.indexOfTab(tab) < 0 {
 							return
 						}
 						d.introspecting = false
@@ -197,7 +235,7 @@ func (a *App) gqlIntrospect(tab *Tab) {
 				return
 			}
 			d := tab.gql
-			if d == nil || psRef.indexOfTab(tab) < 0 {
+			if d == nil || d.introspectGen != gen || psRef.indexOfTab(tab) < 0 {
 				return
 			}
 			d.introspecting = false
@@ -242,13 +280,6 @@ func (a *App) gqlBuildPlanForRequest(ctx context.Context, ps *projectState, tab 
 	if err != nil {
 		return plan, red, err
 	}
-	if auth != nil {
-		if t := strings.ToLower(strings.TrimSpace(auth.Type)); t == "oauth2" || t == "oidc" {
-			if _, err := a.ApplyTabOAuthIfConfigured(ctx, ps, tab, plan, red, true); err != nil {
-				return plan, red, err
-			}
-		}
-	}
 	return plan, red, nil
 }
 
@@ -257,6 +288,7 @@ func (a *App) gqlIntrospectCancel(tab *Tab) {
 	if tab == nil || tab.gql == nil {
 		return
 	}
+	tab.gql.introspectGen++
 	if tab.gql.introspectCancel != nil {
 		tab.gql.introspectCancel()
 		tab.gql.introspectCancel = nil
@@ -281,7 +313,10 @@ func (a *App) gqlIntrospectSave(tab *Tab) {
 		return
 	}
 	rel := "schemas/introspected.graphql"
-	if err := ps.project.Store.WriteAtomic(rel, []byte(st.introspect.SDL)); err != nil {
+	for n := 2; ps.project.Store.Exists(rel); n++ {
+		rel = fmt.Sprintf("schemas/introspected-%d.graphql", n)
+	}
+	if err := ps.project.Store.SaveChecked(rel, []byte(st.introspect.SDL), ""); err != nil {
 		st.introspectErr = err.Error()
 		return
 	}

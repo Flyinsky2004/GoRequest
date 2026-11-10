@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/agnivade/levenshtein v1.2.2 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	golang.org/x/image v0.46.0 // indirect

@@ -197,6 +197,7 @@ type HeaderKV struct {
 // AttemptResult records one execution attempt, including failed ones, so retry
 // history is never erased.
 type AttemptResult struct {
+	ProtocolFacts json.RawMessage   `json:"protocolFacts,omitempty"`
 	Number        int               `json:"number"`
 	Status        Status            `json:"status"`
 	StartedAt     time.Time         `json:"startedAt"`

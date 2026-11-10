@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -568,8 +569,17 @@ func (r *Runner) runStep(ctx context.Context, rs *rowState, rowNo int, sp *StepP
 				r.rememberSecrets(secret)
 			}
 		}
-		execRes, execErr := r.executeAttempt(ctx, sp, plan, execOpts, stepRed)
+		execRes, execErr := r.executeAttempt(ctx, sp, plan, vars, &core.ResolveOptions{DataVars: rs.data, StepOutputs: outputs}, execOpts, stepRed)
 		if execErr != nil {
+			if execRes != nil {
+				registerResponseSecrets(stepRed, execRes)
+				attempt.HTTPStatus = execRes.Status
+				attempt.Proto = execRes.Proto
+				attempt.ResponseBytes = execRes.BodySize
+				attempt.ContentType = execRes.ContentType
+				attempt.Truncated = execRes.Truncated
+				fillResponseFacts(&attempt, stepRed, execRes)
+			}
 			f := r.redactFailure(stepRed, classifyError(execErr))
 			if ctx.Err() != nil {
 				f = newFailure(FailureCanceled, KindOther, "run canceled")
@@ -766,12 +776,14 @@ func (r *Runner) buildAttemptPlan(ctx context.Context, sp *StepPlan, rs *rowStat
 // executeAttempt dispatches one attempt to the protocol adapter or the HTTP
 // executor. Preflight guarantees that a non-HTTP request never reaches here
 // without an adapter.
-func (r *Runner) executeAttempt(ctx context.Context, sp *StepPlan, plan *core.Plan, opts core.ExecuteOptions, red *core.Redactor) (*core.ExecResult, error) {
+func (r *Runner) executeAttempt(ctx context.Context, sp *StepPlan, plan *core.Plan, vars map[string]string, resolve *core.ResolveOptions, opts core.ExecuteOptions, red *core.Redactor) (*core.ExecResult, error) {
 	if isNonHTTPProtocol(sp.Entry.Request) {
 		if r.opts.Protocol == nil {
 			return nil, &core.ConfigError{Err: errors.New("protocol executor is not configured")}
 		}
 		return r.opts.Protocol.ExecuteProtocol(ctx, ProtocolRequest{
+			ResolveOptions: resolve,
+			Variables:      vars,
 			StepID:         sp.Step.ID,
 			Entry:          sp.Entry,
 			Plan:           plan,
@@ -925,6 +937,9 @@ func fillResponseFacts(attempt *AttemptResult, red *core.Redactor, res *core.Exe
 		return
 	}
 	attempt.FinalURL = safe.FinalURL
+	if res.Proto == "websocket" && json.Valid(safe.Body) {
+		attempt.ProtocolFacts = append(json.RawMessage(nil), safe.Body...)
+	}
 	attempt.Headers = make([]HeaderKV, 0, len(safe.Headers))
 	for _, h := range safe.Headers {
 		attempt.Headers = append(attempt.Headers, HeaderKV{Name: h[0], Value: h[1]})

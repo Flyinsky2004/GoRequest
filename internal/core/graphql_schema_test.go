@@ -359,3 +359,17 @@ func TestGraphQLIntrospectionRefKeepsTargetAndDropsBody(t *testing.T) {
 		t.Fatal("source request must not be mutated")
 	}
 }
+
+func TestGraphQLSyntaxDepthBound(t *testing.T) {
+	query := "query { " + strings.Repeat("a {", MaxGraphQLSyntaxDepth) + "a" + strings.Repeat("}", MaxGraphQLSyntaxDepth) + " }"
+	if _, err := AnalyzeGraphQLDocument(query, ""); err == nil {
+		t.Fatal("deep selection accepted")
+	}
+	schema := "type Query { field: " + strings.Repeat("[", MaxGraphQLSyntaxDepth) + "String" + strings.Repeat("]", MaxGraphQLSyntaxDepth) + " }"
+	if _, err := ParseGraphQLSchemaSDL("deep", schema); err == nil {
+		t.Fatal("deep SDL accepted")
+	}
+	if _, err := ParseGraphQLSchemaSDL("quoted", `type Query { field(arg: String = "[[[{{{((("): String }`); err != nil {
+		t.Fatalf("string delimiters counted: %v", err)
+	}
+}

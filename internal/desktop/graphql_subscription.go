@@ -73,6 +73,20 @@ func gqlTeardownSubscription(tab *Tab) {
 	st.op = nil
 }
 
+// gqlTeardownTab cancels every asynchronous GraphQL task owned by a tab.
+func gqlTeardownTab(tab *Tab) {
+	if tab == nil || tab.gql == nil {
+		return
+	}
+	gqlTeardownSubscription(tab)
+	tab.gql.introspectGen++
+	if tab.gql.introspectCancel != nil {
+		tab.gql.introspectCancel()
+		tab.gql.introspectCancel = nil
+	}
+	tab.gql.introspecting = false
+}
+
 // gqlSubStart validates the tab, resolves the environment and starts the
 // subscription off the UI thread.
 func (a *App) gqlSubStart(tab *Tab) {
@@ -90,6 +104,10 @@ func (a *App) gqlSubStart(tab *Tab) {
 		return
 	}
 	st.gqlRefreshAnalysis()
+	if st.parseErr != "" {
+		st.notice = st.parseErr
+		return
+	}
 	opInfo := st.selected
 	if opInfo.Type != "subscription" {
 		st.notice = m.SubSelectSubscription

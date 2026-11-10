@@ -11,6 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"gorequest/internal/core"
+	"gorequest/internal/protocolrun/runneradapter"
 	"gorequest/internal/runner"
 )
 
@@ -243,7 +244,7 @@ func prepareDesktopRunner(ctx context.Context, p *core.Project, suite *runner.Su
 	if err := runner.ValidateConcurrency(ro.StepConcurrency, ro.RowConcurrency); err != nil {
 		return nil, err
 	}
-	opts := runner.Options{Environment: env, Secrets: secrets, ExecuteOptions: network, PlanOptions: core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes}, Schema: runner.NewProjectSchemaAdapter(p), Emit: emit, StepConcurrency: ro.StepConcurrency, RowConcurrency: ro.RowConcurrency}
+	opts := runner.Options{Protocol: runneradapter.New(), Environment: env, Secrets: secrets, ExecuteOptions: network, PlanOptions: core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes, AllowGraphQL: true}, Schema: runner.NewProjectSchemaAdapter(p), Emit: emit, StepConcurrency: ro.StepConcurrency, RowConcurrency: ro.RowConcurrency}
 	if ro.OAuth != nil {
 		slug := ""
 		if p.File != nil {

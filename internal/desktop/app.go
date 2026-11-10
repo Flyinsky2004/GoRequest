@@ -513,6 +513,7 @@ func (a *App) cancelAllRequests() {
 		}
 		teardownTabStream(tab)
 		wsTeardownTab(tab)
+		gqlTeardownTab(tab)
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"gorequest/internal/core"
+	"gorequest/internal/protocolrun"
 	"gorequest/internal/runner"
 )
 
@@ -510,10 +511,20 @@ func CheckSelectable(entry *core.RequestEntry) error {
 		return fmt.Errorf("request is not loaded")
 	}
 	proto := strings.ToLower(strings.TrimSpace(entry.Request.Protocol))
-	if proto == core.ProtocolWebSocket || entry.Request.WS != nil {
-		return fmt.Errorf("WebSocket request %q is not supported by Suite automation in this phase", entry.Request.Name)
-	}
-	if proto != "" && proto != core.ProtocolHTTP {
+	switch proto {
+	case "", core.ProtocolHTTP:
+	case core.ProtocolGraphQL:
+		if entry.Request.GraphQL == nil || entry.Request.GraphQL.Document == "" {
+			return fmt.Errorf("GraphQL document is required")
+		}
+		if _, err := core.AnalyzeGraphQL(entry.Request.GraphQL.Document, entry.Request.GraphQL.OperationName); err != nil {
+			return err
+		}
+	case core.ProtocolWebSocket:
+		if _, ok := protocolrun.PlanRefFromRequest(entry.Request); !ok {
+			return fmt.Errorf("WebSocket request %q needs a saved action plan", entry.Request.Name)
+		}
+	default:
 		return fmt.Errorf("request %q uses unsupported protocol %q", entry.Request.Name, entry.Request.Protocol)
 	}
 	return nil

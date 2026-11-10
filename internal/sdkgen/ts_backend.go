@@ -10,6 +10,15 @@ import (
 
 // renderTypeScriptFiles renders the complete TypeScript backend file set.
 func renderTypeScriptFiles(opts Options, doc *specDoc, ops []Operation, unsupported []UnsupportedOperation, diags []Diagnostic, specDigest string, comp *typeCompiler) ([]File, error) {
+	for _, model := range comp.sortedModels() {
+		// TypeScript index signatures also constrain declared keys; intersecting
+		// named properties with Record<string,T> cannot express JSON Schema's
+		// "only additional keys" restriction faithfully. Reject rather than
+		// generating an impossible or silently weakened type.
+		if model.Kind == ModelObject && model.Additional != nil && model.Additional.Kind != TypeAny && len(model.Properties) > 0 {
+			return nil, fmt.Errorf("%w: TypeScript model %s combines declared properties with typed additionalProperties; use a pure map or a closed object", ErrUnsupportedOperations, model.Name)
+		}
+	}
 	files := []File{
 		newFile("types.ts", []byte(renderTSTypes(doc, comp, specDigest)), "source"),
 		newFile("errors.ts", []byte(renderTSErrors()), "source"),

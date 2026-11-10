@@ -195,6 +195,9 @@ func ParseGraphQLSchemaSDL(name, sdl string) (*GraphQLSchemaModel, error) {
 	if strings.TrimSpace(sdl) == "" {
 		return nil, configErrorf("graphql schema is empty")
 	}
+	if err := checkGraphQLNesting(sdl); err != nil {
+		return nil, err
+	}
 	userDoc, err := parser.ParseSchemasWithLimit(MaxGraphQLSchemaTokens, &ast.Source{
 		Name:  schemaSourceName(name),
 		Input: sdl,

@@ -61,6 +61,7 @@ type gqlTabState struct {
 	introspectErr    string
 	introspect       *gqlIntrospectionPreview
 	introspectCancel context.CancelFunc
+	introspectGen    uint64
 
 	// sub is the live graphql-transport-ws subscription for this tab.
 	sub *gqlSubscriptionState
@@ -136,7 +137,7 @@ func fillGraphQLTab(tab *Tab, req *core.Request) {
 			st.schemaRef = ref
 		}
 	}
-	gqlTeardownSubscription(tab)
+	gqlTeardownTab(tab)
 }
 
 // isGraphQLTab reports whether a tab edits a protocol: graphql request.

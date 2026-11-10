@@ -14,6 +14,7 @@ import (
 
 	"gorequest/internal/core"
 	"gorequest/internal/mockserver"
+	"gorequest/internal/protocolrun/runneradapter"
 	"gorequest/internal/runner"
 )
 
@@ -710,11 +711,11 @@ func (a *App) StartControlledMockSuite() {
 	netOpts.Confirmed = false
 	netOpts.ProjectFiles = files
 
-	runOpts := runner.Options{
+	runOpts := runner.Options{Protocol: runneradapter.New(),
 		Environment:     s.suiteEnv,
 		Secrets:         secrets,
 		ExecuteOptions:  netOpts,
-		PlanOptions:     core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes},
+		PlanOptions:     core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes, AllowGraphQL: true},
 		Schema:          runner.NewProjectSchemaAdapter(p),
 		Emit:            func(e runner.Event) { mailbox.publish(&e, nil, false) },
 		Seed:            frozenSeed,
