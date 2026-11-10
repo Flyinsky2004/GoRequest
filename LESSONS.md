@@ -1,0 +1,69 @@
+# 错误与教训记录
+
+所有编码代理开工、续做和派工前必读。新建 agent 时，首条任务必须明确宣告先读并遵守本文件，并将实际犯的错误和新教训写回。并行 worktree 独立追加，集成人保留合并；同类更新已有条目，不删除历史，不记录密钥或私人数据。
+
+每条严格采用以下格式：
+
+```markdown
+**<一句话规则>**
+- <哪个 commit / issue 出的事，后果是什么>
+- <修复的 commit>
+- Done right: <做对的例子>
+- Seen N× (YYYY-MM-DD, YYYY-MM-DD).
+```
+
+Seen 只统计有证据的独立发生事件；补文档、同一事件的重复测试或重复提醒不增加次数。日期按实际发生或明确反馈日期填写；无法确认标注待核实。引入或修复 commit 尚未定位时明确写“待定位/未修复”，后续补齐，不编造哈希，也不以文档提交冒充功能修复。每条的问题/根因、修正和预防检查放进上述对应行。
+
+**隐藏 Markdown 标记后，还必须保持编辑态的视觉和代码操作体验。**
+- `a97da79`（M01）代码块只保留围栏内容与等宽字体，仍使用通用 rich input，缺少预览容器、语言栏、高亮和代码缩进；用户反馈代码块体验没有提升。详见 `docs/task-results/M02-code-block-editing.md`。
+- 修复 commit：`b3b7ea5`。
+- Done right: 原生代码编辑器与闲置态共用容器、主题和 lexer；实际聚焦后验证高亮、Enter/Tab、复制、滚动、保存与撤销，不能只检查标记消失或失焦预览。
+- Seen 1× (2026-11-09).
+
+**编辑与渲染必须按同一语义处理软换行，并共用真实排版度量。**
+- `a97da79`（M01）新增的 rich input 按源码逐行 Shape，普通 softbreak 变成硬换行；M03 真实入口复现 README 点击后标题下移19.5 DIP，纯文本与富文本 inset 差异也会造成位移。详见 `docs/task-results/M03-stable-document-layout.md`。
+- 修复 commit：`2222d88`。
+- Done right: 按 AST 区分 softbreak/hardbreak，保留 source↔visible 映射，idle/active 共用原生排版；逐帧检查行末、baseline、文字起点、后续组件Y和滚动锚点，覆盖临界宽度/CJK/CRLF/字号变化；聚焦不改源码、Dirty或Undo。
+- Seen 1× (2026-11-09).
+
+**撤销和重做必须恢复对应事务的光标与定向选区，不能重置或猜测位置。**
+- `e02b918` 引入的 docBlockUndo 在恢复文本后无条件 `Select(0,0)`；M04 用户反馈段落中间删除一字后Ctrl/Cmd+Z光标跳段首，保留编辑后的cursor也不能代表删除前位置。引入行已用 git blame 核实，详见 `docs/task-results/M04-undo-caret.md`。
+- 修复 commit：`4783c7f`；原生IME确认回归加强：`7a17822`。
+- Done right: canonical事务前后记录定向Anchor/Head，undo/redo按目标块映射到可见位置；同时断言正文、源/UTF-16选区和逐帧caret，覆盖Delete/Backspace、反向选区、softbreak、跨块和IME。元数据有界，未知事务明确回退，不另建正文历史。
+- Seen 1× (2026-11-09).
+
+**代理必须完成自己能执行的验收，并明确区分自动化、真实窗口和实机输入法证据。**
+- 用户在2026-11-10询问“验收是你去还是我去手动验证”，指出长期登记待实机验收而未继续闭环的责任问题；关联账本§47–50，未定位单一引入commit。后果是验证负担留给用户，自动化未覆盖的真实交互问题持续暴露。
+- 修复 commit：责任和派工约定记录于 `08eb3d6`、`33c0338`；完整实机验收仍未完成，这些文档提交不代表验收通过。
+- Done right: 主代理负责用例、可执行端到端/真实窗口、故障回归与证据；用户仅协助无法访问的平台或真实候选窗。逐项标明已实现/自动验证/实机验证/未验证，headless注入和PNG不得冒充真实IME，agent done不得替代验收。
+- Seen 1× (2026-11-10).
+
+**判断当前缺口前，必须核对主线代码和最新集成证据，不能照搬历史交付限制。**
+- 正式版差距复核发现旧来源报告仍写“未接线/未执行测试”，而 `545d91f` 等后续主线集成已经完成相应入口与验证；这是新旧状态并存的文档问题，未定位单一引入commit。直接照搬会误报缺口、重复派工或恢复旧实现。
+- 修复 commit：`545d91f`、`a1c06ae` 的集成状态记录提供当前证据；`33c0338` 记录复核规则。旧报告保留为历史，不代表所有状态文档已完成统一更新。
+- Done right: 先查HEAD、生产入口、最新集成报告和账本，明确区分来源时状态与当前状态；合并记录保留双方证据并追加新状态，不单边取旧记录、不丢弃另一方记录。
+- Seen 1× (2026-11-10).
+
+**行/步骤并发共享的可变状态必须在锁内读写，新增的并发入口要单独跑 `-race` 验证。**
+- F01 第二阶段（`e3ba1c4` 之后的未提交改动）新增 OAuth `ApplyAuth` 成功后向 `Runner.knownSecrets` 追加令牌值，同时 `buildAttemptPlan`/`dataset.go` 在其他行 goroutine 中读同一底层数组；普通 `go test` 全绿，只有 `go test -race ./internal/desktop -run TestRunnerOAuth` 报 data race。若只跑默认测试就会把真实并发缺陷当成通过交付。
+- 修复 commit：`568285c`（`internal/runner/prepare.go` 增加 `secretsMu sync.Mutex` 与 `rememberSecrets`/`knownSecretSnapshot`，`runner.go`、`schema_adapter_report.go` 全部改走这两个入口）。
+- Done right: 先列出哪些字段会被 row/step goroutine 并发访问，读路径返回快照副本、写路径统一走加锁方法，不在持锁期间做注册/校验等重活；新增任何并发路径后至少对该包跑一次 `-race`，而不是只跑全量默认测试。
+- Seen 1× (2026-11-10).
+
+**headless UI 断言不能依赖固定高度内层滚动区里行的几何位置。**
+- F01 第二阶段 `TestRunnerResultViewRendersInLightAndDarkThemes` 用 `tt.Find("step-039")` 断言结果行可见，返回 `{X:0 Y:0 W:0 H:0}`；换成 `step-000` 同样为零，说明结果行位于 180px `ui.Scroll` 内时 `Find` 不返回可命中的几何。最初据此判断“最后一行未渲染”是错误结论，白改了一轮。
+- 修复 commit：`568285c`（测试改为对分页 chrome 断言几何，对行内容用 `tt.HasText`）。
+- Done right: 只对模态窗口内直接布局的控件断言 X/Y/W/H 与窗口边界；滚动区内容用 `HasText`/内容断言，并单独覆盖滚动可用性。断言失败时先区分“元素不存在”“元素存在但不在视口”“元素在滚动容器内”，再改实现或测试。
+- Seen 1× (2026-11-10).
+
+**局部编辑必须确认没有顺带删掉相邻分支，编辑后立即跑该包测试与格式检查。**
+- F01 开发中一次对 `classifyRunKind` 的局部替换误删了 `timeout` 分支，同一轮还出现过 Edit 遗留多余 tab；两者都由随后的编译/测试暴露，但如果只做格式化提交就会带出行为回退。
+- 修复 commit：当场恢复，未进入任何提交（无独立修复 commit）。
+- Done right: 编辑前把待改函数完整读一遍，替换片段只覆盖目标分支；编辑后先 `gofmt -l` 与 `go build ./...`/该包测试，再继续下一处；提交前 `git diff` 逐 hunk 复核，确认没有删除无关分支。
+- Seen 2× (2026-11-10, 2026-11-10).
+
+**改公共内部函数签名时，先枚举全部调用点并确认归属，测试调用点与生产调用点一起改。**
+- F01 第二阶段给 `prepareDesktopRunner` 增加 `desktopRunnerOptions` 参数；若不先枚举，`runner_test.go`/`runner_integration_test.go` 会编译失败，或误改到其他路文件。实际三处调用点（1 生产 + 2 测试）都在本卡文件内，无需 integration patch。
+- 修复 commit：`568285c`（调用点同步更新）。
+- Done right: 改签名前 `grep -rn` 全仓枚举调用点，逐个确认文件归属；跨卡公共文件只出 `integration.patch`，不直接改；改完 `go build ./...` + `go vet ./...` + 相关包测试，并在报告中写明“仅本卡内接线，无公共 patch”。
+- Seen 1× (2026-11-10).
