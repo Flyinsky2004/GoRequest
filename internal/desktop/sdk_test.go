@@ -170,3 +170,105 @@ func TestSDKModalRendersHeadless(t *testing.T) {
 		t.Fatalf("apply action not rendered; texts=%v", tt.Texts())
 	}
 }
+
+func TestSDKLanguageSwitchAndTypeScriptApply(t *testing.T) {
+	a, ps := openTestProject(t, "SDKDemo")
+	sdkTestRequest(t, ps)
+
+	a.OpenSDKModal()
+	st := a.SDK()
+	st.TargetDir = filepath.Join(t.TempDir(), "sdk")
+
+	a.RefreshSDKPreview()
+	waitSDKPreview(t, st)
+	if st.Err != "" {
+		t.Fatalf("Go preview failed: %s", st.Err)
+	}
+	if st.Plan.Result.Language != string(sdkgen.LanguageGo) {
+		t.Fatalf("language = %q", st.Plan.Result.Language)
+	}
+
+	// Switching language discards the preview until it is refreshed.
+	st.LanguageIdx = 1
+	a.invalidateSDKPreview(st)
+	if st.Plan != nil {
+		t.Fatal("language change must invalidate the preview")
+	}
+	if st.Err == "" {
+		t.Fatal("expected a need-preview notice after switching language")
+	}
+
+	a.RefreshSDKPreview()
+	waitSDKPreview(t, st)
+	if st.Err != "" {
+		t.Fatalf("TypeScript preview failed: %s", st.Err)
+	}
+	if st.Plan.Result.Language != string(sdkgen.LanguageTypeScript) {
+		t.Fatalf("language = %q", st.Plan.Result.Language)
+	}
+	a.ApplySDK()
+	if st.Err != "" {
+		t.Fatalf("TypeScript apply failed: %s", st.Err)
+	}
+	for _, name := range []string{"client.ts", "operations.ts", "types.ts", "index.ts", "package.json", "tsconfig.json", sdkgen.ManifestName} {
+		if _, err := os.Stat(filepath.Join(st.TargetDir, name)); err != nil {
+			t.Fatalf("expected %s on disk: %v", name, err)
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(st.TargetDir, sdkgen.ManifestName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"language": "typescript"`) {
+		t.Fatalf("manifest language is wrong:\n%s", raw)
+	}
+}
+
+func TestSDKCrossLanguageTargetRejected(t *testing.T) {
+	a, ps := openTestProject(t, "SDKDemo")
+	sdkTestRequest(t, ps)
+
+	a.OpenSDKModal()
+	st := a.SDK()
+	st.TargetDir = filepath.Join(t.TempDir(), "sdk")
+	a.RefreshSDKPreview()
+	waitSDKPreview(t, st)
+	a.ApplySDK()
+	if st.Err != "" {
+		t.Fatalf("Go apply failed: %s", st.Err)
+	}
+
+	st.LanguageIdx = 1
+	st.Plan = nil
+	a.RefreshSDKPreview()
+	waitSDKPreview(t, st)
+	if st.Err == "" || !strings.Contains(st.Err, "already contains a go SDK") {
+		t.Fatalf("expected a cross-language conflict, got %q", st.Err)
+	}
+	if st.Plan != nil {
+		t.Fatal("a cross-language conflict must not produce a plan")
+	}
+}
+
+func TestSDKModalRendersTypeScriptControls(t *testing.T) {
+	a, ps := openTestProject(t, "SDKDemo")
+	sdkTestRequest(t, ps)
+	a.OpenSDKModal()
+	st := a.SDK()
+	st.TargetDir = filepath.Join(t.TempDir(), "sdk")
+	a.RefreshSDKPreview()
+	waitSDKPreview(t, st)
+	if st.Err != "" {
+		t.Fatalf("preview failed: %s", st.Err)
+	}
+	tt := ui.NewTester(a.SDKView, 1200, 820)
+	tt.Frame()
+	if _, ok := tt.Find(a.sdkMsg().LanguageTS); !ok {
+		t.Fatalf("TypeScript language control not rendered; texts=%v", tt.Texts())
+	}
+	st.LanguageIdx = 1
+	tt.Frame()
+	if _, ok := tt.Find(a.sdkMsg().TSNote); !ok {
+		t.Fatalf("TypeScript toolchain note not rendered; texts=%v", tt.Texts())
+	}
+}

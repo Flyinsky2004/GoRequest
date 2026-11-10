@@ -27,6 +27,72 @@ var reservedOperationNames = map[string]bool{
 	"Validate": true, "Body": true,
 }
 
+// reservedTypeNames are generated helper types and package-level identifiers
+// that a model name must not shadow.
+var reservedTypeNames = map[string]bool{
+	"Client": true, "Response": true, "APIError": true, "Option": true,
+	"Optional": true, "Some": true, "Null": true,
+	"NewClient": true, "WithHTTPClient": true, "WithAuth": true,
+	"WithUserAgent": true, "WithMaxResponseBytes": true,
+	"DefaultTimeout": true, "DefaultMaxResponseBytes": true,
+	"Requests": true, "RawResponse": true, "SDKError": true,
+	"ApiError": true, "TimeoutError": true, "ResponseTooLargeError": true,
+}
+
+// reservedFieldNames are generated method or helper names an object field must
+// not shadow.
+var reservedFieldNames = map[string]bool{
+	"Validate": true, "Body": true, "AdditionalProperties": true,
+	"MarshalJSON": true, "UnmarshalJSON": true, "Error": true,
+}
+
+// nameAllocator hands out deterministic, case-insensitively unique Go and
+// TypeScript type identifiers.
+type nameAllocator struct {
+	used map[string]bool
+}
+
+func newNameAllocator(reserved map[string]bool) *nameAllocator {
+	used := make(map[string]bool, len(reserved))
+	for name := range reserved {
+		used[strings.ToLower(name)] = true
+	}
+	return &nameAllocator{used: used}
+}
+
+func (a *nameAllocator) clone() *nameAllocator {
+	used := make(map[string]bool, len(a.used))
+	for k, v := range a.used {
+		used[k] = v
+	}
+	return &nameAllocator{used: used}
+}
+
+// Reserve marks name as used without returning it.
+func (a *nameAllocator) Reserve(name string) {
+	if name == "" {
+		return
+	}
+	a.used[strings.ToLower(name)] = true
+}
+
+// Allocate returns a unique exported identifier based on base.
+func (a *nameAllocator) Allocate(base string) string {
+	base = exportedIdentifier(base)
+	if base == "" {
+		base = "Type"
+	}
+	name := base
+	if reservedTypeNames[name] || goKeywords[strings.ToLower(name)] {
+		name += "Model"
+	}
+	for n := 2; a.used[strings.ToLower(name)]; n++ {
+		name = base + strconv.Itoa(n)
+	}
+	a.used[strings.ToLower(name)] = true
+	return name
+}
+
 // normalizePackageName validates and returns a package name. It is intentionally
 // strict: the caller (desktop UI) derives a default and the user can edit it,
 // but an invalid name fails before any file is generated.
@@ -197,13 +263,14 @@ func assignOperationNames(ops []Operation) {
 }
 
 // assignFieldNames assigns unique exported Go field names to parameters.
-// Reserved names (Body, Validate) are avoided deterministically.
+// Reserved names (Body, Validate, AdditionalProperties) are avoided
+// deterministically.
 func assignFieldNames(rawNames []string) []string {
 	used := map[string]bool{}
 	out := make([]string, len(rawNames))
 	for i, raw := range rawNames {
 		base := exportedIdentifier(raw)
-		if reservedOperationNames[base] {
+		if reservedFieldNames[base] || reservedOperationNames[base] {
 			base += "Param"
 		}
 		name := base

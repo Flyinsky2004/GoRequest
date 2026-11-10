@@ -8,9 +8,8 @@ import (
 	"gorequest/internal/desktop/uikit"
 )
 
-// BuildSDKProjectMenuItems appends the C04-phase2 Go SDK entry to the project
-// dropdown menu. The modal renders via SDKModals (integration patch adds that
-// one call to App.View).
+// BuildSDKProjectMenuItems appends the SDK generator entry to the project
+// dropdown menu. The modal itself renders through SDKModals.
 func (a *App) BuildSDKProjectMenuItems(mm *ui.Menu) {
 	if a == nil || a.ps == nil || a.ps.project == nil || mm == nil {
 		return
@@ -46,12 +45,19 @@ func (a *App) sdkModal(c *ui.Context, t *ui.Theme, st *SDKState) {
 			})
 			ui.Text(c, sm.SecurityNote).FontSize(11).TextColor(p.Muted)
 
-			// Contract version, package and module.
+			// Contract version, language, package and module.
 			ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
 				ui.Column(c).Gap(4).Children(func() {
 					ui.Text(c, sm.SpecVersionLabel).FontSize(12).TextColor(p.Muted)
 					labels := []string{"3.1.2", "3.2.1"}
 					if _, changed := uikit.SimpleSegmented(c, p, &st.SpecVersionIdx, labels); changed {
+						st.Plan = nil
+					}
+				})
+				ui.Column(c).Gap(4).Children(func() {
+					ui.Text(c, sm.LanguageLabel).FontSize(12).TextColor(p.Muted)
+					labels := []string{sm.LanguageGo, sm.LanguageTS}
+					if _, changed := uikit.SimpleSegmented(c, p, &st.LanguageIdx, labels); changed {
 						st.Plan = nil
 					}
 				})
@@ -64,6 +70,9 @@ func (a *App) sdkModal(c *ui.Context, t *ui.Theme, st *SDKState) {
 					ui.TextInput(c, &st.ModulePath).FillWidth()
 				})
 			})
+			if st.LanguageIdx == 1 {
+				ui.Text(c, sm.TSNote).FontSize(11).TextColor(p.Muted)
+			}
 
 			// Output directory.
 			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
@@ -139,10 +148,10 @@ func (a *App) sdkPreviewBody(c *ui.Context, t *ui.Theme, p uikit.Palette, sm *sd
 	res := plan.Result
 
 	summary := fmt.Sprintf(sm.SummaryFmt,
-		len(res.Files), res.TotalBytes, len(res.Operations),
+		len(res.Files), res.TotalBytes, len(res.Operations), len(res.Models),
 		len(res.Unsupported), len(plan.Conflicts), len(plan.Stale))
 	ui.Text(c, summary).FontSize(12).FontWeight(600).TextColor(p.Text)
-	ui.Text(c, fmt.Sprintf(sm.ManifestFmt, res.GeneratorVersion, res.TemplateVersion, shortDigest(res.SpecDigest))).
+	ui.Text(c, fmt.Sprintf(sm.ManifestFmt, res.Language, res.GeneratorVersion, res.TemplateVersion, shortDigest(res.SpecDigest))).
 		FontSize(11).TextColor(p.Muted)
 
 	if len(plan.Conflicts) > 0 {
@@ -191,5 +200,18 @@ func (a *App) sdkPreviewBody(c *ui.Context, t *ui.Theme, p uikit.Palette, sm *sd
 		}
 	} else {
 		ui.Text(c, sm.NoOperations).FontSize(11).TextColor(p.Muted)
+	}
+	if len(res.Models) > 0 {
+		ui.Text(c, fmt.Sprintf("%s (%d)", sm.ModelsHeading, len(res.Models))).FontSize(12).FontWeight(600).TextColor(p.Text)
+		for _, m := range res.Models {
+			ui.Text(c, fmt.Sprintf("%s · %s · %s", m.Name, m.Kind, m.Origin)).
+				Font("monospace").FontSize(11).TextColor(p.Muted)
+		}
+	}
+	if len(res.Diagnostics) > 0 {
+		ui.Text(c, fmt.Sprintf("%s (%d)", sm.SupportHeading, len(res.Diagnostics))).FontSize(12).FontWeight(600).TextColor(t.Warning)
+		for _, d := range res.Diagnostics {
+			ui.Text(c, fmt.Sprintf("[%s] %s: %s", d.Code, d.Location, d.Message)).FontSize(11).TextColor(t.Warning)
+		}
 	}
 }

@@ -98,6 +98,11 @@ func (e *ConflictError) Unwrap() error { return ErrConflict }
 // Preview generates the SDK in memory and compares it with the target
 // directory without writing anything.
 func Preview(snapshot []byte, opts Options) (*Plan, error) {
+	lang, err := normalizeLanguage(opts.Language)
+	if err != nil {
+		return nil, err
+	}
+	opts.Language = lang
 	res, err := Generate(snapshot, opts)
 	if err != nil {
 		return nil, err
@@ -108,6 +113,9 @@ func Preview(snapshot []byte, opts Options) (*Plan, error) {
 	}
 	oldManifest, oldBytes, err := readManifest(target)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateManifestCompatibility(oldManifest, opts.Language); err != nil {
 		return nil, err
 	}
 	plan := &Plan{
@@ -540,9 +548,33 @@ func resolveExistingPrefix(p string) string {
 	}
 }
 
+// validateManifestCompatibility refuses a manifest written by another language
+// or by an incompatible generator/template version. Two languages must never
+// overwrite each other's output in the same directory.
+func validateManifestCompatibility(m *Manifest, lang Language) error {
+	if m == nil {
+		return nil
+	}
+	if m.GeneratorVersion != GeneratorVersion {
+		return fmt.Errorf("%w: manifest generator %q is not %q; choose a new output directory", ErrInvalidManifest, m.GeneratorVersion, GeneratorVersion)
+	}
+	if want := TemplateVersionFor(lang); m.TemplateVersion != want {
+		if m.Language != "" && m.Language != string(lang) {
+			return fmt.Errorf("%w: target directory already contains a %s SDK (manifest language %q); choose a different directory for %s", ErrConflict, m.Language, m.Language, lang)
+		}
+		return fmt.Errorf("%w: manifest template %q is not %q; choose a new output directory", ErrInvalidManifest, m.TemplateVersion, want)
+	}
+	if m.Language == "" {
+		return fmt.Errorf("%w: manifest has no language; choose a new output directory", ErrInvalidManifest)
+	}
+	if m.Language != string(lang) {
+		return fmt.Errorf("%w: target directory already contains a %s SDK; choose a different directory for %s", ErrConflict, m.Language, lang)
+	}
+	return nil
+}
+
 // readManifest reads and validates the ownership manifest. A missing manifest
-// returns (nil, nil, nil); a corrupt or incompatible one returns
-// ErrInvalidManifest.
+// returns (nil, nil, nil); a corrupt one returns ErrInvalidManifest.
 func readManifest(target string) (*Manifest, []byte, error) {
 	abs := filepath.Join(target, ManifestName)
 	fi, err := os.Lstat(abs)
@@ -569,8 +601,8 @@ func readManifest(target string) (*Manifest, []byte, error) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidManifest, err)
 	}
-	if m.GeneratorVersion != GeneratorVersion || m.TemplateVersion != TemplateVersion {
-		return nil, nil, fmt.Errorf("%w: manifest version %q/%q is not %q/%q", ErrInvalidManifest, m.GeneratorVersion, m.TemplateVersion, GeneratorVersion, TemplateVersion)
+	if m.Language != "" && m.Language != string(LanguageGo) && m.Language != string(LanguageTypeScript) {
+		return nil, nil, fmt.Errorf("%w: manifest language %q is not supported", ErrInvalidManifest, m.Language)
 	}
 	seen := map[string]bool{}
 	for _, e := range m.Files {
