@@ -1484,3 +1484,18 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 | F04 / Herdr CC | `cc/F04-sdk` / `/private/tmp/gorequest-formal4-20261110/sdk` | Go类型模型和TS HTTP SDK阶段、生成保护；独占sdkgen/sdk UI；[方案](task-briefs/F04-sdk.md) | 方案完成，准备启动 |
 
 本批不意味着完整1.0-A/B/C已完成；gRPC本体/Python SDK/全部Mermaid等后续仍保留。各路实际实现与验证、来源hash待交付；仅集成验收后登记阶段完成。主代理承担组合回归与可访问的实机验收，不把全套验收转给用户。启动句柄/共同基线与本轮基线验证后补。
+
+### 51.1 实际基线、启动与初始验证
+
+实际共同基线 `08eb3d66cdd5159d0879c00624598165027bcf18`；四worktree均已从该提交创建，分支/路径与§51一致。主代理在代码起点实际执行 `go build ./...`、`go vet ./...`、`go test ./...` 全通过（普通测试使用Go有效缓存，无skip）；没有将旧失败或旧报告当本轮验证。用户两文件摘要与启动前一致。
+
+四个交互CC均通过GoRequest Space的 `herdr-app do tab.new` 启动；argv=`claude --permission-mode bypassPermissions`，仅会话权限，不改全局配置。沿用CC当前默认模型；首屏显示 DeepSeek-V4.1-Flash / WorkBuddy，并非主代理另行选择模型。首屏完整初始任务送达，hc确认工作目录正确且working。
+
+| 卡 | Terminal | Tab | 首屏/状态 |
+| --- | --- | --- | --- |
+| F01 | `t6h` | `tbdcbb09c753c6afbcefc803b77140fde0` | automation / CC working，方案已送达 |
+| F02 | `t6j` | `tb6dc48ed1a24d42ebfa4c2fa547394919` | protocols / CC working，方案已送达 |
+| F03 | `t6k` | `tba39fadb7e6a7893f9fff06e122c34049` | mermaid / CC working，方案已送达 |
+| F04 | `t6m` | `tba6a095e22a8a8286a80b1d05e9951f6f` | sdk / CC working，方案已送达 |
+
+精确启动返回、用户文件摘要与状态保存在本机 `/private/tmp/gorequest-formal4-20261110/launch-baseline.json`、`launches.json`、`startup-check.json`。已有 `t6g` 等用户/其他项目会话未操作。仅确认启动，不宣称功能已完成/集成/实机验收。
