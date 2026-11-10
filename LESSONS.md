@@ -199,3 +199,9 @@ Seen 只统计有证据的独立发生事件；补文档、同一事件的重复
 - 修复 commit：`bd1978d`（夹具读完正文，补CloseClientConnections兜底；订阅/取消专项随后通过）。
 - Done right: 用io.Copy(io.Discard,r.Body)读完请求，再通过明确channel观察服务端Context取消；有独立超时和连接清理，保留首次失败及修正后的证据。
 - Seen 1× (2026-11-10).
+
+**全局界面缓存不能以强指针永久持有已关闭的文档状态。**
+- F03 `8cf6a91` 使用全局 map 以文档状态指针作键缓存图表；即使关闭文档，map 仍持有其状态，清理回调不能正常释放该对象。
+- 修复 commit：`bd1978d`（改用 weak.Pointer 键并由 runtime.AddCleanup 清理）。
+- Done right: 缓存不拥有界面对象生命周期，使用弱引用或显式关闭移除，检查清理回调本身也不捕获强引用。
+- Seen 1× (2026-11-10).

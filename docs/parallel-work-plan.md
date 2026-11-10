@@ -1513,3 +1513,15 @@ main 已 ff-only 从 `5a60910` 快进到 `545d91f`；main 的 `sh scripts/make-m
 全仓普通测试无测试级 skip 通过（desktop 46.065s），全仓 race 通过（desktop 301.691s），最终 TS 增量 SDK race 6.721s、桌面接线专项 race 3.215s 通过，build/vet 通过。详细命令、协议/取消/保存/类型修正与证据见 [集成报告](task-results/integration-F01-F04-2026-11-10.md)。来源报告保留其交付时状态，以本节和集成报告更新为准。
 
 仅勾选四张阶段卡，不等于完整 1.0-A/B/C。真实窗口/IME/三平台验收未完成；gRPC、Python SDK、全部 Mermaid、GraphQL Schema 代码补全与 Runner 订阅仍有范围限制。
+
+
+### 51.3 main 合并与清理完成
+
+main 已从 `6a0d2a6` ff-only 合入 `38eedad`，包含四路来源提交、公共接线 `c1f17ce`、组合修正 `bd1978d` 以及验收/教训文档。
+
+- [x] 本批四个 CC 的精确标签已关闭，`t6h/t6j/t6k/t6m` finished 后已通过 hc rm 移除。
+- [x] 四个来源 worktree 和一个集成 worktree 均确认干净且头提交已是 main 祖先，然后非 force 删除；五条已合并分支使用 git branch -d 清理，当前仅 main/主工作区。
+- [x] F02 唯一剩余 go.mod diff 已保存于本机 `source-F02-go-mod.patch`，核对仅新增一条且 main 已包含后才还原，没有丢弃未集成功能。
+- [x] 用户 dev.yaml/document.md 的 SHA-256 与合并开始完全一致，仍保留原有未提交状态，未纳入本次提交。其他用户/项目会话未操作。
+
+未 push、部署、重启用户应用或运行安装器。构建验证不等于用户当前运行的应用已经更新；本轮未生成新的安装包。真实窗口/IME/三平台与完整正式版剩余范围继续待验收。
