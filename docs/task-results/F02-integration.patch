@@ -1,0 +1,473 @@
+# F02 → 集成人：协议执行适配器接线补丁
+
+状态：F02 第二阶段交付（接线文档，非可直接 `git apply` 的统一 diff）。日期 2026-11-10。
+分支 `cc/F02-protocols`，共同基线 `08eb3d66cdd5159d0879c00624598165027bcf18`。
+F01 端口来源：`/private/tmp/gorequest-formal4-20261110/automation/internal/runner/port.go`，提交 `e3ba1c4 feat(runner): add optional auth and protocol execution ports`（契约 `docs/contracts/F01-runner-extension.md`）。
+
+> 为什么不是统一 diff：F01 端口代码不在本 worktree（`git -C . grep ProtocolExecutor -- internal/` 无匹配），
+> 因此适配器在本分支无法编译。集成人须在 F01 合入后把下列代码按真实签名落地并重新编译验证。
+> 适配器源码在本仓已用“临时拷入端口 + `Variables` 字段”的方式做过 `go build`/`go vet` 验证（零错误），
+> 验证用的临时文件已在提交前精确撤回，未进入本分支。
+
+## 1. 目标
+
+把已完成的协议能力接到 F01 的 `runner.ProtocolExecutor` 端口上，使套件步骤可以执行：
+
+1. **WebSocket 有界脚本**（`protocolrun`：connect → send(text/binary) → await/assert → close），
+   计划文件通过请求扩展 `Extensions["wsPlan"]` 引用（本分支已实现并测试，见 `internal/protocolrun/planref.go`）。
+2. **GraphQL query/mutation**：直接复用 Runner 已构建的 tracked HTTP 计划（需 `PlanOptions.AllowGraphQL = true`）。
+
+**不做**：GraphQL 订阅由桌面实时 UI 承担，不进入 Runner 执行；本补丁不含订阅调度。
+
+## 2. 依赖：F01 端口现状（已确认）
+
+```go
+// automation/internal/runner/port.go @ e3ba1c4
+type ProtocolRequest struct {
+	StepID         string
+	Entry          *core.RequestEntry
+	Plan           *core.Plan
+	ExecuteOptions core.ExecuteOptions
+	Redactor       *core.Redactor
+}
+
+type ProtocolExecutor interface {
+	Supports(req *core.Request) bool
+	PreflightProtocol(ctx context.Context, req ProtocolRequest) error
+	ExecuteProtocol(ctx context.Context, req ProtocolRequest) (*core.ExecResult, error)
+}
+```
+
+`runner.Options` 有 `Protocol ProtocolExecutor` 字段；`isNonHTTPProtocol(req)` 对 `Protocol != "" && != "http"` 返回真。
+`ProtocolRequest` 目前**不含计划文件路径，也不含变量表**。计划路径由请求扩展 `Extensions["wsPlan"]` 提供
+（不需要改端口）；但计划模板需要用**该数据行已解析的变量**，端口没有透出，故需要一处极小端口扩展（见 §3）。
+
+## 3. 必需的端口/公共文件改动（供集成人应用）
+
+### 3.1 `automation/internal/runner/port.go`：给 `ProtocolRequest` 增加 `Variables`
+
+理由：`protocolrun.Compile` 需要 `*core.Resolver` 解析计划里的 `{{var}}`；Runner 在两个调用点都已算出
+该行解析后的 `vars`（`buildAttemptPlan` 返回），只是没传进 `ProtocolRequest`。加一个字段即可，向后兼容。
+
+```diff
+--- a/automation/internal/runner/port.go
++++ b/automation/internal/runner/port.go
+ type ProtocolRequest struct {
+ 	StepID         string
+ 	Entry          *core.RequestEntry
+ 	Plan           *core.Plan
++	// Variables is the row's fully resolved variable map, so a protocol adapter
++	// can compile plan templates against the same values an HTTP attempt would use.
++	Variables      map[string]string
+ 	ExecuteOptions core.ExecuteOptions
+ 	Redactor       *core.Redactor
+ }
+```
+
+### 3.2 `automation/internal/runner/prepare.go`：预检调用点透出 `vars`
+
+```diff
+@@ func (r *Runner) preflightProtocol(...)
+ 		protoReq := ProtocolRequest{
+ 			StepID:         sp.Step.ID,
+ 			Entry:          sp.Entry,
+ 			Plan:           plan,
++			Variables:      vars,
+ 			ExecuteOptions: r.preflightNetworkOptions(protoRed, auth),
+ 			Redactor:       protoRed,
+ 		}
+```
+
+### 3.3 `automation/internal/runner/runner.go`：执行调用点透出 `vars`
+
+`executeAttempt` 已能拿到 `plan`/`opts`/`red`；把行变量一起传入即可（`vars` 在 `runner.go` 的尝试循环里已在作用域内）。
+
+```diff
+-func (r *Runner) executeAttempt(ctx context.Context, sp *StepPlan, plan *core.Plan, opts core.ExecuteOptions, red *core.Redactor) (*core.ExecResult, error) {
++func (r *Runner) executeAttempt(ctx context.Context, sp *StepPlan, plan *core.Plan, vars map[string]string, opts core.ExecuteOptions, red *core.Redactor) (*core.ExecResult, error) {
+ 	if isNonHTTPProtocol(sp.Entry.Request) {
+ 		if r.opts.Protocol == nil {
+ 			return nil, &core.ConfigError{Err: errors.New("protocol executor is not configured")}
+ 		}
+ 		return r.opts.Protocol.ExecuteProtocol(ctx, ProtocolRequest{
+ 			StepID:         sp.Step.ID,
+ 			Entry:          sp.Entry,
+ 			Plan:           plan,
++			Variables:      vars,
+ 			ExecuteOptions: opts,
+ 			Redactor:       red,
+ 		})
+ 	}
+```
+调用处：
+
+```diff
+-		execRes, execErr := r.executeAttempt(ctx, sp, plan, execOpts, stepRed)
++		execRes, execErr := r.executeAttempt(ctx, sp, plan, vars, execOpts, stepRed)
+```
+
+## 4. 适配器实现（新增文件）
+
+落盘路径建议：`internal/protocolrun/runneradapter/adapter.go`（在 F02 独占的 `internal/protocolrun/**` 下，
+避免占用 F01 的 `internal/runner/**` 或 `runner_*` 桌面文件）。它导入 `gorequest/internal/runner` 的端口类型，
+`runner` 不导入 `protocolrun`，无循环依赖。
+
+```go
+// Package runneradapter bridges bounded protocol execution to F01's
+// runner.ProtocolExecutor port. It is delivered as an integration patch and is
+// not compiled in the F02 branch, because the runner port lives in the tree
+// after F01 is merged.
+package runneradapter
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"gorequest/internal/core"
+	"gorequest/internal/protocolrun"
+	"gorequest/internal/runner"
+	"gorequest/internal/stream"
+	gows "gorequest/internal/websocket"
+)
+
+// Executor implements runner.ProtocolExecutor for:
+//   - WebSocket requests that carry a protocolrun.PlanRef (bounded action plans)
+//   - GraphQL requests (query/mutation), which reuse the tracked HTTP plan the
+//     runner already built (PlanOptions.AllowGraphQL must be enabled).
+//
+// GraphQL subscriptions are a live UI feature; the runner does not execute them.
+type Executor struct{}
+
+// New returns a ready protocol executor.
+func New() *Executor { return &Executor{} }
+
+// Supports reports whether this executor handles the request. A WebSocket
+// request is only supported when it carries a plan reference.
+func (e *Executor) Supports(req *core.Request) bool {
+	if req == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(req.Protocol)) {
+	case core.ProtocolWebSocket:
+		_, ok := protocolrun.PlanRefFromRequest(req)
+		return ok
+	case core.ProtocolGraphQL:
+		return true
+	}
+	return false
+}
+
+// PreflightProtocol performs zero network I/O: it decodes and validates the
+// plan, checks the stored digest and compiles templates against the current
+// environment so a bad plan fails before any connection is opened.
+func (e *Executor) PreflightProtocol(ctx context.Context, req runner.ProtocolRequest) error {
+	if req.Entry == nil || req.Entry.Request == nil {
+		return &core.ConfigError{Err: fmt.Errorf("protocol request has no request entry")}
+	}
+	r := req.Entry.Request
+	switch strings.ToLower(strings.TrimSpace(r.Protocol)) {
+	case core.ProtocolGraphQL:
+		if req.Plan == nil {
+			return &core.ConfigError{Err: fmt.Errorf("graphql request has no plan")}
+		}
+		return nil
+	case core.ProtocolWebSocket:
+		_, _, _, err := e.compile(ctx, req, true)
+		return err
+	}
+	return &core.ConfigError{Err: fmt.Errorf("protocol %q is not supported", r.Protocol)}
+}
+
+// ExecuteProtocol runs one bounded plan (WebSocket) or the tracked HTTP plan
+// (GraphQL). It never reconnects and never retries.
+func (e *Executor) ExecuteProtocol(ctx context.Context, req runner.ProtocolRequest) (*core.ExecResult, error) {
+	if req.Entry == nil || req.Entry.Request == nil {
+		return nil, &core.ConfigError{Err: fmt.Errorf("protocol request has no request entry")}
+	}
+	r := req.Entry.Request
+	switch strings.ToLower(strings.TrimSpace(r.Protocol)) {
+	case core.ProtocolGraphQL:
+		if req.Plan == nil {
+			return nil, &core.ConfigError{Err: fmt.Errorf("graphql request has no plan")}
+		}
+		return core.ExecuteWithOptions(ctx, req.Plan, req.ExecuteOptions)
+	case core.ProtocolWebSocket:
+		// fall through to the bounded plan path
+	default:
+		return nil, &core.ConfigError{Err: fmt.Errorf("protocol %q is not supported", r.Protocol)}
+	}
+
+	plan, compiled, red, err := e.compile(ctx, req, false)
+	if err != nil {
+		return nil, err
+	}
+	base := gows.Options{
+		EnableCompression: false,
+		Deadlines: stream.DeadlinePolicy{
+			Connect:   req.ExecuteOptions.Timeouts.DialTimeout,
+			Handshake: req.ExecuteOptions.Timeouts.TLSHandshakeTimeout,
+			Message:   gows.DefaultMessageTimeout,
+			// The plan's own total deadline is enforced inside Run's context.
+			Total: 0,
+		},
+		Proxy:           req.ExecuteOptions.Proxy,
+		TLS:             req.ExecuteOptions.TLS,
+		TargetPolicy:    req.ExecuteOptions.TargetPolicy,
+		HasTargetPolicy: req.ExecuteOptions.HasTargetPolicy,
+		EnvID:           req.ExecuteOptions.EnvID,
+		// The runner is a non-interactive context: a confirm-required target
+		// fails instead of being auto-approved.
+		Interactive: false,
+		Confirmed:   false,
+		Secrets:     req.ExecuteOptions.Secrets,
+		LocalFiles:  req.ExecuteOptions.LocalFiles,
+		ProjectRoot: req.ExecuteOptions.ProjectRoot,
+		Redactor:    red,
+		CookieJar:   req.ExecuteOptions.CookieJar,
+	}
+	tr := protocolrun.NewWebSocketTransport(base, plan.Limits)
+	res := protocolrun.Run(ctx, compiled, tr)
+	exec := resultToExecResult(res)
+
+	if res.State == protocolrun.StatePassed {
+		return exec, nil
+	}
+	return exec, &core.RunError{Err: fmt.Errorf("%s", describeFailure(res, red))}
+}
+
+// compile loads, digests, validates and (unless preflightOnly) compiles a
+// WebSocket plan. Preflight skips compilation of binary file payloads content
+// but still validates structure and templates.
+func (e *Executor) compile(ctx context.Context, req runner.ProtocolRequest, preflightOnly bool) (*protocolrun.Plan, *protocolrun.CompiledPlan, *core.Redactor, error) {
+	ref, ok := protocolrun.PlanRefFromRequest(req.Entry.Request)
+	if !ok {
+		return nil, nil, nil, &core.ConfigError{Err: fmt.Errorf("websocket request has no plan reference")}
+	}
+	plan, digest, err := protocolrun.ReadPlanFromProject(ctx, req.ExecuteOptions.ProjectFiles, ref.Path)
+	if err != nil {
+		return nil, nil, nil, &core.ConfigError{Err: err}
+	}
+	if ref.Digest != "" && digest != ref.Digest {
+		return nil, nil, nil, &core.ConfigError{Err: fmt.Errorf("plan %q changed since it was reviewed", ref.Path)}
+	}
+	red := req.Redactor
+	if red == nil {
+		red = core.NewRedactor()
+	}
+	compiled, err := protocolrun.Compile(plan, protocolrun.CompileOptions{
+		Resolver:  core.NewResolver(req.Variables, req.ExecuteOptions.Secrets),
+		Redactor:  red,
+		OpenFile:  openFileFor(ctx, req.ExecuteOptions.ProjectFiles),
+		MaxBinary: protocolrun.MaxBinaryFileBytes,
+	})
+	if err != nil {
+		return nil, nil, nil, &core.ConfigError{Err: err}
+	}
+	_ = preflightOnly
+	return plan, compiled, red, nil
+}
+
+// openFileFor resolves a plan's binary file: a project-relative path is opened
+// through the bounded project opener; anything else is read from the local
+// filesystem. Compile enforces MaxBinaryFileBytes on the returned bytes.
+func openFileFor(ctx context.Context, opener core.ProjectFileOpener) func(string) ([]byte, error) {
+	return func(p string) ([]byte, error) {
+		if opener != nil {
+			if clean, err := core.ValidateProjectRelPath(p); err == nil {
+				f, err := opener.OpenProjectFile(ctx, clean)
+				if err != nil {
+					return nil, err
+				}
+				defer f.Reader.Close()
+				return io.ReadAll(io.LimitReader(f.Reader, protocolrun.MaxBinaryFileBytes+1))
+			}
+		}
+		f, err := os.Open(p)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		return io.ReadAll(io.LimitReader(f, protocolrun.MaxBinaryFileBytes+1))
+	}
+}
+
+// planFacts is the JSON body an assertion can target. It keeps the protocol end
+// facts (close code/reason, per-step cursor/sequence/direction) separate and
+// never flattens them into an HTTP status.
+type planFacts struct {
+	State         string     `json:"state"`
+	Name          string     `json:"name,omitempty"`
+	Error         string     `json:"error,omitempty"`
+	FailedStep    int        `json:"failedStep"`
+	CloseCode     int        `json:"closeCode"`
+	CloseReason   string     `json:"closeReason,omitempty"`
+	Sent          int        `json:"sent"`
+	Received      int        `json:"received"`
+	BytesSent     int64      `json:"bytesSent"`
+	BytesReceived int64      `json:"bytesReceived"`
+	DurationMs    int64      `json:"durationMs"`
+	Steps         []stepFact `json:"steps"`
+}
+
+type stepFact struct {
+	Index         int    `json:"index"`
+	Action        string `json:"action"`
+	Label         string `json:"label,omitempty"`
+	State         string `json:"state"`
+	Direction     string `json:"direction,omitempty"`
+	CursorBefore  int64  `json:"cursorBefore"`
+	CursorAfter   int64  `json:"cursorAfter"`
+	SentSeq       uint64 `json:"sentSeq"`
+	ReceivedSeq   uint64 `json:"receivedSeq"`
+	ReceivedBytes int    `json:"receivedBytes"`
+	Error         string `json:"error,omitempty"`
+	CloseCode     int    `json:"closeCode"`
+	CloseReason   string `json:"closeReason,omitempty"`
+}
+
+// resultToExecResult maps a plan result to transport facts. Status stays 0: a
+// WebSocket plan has no HTTP status, so it is never fabricated.
+func resultToExecResult(res *protocolrun.Result) *core.ExecResult {
+	facts := planFacts{
+		State:         string(res.State),
+		Name:          res.Name,
+		Error:         res.Error,
+		FailedStep:    res.FailedStep,
+		CloseCode:     res.CloseCode,
+		CloseReason:   res.CloseReason,
+		Sent:          res.SentCount,
+		Received:      res.ReceivedCount,
+		BytesSent:     res.BytesSent,
+		BytesReceived: res.BytesReceived,
+		DurationMs:    res.EndedAt.Sub(res.StartedAt).Milliseconds(),
+	}
+	for _, s := range res.Steps {
+		facts.Steps = append(facts.Steps, stepFact{
+			Index:         s.Index,
+			Action:        string(s.Action),
+			Label:         s.Label,
+			State:         string(s.State),
+			Direction:     string(s.Direction),
+			CursorBefore:  s.CursorBefore,
+			CursorAfter:   s.CursorAfter,
+			SentSeq:       s.SentSeq,
+			ReceivedSeq:   s.ReceivedSeq,
+			ReceivedBytes: s.ReceivedBytes,
+			Error:         s.Error,
+			CloseCode:     s.CloseCode,
+			CloseReason:   s.CloseReason,
+		})
+	}
+	body, _ := json.Marshal(facts)
+	return &core.ExecResult{
+		Proto:       "websocket",
+		Duration:    res.EndedAt.Sub(res.StartedAt),
+		Body:        body,
+		BodySize:    int64(len(body)),
+		ContentType: "application/json",
+	}
+}
+
+// describeFailure renders the essential end facts into an error message, because
+// F01 currently discards the ExecResult when an attempt returns an error.
+func describeFailure(res *protocolrun.Result, red *core.Redactor) string {
+	msg := fmt.Sprintf("websocket plan %q did not pass: state=%s", res.Name, res.State)
+	if res.FailedStep >= 0 {
+		msg += fmt.Sprintf(" failedStep=%d", res.FailedStep)
+	}
+	if res.CloseCode != 0 || res.CloseReason != "" {
+		msg += fmt.Sprintf(" close=%d %q", res.CloseCode, res.CloseReason)
+	}
+	if res.Error != "" {
+		msg += ": " + res.Error
+	}
+	if red != nil {
+		msg = red.RedactString(msg)
+	}
+	return msg
+}
+```
+
+## 5. 桌面接线（两处 `runner.Options`）
+
+### 5.1 `automation/internal/desktop/runner_snapshot.go`
+
+```diff
+ import (
+ 	...
++	"gorequest/internal/protocolrun/runneradapter"
+ )
+
+ 	opts := runner.Options{Environment: env, Secrets: secrets, ExecuteOptions: network, PlanOptions: core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes}, Schema: runner.NewProjectSchemaAdapter(p), Emit: emit, StepConcurrency: ro.StepConcurrency, RowConcurrency: ro.RowConcurrency, Protocol: runneradapter.New()}
+```
+并把 `PlanOptions` 改为允许 GraphQL：
+
+```diff
+-PlanOptions: core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes}
++PlanOptions: core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes, AllowGraphQL: true}
+```
+
+### 5.2 `automation/internal/desktop/mock.go`（runOpts）
+
+```diff
+ 	runOpts := runner.Options{
+ 		...
+-		PlanOptions:     core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes},
++		PlanOptions:     core.PlanOptions{ProjectRoot: p.Dir, ProjectFiles: files, MaxUploadBytes: core.DefaultMaxUploadBytes, AllowGraphQL: true},
++		Protocol:        runneradapter.New(),
+ 		...
+ 	}
+```
+
+> `AllowGraphQL` 必须置真：`core.BuildTrackedPlanWithOptions` 在 `AllowGraphQL == false` 时直接返回
+> `configErrorf("GraphQL requests are not supported by this execution path yet")`，GraphQL 步骤在**计划构建阶段**就失败，
+> 根本到不了端口。WebSocket 请求不受此限制，会以 `Method == "WS"` 正常进入端口（`port.go` 的 `isNonHTTPProtocol` 按 `Protocol` 字段判定）。
+
+## 6. 集成与验证清单
+
+1. 合入 F01（含端口 `e3ba1c4`）→ 应用 §3 端口扩展 → 加入 §4 适配器 → 应用 §5 两处接线。
+2. `go build ./...`、`go vet ./...`、`go test ./...` 必须全绿。
+3. 新增一条 loopback WS 套件用例：套件步骤指向一个带 `wsPlan` 引用的 websocket 请求，断言计划通过、
+   且 `jsonpath` 能读到结果体（见 §7 的 body 约定）；再验证“服务端提前 close”“await 超时”分别让步骤失败且错误信息含 close 码。
+4. 验证 GraphQL 步骤：`AllowGraphQL=true` 后 query/mutation 走 HTTP；缺 `Protocol:` 时 WebSocket/GraphQL 步骤在预检失败（不是静默按 HTTP 执行）。
+5. 本分支不勾 P01/P02 完成；账本勾选由集成人在功能集成且验收满足后进行。
+
+## 7. 结果体（`ExecResult`）约定
+
+WebSocket 计划的结果放在 `ExecResult.Body`（JSON，`ContentType=application/json`），便于 Runner 的 `jsonpath`/`body`/`contains` 断言：
+
+```json
+{
+  "state":"passed|failed|canceled|timed_out",
+  "name":"ticks",
+  "failedStep":-1,
+  "closeCode":1000,
+  "closeReason":"plan complete",
+  "sent":2,"received":3,"bytesSent":40,"bytesReceived":512,"durationMs":12,
+  "steps":[{"index":0,"action":"connect","state":"passed","direction":"none","cursorBefore":0,"cursorAfter":0,"sentSeq":0,"receivedSeq":0,"receivedBytes":0}]
+}
+```
+
+**永不伪造 HTTP 状态**：`ExecResult.Status` 固定为 `0`（0 = 无 HTTP 状态），`Proto` 为 `"websocket"`。
+
+## 8. 已知限制（不写成已完成）
+
+1. **失败时的结果体当前会被 F01 丢弃**：`executeAttempt` 返回 error 时 Runner 不使用 `execRes`（`runner.go` 尝试循环）。
+   因此适配器在失败时把 close 码/失败步/原因写进**错误消息**（已脱敏），保证结束事实不丢失；若要在失败时也做 body 级断言，
+   需扩展 F01 在错误分支保留 `ExecResult`（属 F01 改动，本补丁不做）。
+2. **`Compile` 错误一律用 `*core.ConfigError`**：F01 `classifyError` 会把任何 ConfigError 标为 `FailureConfig/KindTargetPolicy`（较粗），
+   错误消息里会保留真实原因；如需更细分类，需 F01 调整分类逻辑。
+3. **GraphQL 订阅不进 Runner**：实时订阅由桌面 `graphql_subscription_ui.go` 承担。
+4. **二进制 `file` 步**：项目内相对路径走 `ExecuteOptions.ProjectFiles`（有界），否则按本地绝对路径读取，`Compile` 统一按 `MaxBinaryFileBytes` 截断校验。
+5. **计划摘要校验**：`PlanRef.Digest` 与磁盘不一致时，`PreflightProtocol` 直接以 ConfigError 失败（提示“计划已被改动”），不静默执行改动后的步骤。
+6. **目标策略确认**：Runner 为非交互上下文（`Interactive=false, Confirmed=false`），需要确认的生产目标会在 `PromptRequiredBy` 处失败，而不是自动放行。
+
+## 9. go.mod / go.sum（公共文件，不随本提交）
+
+本卡实现提交**不含** `go.mod`/`go.sum`（属集成人单写公共文件）。新增代码用到 `github.com/vektah/gqlparser/v2`（基线已 require）与其间接依赖 `github.com/agnivade/levenshtein v1.2.2`。在仅检出本提交的树上 `go build` 会提示 `updates to go.mod needed; go mod tidy`。
+
+集成动作：合并后执行 `go mod tidy`（或在已包含该间接依赖的集成树中无需任何改动）。F02 分支为便于本地构建保留了这条 `// indirect` 改动的**工作区未提交**状态，未进入提交，也不删除。

@@ -27,6 +27,16 @@ func (s *Session) Events() *stream.Log { return s.log }
 // StreamID returns the correlation ID shared by every event of this session.
 func (s *Session) StreamID() string { return s.log.StreamID() }
 
+// Done is closed when the read pump stops (peer close, lost connection, abort
+// or pre-network rejection). It lets in-process protocol drivers wait for a
+// terminal event without polling the stream log. nil for a nil session.
+func (s *Session) Done() <-chan struct{} {
+	if s == nil {
+		return nil
+	}
+	return s.readDone
+}
+
 // State returns the current session state.
 func (s *Session) State() State {
 	s.mu.mu.Lock()
@@ -105,18 +115,31 @@ func (s *Session) connForWrite() (*websocket.Conn, error) {
 // sensitive marks payloads built from secret material: their stored payloads
 // and summaries are redacted at append time via the session Redactor.
 func (s *Session) SendText(ctx context.Context, payload string, sensitive bool) error {
+	_, err := s.SendTextSeq(ctx, payload, sensitive)
+	return err
+}
+
+// SendTextSeq is SendText returning the outbound timeline sequence so a
+// protocol runner can reference the exact sent fact in its report.
+func (s *Session) SendTextSeq(ctx context.Context, payload string, sensitive bool) (uint64, error) {
 	return s.sendPayload(ctx, websocket.TextMessage, []byte(payload), sensitive)
 }
 
 // SendBinary sends one logical binary message.
 func (s *Session) SendBinary(ctx context.Context, payload []byte, sensitive bool) error {
+	_, err := s.SendBinarySeq(ctx, payload, sensitive)
+	return err
+}
+
+// SendBinarySeq is SendBinary returning the outbound timeline sequence.
+func (s *Session) SendBinarySeq(ctx context.Context, payload []byte, sensitive bool) (uint64, error) {
 	return s.sendPayload(ctx, websocket.BinaryMessage, payload, sensitive)
 }
 
-func (s *Session) sendPayload(ctx context.Context, mt int, payload []byte, sensitive bool) error {
+func (s *Session) sendPayload(ctx context.Context, mt int, payload []byte, sensitive bool) (uint64, error) {
 	conn, err := s.connForWrite()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if int64(len(payload)) > s.opts.EffectiveMaxMessageBytes() {
 		err := configErrorf("outbound message is %d bytes; the session limit is %d", len(payload), s.opts.EffectiveMaxMessageBytes())
@@ -125,12 +148,12 @@ func (s *Session) sendPayload(ctx context.Context, mt int, payload []byte, sensi
 			Direction: stream.DirNone,
 			Summary:   s.redactError(err).Error(),
 		})
-		return err
+		return 0, err
 	}
 	if ctx != nil {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return 0, ctx.Err()
 		default:
 		}
 	}
@@ -157,7 +180,7 @@ func (s *Session) sendPayload(ctx context.Context, mt int, payload []byte, sensi
 			Summary:   fmt.Sprintf("send failed: %s", s.redactError(err).Error()),
 		})
 		s.finish(EndLostConnection, err)
-		return runErrorf("send failed: %w", err)
+		return 0, runErrorf("send failed: %w", err)
 	}
 
 	ev := s.log.Append(stream.Event{
@@ -180,7 +203,7 @@ func (s *Session) sendPayload(ctx context.Context, mt int, payload []byte, sensi
 		Sensitive: sensitive,
 	}, s.opts.EffectiveInboxCapacity())
 	s.mu.mu.Unlock()
-	return nil
+	return ev.Seq, nil
 }
 
 // redactPayload scrubs sensitive payload material for retention. Binary

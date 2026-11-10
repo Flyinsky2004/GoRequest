@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"context"
 	"strings"
 
 	"github.com/egoist/mygo/ui/editor"
@@ -20,7 +21,8 @@ import (
 
 // gqlTabState is the GraphQL workspace state of one request tab.
 type gqlTabState struct {
-	// section selects the upper pane: 0 document, 1 variables, 2 headers, 3 auth.
+	// section selects the upper pane: 0 document, 1 variables, 2 schema,
+	// 3 headers, 4 auth.
 	section int
 
 	// Drafts survive tab switches. The editors are views over them.
@@ -38,7 +40,30 @@ type gqlTabState struct {
 	// operation selection fails, so the dropdown remains useful.
 	parsedDoc string
 	parsed    []core.GraphQLOperation
+	selected  core.GraphQLOperation
 	parseErr  string
+	// diagnostics are offline schema validation errors with source locations.
+	diagnostics []core.GraphQLDiagnostic
+
+	// Local SDL schema (explicitly chosen by the user). schemaRef mirrors the
+	// request extension so a project-relative reference survives save/reopen.
+	schema        *core.GraphQLSchemaModel
+	schemaRef     core.GraphQLSchemaRef
+	schemaTried   bool
+	localSDLAbs   string // absolute path used when the file is outside .gorequest
+	schemaErr     string
+	schemaNotice  string
+	schemaSearch  string
+	schemaTypeSel string
+
+	// Explicit introspection preview (never fetched automatically).
+	introspecting    bool
+	introspectErr    string
+	introspect       *gqlIntrospectionPreview
+	introspectCancel context.CancelFunc
+
+	// sub is the live graphql-transport-ws subscription for this tab.
+	sub *gqlSubscriptionState
 
 	// resultSection selects the lower pane: 0 data, 1 errors, 2 raw, 3 headers.
 	resultSection int
@@ -90,9 +115,28 @@ func fillGraphQLTab(tab *Tab, req *core.Request) {
 	st.varGen = 0
 	st.parsedDoc = ""
 	st.parsed = nil
+	st.selected = core.GraphQLOperation{}
 	st.parseErr = ""
+	st.diagnostics = nil
+	st.schema = nil
+	st.schemaTried = false
+	st.localSDLAbs = ""
+	st.schemaErr = ""
+	st.schemaNotice = ""
+	st.schemaSearch = ""
+	st.schemaTypeSel = ""
+	st.introspect = nil
+	st.introspectErr = ""
+	st.introspecting = false
 	st.resultSection = 0
 	st.notice = ""
+	st.schemaRef = core.GraphQLSchemaRef{}
+	if req != nil {
+		if ref, ok := core.GraphQLSchemaRefFromRequest(req); ok {
+			st.schemaRef = ref
+		}
+	}
+	gqlTeardownSubscription(tab)
 }
 
 // isGraphQLTab reports whether a tab edits a protocol: graphql request.
@@ -179,7 +223,9 @@ func (a *App) openNewGraphQL() {
 	a.status = translate(a.msg().Created, entry.RelPath)
 }
 
-// gqlRefreshAnalysis reparses the document only when its text changed.
+// gqlRefreshAnalysis reparses the document only when its text changed. When a
+// local SDL schema is loaded it also validates the document fully offline and
+// keeps located diagnostics for display.
 func (st *gqlTabState) gqlRefreshAnalysis() {
 	if st == nil {
 		return
@@ -193,10 +239,25 @@ func (st *gqlTabState) gqlRefreshAnalysis() {
 	}
 	st.parsedDoc = doc
 	st.parsed = nil
-	analysis, err := core.AnalyzeGraphQL(doc, st.operationName)
+	st.selected = core.GraphQLOperation{}
+	st.diagnostics = nil
 	st.parseErr = ""
+	if st.schema != nil {
+		analysis, diags, err := st.schema.ValidateDocument(doc, st.operationName)
+		if analysis != nil {
+			st.parsed = analysis.Operations
+			st.selected = analysis.Selected
+		}
+		st.diagnostics = diags
+		if err != nil {
+			st.parseErr = err.Error()
+		}
+		return
+	}
+	analysis, err := core.AnalyzeGraphQLDocument(doc, st.operationName)
 	if analysis != nil {
 		st.parsed = analysis.Operations
+		st.selected = analysis.Selected
 	}
 	if err != nil {
 		st.parseErr = err.Error()
@@ -214,11 +275,33 @@ func (a *App) gqlSetOperation(tab *Tab, name string) {
 	tab.Dirty = true
 }
 
-// gqlCancel cancels the tab's in-flight request.
+// gqlCancel cancels the tab's in-flight request or live subscription.
 func (a *App) gqlCancel(tab *Tab) {
-	if tab != nil && tab.cancel != nil {
+	if tab == nil {
+		return
+	}
+	if tab.gql != nil && tab.gql.sub != nil && tab.gql.sub.running {
+		a.gqlSubCancel(tab)
+		return
+	}
+	if tab.cancel != nil {
 		tab.cancel()
 	}
+}
+
+// gqlSelectedOperation returns the operation selected in the last analysis.
+func (tab *Tab) gqlSelectedOperation() core.GraphQLOperation {
+	if tab == nil || tab.gql == nil {
+		return core.GraphQLOperation{}
+	}
+	return tab.gql.selected
+}
+
+// gqlSelectedIsSubscription reports whether Send must use graphql-transport-ws
+// instead of the HTTP executor.
+func (tab *Tab) gqlSelectedIsSubscription() bool {
+	return tab != nil && tab.Kind == "request" && isGraphQLTab(tab) &&
+		tab.gqlSelectedOperation().Type == "subscription"
 }
 
 // gqlResult classifies the tab's current response.

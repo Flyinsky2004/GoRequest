@@ -74,26 +74,56 @@ func NormalizeGraphQLMethod(method string) string {
 	return m
 }
 
-// AnalyzeGraphQL parses document with gqlparser and selects an operation.
+// AnalyzeGraphQL parses document with gqlparser and selects an operation for
+// GraphQL over HTTP.
 //
 // Selection rules follow the GraphQL specification's single-operation rules:
 // a multi-operation document requires an explicit operationName, anonymous
 // operations cannot be mixed with other operations, and names must be unique.
-// Subscriptions are rejected in phase 1 before any network call; the existing
-// WebSocket transport is not a GraphQL subscription implementation.
+// Subscriptions are rejected here because this function feeds the HTTP
+// executor; subscriptions are analyzed with AnalyzeGraphQLDocument and run
+// over graphql-transport-ws by the WebSocket layer.
 func AnalyzeGraphQL(document, operationName string) (*GraphQLAnalysis, error) {
+	analysis, err := AnalyzeGraphQLDocument(document, operationName)
+	if err != nil {
+		return analysis, err
+	}
+	if analysis.Selected.Type == string(ast.Subscription) {
+		return analysis, configErrorf("GraphQL subscriptions are not supported over HTTP; use the WebSocket subscription workspace")
+	}
+	return analysis, nil
+}
+
+// AnalyzeGraphQLDocument parses a document and selects one operation without
+// restricting its type, so an editor can offer subscription operations while
+// the HTTP path keeps rejecting them before any network call.
+func AnalyzeGraphQLDocument(document, operationName string) (*GraphQLAnalysis, error) {
+	_, analysis, err := parseGraphQLDocument(document)
+	if err != nil {
+		return analysis, err
+	}
+	if err := selectGraphQLOperation(analysis, operationName); err != nil {
+		return analysis, err
+	}
+	return analysis, nil
+}
+
+// parseGraphQLDocument performs the bounded parse and operation inventory.
+// Selection is a separate step so schema validation can keep the operation
+// list even when operationName selection fails.
+func parseGraphQLDocument(document string) (*ast.QueryDocument, *GraphQLAnalysis, error) {
 	if len(document) > MaxGraphQLDocumentBytes {
-		return nil, configErrorf("graphql document exceeds %d bytes", MaxGraphQLDocumentBytes)
+		return nil, nil, configErrorf("graphql document exceeds %d bytes", MaxGraphQLDocumentBytes)
 	}
 	if strings.TrimSpace(document) == "" {
-		return nil, configErrorf("graphql document is required")
+		return nil, nil, configErrorf("graphql document is required")
 	}
 	doc, err := parser.ParseQueryWithTokenLimit(&ast.Source{
 		Name:  "request.graphql",
 		Input: document,
 	}, MaxGraphQLTokens)
 	if err != nil {
-		return nil, graphQLParseError(err)
+		return nil, nil, graphQLParseError(err)
 	}
 	analysis := &GraphQLAnalysis{}
 	seen := map[string]bool{}
@@ -111,43 +141,42 @@ func AnalyzeGraphQL(document, operationName string) (*GraphQLAnalysis, error) {
 		if info.Name == "" {
 			anonymous++
 		} else if seen[info.Name] {
-			return analysis, configErrorf("graphql document defines duplicate operation name %q", info.Name)
+			return doc, analysis, configErrorf("graphql document defines duplicate operation name %q", info.Name)
 		} else {
 			seen[info.Name] = true
 		}
 		analysis.Operations = append(analysis.Operations, info)
 	}
 	if len(analysis.Operations) == 0 {
-		return analysis, configErrorf("graphql document contains no operations")
+		return doc, analysis, configErrorf("graphql document contains no operations")
 	}
 	if len(analysis.Operations) > 1 && anonymous > 0 {
-		return analysis, configErrorf("an anonymous operation cannot be combined with other operations")
+		return doc, analysis, configErrorf("an anonymous operation cannot be combined with other operations")
 	}
+	return doc, analysis, nil
+}
 
+// selectGraphQLOperation applies the single-operation selection rules.
+func selectGraphQLOperation(analysis *GraphQLAnalysis, operationName string) error {
+	if analysis == nil {
+		return configErrorf("graphql document is required")
+	}
 	name := strings.TrimSpace(operationName)
 	switch {
 	case name != "":
-		found := false
 		for _, op := range analysis.Operations {
 			if op.Name == name {
 				analysis.Selected = op
-				found = true
-				break
+				return nil
 			}
 		}
-		if !found {
-			return analysis, configErrorf("graphql operationName %q not found (available: %s)", name, graphQLOperationNames(analysis.Operations))
-		}
+		return configErrorf("graphql operationName %q not found (available: %s)", name, graphQLOperationNames(analysis.Operations))
 	case len(analysis.Operations) == 1:
 		analysis.Selected = analysis.Operations[0]
+		return nil
 	default:
-		return analysis, configErrorf("graphql document defines %d operations; operationName is required (available: %s)", len(analysis.Operations), graphQLOperationNames(analysis.Operations))
+		return configErrorf("graphql document defines %d operations; operationName is required (available: %s)", len(analysis.Operations), graphQLOperationNames(analysis.Operations))
 	}
-
-	if analysis.Selected.Type == string(ast.Subscription) {
-		return analysis, configErrorf("GraphQL subscriptions are not supported in this phase")
-	}
-	return analysis, nil
 }
 
 func graphQLOperationNames(ops []GraphQLOperation) string {
