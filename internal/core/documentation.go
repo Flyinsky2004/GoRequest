@@ -1,12 +1,14 @@
 package core
 
 import (
+	"context"
 	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"gorequest/internal/diagram"
 	"gorequest/internal/markdown"
 )
 
@@ -428,7 +430,7 @@ func MarkdownCompatibility() []MarkdownFeature {
 		feature("Extension", "Dollar math", "$x$", dollarMath, "Requires ExtDollarMath; off in this build."),
 		feature("Unsupported", "YAML front matter", "---\ntitle: x\n---", frontMatter, "Parsed as a rule and text, not as metadata."),
 		feature("Unsupported", "Definition lists", "Term\n: definition", definitionList, "No definition-list syntax."),
-		feature("Unsupported", "Mermaid rendering", "```mermaid\ngraph TD\n```", mermaidRender, "Source shown in a code block; rendering belongs to C03."),
+		feature("Extension", "Mermaid (offline subset)", "```mermaid\nflowchart TD\n  A-->B\n```", mermaidRender, "Offline flowchart and sequenceDiagram subset; unsupported syntax keeps its source and reports the exact reason."),
 	}
 }
 
@@ -649,13 +651,15 @@ func definitionList() bool {
 }
 
 func mermaidRender() bool {
-	d := parseDoc("```mermaid\ngraph TD\nA-->B\n```\n")
-	b, ok := firstBlock(d, markdown.CodeBlock)
-	// Parsing the fence is not rendering it; the native Mermaid renderer is
-	// explicitly out of this task (C03), so the row stays unsupported even
-	// though the source round-trips as a Mermaid-labelled code block.
-	_ = ok && b.Language() == "mermaid"
-	return false
+	// The offline renderer must handle both delivered diagram types before
+	// this row claims support.
+	if _, d := diagram.Render(context.Background(), "flowchart TD\n  A-->B\n", diagram.Options{}); d != nil {
+		return false
+	}
+	if _, d := diagram.Render(context.Background(), "sequenceDiagram\n  A->>B: hi\n", diagram.Options{}); d != nil {
+		return false
+	}
+	return true
 }
 
 // --- small path helpers ---------------------------------------------------

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"gorequest/internal/diagram"
 	"gorequest/internal/markdown"
 )
 
@@ -357,7 +359,17 @@ func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
 			add(b.Start, SeverityInfo, DiagHTMLNotExecuted, "", "raw HTML is shown as source text and is never executed")
 		case markdown.CodeBlock:
 			if strings.EqualFold(b.Language(), "mermaid") {
-				add(b.Start, SeverityInfo, DiagMermaid, "", "Mermaid rendering is not part of this build; the source is shown")
+				body := fencedCodeBody(src, b)
+				if _, d := diagram.Render(context.Background(), body, diagram.Options{}); d != nil {
+					// Report the line in document coordinates. The diagram
+					// parser knows the line within the fence.
+					line, _, _ := lineColumnAt(src, b.Start)
+					out = append(out, DocDiagnostic{
+						RelPath: docRel, Line: line + d.Line, Column: d.Column,
+						Severity: SeverityWarning, Kind: DiagMermaid,
+						Message: "Mermaid diagram is not rendered: " + d.Message + "; the source is kept",
+					})
+				}
 			}
 		}
 		for _, in := range d.Inlines(i) {
@@ -407,6 +419,23 @@ func (p *Project) DiagnoseDoc(docRel, src string) []DocDiagnostic {
 		return out[i].Line < out[j].Line
 	})
 	return out
+}
+
+// fencedCodeBody extracts a fenced block's content. The project parser ends
+// a fenced block at its last content line, so the closing fence is optional.
+func fencedCodeBody(src string, b markdown.Block) string {
+	raw := src[b.Start:b.End]
+	lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
+	if len(lines) > 0 {
+		lines = lines[1:]
+	}
+	if len(lines) > 0 {
+		last := strings.TrimSpace(lines[len(lines)-1])
+		if strings.HasPrefix(last, "```") || strings.HasPrefix(last, "~~~") {
+			lines = lines[:len(lines)-1]
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // --- destination helpers --------------------------------------------------

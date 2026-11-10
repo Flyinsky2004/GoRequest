@@ -183,7 +183,7 @@ func TestMarkdownCompatibilityMatrixMatchesParser(t *testing.T) {
 		"Inline HTML": true, "Backslash escapes and entities": true,
 		"Tables": true, "Task lists": true, "Strikethrough": true, "Bare autolinks": true,
 		"Footnotes": true, "Math": true, "Dollar math": false,
-		"YAML front matter": false, "Definition lists": false, "Mermaid rendering": false,
+		"YAML front matter": false, "Definition lists": false, "Mermaid (offline subset)": true,
 	}
 	if len(m) != len(want) {
 		t.Fatalf("matrix has %d rows, want %d", len(m), len(want))

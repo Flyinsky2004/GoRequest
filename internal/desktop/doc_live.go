@@ -268,6 +268,9 @@ func (a *App) docCanvasAddArea(c *ui.Context, t *ui.Theme, p uikit.Palette, tab 
 // its in-place editor on a click.
 func (a *App) docCanvasRenderedBlock(c *ui.Context, t *ui.Theme, p uikit.Palette, tab *Tab, st *docViewState, b docedit.Block, opts *markdown.Options, dm *docLiveMessages) {
 	if b.Kind == docmd.CodeBlock {
+		if a.docDiagramCodeBlock(c, t, tab, st, b, nil) {
+			return
+		}
 		a.docCanvasCodeBlock(c, t, tab, st, b, nil)
 		return
 	}
@@ -379,6 +382,7 @@ func (a *App) docCanvasActiveBlock(c *ui.Context, t *ui.Theme, tab *Tab, st *doc
 	}
 	a.syncDocBlockTheme(be, t)
 	if be.kind == docmd.CodeBlock {
+		a.docDiagramEditToolbar(c, t, tab, st, be)
 		a.docCanvasCodeBlock(c, t, tab, st, docedit.Block{}, be)
 		return
 	}
@@ -558,6 +562,7 @@ func (a *App) docCanvasMarkdownOptions(c *ui.Context, root ui.Element, tab *Tab,
 		return ui.DecodeBitmap(data)
 	}
 	o.OnLink = func(dest string) { a.handleDocLink(c, root, tab, st, dest) }
+	a.installDocDiagramCode(o, st)
 	o.Anchor = ""
 	o.AnchorVersion = 0
 	return o

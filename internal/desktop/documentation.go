@@ -610,6 +610,9 @@ func (dm *docMessages) diagText(d core.DocDiagnostic) string {
 	case core.DiagHTMLNotExecuted:
 		return dm.DiagHTML
 	case core.DiagMermaid:
+		if d.Message != "" {
+			return d.Message
+		}
 		return dm.DiagMermaid
 	case docgen.DiagBadReference, docgen.DiagRefNoCard, docgen.DiagStrayEnd, docgen.DiagTooManyRefs, docgen.DiagScrubbed:
 		return d.Message
@@ -677,6 +680,7 @@ func (a *App) docMarkdownOptions(c *ui.Context, root ui.Element, tab *Tab, st *d
 		return ui.DecodeBitmap(data)
 	}
 	o.OnLink = func(dest string) { a.handleDocLink(c, root, tab, st, dest) }
+	a.installDocDiagramCode(o, st)
 	o.Anchor = st.anchor
 	o.AnchorVersion = st.anchorVersion
 	return o

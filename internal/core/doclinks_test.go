@@ -123,6 +123,13 @@ func TestDiagnoseDocReportsPositionedFindings(t *testing.T) {
 		"![remote](https://example.com/x.png)",
 		"```mermaid",
 		"graph TD",
+		"  A --> B",
+		"```",
+		"```mermaid",
+		"flowchart TD",
+		"  subgraph S",
+		"  A --> B",
+		"  end",
 		"```",
 		"<script>alert(1)</script>",
 		"",
@@ -144,8 +151,15 @@ func TestDiagnoseDocReportsPositionedFindings(t *testing.T) {
 	if len(byKind[DiagRemoteImage]) != 1 || byKind[DiagRemoteImage][0].Line != 6 {
 		t.Errorf("remote image: %+v", byKind[DiagRemoteImage])
 	}
-	if len(byKind[DiagMermaid]) != 1 || byKind[DiagMermaid][0].Line != 7 {
-		t.Errorf("mermaid: %+v", byKind[DiagMermaid])
+	// A supported flowchart is drawn, so it reports nothing. The unsupported
+	// subgraph reports one warning at the real document line, never a
+	// partial diagram.
+	if len(byKind[DiagMermaid]) != 1 {
+		t.Fatalf("mermaid diagnostics: %+v", byKind[DiagMermaid])
+	}
+	md := byKind[DiagMermaid][0]
+	if md.Line != 13 || md.Severity != SeverityWarning || !strings.Contains(md.Message, "subgraph") {
+		t.Fatalf("mermaid diagnostic: %+v", md)
 	}
 	if len(byKind[DiagHTMLNotExecuted]) < 1 {
 		t.Errorf("html: %+v", byKind[DiagHTMLNotExecuted])

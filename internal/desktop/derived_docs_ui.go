@@ -190,6 +190,9 @@ func (a *App) derivedDiagText(d core.DocDiagnostic) string {
 	case core.DiagHTMLNotExecuted:
 		return base.DiagHTML
 	case core.DiagMermaid:
+		if d.Message != "" {
+			return d.Message
+		}
 		return base.DiagMermaid
 	case core.DiagBadLink:
 		return fmt.Sprintf(base.DiagBadLink, d.Dest)
