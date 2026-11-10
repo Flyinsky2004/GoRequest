@@ -23,6 +23,7 @@ type SDKState struct {
 
 	// Inputs.
 	SpecVersionIdx     int // 0: OpenAPI 3.1.2, 1: OpenAPI 3.2.1
+	LanguageIdx        int // 0: Go, 1: TypeScript
 	PackageName        string
 	ModulePath         string
 	TargetDir          string
@@ -165,7 +166,12 @@ func (a *App) sdkOptions(st *SDKState) sdkgen.Options {
 	if a != nil && a.ps != nil {
 		root = a.ps.root
 	}
+	lang := sdkgen.LanguageGo
+	if st.LanguageIdx == 1 {
+		lang = sdkgen.LanguageTypeScript
+	}
 	return sdkgen.Options{
+		Language:           lang,
 		PackageName:        strings.TrimSpace(st.PackageName),
 		ModulePath:         strings.TrimSpace(st.ModulePath),
 		TargetDir:          strings.TrimSpace(st.TargetDir),

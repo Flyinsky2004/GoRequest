@@ -1,32 +1,56 @@
-// Package sdkgen generates a compilable Go HTTP client from an explicit
-// OpenAPI 3.1/3.2 contract snapshot.
+// Package sdkgen generates a compilable HTTP SDK from an explicit OpenAPI
+// 3.1/3.2 contract snapshot.
 //
 // The pipeline is deliberately layered so every step is inspectable before
 // anything reaches disk:
 //
-//	SpecSnapshot -> Parse/Validate -> SupportedOperations -> GeneratedFiles
-//	             -> Preview -> Apply
+//	SpecSnapshot -> Parse/Validate -> Schema model -> SupportedOperations
+//	             -> GeneratedFiles -> Preview -> Apply
 //
 // The generator never reads secrets, device state, cookies, history, tokens or
 // network resources. Callers pass a snapshot produced by core.ExportOpenAPI
 // (JSON, fixed target version, strict lossy rejection). Generated code uses
-// only the Go standard library; authentication is supplied by the caller
-// through Client.Auth and is never embedded.
+// only the Go standard library (for Go) or the platform fetch API (for
+// TypeScript); authentication is supplied by the caller and never embedded.
 package sdkgen
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
-// GeneratorVersion and TemplateVersion are recorded in every manifest. They are
-// fixed for this phase so repeated generation is byte-stable and an unexpected
-// version change is refused rather than guessed.
+// Language selects the generated SDK backend.
+type Language string
+
 const (
-	GeneratorVersion = "sdkgen-go/1"
-	TemplateVersion  = "1"
+	LanguageGo         Language = "go"
+	LanguageTypeScript Language = "typescript"
 )
+
+func (l Language) String() string { return string(l) }
+
+// GeneratorVersion and the per-language TemplateVersion are recorded in every
+// manifest. They are fixed for this phase so repeated generation is
+// byte-stable and an unexpected version change is refused rather than guessed.
+const (
+	GeneratorVersion          = "sdkgen/2"
+	TemplateVersionGo         = "go/2"
+	TemplateVersionTypeScript = "ts/1"
+	// TemplateVersion is the Go template version, kept as an alias for callers
+	// written against the first Go-only generator.
+	TemplateVersion = TemplateVersionGo
+)
+
+// TemplateVersionFor returns the template version of a language.
+func TemplateVersionFor(lang Language) string {
+	if lang == LanguageTypeScript {
+		return TemplateVersionTypeScript
+	}
+	return TemplateVersionGo
+}
 
 // Output limits bound one generation before anything is written.
 const (
@@ -58,10 +82,14 @@ var (
 
 // Options configures one generation and its preview/apply.
 type Options struct {
-	// PackageName is the Go package name declared by every generated source
-	// file. It must be a valid, non-keyword identifier and not "main".
+	// Language selects the backend. An empty value means Go, so callers written
+	// against the first Go-only generator keep working.
+	Language Language
+	// PackageName is the Go package name / TypeScript package name declared by
+	// the generated files. It must be a valid, non-keyword Go identifier.
 	PackageName string
-	// ModulePath is written to the generated go.mod.
+	// ModulePath is written to the generated go.mod and used as the npm package
+	// name for TypeScript.
 	ModulePath string
 	// TargetDir is the absolute output directory. It must be outside the
 	// project root and the project store.
@@ -104,7 +132,7 @@ type File struct {
 	RelPath string
 	Content []byte
 	Digest  string
-	// Kind is "module", "source", "readme" or "manifest".
+	// Kind is "module", "source", "readme", "config" or "manifest".
 	Kind string
 }
 
@@ -112,7 +140,7 @@ type File struct {
 type Operation struct {
 	Method      string // upper-case HTTP method
 	Path        string // OpenAPI path template
-	GoName      string // exported Go method name
+	GoName      string // exported Go method name / TypeScript function base
 	OperationID string // effective operationId (provided or derived)
 	Summary     string
 	Deprecated  bool
@@ -120,10 +148,28 @@ type Operation struct {
 	// (names only, never credentials).
 	Security []string
 
-	// paramsList and body are the resolved generation inputs; they stay
-	// unexported so the public result is a stable description.
-	paramsList []paramSpec
-	body       *bodySpec
+	// BodyType names the generated request body model, empty when the operation
+	// has no JSON request body.
+	BodyType string
+	// Responses lists the declared response bodies that were mapped to a model.
+	Responses []ResponseSummary
+	// TypedName and ResultName are the additive typed Go helpers. Legacy
+	// methods keep their (*Response, error) signature.
+	TypedName  string
+	ResultName string
+
+	// paramsList, body and responseTypes are the resolved generation inputs;
+	// they stay unexported so the public result is a stable description.
+	paramsList    []paramSpec
+	body          *bodySpec
+	responseTypes []responseType
+	rawResponses  map[string]json.RawMessage
+}
+
+// ResponseSummary describes one typed response body.
+type ResponseSummary struct {
+	Status string
+	Model  string
 }
 
 // UnsupportedOperation explains why one operation was skipped.
@@ -145,6 +191,7 @@ type Diagnostic struct {
 // Result is the complete in-memory generation output. It is deterministic for
 // a given snapshot and options.
 type Result struct {
+	Language         string
 	SpecVersion      string
 	SpecDigest       string
 	GeneratorVersion string
@@ -153,6 +200,7 @@ type Result struct {
 	ModulePath       string
 	Files            []File
 	Operations       []Operation
+	Models           []ModelSummary
 	Unsupported      []UnsupportedOperation
 	Diagnostics      []Diagnostic
 	Manifest         Manifest
@@ -177,6 +225,35 @@ func Generate(snapshot []byte, opts Options) (*Result, error) {
 	if len(unsupported) > 0 && !opts.IncludeUnsupported {
 		return nil, &UnsupportedError{Operations: unsupported}
 	}
+
+	assignOperationNames(ops)
+	names := newNameAllocator(reservedTypeNames)
+	for _, op := range ops {
+		names.Reserve(op.GoName)
+	}
+
+	comp := newTypeCompiler(doc, names)
+	kept := make([]Operation, 0, len(ops))
+	for _, op := range ops {
+		mark := comp.mark()
+		built, reason := compileOperationTypes(comp, &op)
+		if reason != "" {
+			comp.rollback(mark)
+			unsupported = append(unsupported, UnsupportedOperation{
+				Method:      op.Method,
+				Path:        op.Path,
+				OperationID: op.OperationID,
+				Reason:      reason,
+			})
+			continue
+		}
+		kept = append(kept, *built)
+	}
+	sortUnsupported(unsupported)
+	if len(unsupported) > 0 && !opts.IncludeUnsupported {
+		return nil, &UnsupportedError{Operations: unsupported}
+	}
+	diags = append(diags, comp.diags...)
 	if opts.IncludeUnsupported {
 		for _, u := range unsupported {
 			diags = append(diags, Diagnostic{
@@ -187,21 +264,27 @@ func Generate(snapshot []byte, opts Options) (*Result, error) {
 			})
 		}
 	}
-	assignOperationNames(ops)
+	assignTypedNames(kept, names)
+	for i := range kept {
+		kept[i].Responses = kept[i].responseSummaries()
+	}
+
 	specDigest := digestBytes(snapshot)
-	files, manifest, err := buildFiles(doc, opts, ops, unsupported, diags, specDigest)
+	files, manifest, err := buildFiles(doc, opts, kept, unsupported, diags, specDigest, comp)
 	if err != nil {
 		return nil, err
 	}
 	result := &Result{
+		Language:         string(opts.Language),
 		SpecVersion:      doc.OpenAPI,
 		SpecDigest:       specDigest,
 		GeneratorVersion: GeneratorVersion,
-		TemplateVersion:  TemplateVersion,
+		TemplateVersion:  TemplateVersionFor(opts.Language),
 		PackageName:      opts.PackageName,
 		ModulePath:       opts.ModulePath,
 		Files:            files,
-		Operations:       ops,
+		Operations:       kept,
+		Models:           comp.summaries(),
 		Unsupported:      unsupported,
 		Diagnostics:      diags,
 		Manifest:         manifest,
@@ -216,6 +299,64 @@ func Generate(snapshot []byte, opts Options) (*Result, error) {
 		return nil, fmt.Errorf("%w: %d bytes exceeds limit %d", ErrLimitExceeded, result.TotalBytes, opts.maxTotalBytes())
 	}
 	return result, nil
+}
+
+// compileOperationTypes resolves request and response schemas for one
+// operation. It returns a reason (not an error) when the schemas cannot be
+// represented faithfully.
+func compileOperationTypes(comp *typeCompiler, op *Operation) (*Operation, string) {
+	if op.body != nil && len(op.body.Schema) > 0 {
+		t, err := comp.compileRoot(op.body.Schema, op.GoName+"Body",
+			"operation "+op.Method+" "+op.Path+" requestBody", true)
+		if err != nil {
+			return nil, "request body schema: " + err.Error()
+		}
+		op.BodyType = t.Ref
+	}
+	types, err := compileResponseTypes(comp, op)
+	if err != nil {
+		return nil, err.Error()
+	}
+	op.responseTypes = types
+	return op, ""
+}
+
+// responseType is one declared response body mapped to a model.
+type responseType struct {
+	Status string
+	Type   *Type
+}
+
+func (o *Operation) responseSummaries() []ResponseSummary {
+	out := make([]ResponseSummary, 0, len(o.responseTypes))
+	for _, r := range o.responseTypes {
+		if r.Type == nil || r.Type.Kind != TypeModel {
+			continue
+		}
+		out = append(out, ResponseSummary{Status: r.Status, Model: r.Type.Ref})
+	}
+	return out
+}
+
+// assignTypedNames allocates the additive typed helper names after models have
+// claimed their names, so no generated identifier collides.
+func assignTypedNames(ops []Operation, names *nameAllocator) {
+	for i := range ops {
+		if len(ops[i].responseTypes) == 0 {
+			continue
+		}
+		ops[i].TypedName = names.Allocate(ops[i].GoName + "Typed")
+		ops[i].ResultName = names.Allocate(ops[i].GoName + "Result")
+	}
+}
+
+func sortUnsupported(list []UnsupportedOperation) {
+	sort.SliceStable(list, func(i, j int) bool {
+		if list[i].Path == list[j].Path {
+			return list[i].Method < list[j].Method
+		}
+		return list[i].Path < list[j].Path
+	})
 }
 
 // UnsupportedError carries the operation-level reasons for a blocked run.
@@ -241,8 +382,28 @@ func (e *UnsupportedError) Error() string {
 
 func (e *UnsupportedError) Unwrap() error { return ErrUnsupportedOperations }
 
+// normalizeLanguage validates and defaults the language.
+func normalizeLanguage(raw Language) (Language, error) {
+	s := strings.ToLower(strings.TrimSpace(string(raw)))
+	switch s {
+	case "":
+		return LanguageGo, nil
+	case string(LanguageGo):
+		return LanguageGo, nil
+	case string(LanguageTypeScript), "ts":
+		return LanguageTypeScript, nil
+	default:
+		return "", fmt.Errorf("sdkgen: unsupported language %q (supported: go, typescript)", raw)
+	}
+}
+
 // normalizeOptions validates and normalizes options without touching disk.
 func normalizeOptions(opts Options) (Options, error) {
+	lang, err := normalizeLanguage(opts.Language)
+	if err != nil {
+		return opts, err
+	}
+	opts.Language = lang
 	pkg, err := normalizePackageName(opts.PackageName)
 	if err != nil {
 		return opts, err
